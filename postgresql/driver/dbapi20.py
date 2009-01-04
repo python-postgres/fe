@@ -84,7 +84,7 @@ class Cursor(object):
 	def callproc(self, proname, args):
 		p = self.pg_api_c.query("SELECT %s(%s)" %(
 			proname, ','.join([
-				'$%d' %(x,) for x in xrange(1, len(args) + 1)
+				'$%d' %(x,) for x in range(1, len(args) + 1)
 			])
 		))
 		self.__portals.insert(0, p(*args))
@@ -116,8 +116,8 @@ class Cursor(object):
 		pnmap = {}
 		plist = []
 		nseq = []
-		for x in xrange(len(parameters)):
-			pnmap[parameters[x][0]] = '$' + unicode(x + 1)
+		for x in range(len(parameters)):
+			pnmap[parameters[x][0]] = '$' + str(x + 1)
 			plist.append(parameters[x][1])
 			nseq.append(parameters[x][0])
 		# Substitute %(key)s with the $x positional parameter number

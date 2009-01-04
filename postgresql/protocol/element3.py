@@ -846,7 +846,7 @@ class CopyBegin(Message):
 		if len(formats_str) != natts * 2:
 			raise ProtocolError("number of formats and data do not match up")
 		return subtype(format, [
-			UNSHORT(formats_str[x:x+2]) for x in xrange(0, natts * 2, 2)
+			UNSHORT(formats_str[x:x+2]) for x in range(0, natts * 2, 2)
 		])
 	parse = classmethod(parse)
 

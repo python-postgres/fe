@@ -5,7 +5,7 @@
 import sys
 import os
 import unittest
-import thread
+import threading
 import time
 import datetime
 
@@ -29,8 +29,8 @@ type_samples = (
 		),
 	),
 	('bytea', (
-			''.join([chr(x) for x in xrange(256)]),
-			''.join([chr(x) for x in xrange(255, -1, -1)]),
+			''.join([chr(x) for x in range(256)]),
+			''.join([chr(x) for x in range(255, -1, -1)]),
 		),
 	),
 	('smallint[]', (
@@ -83,7 +83,7 @@ class test_pgapi(unittest.TestCase):
 			else:
 				l.append(None)
 		rl = []
-		thread.start_new_thread(sendint, (rl,))
+		threading.start_new_thread(sendint, (rl,))
 		self.failUnlessRaises(pg_exc.QueryCanceledError,
 			execute, "SELECT pg_sleep(5)")
 		b = time.time()

@@ -1005,7 +1005,7 @@ class StoredProcedure(pg_api.StoredProcedure):
 				)
 			word_idx.sort(cmp = lambda x, y: cmp(x[1], y[1]))
 			current_word = word_idx.pop(0)
-			for x in xrange(argc):
+			for x in range(argc):
 				if x == current_word[1]:
 					input.append(current_word[0])
 					current_word = word_idx.pop(0)
@@ -1048,7 +1048,7 @@ class StoredProcedure(pg_api.StoredProcedure):
 
 		self._input_attmap = {}
 		argnames = proctup.get('proargnames') or ()
-		for x in xrange(len(argnames)):
+		for x in range(len(argnames)):
 			an = argnames[x]
 			if an is not None:
 				self._input_attmap[an] = x
@@ -1060,7 +1060,7 @@ class StoredProcedure(pg_api.StoredProcedure):
 				# ($1::type, $2::type, ... $n::type)
 				', '.join([
 					 '$%d::%s' %(x + 1, proargs[x])
-					 for x in xrange(len(proargs))
+					 for x in range(len(proargs))
 				]),
 				# Description for anonymous record returns
 				(description and \

@@ -352,7 +352,7 @@ def record_unpack(data):
 	columns = long_unpack(data[0:4])
 	offset = 4
 
-	for x in xrange(columns):
+	for x in range(columns):
 		typid = oid_unpack(data[offset:offset+4])
 		offset += 4
 

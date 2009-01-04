@@ -9,7 +9,7 @@ import postgresql.encodings.bytea
 
 class test_bytea_codec(unittest.TestCase):
 	def testEncoding(self):
-		for x in xrange(255):
+		for x in range(255):
 			c = chr(x)
 			b = c.encode('bytea')
 			if c == '\\':
@@ -29,7 +29,7 @@ class test_bytea_codec(unittest.TestCase):
 		self.failUnlessRaises(ValueError, r'\f'.decode, 'bytea')
 		self.failUnlessRaises(ValueError, r'\800'.decode, 'bytea')
 		self.failUnlessRaises(ValueError, r'\7f0'.decode, 'bytea')
-		for x in xrange(255):
+		for x in range(255):
 			seq = ('\\' + oct(x).lstrip('0').rjust(3, '0'))
 			dx = ord(seq.decode('bytea'))
 			if dx != x:

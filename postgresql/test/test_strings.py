@@ -247,24 +247,24 @@ class test_strings(unittest.TestCase):
 			'""""',
 		)
 		chars = ''.join([
-			unichr(x) for x in xrange(10000)
-			if unichr(x) != '"'
+			chr(x) for x in range(10000)
+			if chr(x) != '"'
 		])
 		self.failUnlessEqual(
 			pg_str.escape_ident(chars),
 			chars,
 		)
 		chars = ''.join([
-			unichr(x) for x in xrange(10000)
-			if unichr(x) != "'"
+			chr(x) for x in range(10000)
+			if chr(x) != "'"
 		])
 		self.failUnlessEqual(
 			pg_str.escape_literal_strict(chars),
 			chars,
 		)
 		chars = ''.join([
-			unichr(x) for x in xrange(10000)
-			if unichr(x) not in "\\'"
+			chr(x) for x in range(10000)
+			if chr(x) not in "\\'"
 		])
 		self.failUnlessEqual(
 			pg_str.escape_literal(chars),

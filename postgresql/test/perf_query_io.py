@@ -11,8 +11,8 @@ import sys
 
 def insertSamples(count, insert_records):
 	recs = [
-		(-3, 123, 0xfffffea023, u'some_óäæ_thing', 'varying', u'æ')
-		for x in xrange(count)
+		(-3, 123, 0xfffffea023, 'some_óäæ_thing', 'varying', 'æ')
+		for x in range(count)
 	]
 
 	gen = time.time()

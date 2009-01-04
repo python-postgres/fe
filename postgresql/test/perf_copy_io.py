@@ -32,7 +32,7 @@ def testSpeed(tuples = 50000 * 3):
 		data = [incsize('\t'.join((
 			str(x), getWord(), getWord(),
 			getWord(), getWord(), getWord()
-		)))+'\n' for x in xrange(tuples)]
+		)))+'\n' for x in range(tuples)]
 
 		sys.stderr.write("starting copy...\n")
 		start = time.time()

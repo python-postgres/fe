@@ -42,7 +42,7 @@ def parse_line(line, equality = '=', comment = comment, quote = quote):
 		inquotes = False
 		escaped = False
 		val_len = 0
-		for i in xrange(preval_len, len(val)):
+		for i in range(preval_len, len(val)):
 			c = val[i]
 			if c == quote:
 				if inquotes is False:

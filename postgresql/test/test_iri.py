@@ -9,8 +9,8 @@ def cmbx(t):
 	'Yield a list of combinations using a mask'
 	tl = len(t)
 	return [
-		[x & m and t[x-1] or '' for x in xrange(1, tl + 1)]
-		for m in xrange(1, (2 ** tl) + 1)
+		[x & m and t[x-1] or '' for x in range(1, tl + 1)]
+		for m in range(1, (2 ** tl) + 1)
 	]
 
 iri_samples = (

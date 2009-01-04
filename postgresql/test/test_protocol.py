@@ -68,7 +68,7 @@ class buffer_test(object):
 		range = 10000
 		b.write('X' + struct.pack("!L", factor * range + 4))
 		segment = '\0' * factor
-		for x in xrange(range-1):
+		for x in range(range-1):
 			b.write(segment)
 		b.write(segment)
 		msg = b.next_message()

@@ -210,9 +210,9 @@ class Transaction(object):
 		order. Last in, first out.
 		"""
 		r = []
-		for x in xrange(len(self.completed) - 1, -1, -1):
+		for x in range(len(self.completed) - 1, -1, -1):
 			c = self.completed[x][1]
-			for y in xrange(len(c) - 1, -1, -1):
+			for y in range(len(c) - 1, -1, -1):
 				r.append(c[y])
 		return r
 
@@ -258,7 +258,7 @@ class Transaction(object):
 					if cmd.type not in (
 						element.Function.type, element.Query.type
 					):
-						for offset in xrange(offset, len(self.commands)):
+						for offset in range(offset, len(self.commands)):
 							if self.commands[offset] is element.SynchronizeMessage:
 								break
 						else:
