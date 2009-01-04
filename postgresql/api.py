@@ -753,6 +753,78 @@ class Connection(metaclass = ABCMeta):
 		bound to.
 		"""
 
+class Cluster(metaclass = ABCMeta):
+	"""
+	Interface to a PostgreSQL cluster--a data directory. An implementation of
+	this provides a means to control a server.
+	"""
+	@classmethod
+	def create(cls,
+		path : "where to create the cluster",
+		initdb : "path to the initdb to use",
+	):
+		"""
+		Create a cluster using the specified initdb at the given path and return a
+		`Cluster` instance to that cluster.
+		"""
+		raise NotImplementedError("classmethod 'Cluster.create' not implemented")
+
+	@abstractmethod
+	def start(self):
+		"""
+		Start the cluster.
+		"""
+
+	@abstractmethod
+	def stop(self):
+		"""
+		Signal the server to shutdown.
+		"""
+
+	@abstractmethod
+	def restart(self):
+		"""
+		Restart the cluster; effectively stop() and start().
+		"""
+
+	@abstractmethod
+	def kill(self):
+		"""
+		Kill the server.
+		"""
+
+	@abstractmethod
+	def drop(self):
+		"""
+		Kill the server and completely remove the data directory.
+		"""
+
+	@abstractproperty
+	def pid(self):
+		"""
+		The process id of the running daemon.
+
+		This must be extracted from the run-info from the cluster directory.
+		"""
+
+	@abstractproperty
+	def settings(self):
+		"""
+		A `Settings` interface to the postgresql.conf file associated with the
+		cluster.
+		"""
+
+	def __enter__(self):
+		if not self.running():
+			self.start()
+
+	def __context__(self):
+		return self
+
+	def __exit__(self, exc, val, tb):
+		self.stop()
+		return exc is None
+
 if __name__ == '__main__':
 	help('postgresql.api')
 

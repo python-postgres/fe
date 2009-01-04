@@ -86,7 +86,6 @@ defaults = {
 		'postgresql.test',
 	],
 
-	#'scripts' : ['bin/pg_dotconf', 'bin/pg_python', 'bin/pg_tin']
 	'ext_modules' : [
 		Extension(
 			'postgresql.protocol.cbuffer',
@@ -94,6 +93,8 @@ defaults = {
 			libraries = (sys.platform == 'win32' and ['ws2_32'] or []),
 		),
 	],
+
+	'scripts' : ['bin/pg_dotconf', 'bin/pg_python', 'bin/pg_tin']
 }
 
 if __name__ == '__main__':
