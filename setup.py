@@ -12,35 +12,6 @@ VERSION = '0.1'
 LONG_DESCRIPTION = """
 py-postgresql is a set of Python modules providing interfaces to various parts
 of PostgreSQL. Notably, it provides a driver for interacting with a database.
-
-examples
---------
-
-Run a console with a connection::
-
- $ pg_python -h localhost -U pgsql -d postgres
- Python 2.5.1 (r251:54863, Dec  8 2007, 09:22:18) 
- [GCC 4.0.1 (Apple Inc. build 5465)] on darwin
- Type "help", "copyright", "credits" or "license" for more information.
- (SavingConsole)
- >>> pg
- <postgresql.driver.tracenull.PGAPI_Connection[pq://pgsql@localhost:5432/postgres] T.0>
- >>>
-
-Make a PG-API connection manually::
-
- >>> import postgresql.driver.pgapi as driver
- >>> con = driver.Connector(user = 'pgsql', host = 'localhost', port = 5432, database = 'postgres')
- >>> c=con()
-
-Make a DB-API 2.0 connection manually::
-
- >>> import postgresql.driver.dbapi20 as db
- >>> c=db.connect(user = 'pgsql', host = 'localhost', port = 5432, database = 'postgres')
-
-Notably, DSN strings are *not* directly supported. However, if you want connection
-strings, the ``postgresql.iri`` module has means for parsing PQ
-RIs and the ``postgresql.dsn`` module has means for parsing DSNs.
 """
 
 CLASSIFIERS = [
@@ -66,17 +37,7 @@ defaults = {
 	'maintainer' : 'pg/python project',
 	'maintainer_email' : 'python-general@pgfoundry.org',
 	'url' : 'http://python.projects.postgresql.org',
-	'zip_safe' : True,
-	'install_requires' : [
-		'py-termstyle >= 1.0',
-		'py-python_command >= 1.0',
-		'py-riparse >= 1.0',
-	],
 	'classifiers' : CLASSIFIERS,
-
-	'namespace_packages' : [
-		'postgresql',
-	],
 
 	'packages' : [
 		'postgresql',
