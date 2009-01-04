@@ -253,7 +253,7 @@ def row_pack(seq, typio, encode):
 		ob = seq[x]
 		if ob is None:
 			yield (StringFormat, None)
-		elif io is None or (not io is str and type(ob) in (unicode, str)):
+		elif io is None or (not io is bytes and type(ob) is str):
 			# StringFormat
 			yield (StringFormat, encode(ob))
 		else:
