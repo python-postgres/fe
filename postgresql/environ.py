@@ -3,7 +3,7 @@
 # http://python.projects.postgresql.org
 ##
 """
-PostgreSQL client environment configuration utilities
+PostgreSQL client environment variable extraction
 
 This project provides a relatively simple way to translate an environment
 mapping into a more normalized connection configuration dictionary.
@@ -44,8 +44,8 @@ import os
 import sys
 import configparser
 
-from postgresql.utility.config import instance as pg_config
-import postgresql.utility.client.iri as pg_iri
+from postgresql.pg_config import dictionary as pg_config
+import postgresql.iri as pg_iri
 import postgresql.strings as pg_str
 
 # Environment variables that require no transformation.
@@ -99,8 +99,7 @@ def service_data(d, env):
 				try:
 					service_file = pg_config(
 						env.get('PGCONFIG', 'pg_config'),
-						validate = False
-					).sysconfdir
+					)["sysconfdir"]
 				except:
 					service_file = os.path.curdir
 

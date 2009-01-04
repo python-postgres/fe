@@ -1,36 +1,83 @@
 ##
-# copyright 2005, pg/python project.
+# copyright 2008, pg/python project.
 # http://python.projects.postgresql.org
 ##
 import sys
 import os
-import gc
 import unittest
-import postgresql.exceptions as pg_exc
-import postgresql.protocol.pqueue.client3 as c3
 import thread
 import time
+import datetime
 
-class tracenull(unittest.TestCase):
+import postgresql.exceptions as pg_exc
+import postgresql.protocol.client3 as c3
+
+type_samples = (
+	('smallint', (
+			((1 << 16) / 2) - 1, - ((1 << 16) / 2),
+			-1, 0, 1,
+		),
+	),
+	('int', (
+			((1 << 32) / 2) - 1, - ((1 << 32) / 2),
+			-1, 0, 1,
+		),
+	),
+	('bigint', (
+			((1 << 64) / 2) - 1, - ((1 << 64) / 2),
+			-1, 0, 1,
+		),
+	),
+	('bytea', (
+			''.join([chr(x) for x in xrange(256)]),
+			''.join([chr(x) for x in xrange(255, -1, -1)]),
+		),
+	),
+	('smallint[]', (
+			(123,321,-123,-321),
+		),
+	),
+	('int[]', (
+			(123,321,-123,-321),
+		),
+	),
+	('bigint[]', (
+			(0xFFFFFFFFFFFF, -0xFFFFFFFFFFFF),
+		),
+	),
+	('varchar[]', (
+			("foo", "bar",),
+			("foo", "bar",),
+		),
+	),
+	('timestamp', (
+			datetime.datetime(2000,1,1,5,25,10),
+			datetime.datetime(500,1,1,5,25,10),
+		),
+	)
+)
+
+
+class test_pgapi(unittest.TestCase):
 	"test features intended to be specific to tracenull"
 	def testInterrupt(self):
-		# The point is to test that gtx.interrupt() works.
+		# The point is to test that pg.interrupt() works.
 		#
 		# To do this, we start a thread that waits for a protocol transaction
 		# to be started. Using pg_sleep() we can block and hold the transaction
 		# object until the thread identifies it as existing. Once this happens,
-		# an gtx.interrupt() is called from the thread, and the main part of the
+		# a pg.interrupt() is called from the thread, and the main part of the
 		# program is notified of the completion by the appendage of `None` or
 		# `sys.exc_info()` to `rl`.
 		def sendint(l):
 			try:
-				while gtx._xact is None:
+				while pg._xact is None:
 					time.sleep(0.05)
 					if time.time() - b > 5:
 						self.fail("times up(5s), and it doesn't look like the thread even ran")
-				while gtx._xact.state[0] is c3.Sending:
+				while pg._xact.state[0] is c3.Sending:
 					time.sleep(0.05)
-				gtx.interrupt()
+				pg.interrupt()
 			except:
 				l.append(sys.exc_info())
 			else:
@@ -47,6 +94,216 @@ class tracenull(unittest.TestCase):
 		if rl[0] is not None:
 			e, v, tb = rl[0]
 			raise v
+
+	def testLookupProcByName(self):
+		execute(
+			"CREATE OR REPLACE FUNCTION public.foo() RETURNS INT LANGUAGE SQL AS 'SELECT 1'"
+		)
+		settings['search_path'] = 'public'
+		f = proc('foo()')
+		f2 = proc('public.foo()')
+		self.failUnless(f.oid == f2.oid,
+			"function lookup incongruence(%r != %r)" %(f, f2)
+		)
+
+	def testLookupProcById(self):
+		pass
+
+	def testProcExecution(self):
+		ver = proc("version()")
+		ver()
+		execute(
+			"CREATE OR REPLACE FUNCTION ifoo(int) RETURNS int LANGUAGE SQL AS 'select $1'"
+		)
+		ifoo = proc('ifoo(int)')
+		self.failUnless(ifoo(1) == 1)
+		self.failUnless(ifoo(None) is None)
+
+	def testNULL(self):
+		# Directly commpare (SELECT NULL) is None
+		self.failUnless(
+			query("SELECT NULL")().next()[0] is None,
+			"SELECT NULL did not return None"
+		)
+		# Indirectly compare (select NULL) is None
+		self.failUnless(
+			query("SELECT $1::text")(None).next()[0] is None,
+			"[SELECT $1::text](None) did not return None "
+		)
+
+	def testBool(self):
+		fst, snd = query("SELECT true, false")().next()
+		self.failUnless(fst is True)
+		self.failUnless(snd is False)
+
+	def testSelect(self):
+		self.failUnless(
+			query('')() == None,
+			'Empty query did not return None'
+		)
+		# Test SELECT 1.
+		s1 = query("SELECT 1")
+		p = s1()
+		tup = p.next()
+		self.failUnless(tup[0] == 1)
+
+		for tup in s1:
+			self.failUnless(tup[0] == 1)
+
+	def testDDL(self):
+		execute("CREATE TEMP TABLE t(i int)")
+		try:
+			insert_t = query("INSERT INTO t VALUES ($1)")
+			delete_t = query("DELETE FROM t WHERE i = $1")
+			delete_all_t = query("DELETE FROM t")
+			update_t = query("UPDATE t SET i = $2 WHERE i = $1")
+			self.failUnlessEqual(insert_t(1).count(), 1)
+			self.failUnlessEqual(delete_t(1).count(), 1)
+			self.failUnlessEqual(insert_t(2).count(), 1)
+			self.failUnlessEqual(insert_t(2).count(), 1)
+			self.failUnlessEqual(delete_t(2).count(), 2)
+
+			self.failUnlessEqual(insert_t(3).count(), 1)
+			self.failUnlessEqual(insert_t(3).count(), 1)
+			self.failUnlessEqual(insert_t(3).count(), 1)
+			self.failUnlessEqual(delete_all_t().count(), 3)
+
+			self.failUnlessEqual(update_t(1, 2).count(), 0)
+			self.failUnlessEqual(insert_t(1).count(), 1)
+			self.failUnlessEqual(update_t(1, 2).count(), 1)
+			self.failUnlessEqual(delete_t(1).count(), 0)
+			self.failUnlessEqual(delete_t(2).count(), 1)
+		finally:
+			execute("DROP TABLE t")
+
+	def testBatchDDL(self):
+		execute("CREATE TEMP TABLE t(i int)")
+		try:
+			insert_t = query("INSERT INTO t VALUES ($1)")
+			delete_t = query("DELETE FROM t WHERE i = $1")
+			delete_all_t = query("DELETE FROM t")
+			update_t = query("UPDATE t SET i = $2 WHERE i = $1")
+			mset = (
+				(2,), (2,), (3,), (4,), (5,),
+			)
+			insert_t << mset
+			self.failUnlessEqual(mset, tuple([
+				tuple(x) for x in query(
+					"SELECT * FROM t ORDER BY 1 ASC"
+				)
+			]))
+		finally:
+			execute("DROP TABLE t")
+
+	def testTypes(self):
+		'test basic object I/O--input must equal output'
+		for (typname, sample_data) in type_samples:
+			pb = query("SELECT $1::" + typname)
+			for sample in sample_data:
+				rsample = pb.first(sample)
+				self.failUnless(
+					rsample == sample,
+					"failed to return %s object data as-is; gave %r, received %r" %(
+						typname, sample, rsample
+					)
+				)
+
+	def testSyntaxError(self):
+		self.failUnlessRaises(
+			pg_exc.SyntaxError,
+			query, "SELEKT 1",
+		)
+
+	def testInvalidSchemaError(self):
+		self.failUnlessRaises(
+			pg_exc.InvalidSchemaName,
+			query, "SELECT * FROM sdkfldasjfdskljZknvson.foo"
+		)
+
+	def testUndefinedTableError(self):
+		self.failUnlessRaises(
+			pg_exc.UndefinedTableError,
+			query, "SELECT * FROM public.lkansdkvsndlvksdvnlsdkvnsdlvk"
+		)
+
+	def testUndefinedColumnError(self):
+		self.failUnlessRaises(
+			pg_exc.UndefinedColumnError,
+			query, "SELECT x____ysldvndsnkv FROM information_schema.tables"
+		)
+
+	def testSEARVError_avgInWhere(self):
+		self.failUnlessRaises(
+			pg_exc.SEARVError,
+			query, "SELECT 1 WHERE avg(1) = 1"
+		)
+
+	def testSEARVError_groupByAgg(self):
+		self.failUnlessRaises(
+			pg_exc.SEARVError,
+			query, "SELECT 1 GROUP BY avg(1)"
+		)
+
+	def testDatatypeMismatchError(self):
+		self.failUnlessRaises(
+			pg_exc.DatatypeMismatchError,
+			query, "SELECT 1 WHERE 1"
+		)
+
+	def testUndefinedObjectError(self):
+		try:
+			self.failUnlessRaises(
+				pg_exc.UndefinedObjectError,
+				query, "CREATE TABLE lksvdnvsdlksnv(i intt___t)"
+			)
+		except:
+			# newer versions throw the exception on execution
+			self.failUnlessRaises(
+				pg_exc.UndefinedObjectError,
+				query("CREATE TABLE lksvdnvsdlksnv(i intt___t)")
+			)
+
+	def testZeroDivisionError(self):
+		self.failUnlessRaises(
+			pg_exc.ZeroDivisionError,
+			query("SELECT 1/i FROM (select 0 as i) AS g(i)").first,
+		)
+
+	def testTransaction(self):
+		with xact:
+			execute("CREATE TEMP TABLE withfoo(i int)")
+		query("SELECT * FROM withfoo")
+
+		execute("DROP TABLE withfoo")
+		with xact:
+			execute("CREATE TEMP TABLE withfoo(i int)")
+			raise pg_exc.AbortTransaction
+		self.failUnlessRaises(
+			pg_exc.UndefinedTableError,
+			query, "SELECT * FROM withfoo"
+		)
+
+		class SomeError(StandardError):
+			pass
+		try:
+			with xact:
+				execute("CREATE TABLE withfoo (i int)")
+				raise SomeError
+		except SomeError:
+			pass
+		self.failUnlessRaises(
+			pg_exc.UndefinedTableError,
+			query, "SELECT * FROM withfoo"
+		)
+
+	def testConfiguredTransaction(self):
+		if 'gid' in xact.prepared:
+			xact.rollback_prepared('gid')
+		with xact('gid'):
+			pass
+		with xact:
+			pass
+		xact.rollback_prepared('gid')
 
 # Log: dbapi20.py
 # Revision 1.10  2003/10/09 03:14:14  zenzen
@@ -90,7 +347,7 @@ class tracenull(unittest.TestCase):
 #   nothing
 # - Fix bugs in test_setoutputsize_basic and test_setinputsizes
 #
-class dbapi20(unittest.TestCase):
+class test_dbapi20(unittest.TestCase):
 	'''
 	Test a database self.driver for DB API 2.0 compatibility.
 	This implementation tests Gadfly, but the TestCase
@@ -149,7 +406,7 @@ class dbapi20(unittest.TestCase):
 			con.close()
 
 	def _connect(self):
-		return self.driver.Connection(gtx.connector())
+		return self.driver.Connection(pg.connector())
 
 	def test_connect(self):
 		con = self._connect()

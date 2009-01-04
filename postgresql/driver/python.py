@@ -1,5 +1,3 @@
-# -*- encoding: utf-8 -*-
-# $Id$
 ##
 # copyright 2007, pg/python project.
 # http://python.projects.postgresql.org
