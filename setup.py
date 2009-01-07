@@ -7,7 +7,7 @@ import sys
 import os
 from distutils.core import Extension
 NAME = 'py-postgresql'
-VERSION = '0.1'
+VERSION = '0.8'
 
 LONG_DESCRIPTION = """
 py-postgresql is a set of Python modules providing interfaces to various parts
@@ -24,6 +24,7 @@ CLASSIFIERS = [
 	'Natural Language :: English',
 	'Operating System :: OS Independent',
 	'Programming Language :: Python',
+	'Programming Language :: Python :: 3',
 	'Topic :: Database',
 ]
 
@@ -55,7 +56,12 @@ defaults = {
 		),
 	],
 
-	'scripts' : ['bin/pg_dotconf', 'bin/pg_python', 'bin/pg_tin']
+	'scripts' : [
+		'bin/pg_dotconf',
+		'bin/pg_python',
+		'bin/pg_tin',
+		'bin/pg_withcluster'
+	]
 }
 
 if __name__ == '__main__':
