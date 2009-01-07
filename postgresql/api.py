@@ -3,6 +3,8 @@
 # http://python.projects.postgresql.org
 ##
 """
+Application Programmer Interface specifications for PostgreSQL (ABCs).
+
 PG-API
 ======
 
@@ -10,17 +12,11 @@ postgresql.api is a Python API to the PostgreSQL RDBMS. It is designed to take
 full advantage of the database elements provided by PostgreSQL to provide the
 Python programmer with substantial convenience.
 
-This module is used to define the PG-API. It creates a set of classes
+This module is used to define the PG-API. It creates a set of ABCs
 that makes up the basic interfaces used to work with a PostgreSQL database.
 
-Connection objects aren't required to be a part in any special class hierarchy.
-Merely, the Python protocol described here *must* be supported. For instance, a
-module object could be a connection to the database. However, it is recommended
-that implementations inherit from these objects in order to benefit from the
-provided doc-strings.
-
-The examples herein will regularly refer to a ``pg`` object; this object is the
-`connection` instance--a PG-API Connection.
+The examples herein will regularly refer to a ``pg_con`` object; this object is the
+`Connection` instance--a PG-API Connection.
 
 
 Exceptions
@@ -52,7 +48,8 @@ class PreparedStatement(
 	metaclass = ABCMeta
 ):
 	"""
-	Bound to `Connections` as `query`.
+	Instances of `PreparedStatement` are returned by the `query` method of
+	`Connection` instances.
 
 	A PreparedStatement is an Iterable as well as Callable. This feature is
 	supported for queries that have the default arguments filled in or take no
@@ -71,7 +68,7 @@ class PreparedStatement(
 
 		Usage:
 
-		>>> q=pg.query("SELECT table_name FROM information_schema.tables WHERE
+		>>> q=pg_con.query("SELECT table_name FROM information_schema.tables WHERE
 		... table_schema = $1")
 		>>> q('public')
 		<cursor object>
@@ -86,11 +83,11 @@ class PreparedStatement(
 		first row. If the query does not return rows at all, return the count or
 		`None` if no count exists in the completion message. Usage:
 
-		>>> pg.query("SELECT * FROM ttable WHERE key = $1").first("somekey")
+		>>> pg_con.query("SELECT * FROM ttable WHERE key = $1").first("somekey")
 		('somekey', 'somevalue')
-		>>> pg.query("SELECT 'foo'").first()
+		>>> pg_con.query("SELECT 'foo'").first()
 		'foo'
-		>>> pg.query("INSERT INTO atable (col) VALUES (1)").first()
+		>>> pg_con.query("INSERT INTO atable (col) VALUES (1)").first()
 		1
 		"""
 
@@ -102,12 +99,13 @@ class PreparedStatement(
 
 		Effectively, it is equivalent to:
 		
-		>>> q = pg.query(sql)
+		>>> q = pg_con.query(sql)
 		>>> for i in iterable:
 		...  q(*i)
 
 		Its purpose is to allow the implementation to take advantage of the
-		knowledge that a series of parameters are to be loaded.
+		knowledge that a series of parameters are to be loaded and subsequently
+		optimize the operation.
 		"""
 
 	@abstractmethod
@@ -116,9 +114,9 @@ class PreparedStatement(
 		Shorthand for a call to the `first` method without any arguments.
 		Useful for resolving static queries. Example usage:
 
-		>>> ~pg.query("INSERT INTO ttable VALUES ('value')")
+		>>> ~pg_con.query("INSERT INTO ttable VALUES ('value')")
 		1
-		>>> ~pg.query("SELECT 'somestring'")
+		>>> ~pg_con.query("SELECT 'somestring'")
 		'somestring'
 		"""
 
@@ -142,8 +140,8 @@ class PreparedStatement(
 		"""
 
 class Cursor(
-	collections.Iterable,
 	collections.Iterator,
+	collections.Iterable,
 	metaclass = ABCMeta
 ):
 	"""
@@ -211,8 +209,7 @@ class StoredProcedure(
 	metaclass = ABCMeta
 ):
 	"""
-	A `proc` object is an interface to a stored procedure. A `proc` object is
-	created by `connection.proc`.
+	A StoredProcedure is a function residing on the database system.
 	"""
 
 	@abstractmethod
@@ -225,6 +222,9 @@ class StoredProcedure(
 		a TypeError must be raised. If a keyword argument is passed where the
 		procedure does not have a corresponding argument name, then, likewise, a
 		TypeError must be raised.
+
+		In the case where the StoredProcedure references a set returning
+		function(SRF), the result *should* be a `Cursor`.
 		"""
 
 class Transaction(metaclass = ABCMeta):
@@ -235,12 +235,12 @@ class Transaction(metaclass = ABCMeta):
 
 	Normal usage would merely entail the use of the with-statement::
 
-		with pg.xact:
+		with pg_con.xact:
 		...
 	
 	Or, in cases where two-phase commit is desired::
 
-		with pg.xact('gid'):
+		with pg_con.xact('gid'):
 		...
 	"""
 
@@ -320,12 +320,12 @@ class Transaction(metaclass = ABCMeta):
 
 		Read-only transaction::
 
-			>>> with pg.xact(readonly = True):
+			>>> with pg_con.xact(readonly = True):
 			...
 
 		Read committed isolation::
 
-			>>> with pg.xact(isolation = 'READ COMMITTED'):
+			>>> with pg_con.xact(isolation = 'READ COMMITTED'):
 			...
 
 		Database configured defaults apply to all `xact` operations.
@@ -395,12 +395,12 @@ class Settings(
 		doc = """
 		An interface to a structured ``search_path`` setting:
 
-		>>> pg.settings.path
+		>>> pg_con.settings.path
 		['public', '$user']
 
 		It may also be used to set the path:
 
-		>>> pg.settings.path = ('public', 'tools')
+		>>> pg_con.settings.path = ('public', 'tools')
 		"""
 	)
 	del getpath, setpath
@@ -427,7 +427,7 @@ class Settings(
 		settings object. This is normally used in conjunction with a
 		with-statement:
 
-		>>> with pg.settings(search_path = 'local,public'):
+		>>> with pg_con.settings(search_path = 'local,public'):
 		...
 
 		When called, the settings' object will configure itself to use the given
@@ -506,7 +506,7 @@ class Settings(
 
 		>>> def watch(connection, key, newval):
 		...
-		>>> pg.settings.subscribe('TimeZone', watch)
+		>>> pg_con.settings.subscribe('TimeZone', watch)
 		"""
 
 	@abstractmethod
@@ -516,7 +516,7 @@ class Settings(
 		callback used to subscribe must be given again for successful termination
 		of the subscription.
 
-		>>> pg.settings.unsubscribe('TimeZone', watch)
+		>>> pg_con.settings.unsubscribe('TimeZone', watch)
 		"""
 
 class TypeIO(metaclass = ABCMeta):
@@ -534,32 +534,36 @@ class Connection(metaclass = ABCMeta):
 	"""
 
 	@abstractmethod
-	def query(self, sql, *default_args, **kw):
+	def query(self,
+		sql : "The query text.",
+		*default_args : "The default positional parameters to pass to the statement.",
+		title : "The query's name, used in tracebacks when available" = None,
+		prepare : "Whether or not to prepare the query." = True,
+	):
 		"""
 		Create a new `.query` instance that provides an interface to the prepared statement.
 
-		Given a single SQL statement, and optional default query arguments, create the
-		prepared statement. The object returned is the interface to the
-		prepared statement.
+		Given a single SQL statement, and optional default query arguments, create
+		a PreparedStatement instance.
 
 		The default arguments fill in the query's positional parameters.
 
 		The ``title`` keyword argument is only used to help identify queries.
-		The given value will be set to the query object's 'title' attribute.
+		The given value *must* be set to the PreparedStatement's 'title' attribute.
 		It is analogous to a function name.
 
 		The ``prepare`` keyword argument tells the driver whether or not to actually
-		prepare the query when it is instantiated. When `False`, defer preparation
-		until execution or until it is explicitly ordered to prepare.
+		prepare the query when the PreparedStatement is instantiated. When `False`,
+		defer preparation until execution or until it is explicitly ordered to prepare.
 
-		>>> q = pg.query("SELECT 1")
+		>>> q = pg_con.query("SELECT 1")
 		>>> p = q()
 		>>> p.next()
 		(1,)
 
 		It allows default arguments to be configured:
 
-		>>> q = pg.query("SELECT $1::int", 1)
+		>>> q = pg_con.query("SELECT $1::int", 1)
 		>>> q().next()
 		(1,)
 
@@ -570,34 +574,46 @@ class Connection(metaclass = ABCMeta):
 		"""
 
 	@abstractmethod
-	def cquery(self, sql, *default_args, **kw):
+	def cquery(self,
+		sql : "The query text.",
+		*default_args : "The default positional parameters to pass to the statement.",
+		title : "The query's name, used in tracebacks when available" = None,
+		prepare : "Whether or not to prepare the query." = True,
+	):
 		"""
-		Exactly like `query`, but cache the created `.query` object using the
+		Exactly like `query`, but cache the created `PreparedStatement` using the
 		given `sql` as the key. If the same `sql` is given again, look it up and
-		return the existing `.query` object instead of creating a new one.
+		return the existing `PreparedStatement` instead of creating a new one.
+
+		This method is provided to the user for convenience.
 		"""
 
 	@abstractmethod
-	def statement(self, statement_id, *default_args, **kw):
+	def statement(self,
+		statement_id : "The identifier of the statement.",
+		*default_args : "The default positional parameters to pass to the statement.",
+		title : "The query's name, used in tracebacks when available" = None,
+		prepare : "Whether or not to prepare the query." = True,
+	):
 		"""
-		Create a `.query` object that was already prepared on the server. The distinction
-		between this and a regular query is that it must be explicitly closed if it is no
-		longer desired, and it is instantiated using the statement identifier as
-		opposed to the SQL statement itself.
+		Create a `PreparedStatement` object that was already prepared on the server.
+		The distinction between this and a regular query is that it must be
+		explicitly closed if it is no longer desired, and it is instantiated using
+		the statement identifier as opposed to the SQL statement itself.
 
 		If no ``title`` keyword is given, it will default to the statement_id.
 		"""
-	
+
 	@abstractmethod
 	def cursor(self, cursor_id):
 		"""
-		Create a `.cursor` object from the given `cursor_id` that was already declared
+		Create a `Cursor` object from the given `cursor_id` that was already declared
 		on the server.
 		
-		`.cursor` object created this way must *not* be closed when the object is garbage
+		`Cursor` objects created this way must *not* be closed when the object is garbage
 		collected. Rather, the user must explicitly close it for the server
-		resources to be released. This is in contrast to `.cursor` object that
-		are created by invoking a `.query` object.
+		resources to be released. This is in contrast to `Cursor` objects that
+		are created by invoking a `PreparedStatement` or a SRF `StoredProcedure`.
 		"""
 
 	@abstractmethod
@@ -609,13 +625,13 @@ class Connection(metaclass = ABCMeta):
 
 		The `proc_id` given can be either an ``Oid``, or a ``regprocedure`` identifier.
 
-		>>> p = pg.proc('version()')
+		>>> p = pg_con.proc('version()')
 		>>> p()
 		'PostgreSQL 8.3.0'
 
-		>>> ~pg.query("select oid from pg_proc where proname = 'generate_series'")
+		>>> ~pg_con.query("select oid from pg_proc where proname = 'generate_series'")
 		1069
-		>>> p = pg.proc(1069)
+		>>> p = pg_con.proc(1069)
 		>>> list(p(1,5))
 		[1, 2, 3, 4, 5]
 		"""
@@ -651,7 +667,7 @@ class Connection(metaclass = ABCMeta):
 		method on the connection's transaction manager, `xact`.
 
 		The purpose behind this method is to provide a soft-reconnect method that
-		reinitializes the connection into its original state. One obvious use of this
+		re-initializes the connection into its original state. One obvious use of this
 		would be in a connection pool where the connection is done being used.
 		"""
 
@@ -664,7 +680,7 @@ class Connection(metaclass = ABCMeta):
 		If the connection is in a failed transaction block, this must be `False`.
 		If the connection is closed, this must be `False`.
 
-		>>> bool(con) in (True, False)
+		>>> bool(pg_con) in (True, False)
 		True
 		"""
 
@@ -704,17 +720,18 @@ class Connection(metaclass = ABCMeta):
 		"""
 	)
 
-	version_info = property(
-		doc = """
+	@abstractproperty
+	def version_info(self):
+		"""
 		A version tuple of the database software similar Python's `sys.version_info`.
 
-		>>> pg.version_info
+		>>> pg_con.version_info
 		(8, 1, 3, '', 0)
 		"""
-	)
 
-	closed = property(
-		doc = """
+	@abstractproperty
+	def closed(self):
+		"""
 		A property that indicates whether the connection is open. If the connection
 		is not open, then accessing closed will return True. If the connection is
 		open, closed with return False.
@@ -723,10 +740,9 @@ class Connection(metaclass = ABCMeta):
 		connection. If the value set is not `True` or `False`, a `ValueError` must be
 		raised.
 
-		>>> pg.closed
+		>>> pg_con.closed
 		True
 		"""
-	)
 
 	user = property(
 		doc = """
@@ -758,16 +774,31 @@ class Cluster(metaclass = ABCMeta):
 	Interface to a PostgreSQL cluster--a data directory. An implementation of
 	this provides a means to control a server.
 	"""
-	@classmethod
-	def create(cls,
-		path : "where to create the cluster",
-		initdb : "path to the initdb to use",
+	@abstractmethod
+	def init(self,
+		initdb : "path to the initdb to use" = None,
+		superusername : "name of the cluster's superuser" = None,
+		superuserpass : "superuser's password" = None,
+		encoding : "the encoding to use for the cluster" = None,
+		locale : "the locale to use for the cluster" = None,
+		collate : "the collation to use for the cluster" = None,
+		ctype : "the ctype to use for the cluster" = None,
+		monetary : "the monetary to use for the cluster" = None,
+		numeric : "the numeric to use for the cluster" = None,
+		time : "the time to use for the cluster" = None,
+		text_search_config : "default text search configuration" = None,
+		xlogdir : "location for the transaction log directory" = None,
 	):
 		"""
-		Create a cluster using the specified initdb at the given path and return a
-		`Cluster` instance to that cluster.
+		Create the cluster at the `data_directory` associated with the Cluster
+		instance.
 		"""
-		raise NotImplementedError("classmethod 'Cluster.create' not implemented")
+
+	@abstractmethod
+	def drop(self):
+		"""
+		Kill the server and completely remove the data directory.
+		"""
 
 	@abstractmethod
 	def start(self):
@@ -782,29 +813,15 @@ class Cluster(metaclass = ABCMeta):
 		"""
 
 	@abstractmethod
-	def restart(self):
-		"""
-		Restart the cluster; effectively stop() and start().
-		"""
-
-	@abstractmethod
 	def kill(self):
 		"""
 		Kill the server.
 		"""
 
 	@abstractmethod
-	def drop(self):
+	def restart(self):
 		"""
-		Kill the server and completely remove the data directory.
-		"""
-
-	@abstractproperty
-	def pid(self):
-		"""
-		The process id of the running daemon.
-
-		This must be extracted from the run-info from the cluster directory.
+		Restart the cluster.
 		"""
 
 	@abstractproperty
@@ -813,10 +830,37 @@ class Cluster(metaclass = ABCMeta):
 		A `Settings` interface to the postgresql.conf file associated with the
 		cluster.
 		"""
+	
+	@abstractmethod
+	def wait_until_started(self,
+		timeout : "maximum time to wait" = 10
+	):
+		"""
+		After the start() method is ran, the database may not be ready for use.
+		This method provides a mechanism to block until the cluster is ready for
+		use.
+
+		If the `timeout` is reached, the method *must* throw a
+		`postgresql.exceptions.ClusterTimeoutError`.
+		"""
+
+	@abstractmethod
+	def wait_until_stopped(self,
+		timeout : "maximum time to wait" = 10
+	):
+		"""
+		After the stop() method is ran, the database may still be running.
+		This method provides a mechanism to block until the cluster is completely
+		shutdown.
+
+		If the `timeout` is reached, the method *must* throw a
+		`postgresql.exceptions.ClusterTimeoutError`.
+		"""
 
 	def __enter__(self):
 		if not self.running():
 			self.start()
+		self.wait
 
 	def __context__(self):
 		return self

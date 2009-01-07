@@ -206,7 +206,7 @@ def read_config(iter, d = None, selector = None):
 				d[key] = unquote(line[kv[1]])
 	return d
 
-class ConfigFile(pg_api.settings):
+class ConfigFile(pg_api.Settings):
 	"""
 	Provides a dictionary mapping interface to a configuration file.
 

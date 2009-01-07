@@ -34,6 +34,15 @@ class Exception(Exception):
 	'Base PostgreSQL exception class'
 	pass
 
+class ClusterError(Exception):
+	pass
+class InitDBError(ClusterError):
+	pass
+class ClusterNotRunningError(ClusterError):
+	pass
+class ClusterTimeoutError(ClusterError):
+	pass
+
 class AbortTransaction(Exception):
 	"""
 	Abort the current transaction and continue and after the edge of the trapped

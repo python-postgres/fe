@@ -303,22 +303,9 @@ class Notice(Message, dict):
 		line = None,
 		function = None
 	):
-		d = self
-		d['severity'] = severity
-		d['message'] = message
-		d['code'] = code
-		d['detail'] = detail
-		d['hint'] = hint
-		d['position'] = position
-		d['internal_position'] = internal_position
-		d['internal_query'] = internal_query
-		d['context'] = context
-		d['file'] = file
-		d['line'] = line
-		d['function'] = function
-		for kv in d.items():
-			if kv[1] is None:
-				del d[kv[0]]
+		for (k, v) in locals().items():
+			if v not in (self, None):
+				self[k] = v
 	__repr__ = dict_message_repr
 
 	def serialize(self):

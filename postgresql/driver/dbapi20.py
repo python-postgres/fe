@@ -8,7 +8,7 @@ threadsafety = 1
 paramstyle = 'pyformat'
 apilevel = '2.0'
 
-import postgresql.driver.pg_api as pg_api
+import postgresql.driver.pgapi as pgapi
 import postgresql.types as pg_type
 import postgresql.strings as pg_str
 import datetime, time
@@ -217,5 +217,5 @@ def connect(**kw):
 	kwi = tuple(kwi)
 	con = _connectors.get(kwi)
 	if not con:
-		con = _connectors[kwi] = pg_api.connector(**kw)
+		con = _connectors[kwi] = pgapi.connector(**kw)
 	return Connection(con())

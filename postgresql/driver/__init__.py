@@ -1,3 +1,7 @@
-# -*- encoding: utf-8 -*-
 ##
-'Proboscis interface space'
+# copyright 2009, pg/python project.
+# http://python.projects.postgresql.org
+##
+"""
+
+"""

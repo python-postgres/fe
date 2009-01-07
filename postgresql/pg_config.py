@@ -3,36 +3,27 @@
 # http://python.projects.postgresql.org
 ##
 'pg_config Python interface; provides member based access to pg_config data'
-import os
+import subprocess as sp
+import io
 
-try:
-	import subprocess as sp
-	def call(exe, *args):
-		'helper function for the instance class'
-		p = [
-			'--' + x.strip() for x in args if x is not None
-		]
-		p.insert(0, exe)
-		p = sp.Popen(p,
-			stdout = sp.PIPE, stderr = sp.PIPE, stdin = sp.PIPE, shell = False)
-		p.stdin.close()
-		rv = p.wait()
-		if rv != 0:
-			return None
-		return p.stdout.read()
-except ImportError:
-	from commands import getoutput
-	def call(exe, *args):
-		'helper function for the instance class'
-		p = [
-			'--' + x.strip() for x in args if x is not None
-		]
-		out = getoutput(exe + ' '.join(p))
-		if out.startswith('pg_config:'):
-			return None
-		else:
-			out = getoutput(exe)
-		return out
+def call(exe, *args):
+	'helper function for the instance class'
+	pa = [
+		'--' + x.strip() for x in args if x is not None
+	]
+	pa.insert(0, exe)
+	p = sp.Popen(pa,
+		close_fds = True,
+		stdout = sp.PIPE,
+		stderr = sp.PIPE,
+		stdin = sp.PIPE,
+		shell = False
+	)
+	p.stdin.close()
+	rv = p.wait()
+	if rv != 0:
+		return None
+	return io.TextIOWrapper(p.stdout).read()
 
 def dictionary(pg_config_path):
 	"""
