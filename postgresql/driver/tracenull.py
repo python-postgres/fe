@@ -25,20 +25,6 @@ import postgresql.protocol.client3 as pq
 from postgresql.protocol.buffer import pq_message_stream
 import postgresql.protocol.typio as pg_typio
 
-try:
-	import termstyle
-	message_style = {
-		'WARNING' : termstyle.FG_YELLOW,
-		'INFO' : termstyle.FG_GREEN,
-		'NOTICE' : termstyle.FG_BLUE,
-		'DEBUG' : termstyle.FG_CYAN,
-		'ERROR' : termstyle.FG_RED,
-		'FATAL' : termstyle.FG_RED + termstyle.BOLD,
-		'PANIC' : termstyle.FG_RED + termstyle.REVERSE,
-	}
-except ImportError:
-	pass
-
 def secure_socket(
 	connection,
 	keyfile = None,
@@ -782,11 +768,6 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self.prime()
 		self.finish()
 
-	def reprepare(self):
-		self.close()
-		self.prime()
-		self.finish()
-
 	def prime(self):
 		"""
 		Push initialization messages to the server, but don't wait for
@@ -1431,9 +1412,9 @@ class TransactionManager(pg_api.Transaction):
 			self.commit()
 		return xrob
 
-class PGAPI_Connection(pg_api.Connection):
+class Connection(pg_api.Connection):
 	"""
-	PGAPI_Connection(connector) -> PGAPI_Connection
+	Connection(connector) -> Connection
 
 	PG-API <- Driver -> PQ Protocol <- Socket -> PostgreSQL
 	"""
@@ -2157,7 +2138,7 @@ class PGAPI_Connection(pg_api.Connection):
 		self.settings.subscribe('TimeZone', self._update_timezone)
 		self.xact = TransactionManager(self)
 		self._reset()
-# class PGAPI_Connection
+# class Connection
 
 def format_message(msg):
 	loc = [
@@ -2196,15 +2177,15 @@ except NameError:
 	def stderr_notifier(c, msg):
 		sys.stderr.write(format_message(msg))
 
-class PGAPI_Connector(object):
-	"""PGAPI_Connector(**config) -> Connector
+class Connector(object):
+	"""Connector(**config) -> Connector
 
 	All arguments to Connector are keywords. At the very least, user,
 	and socket, may be provided. If socket, unix, or process is not
 	provided, host and port must be.
 	"""
 
-	connection_class = PGAPI_Connection
+	connection_class = Connection
 	sslmode = 'prefer'
 	words = (
 		'user',
@@ -2362,4 +2343,4 @@ class PGAPI_Connector(object):
 			tnkw['options'] = self.options
 
 		self._parameters = tnkw
-# class PGAPI_Connector
+# class Connector
