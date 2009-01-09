@@ -46,6 +46,8 @@ defaults = {
 		'postgresql.protocol',
 		'postgresql.driver',
 		'postgresql.test',
+		# Modules imported from other packages.
+		'postgresql.resolved',
 	],
 
 	'ext_modules' : [
