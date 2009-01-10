@@ -1,9 +1,10 @@
 ##
-# copyright 2008, pg/python project.
+# copyright 2009, James William Pye.
 # http://python.projects.postgresql.org
 ##
-'PostgreSQL types and identifiers'
-import struct
+"""
+PostgreSQL types and identifiers
+"""
 import math
 
 InvalidOid = 0
@@ -672,6 +673,7 @@ class array(object):
 		for x in range(len(self)):
 			yield self[x]
 
+# Python Representations of PostgreSQL Types
 oid_to_type = {
 	VARBITOID: varbit,
 	BITOID: bit,
@@ -680,4 +682,21 @@ oid_to_type = {
 	BOXOID: box,
 	LSEGOID: lseg,
 	CIRCLEOID: circle,
+
+	BOOLOID: bool,
+
+	VARCHAROID: str,
+	TEXTOID: str,
+	BPCHAROID: str,
+	NAMEOID: str,
+
+	CHAROID: bytes,
+	BYTEAOID: bytes,
+
+	INT2OID: int,
+	INT4OID: int,
+	INT8OID: int,
+
+	FLOAT4OID: float,
+	FLOAT8OID: float,
 }
