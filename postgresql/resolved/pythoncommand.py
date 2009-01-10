@@ -419,7 +419,6 @@ class Execution(object):
 		"""
 		self.args = args
 		self.context = context and list(context) or ()
-		self.reset_module__main__()
 
 		if main is not None:
 			self.main = main
@@ -454,12 +453,16 @@ class Execution(object):
 		else:
 			# console
 			self.main = (None, None)
+		self.reset_module__main__()
 
 	def reset_module__main__(self):
 		mod = types.ModuleType('__main__')
-		mod.__package__ = None
 		mod.__builtins__ = __builtins__
+		mod.__package__ = None
 		self.module__main__ = mod
+		path = getattr(self.main[1], 'fullname', None)
+		if path is not None:
+			mod.__package__ = '.'.join(path.split('.')[:-1])
 
 	def _call(self,
 		console = ExtendedConsole,
