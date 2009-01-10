@@ -49,6 +49,7 @@ import os
 import sys
 import re
 import code
+import types
 import optparse
 import subprocess
 import contextlib
@@ -71,7 +72,7 @@ class single_loader(object):
 
 	def get_code(self, fullpath):
 		if fullpath == self.source:
-			return compile(self.source, '<command>', 'single')
+			return compile(self.source, '<command>', 'exec')
 
 	def get_source(self, fullpath):
 		if fullpath == self.source:
@@ -307,7 +308,7 @@ class ExtendedConsole(code.InteractiveConsole):
 			src.close()
 		if co is not None:
 			try:
-				exec(co, globals(), self.locals)
+				exec(co, self.globals, self.locals)
 			except:
 				e, v, tb = sys.exc_info()
 				print_exception(e, v, tb.tb_next or tb)
@@ -390,16 +391,13 @@ def postmortem(funcpath):
 
 class Execution(object):
 	"""
-	Given argv, context, locals, environ, make an execution instance that,
-	when called, will execute the Python configured code.
+	Given argv and context make an execution instance that, when called, will
+	execute the configured Python code.
 
 	This class provides the ability to identify what the main part of the
 	execution of the configured Python code. For instance, shall it execute a
 	console, the file that the first argument points to, a -m option module
 	appended to the python_context option value, or the code given within -c?
-
-	Primarily, it simply identifies what "__main__" is, while providing other
-	conveniences such as postmortem.
 	"""
 	def __init__(self,
 		args, context = (),
@@ -414,8 +412,6 @@ class Execution(object):
 		context
 			A list of loader descriptors that will be used to establish the
 			context of __main__ module.
-		locals
-			The dictionary that will be used for __main__.
 		main
 			Overload to explicitly state what main is. None will cause the
 			class to attempt to fill in the attribute using 'args' and other
@@ -423,6 +419,7 @@ class Execution(object):
 		"""
 		self.args = args
 		self.context = context and list(context) or ()
+		self.reset_module__main__()
 
 		if main is not None:
 			self.main = main
@@ -458,8 +455,13 @@ class Execution(object):
 			# console
 			self.main = (None, None)
 
+	def reset_module__main__(self):
+		mod = types.ModuleType('__main__')
+		mod.__package__ = None
+		mod.__builtins__ = __builtins__
+		self.module__main__ = mod
+
 	def _call(self,
-		locals = None,
 		console = ExtendedConsole,
 		context = None
 	):
@@ -468,10 +470,8 @@ class Execution(object):
 		(Note: tramples on sys.argv, __main__ in sys.modules)
 		(Use __call__ instead)
 		"""
-		if locals is None:
-			locals = {}
-		locals['__name__'] = '__context__'
-		sys.modules['__context__'] = locals
+		sys.modules['__main__'] = self.module__main__
+		md = self.module__main__.__dict__
 
 		# Establish execution context in the locals;
 		# iterate over all the loaders in self.context and
@@ -491,19 +491,17 @@ class Execution(object):
 			except:
 				print_exception(*sys.exc_info())
 				return 1
-			locals['__file__'] = getattr(
+			self.module__main__.__file__ = getattr(
 				li, 'get_filename', lambda x: x
 			)(rpath)
-			locals['__loader__'] = li
+			self.module__main__.__loader__ = li
 			try:
-				exec(code, globals(), locals)
+				exec(code, md, md)
 			except:
 				e, v, tb = sys.exc_info()
 				print_exception(e, v, tb.tb_next or tb)
 				return 1
 
-		sys.modules['__main__'] = locals
-		locals['__name__'] = '__main__'
 		if self.main == (None, None):
 			# It's interactive.
 			sys.argv = self.args or ['<console>']
@@ -514,7 +512,7 @@ class Execution(object):
 			except ImportError:
 				pass
 
-			ic = console(locals = locals)
+			ic = console(locals = md)
 			try:
 				ic.interact()
 			except SystemExit as e:
@@ -523,11 +521,11 @@ class Execution(object):
 		else:
 			# It's ultimately a code object.
 			path, loader = self.main
-			locals['__file__'] = getattr(
+			self.module__main__.__file__ = getattr(
 				loader, 'get_filename', lambda x: x
 			)(path)
 			sys.argv = list(self.args)
-			sys.argv.insert(0, locals['__file__'])
+			sys.argv.insert(0, self.module__main__.__file__)
 			try:
 				code = loader.get_code(path)
 			except:
@@ -540,13 +538,13 @@ class Execution(object):
 				if context is not None:
 					with context:
 						try:
-							exec(code, globals(), locals)
+							exec(code, md, md)
 						except:
 							exe_exception = True
 							raise
 				else:
 					try:
-						exec(code, globals(), locals)
+						exec(code, md, md)
 					except:
 						exe_exception = True
 						raise
@@ -610,9 +608,8 @@ def command_execution(args = sys.argv):
 		loader = getattr(co, 'python_main', None),
 	)
 
-def command(args = sys.argv, locals = {}):
+def command(args = sys.argv):
 	return command_execution(args = args)(
-		locals = locals,
 		context = postmortem(os.environ.get('PYTHON_POSTMORTEM'))
 	)
 
