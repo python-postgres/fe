@@ -83,14 +83,18 @@ def write_config(map, writer, keys = None):
 	for k in keys:
 		writer('='.join((k, map[k])) + os.linesep)
 
-def alter_config(map, fo, keys = None):
+def alter_config(
+	map : "the configuration changes to make",
+	fo : "file object containing configuration lines(Iterable)",
+	keys : "the keys to change; defaults to map.keys()" = None
+):
 	'Alters a configuration file without trampling on the existing structure'
 	if keys is None:
-		keys = map.keys()
+		keys = list(map.keys())
 	# Normalize keys and map them back to 
-	pkeys = {}
-	for k in keys:
-		pkeys[k.lower().strip()] = keys.index(k)
+	pkeys = {
+		k.lower().strip() : keys.index(k) for k in keys
+	}
 
 	lines = []
 	candidates = {}
@@ -104,10 +108,9 @@ def alter_config(map, fo, keys = None):
 		if pl is None:
 			continue
 		sk, sv = pl
-		k = l[sk]
-		pk = k.lower()
+		k = l[sk].lower()
 		v = l[sv]
-		# It's a candidate
+		# It's a candidate?
 		if k in pkeys:
 			c = candidates.get(k)
 			if c is None:
@@ -291,17 +294,12 @@ class ConfigFile(pg_api.Settings):
 		Given a dictionary of settings, apply them to the cluster's
 		postgresql.conf.
 		"""
-		cf = self._open(self._path)
-		try:
+		with self._open(self._path) as cf:
 			lines = alter_config(keyvals, cf)
-		finally:
-			cf.close()
-		cf = self._open(self._path, 'w')
-		try:
+
+		with self._open(self._path, 'w') as cf:
 			for l in lines:
 				cf.write(l)
-		finally:
-			cf.close()
 
 	def getset(self, keys):
 		"""
@@ -364,22 +362,16 @@ def pg_dotconf(args):
 		settings[k] = v
 
 	fp = ca[0]
-	fr = open(fp, 'r')
-	try:
+	with open(fp, 'r') as fr
 		lines = alter_config(settings, fr)
-	finally:
-		fr.close()
 
 	if co.stdout or fp == '/dev/stdin':
 		for l in lines:
 			sys.stdout.write(l)
 	else:
-		fw = open(fp, 'w')
-		try:
+		with open(fp, 'w') as fw:
 			for l in lines:
 				fw.write(l)
-		finally:
-			fw.close()
 	return 0
 
 if __name__ == '__main__':
