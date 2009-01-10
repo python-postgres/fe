@@ -1,16 +1,21 @@
 ##
-# copyright 2007, pg/python project.
+# copyright 2009, pg/python project.
 # http://python.projects.postgresql.org
 ##
 """
-Python command with a postgresql.driver.pg_api connection.
+Python command with a postgresql.driver.pgapi connection.
 """
 import os
+import sys
+import re
+import code
 import optparse
-import postgresql.commandoptions as pg_opt
-import postgresql.clientparams as clientparams
-import postgresql.python as pg_python
-import postgresql.driver.pg_api as pg_api
+import contextlib
+from .. import clientparams
+from .. import clientoptparse as pg_opt
+from ..resolved import pythoncommand as pycmd
+
+from .pgapi import Connector
 
 pq_trace = optparse.make_option(
 	'--pq-trace',
@@ -18,11 +23,22 @@ pq_trace = optparse.make_option(
 	help = 'trace PQ protocol transmissions',
 	default = None,
 )
-default_options = pg_python.default_options + [
+default_options = pg_opt.default_options + [
+	pg_opt.in_xact,
 	pq_trace,
-]
+] + pycmd.default_optparse_options
 
-def command(args, environ = os.environ):
+param_pattern = re.compile(
+	r'^\s*#\s+-\*-\s+postgresql\.([^:]+):\s+([^\s]*)\s+-\*-\s*$',
+	re.M
+)
+def extract_parameters(src):
+	'extract hard parameters out of the "-*- postgresql.*: -*-" magic lines'
+	return [
+		x for x in re.findall(param_pattern, src)
+	]
+
+def command(args = sys.argv):
 	# Allow connection options to be collected in #!pg_python lines
 	p = pg_opt.DefaultParser(
 		"%prog [connection options] [script] [-- script options] [args]",
@@ -31,31 +47,73 @@ def command(args, environ = os.environ):
 	)
 	p.enable_interspersed_args()
 	co, ca = p.parse_args(args[1:])
+	in_xact = co.in_xact
 
-	cond = clientparams.create(co, environ = environ)
-	connector = pg_api.connector(**cond)
+	cond = clientparams.create(co, os.environ)
+	connector = Connector(**cond)
 	connection = connector.create()
+
+	pythonexec = pycmd.Execution(ca,
+		context = getattr(co, 'python_context', None),
+		loader = getattr(co, 'python_main', None),
+	)
+	# Some points of configuration need to be demanded by a script.
+	src = pythonexec.get_main_source()
+	if src is not None:
+		hard_params = dict(extract_parameters(src))
+		if hard_params:
+			iso = hard_params.get('isolation')
+			if iso is not None:
+				if iso == 'none':
+					in_xact = False
+				else:
+					in_xact = True
+					connection.xact(isolation = iso)
+
+	builtin_overload = {
+	# New built-ins
+		'pg_connector' : connector,
+		'pg_con' : connection,
+		'db' : connection,
+		'query' : connection.query,
+		'cquery' : connection.cquery,
+		'statement' : connection.statement,
+		'execute' : connection.execute,
+		'settings' : connection.settings,
+		'cursor' : connection.cursor,
+		'proc' : connection.proc,
+		'xact' : connection.xact,
+	}
+	restore = {k : __builtins__[k] for k in builtin_overload}
 
 	trace_file = None
 	if co.pq_trace is not None:
 		trace_file = open(co.pq_trace, 'a')
+	__builtins__.update(builtin_overload)
 	try:
 		if trace_file is not None:
 			connection.tracer = trace_file.write
-		return pg_python.run(
-			connection, ca, co,
-			in_xact = co.in_xact,
-			environ = environ
-		)
+
+		with connection:
+			if in_xact:
+				with connection.xact:
+					rv = pythonexec(
+						context = pycmd.postmortem(os.environ.get('PYTHON_POSTMORTEM'))
+					)
+			else:
+				rv = pythonexec(
+					context = pycmd.postmortem(os.environ.get('PYTHON_POSTMORTEM'))
+				)
 	finally:
+		# restore __builtins__
+		__builtins__.update(restore)
+		for x in builtin_overload.keys():
+			del __builtins__[x]
 		if trace_file is not None:
 			trace_file.close()
-
-def pg_python():
-	import sys
-	sys.exit(command(sys.argv))
+	return rv
 
 if __name__ == '__main__':
-	pg_python()
+	sys.exit(command())
 ##
 # vim: ts=3:sw=3:noet:
