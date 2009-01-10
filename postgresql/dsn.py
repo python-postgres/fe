@@ -13,5 +13,5 @@ def split(dsn):
 		yield x.split('=', 1)
 
 def parse(s):
-	'Parse a Postgres IRI into a dictionary object'
+	'Parse a DSN into a dictionary object'
 	return dict(split(s))
