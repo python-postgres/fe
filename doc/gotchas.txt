@@ -58,3 +58,10 @@ value of the target server will allow the driver to properly encode *some* of
 the parameters. Also, any GUC parameters passed via the `settings` parameter
 should use typed objects when possible to hint that the server encoding should
 not be used on that parameter.
+
+
+Backslash characters are being treated literally
+------------------------------------------------
+
+The driver enables standard compliant strings. Stop using non-standard features.
+;)
