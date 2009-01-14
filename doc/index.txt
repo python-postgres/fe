@@ -29,3 +29,7 @@ recommended as it provides greater utility::
 			print(row["emp_name"])
 			# And fire them. ;)
 			remove_emp(row["emp_name"])
+
+
+Of course, if DB-API 2.0 is desired, the module is located at
+``postgresql.driver.dbapi20``
