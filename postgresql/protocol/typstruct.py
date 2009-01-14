@@ -18,6 +18,7 @@ PostgreSQL.
 """
 import math
 import struct
+from .. import types as pg_types
 
 null_sequence = b'\xff\xff\xff\xff'
 
@@ -25,9 +26,13 @@ def mk_pack(x):
 	'Create a pair, (pack, unpack) for the given `struct` format.'
 	s = struct.Struct('!' + x)
 	if len(x) > 1:
-		return lambda y: s.pack(*y), s.unpack
+		def pack_apply(data):
+			return s.pack(*data)
+		return (pack_apply, s.unpack)
 	else:
-		return s.pack, lambda y: s.unpack(y)[0]
+		def unpack_first(data):
+			return s.unpack(data)[0]
+		return (s.pack, unpack_first)
 
 def mktimetuple(ts):
 	'make a pair of (seconds, microseconds) out of the given double'
@@ -326,7 +331,14 @@ def cidr_pack(family_mask_data):
 	Prepends the ``family``, ``mask`` and implicit ``is_cidr`` fields.
 	"""
 	(family, mask, data) = family_mask_data
-	return b'%s%s'b'\x01'b'%s%s' %(chr(family), chr(mask), chr(len(data)), data)
+
+	return b''.join((
+		byte_pack(family),
+		byte_pack(mask),
+		b'\x01',
+		byte_pack(len(data)),
+		data
+	))
 inet_pack = cidr_pack
 
 def cidr_unpack(data):
@@ -453,3 +465,84 @@ def array_unpack(data):
 	# Dimension Bounds
 	dlb = struct.unpack("!%dl"%(2 * ndim,), data[12:end])
 	return (flags, typid, dlb, elements_unpack(data, end))
+
+
+def return_arg(arg):
+	return arg
+literal = (return_arg, return_arg)
+del return_arg
+
+oid_to_io = {
+	pg_types.RECORDOID : (record_pack, record_unpack),
+	pg_types.ANYARRAYOID : (array_pack, array_unpack),
+
+	pg_types.BOOLOID : (bool_pack, bool_unpack),
+	pg_types.BITOID : (bit_pack, bit_unpack),
+	pg_types.VARBITOID : (varbit_pack, varbit_unpack),
+
+	pg_types.BYTEAOID : (bytes, bytes),
+	pg_types.CHAROID : literal,
+
+#	pg_type.MACADDROID : literal,
+#	pg_type.INETOID : (cidr_pack, cidr_unpack),
+#	pg_type.CIDROID : (cidr_pack, cidr_unpack),
+
+	pg_types.DATEOID : (date_pack, date_unpack),
+	pg_types.ABSTIMEOID : (long_pack, long_unpack),
+
+	pg_types.INT2OID : (int2_pack, int2_unpack),
+	pg_types.INT4OID : (int4_pack, int4_unpack),
+	pg_types.INT8OID : (int8_pack, int8_unpack),
+	pg_types.NUMERICOID : literal,
+
+	pg_types.OIDOID : (oid_pack, oid_unpack),
+	pg_types.XIDOID : (xid_pack, xid_unpack),
+	pg_types.CIDOID : (cid_pack, cid_unpack),
+	pg_types.TIDOID : (tid_pack, tid_unpack),
+
+	pg_types.FLOAT4OID : (float_pack, float_unpack),
+	pg_types.FLOAT8OID : (double_pack, double_unpack),
+
+	pg_types.POINTOID : (point_pack, point_unpack),
+	pg_types.LSEGOID : (lseg_pack, lseg_unpack),
+	pg_types.BOXOID : (box_pack, box_unpack),
+	pg_types.CIRCLEOID : (circle_pack, circle_unpack),
+	pg_types.PATHOID : (path_pack, path_unpack),
+	pg_types.POLYGONOID : (polygon_pack, polygon_unpack),
+
+	#pg_types.ACLITEMOID : (aclitem_pack, aclitem_unpack),
+	#pg_types.LINEOID : (line_pack, line_unpack),
+	#pg_types.CASHOID : (cash_pack, cash_unpack),
+}
+
+time_io = {
+	pg_types.TIMEOID : (time_pack, time_unpack),
+	pg_types.TIMETZOID : (timetz_pack, timetz_unpack),
+	pg_types.TIMESTAMPOID : (time_pack, time_unpack),
+	pg_types.TIMESTAMPTZOID : (time_pack, time_unpack),
+	pg_types.INTERVALOID : (interval_pack, interval_unpack)
+}
+
+time_noday_io = {
+	pg_types.TIMEOID : (time_pack, time_unpack),
+	pg_types.TIMETZOID : (timetz_pack, timetz_unpack),
+	pg_types.TIMESTAMPOID : (time_pack, time_unpack),
+	pg_types.TIMESTAMPTZOID : (time_pack, time_unpack),
+	pg_types.INTERVALOID : (interval_noday_pack, interval_noday_unpack)
+}
+
+time64_io = {
+	pg_types.TIMEOID : (time64_pack, time64_unpack),
+	pg_types.TIMETZOID : (timetz64_pack, timetz64_unpack),
+	pg_types.TIMESTAMPOID : (time64_pack, time64_unpack),
+	pg_types.TIMESTAMPTZOID : (time64_pack, time64_unpack),
+	pg_types.INTERVALOID : (interval64_pack, interval64_unpack)
+}
+
+time64_noday_io = {
+	pg_types.TIMEOID : (time64_pack, time64_unpack),
+	pg_types.TIMETZOID : (timetz64_pack, timetz64_unpack),
+	pg_types.TIMESTAMPOID : (time64_pack, time64_unpack),
+	pg_types.TIMESTAMPTZOID : (time64_pack, time64_unpack),
+	pg_types.INTERVALOID : (interval64_noday_pack, interval64_noday_unpack)
+}

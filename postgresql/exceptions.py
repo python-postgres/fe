@@ -46,15 +46,8 @@ class ClusterTimeoutError(ClusterError):
 class AbortTransaction(Exception):
 	"""
 	Abort the current transaction and continue and after the edge of the trapped
-	exception. In cases where a return value can be emitted, return the
-	``returning`` attribute.
+	exception.
 	"""
-	def __init__(self, *args):
-		Exception.__init__(self, *args)
-		if args:
-			self.returning = args[0]
-		else:
-			self.returning = None
 
 class UnavailableSSL(Exception):
 	"""
@@ -68,6 +61,7 @@ class UnavailableSSL(Exception):
 def sixbit(i):
 	'force values to be in the sixbit range'
 	return ((i - 0x30) & 0x3F)
+
 def unsixbit(i):
 	'extract the original value from an integer processed with `sixbit`'
 	return ((i & 0x3F) + 0x30)
@@ -94,8 +88,9 @@ class State(int):
 	"""
 	An SQL state code. Normally used to identify the kind of error that occurred.
 	"""
-	def __new__(self, arg):
-		if isinstance(arg, State):
+
+	def __new__(typ, arg):
+		if isinstance(arg, typ):
 			return arg
 		elif isinstance(arg, int):
 			chars = unmake(arg)
@@ -103,7 +98,7 @@ class State(int):
 			chars = ''.join(arg)
 			arg = make(chars)
 
-		rob = int.__new__(self, arg)
+		rob = int.__new__(typ, arg)
 		rob._chars = chars
 		return rob
 
@@ -123,19 +118,19 @@ class State(int):
 class Class(State):
 	"""
 	SQL state code class. This is a state code whose last three characters are
-	'000'. Classes are special in the sense that they 
+	'000'.
 	"""
-	def __new__(self, chars, **kw):
-		if isinstance(chars, Class):
+	def __new__(typ, chars, **kw):
+		if isinstance(chars, typ):
 			return chars
 
-		rob = State.__new__(self, (chars[0], chars[1], '0', '0', '0'))
+		rob = super().__new__(typ, (chars[0], chars[1], '0', '0', '0'))
 		for k, v in kw.items():
 			setattr(rob, k, v)
 		return rob
 
 	def __getitem__(self, val):
-		val = State(val)
+		val = super(type(self))(val)
 		return [x for x in self.__dict__ if self.__dict__[x] == val][0]
 
 	def __repr__(self):
@@ -179,13 +174,10 @@ class Class(State):
 		postgresql.exceptions.State('Ex001')
 		"""
 		if att.startswith('_'):
-			super(Class, self).__setattr__(att, val)
+			super().__setattr__(att, val)
 		else:
-			if isinstance(val, int):
-				c = State(val)
-			else:
-				c = State((self._chars[0], self._chars[1], val[0], val[1], val[2]))
-			super(Class, self).__setattr__(att, c)
+			c = State((self._chars[0], self._chars[1], val[0], val[1], val[2]))
+			super().__setattr__(att, c)
 
 	def __iter__(self):
 		return iter([
@@ -537,16 +529,13 @@ class Error(Exception):
 	"""Error(msg[, code])
 	
 	Implements an interface to a PostgreSQL-style exception. Use expectation is
-	for producing Postgres ERRORs from a raised Error and raising an Error from a
-	given PostgreSQL ERROR from a connection, result, or trapped backend ERROR.
+	for producing PostgreSQL ERRORs from a raised Error and raising an Error from
+	a given PostgreSQL ERROR from a connection, result, or trapped backend ERROR.
 	"""
 	code = IE
 	details = None
-	display_order = ('detail', 'hint', 'context')
-
-	# We explicitly set message as the error's message, so avoid 2.6's deprecation
-	# warning as it does not apply to pg_exc.Error.
 	message = None
+	display_order = ('detail', 'hint', 'context')
 
 	def __init__(self, msg, code = None, details = None):
 		if code is not None and self.code != code:
@@ -586,9 +575,9 @@ class ConnectionFailureError(ConnectionError):
 	code = CONNECTION.FAILURE
 class ProtocolError(ConnectionError):
 	code = CONNECTION.PROTOCOL_VIOLATION
-class SQLClientUnableToEstablishSQLConnectionError(ConnectionError):
+class ClientCannotConnectError(ConnectionError):
 	code = CONNECTION.SQLCLIENT_UNABLE_TO_ESTABLISH_SQLCONNECTION
-class SQLServerRejectedEstablishmentOfSQLConnection(ConnectionError):
+class ConnectionRejectionError(ConnectionError):
 	code = CONNECTION.SQLSERVER_REJECTED_ESTABLISHMENT_OF_SQLCONNECTION
 class TransactionResolutionUnknownError(ConnectionError):
 	code = CONNECTION.TRANSACTION_RESOLUTION_UNKNOWN

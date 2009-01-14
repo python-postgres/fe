@@ -109,18 +109,6 @@ class PreparedStatement(
 		"""
 
 	@abstractmethod
-	def __invert__(self):
-		"""
-		Shorthand for a call to the `first` method without any arguments.
-		Useful for resolving static queries. Example usage:
-
-		>>> ~pg_con.query("INSERT INTO ttable VALUES ('value')")
-		1
-		>>> ~pg_con.query("SELECT 'somestring'")
-		'somestring'
-		"""
-
-	@abstractmethod
 	def close(self):
 		"""
 		Close the prepraed statement releasing resources associated with it.
@@ -131,12 +119,6 @@ class PreparedStatement(
 		"""
 		Prepare the already instantiated query for use. This method would only be
 		used if the query were closed at some point.
-		"""
-
-	@abstractmethod
-	def reprepare(self):
-		"""
-		Shorthand for ``close`` then ``prepare``.
 		"""
 
 class Cursor(
@@ -376,10 +358,9 @@ class Settings(
 	metaclass = ABCMeta
 ):
 	"""
-	A mapping interface to the session's settings. This dictionary-like object
-	provides a direct interface to ``SHOW`` or ``SET`` commands. Identifiers and
-	values need not be quoted specially as the implementation must do that work
-	for the user.
+	A mapping interface to the session's settings. This provides a direct interface
+	to ``SHOW`` or ``SET`` commands. Identifiers and values need not be quoted
+	specially as the implementation must do that work for the user.
 	"""
 
 	def getpath(self) -> "Sequence of schema names that make up the search_path":
@@ -538,7 +519,7 @@ class Connection(metaclass = ABCMeta):
 		sql : "The query text.",
 		*default_args : "The default positional parameters to pass to the statement.",
 		title : "The query's name, used in tracebacks when available" = None,
-		prepare : "Whether or not to prepare the query." = True,
+		prepare : "Whether or not to prepare the query." = True
 	):
 		"""
 		Create a new `.query` instance that provides an interface to the prepared statement.
@@ -578,7 +559,7 @@ class Connection(metaclass = ABCMeta):
 		sql : "The query text.",
 		*default_args : "The default positional parameters to pass to the statement.",
 		title : "The query's name, used in tracebacks when available" = None,
-		prepare : "Whether or not to prepare the query." = True,
+		prepare : "Whether or not to prepare the query." = True
 	):
 		"""
 		Exactly like `query`, but cache the created `PreparedStatement` using the
@@ -593,7 +574,7 @@ class Connection(metaclass = ABCMeta):
 		statement_id : "The identifier of the statement.",
 		*default_args : "The default positional parameters to pass to the statement.",
 		title : "The query's name, used in tracebacks when available" = None,
-		prepare : "Whether or not to prepare the query." = True,
+		prepare : "Whether or not to prepare the query." = True
 	):
 		"""
 		Create a `PreparedStatement` object that was already prepared on the server.
@@ -748,8 +729,8 @@ class Connection(metaclass = ABCMeta):
 		doc = """
 		A property that provides an interface to "SELECT current_user", ``SET
 		ROLE``, and ``RESET ROLE``. When the attribute is resolved, the current user will
-		be given as a character string(unicode). When the attribute is set, it will
-		issue a ``SET ROLE`` command to the server, changing the session's user. When
+		be given as a character string. When the attribute is set, it will issue a
+		``SET ROLE`` command to the server, changing the session's user. When
 		the attribute is deleted, a ``RESET ROLE`` command will be issued to the
 		server.
 		"""
@@ -827,7 +808,7 @@ class Cluster(metaclass = ABCMeta):
 	@abstractproperty
 	def settings(self):
 		"""
-		A `Settings` interface to the postgresql.conf file associated with the
+		A `Settings` interface to the ``postgresql.conf`` file associated with the
 		cluster.
 		"""
 	

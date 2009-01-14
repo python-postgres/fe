@@ -5,25 +5,17 @@
 'PQ version 3.0 elements'
 import sys
 import os
-from struct import pack, unpack
-from postgresql.exceptions import ProtocolError
-
-def UNLONG(s):
-	return unpack("!L", s)[0]
-
-def SHORT(s):
-	return pack("!H", s)
-
-def UNSHORT(s):
-	return unpack("!H", s)[0]
-
-BYTE = chr
-UNBYTE = ord
+from struct import pack, unpack, Struct
 
 StringFormat = b'\x00\x00'
 BinaryFormat = b'\x00\x01'
 
+byte = Struct("!B")
+ushort = Struct("!H")
+ulong = Struct("!L")
+
 class Message(object):
+	bytes_struct = Struct("!cL")
 	__slots__ = ()
 	def __repr__(self):
 		return '%s.%s(%s)' %(
@@ -34,14 +26,14 @@ class Message(object):
 
 	def __eq__(self, ob):
 		return isinstance(ob, type(self)) and self.type == ob.type and \
-		not False in [
+		not False in (
 			getattr(self, x) == getattr(ob, x)
 			for x in self.__slots__
-		]
+		)
 
-	def __str__(self):
+	def bytes(self):
 		data = self.serialize()
-		return self.type + pack("!L", len(data) + 4) + data
+		return self.bytes_struct.pack(self.type, len(data) + 4) + data
 
 	def serialization(self, writer):
 		writer(self.serialize())
@@ -78,7 +70,7 @@ class TupleMessage(Message):
 	A message who's data is based on a tuple structure.
 	"""
 	type = b''
-	__slots__ = ()
+	__slots__ = ('data',)
 
 	def __repr__(self):
 		return '%s.%s(%s)' %(
@@ -107,7 +99,7 @@ class Void(Message):
 	type = b''
 	__slots__ = ()
 
-	def __str__(self):
+	def bytes(self):
 		return b''
 
 	def serialize(self):
@@ -134,11 +126,11 @@ class WireMessage(Message):
 		return self[1]
 
 	def parse(self, data):
-		if unpack("!L", data[1:5])[0] != len(data) - 1:
-			raise ProtocolError(
+		if ulong.unpack(data[1:5])[0] != len(data) - 1:
+			raise ValueError(
 				"invalid wire message where data is %d bytes and " \
 				"internal size stamp is %d bytes" %(
-					len(data), unpack("!L", data[1:5])[0] + 1
+					len(data), ulong.unpack(data[1:5])[0] + 1
 				)
 			)
 		return self((data[0], data[5:]))
@@ -154,7 +146,7 @@ class EmptyMessage(Message):
 
 	def parse(self, data):
 		if data != b'':
-			raise ProtocolError("empty message(%r) had data" %(self.type,))
+			raise ValueError("empty message(%r) had data" %(self.type,))
 		return self.SingleInstance
 	parse = classmethod(parse)
 
@@ -169,12 +161,12 @@ class Notify(Message):
 		self.parameter = parameter
 
 	def serialize(self):
-		return pack("!L", self.pid) + \
+		return ulong.pack(self.pid) + \
 			self.relation + b'\x00' + \
 			self.parameter + b'\x00'
 
 	def parse(self, data):
-		pid = UNLONG(data[0:4])
+		pid = ulong.unpack(data[0:4])[0]
 		relname, param, nothing = data[4:].split(b'\x00', 2)
 		return self(pid, relname, param)
 	parse = classmethod(parse)
@@ -319,7 +311,7 @@ class Notice(Message, dict):
 		kw = {}
 		for frag in data.split(b'\x00'):
 			if frag:
-				kw[self._dtm[frag[0]]] = frag[1:]
+				kw[self._dtm[frag[0:1]]] = frag[1:]
 		return self(**kw)
 	parse = classmethod(parse)
 
@@ -338,12 +330,12 @@ class FunctionResult(Message):
 
 	def serialize(self):
 		return self.result is None and b'\xff\xff\xff\xff' or \
-			pack("!L", len(self.result)) + self.result
+			ulong.pack(len(self.result)) + self.result
 	
 	def parse(self, data):
 		if data == b'\xff\xff\xff\xff':
 			return self(None)
-		size = UNLONG(data[0:4])
+		size = ulong.unpack(data[0:4])[0]
 		data = data[4:]
 		if size != len(data):
 			raise ValueError(
@@ -360,10 +352,10 @@ class AttributeTypes(TupleMessage):
 	__slots__ = ()
 
 	def serialize(self):
-		return SHORT(len(self)) + b''.join([pack("!L", x) for x in self])
+		return ushort.pack(len(self)) + b''.join([ulong.pack(x) for x in self])
 
 	def parse(self, data):
-		ac = UNSHORT(data[0:2])
+		ac = ushort.unpack(data[0:2])[0]
 		args = data[2:]
 		if len(args) != ac * 4:
 			raise ValueError("invalid argument type data size")
@@ -373,16 +365,30 @@ class AttributeTypes(TupleMessage):
 class TupleDescriptor(TupleMessage):
 	"""Tuple description"""
 	type = b'T'
+	struct = Struct("!LhLhlh")
 	__slots__ = ()
 
+	@property
+	def attribute_map(self):
+		"""
+		create a dictionary from a pq desc that maps attribute names
+		to their index
+		"""
+		return {
+			self[x][0] : x for x in range(len(self))
+		}
+
+	def keys(self):
+		return [x[0] for x in self]
+
 	def serialize(self):
-		return SHORT(len(self)) + b''.join([
-			x[0] + b'\x00' + pack("!LhLhlh", *x[1:])
+		return ushort.pack(len(self)) + b''.join([
+			x[0] + b'\x00' + self.struct.pack(*x[1:])
 			for x in self
 		])
 
 	def parse(self, data):
-		ac = UNSHORT(data[0:2])
+		ac = ushort.unpack(data[0:2])[0]
 		atts = []
 		data = data[2:]
 		ca = 0
@@ -392,7 +398,7 @@ class TupleDescriptor(TupleMessage):
 			name = data[0:eoan]
 			data = data[eoan+1:]
 			# name, relationId, columnNumber, typeId, typlen, typmod, format
-			atts.append((name,) + unpack("!LhLhlh", data[0:18]))
+			atts.append((name,) + self.struct.unpack(data[0:18]))
 			data = data[18:]
 			ca += 1
 		return self(atts)
@@ -404,13 +410,13 @@ class Tuple(TupleMessage):
 	__slots__ = ()
 
 	def serialize(self):
-		return SHORT(len(self)) + b''.join([
-			x is None and b'\xff\xff\xff\xff' or pack("!L", len(x)) + bytes(x)
+		return ushort.pack(len(self)) + b''.join([
+			x is None and b'\xff\xff\xff\xff' or ulong.pack(len(x)) + bytes(x)
 			for x in self
 		])
 
 	def parse(self, data):
-		natts = UNSHORT(data[0:2])
+		natts = ushort.unpack(data[0:2])[0]
 		atts = list()
 		offset = 2
 
@@ -421,7 +427,7 @@ class Tuple(TupleMessage):
 			if size == b'\xff\xff\xff\xff':
 				att = None
 			else:
-				al = UNLONG(size)
+				al = ulong.unpack(size)[0]
 				ao = offset
 				offset = ao + al
 				att = data[ao:offset]
@@ -433,6 +439,7 @@ class Tuple(TupleMessage):
 class KillInformation(Message):
 	'Backend cancellation information'
 	type = b'K'
+	struct = Struct("!LL")
 	__slots__ = ('pid', 'key')
 
 	def __init__(self, pid, key):
@@ -440,10 +447,10 @@ class KillInformation(Message):
 		self.key = key
 
 	def serialize(self):
-		return pack("!LL", self.pid, self.key)
+		return self.struct.pack(self.pid, self.key)
 
 	def parse(self, data):
-		return self(*unpack("!LL", data))
+		return self(*self.struct.unpack(data))
 	parse = classmethod(parse)
 
 class CancelQuery(KillInformation):
@@ -458,6 +465,10 @@ class CancelQuery(KillInformation):
 			self.pid, self.key
 		)
 
+	def bytes(self):
+		data = self.serialize()
+		return ulong.pack(len(data)) + data
+
 	def parse(self, data):
 		if data[0:4] != bytes(self.version):
 			raise ValueError("invalid cancel query code")
@@ -467,18 +478,22 @@ class CancelQuery(KillInformation):
 class NegotiateSSL(Message):
 	"Discover backend's SSL support"
 	type = b''
-	from postgresql.protocol.version import NegotiateSSLCode as version
-	packed_version = pack("!HH", version[0], version[1])
+	from .version import NegotiateSSLCode as version
+	packed_version = version.bytes()
 	__slots__ = ()
 
 	def __new__(subtype):
 		return NegotiateSSLMessage
 
+	def bytes(self):
+		data = self.serialize()
+		return ulong.pack(len(data) + 4) + data
+
 	def serialize(self):
-		return NegotiateSSL.packed_version
+		return self.packed_version
 
 	def parse(self, data):
-		if data != bytes(self.version):
+		if data != self.packed_version:
 			raise ValueError("invalid SSL Negotiation code")
 		return NegotiateSSLMessage
 	parse = classmethod(parse)
@@ -490,18 +505,24 @@ class Startup(Message, dict):
 	"""
 	type = b''
 	from postgresql.protocol.version import V3_0 as version
+	packed_version = version.bytes()
 	__slots__ = ()
 	__repr__ = dict_message_repr
 
 	def serialize(self):
-		return bytes(self.version) + b''.join([
+		return self.packed_version + b''.join([
 			k + b'\x00' + v + b'\x00'
-			for k, v in self.items() if v is not None
+			for k, v in self.items()
+			if v is not None
 		]) + b'\x00'
 
+	def bytes(self):
+		data = self.serialize()
+		return ulong.pack(len(data) + 4) + data
+
 	def parse(self, data):
-		if data[0:4] != bytes(self.version):
-			raise ValueError("invalid version code")
+		if data[0:4] != self.version.bytes():
+			raise ValueError("invalid version code {1}".format(repr(data[0:4])))
 		kw = dict()
 		key = None
 		for value in data[4:].split(b'\x00')[:-2]:
@@ -551,10 +572,10 @@ class Authentication(Message):
 		self.salt = salt
 
 	def serialize(self):
-		return pack("!L", self.request) + self.salt
+		return ulong.pack(self.request) + self.salt
 
 	def parse(subtype, data):
-		return subtype(UNLONG(data[0:4]), data[4:])
+		return subtype(ulong.unpack(data[0:4])[0], data[4:])
 	parse = classmethod(parse)
 
 class Password(StringMessage):
@@ -613,18 +634,18 @@ class Parse(Message):
 
 	def parse(self, data):
 		name, statement, args = data.split(b'\x00', 2)
-		ac = UNSHORT(args[0:2])
+		ac = ushort.unpack(args[0:2])[0]
 		args = args[2:]
 		if len(args) != ac * 4:
-			raise ProtocolError("invalid argument type data")
+			raise ValueError("invalid argument type data")
 		at = unpack('!%dL'%(ac,), args)
 		return self(name, statement, at)
 	parse = classmethod(parse)
 
 	def serialize(self):
-		ac = SHORT(len(self.argtypes))
+		ac = ushort.pack(len(self.argtypes))
 		return self.name + b'\x00' + self.statement + b'\x00' + ac + b''.join([
-			pack("!L", x) for x in self.argtypes
+			ulong.pack(x) for x in self.argtypes
 		])
 
 class Bind(Message):
@@ -651,12 +672,14 @@ class Bind(Message):
 
 	def serialize(self):
 		args = self.arguments
-		ac = SHORT(len(args))
+		ac = ushort.pack(len(args))
 		ad = b''.join([
-			(x is None) and b'\xff\xff\xff\xff' or (pack("!L", len(x)) + x)
+			b'\xff\xff\xff\xff'
+			if x is None
+			else (ulong.pack(len(x)) + x)
 			for x in args
 		])
-		rfc = SHORT(len(self.rformats))
+		rfc = ushort.pack(len(self.rformats))
 		return \
 			self.name + b'\x00' + self.statement + b'\x00' + \
 			ac + b''.join(self.aformats) + ac + ad + rfc + \
@@ -664,11 +687,11 @@ class Bind(Message):
 
 	def parse(subtype, message_data):
 		name, statement, data = message_data.split(b'\x00', 2)
-		ac = UNSHORT(data[:2])
+		ac = ushort.unpack(data[:2])[0]
 		offset = 2 + (2 * ac)
 		aformats = unpack(("2s" * ac), data[2:offset])
 
-		natts = UNSHORT(data[offset:offset+2])
+		natts = ushort.unpack(data[offset:offset+2])[0]
 		args = list()
 		offset += 2
 
@@ -679,14 +702,14 @@ class Bind(Message):
 			if size == b'\xff\xff\xff\xff':
 				att = None
 			else:
-				al = UNLONG(size)
+				al = ulong.unpack(size)[0]
 				ao = offset
 				offset = ao + al
 				att = data[ao:offset]
 			args.append(att)
 			natts -= 1
 
-		rfc = UNSHORT(data[offset:offset+2])
+		rfc = ushort.unpack(data[offset:offset+2])[0]
 		ao = offset + 2
 		offset = ao + (2 * rfc)
 		rformats = unpack(("2s" * rfc), data[ao:offset])
@@ -704,11 +727,11 @@ class Execute(Message):
 		self.max = max
 
 	def serialize(self):
-		return self.name + b'\x00' + pack("!L", self.max)
+		return self.name + pack("!BL", 0, self.max)
 	
 	def parse(self, data):
 		name, max = data.split(b'\x00', 1)
-		return self(name, UNLONG(max))
+		return self(name, ulong.unpack(max)[0])
 	parse = classmethod(parse)
 
 class Describe(StringMessage):
@@ -721,7 +744,7 @@ class Describe(StringMessage):
 
 	def parse(subtype, data):
 		if data[0] != subtype.subtype:
-			raise ProtocolError(
+			raise ValueError(
 				"invalid Describe message subtype, %r; expected %r" %(
 					subtype.subtype, data[0]
 				)
@@ -747,7 +770,7 @@ class Close(StringMessage):
 
 	def parse(subtype, data):
 		if data[0] != subtype.subtype:
-			raise ProtocolError(
+			raise ValueError(
 				"invalid Close message subtype, %r; expected %r" %(
 					subtype.subtype, data[0]
 				)
@@ -777,22 +800,22 @@ class Function(Message):
 		self.rformat = rformat
 
 	def serialize(self):
-		ac = SHORT(len(self.arguments))
-		return pack("!L", self.oid) + \
+		ac = ushort.pack(len(self.arguments))
+		return ulong.pack(self.oid) + \
 			ac + b''.join(self.aformats) + \
 			ac + b''.join([
-				(x is None) and b'\xff\xff\xff\xff' or pack("!L", len(x)) + x
+				(x is None) and b'\xff\xff\xff\xff' or ulong.pack(len(x)) + x
 				for x in self.arguments
 			]) + self.rformat
 
 	def parse(self, data):
-		oid = UNLONG(data[0:4])
+		oid = ulong.unpack(data[0:4])[0]
 
-		ac = UNSHORT(data[4:6])
+		ac = ushort.unpack(data[4:6])[0]
 		offset = 6 + (2 * ac)
 		aformats = unpack(("2s" * ac), data[6:offset])
 
-		natts = UNSHORT(data[offset:offset+2])
+		natts = ushort.unpack(data[offset:offset+2])[0]
 		args = list()
 		offset += 2
 
@@ -803,7 +826,7 @@ class Function(Message):
 			if size == b'\xff\xff\xff\xff':
 				att = None
 			else:
-				al = UNLONG(size)
+				al = ulong.unpack(size)[0]
 				ao = offset
 				offset = ao + al
 				att = data[ao:offset]
@@ -815,6 +838,7 @@ class Function(Message):
 
 class CopyBegin(Message):
 	type = None
+	struct = Struct("!BH")
 	__slots__ = ('format', 'formats')
 
 	def __init__(self, format, formats):
@@ -822,18 +846,17 @@ class CopyBegin(Message):
 		self.formats = formats
 
 	def serialize(self):
-		return chr(self.format) + SHORT(len(self.formats)) + b''.join([
-			SHORT(x) for x in self.formats
+		return self.struct.pack(self.format, len(self.formats)) + b''.join([
+			ushort.pack(x) for x in self.formats
 		])
 
 	def parse(subtype, data):
-		format = ord(data[0])
-		natts = UNSHORT(data[1:3])
+		format, natts = self.struct.unpack(data[:3])
 		formats_str = data[3:]
 		if len(formats_str) != natts * 2:
-			raise ProtocolError("number of formats and data do not match up")
+			raise ValueError("number of formats and data do not match up")
 		return subtype(format, [
-			UNSHORT(formats_str[x:x+2]) for x in range(0, natts * 2, 2)
+			ushort.unpack(formats_str[x:x+2])[0] for x in range(0, natts * 2, 2)
 		])
 	parse = classmethod(parse)
 

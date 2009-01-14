@@ -2,13 +2,14 @@
 # copyright 2007, pg/python project.
 # http://python.projects.postgresql.org
 ##
-'DB-API 2.0 conforming interface on driver.pg_api'
-
+"""
+DB-API 2.0 conforming interface on postgresql.driver.pgapi.
+"""
 threadsafety = 1
 paramstyle = 'pyformat'
 apilevel = '2.0'
 
-import postgresql.driver.pgapi as pgapi
+import postgresql.driver.pgapi as pg_driver
 import postgresql.types as pg_type
 import postgresql.strings as pg_str
 import datetime, time
@@ -162,6 +163,8 @@ class Cursor(object):
 			self.__portals = None
 			for p in ps: p.close()
 
+	# Describe the "real" cursor as a "portal".
+	# This should keep ambiguous terminology out of the picture.
 	def _portal():
 		def fget(self):
 			if self.__portals is None:
@@ -217,5 +220,5 @@ def connect(**kw):
 	kwi = tuple(kwi)
 	con = _connectors.get(kwi)
 	if not con:
-		con = _connectors[kwi] = pgapi.connector(**kw)
+		con = _connectors[kwi] = pg_driver.connector(**kw)
 	return Connection(con())

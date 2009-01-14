@@ -3,10 +3,10 @@
 # http://python.projects.postgresql.org
 ##
 """
-PostgreSQL client environment variable extraction
+PostgreSQL client environment variable extraction and conversion.
 
-This project provides a relatively simple way to translate an environment
-mapping into a more normalized connection configuration dictionary.
+This module provides a relatively simple way to translate an environment
+mapping into a normalized connection configuration dictionary.
 
 It's basic functionality is to simply map PG-environment to more generic
 terms:
@@ -38,15 +38,14 @@ PGREQUIRESSL gets rewritten into "sslmode = 'require'".
 PGSERVICE gets applied directly to the dictionary.
 
 PGIRI gets applied first(standard environment overrides).
-(See postgresql.utility.client.iri for more information on PGIRI)
+(See postgresql.iri for more information on PGIRI)
 """
 import os
 import sys
 import configparser
 
-from postgresql.pg_config import dictionary as pg_config
-import postgresql.iri as pg_iri
-import postgresql.strings as pg_str
+from .pg_config import dictionary as pg_config
+from . import iri as pg_iri
 
 # Environment variables that require no transformation.
 exact_map = {
@@ -112,11 +111,8 @@ def service_data(d, env):
 			service_file = os.path.join(service_file, pg_service_filename)
 
 		cp = configparser.ConfigParser()
-		fp = open(service_file)
-		try:
+		with open(service_file) as fp:
 			cp.readfp(fp, filename = service_file)
-		finally:
-			fp.close()
 
 		try:
 			items = cp.items(env[pg_service_envvar])
@@ -141,7 +137,7 @@ set_immediate = [
 	),
 
 	('STANDARD', lambda d, env: d.update([
-		(v, env[k]) for k, v in exact_map.iteritems() if k in env
+		(v, env[k]) for k, v in exact_map.items() if k in env
 	])),
 ]
 
@@ -163,12 +159,12 @@ def convert_environ(env = os.environ, xseq = set_sequence):
 			op(d, env)
 	return d
 
-def convert(environ):
+def convert(env = os.environ):
 	"""
 	Convert output from `postgresql.environ.convert_environ`
 	to a `postgresql.clientparams` connection parameters dictionary.
 	"""
-	d = client_environ.convert_environ(environ)
+	d = convert_environ(env)
 	# FIXME: No escape for colons.
 	path = d.pop('path', None)
 	if path is not None:

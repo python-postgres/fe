@@ -28,7 +28,7 @@ class Version(tuple):
 	def __int__(self):
 		return (self[0] << 16) | self[1]
 
-	def __str__(self):
+	def bytes(self):
 		return pack('!HH', self[0], self[1])
 
 	def __repr__(self):

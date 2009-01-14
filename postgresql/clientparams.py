@@ -28,6 +28,9 @@ pg_appdata_directory = 'postgresql'
 pg_appdata_passfile = 'pgpass.conf'
 
 def defaults(getuser = getuser, environ = {}, params = None):
+	"""
+	Create a client parameters dictionary with all the default values.
+	"""
 	user = getuser()
 	if sys.platform == 'win32':
 		appdata = environ.get('APPDATA')
@@ -108,22 +111,32 @@ def resolve_password(d):
 	# exists, or has been resolved.
 	d.pop('pgpassfile', None)
 
-def create(param_layers, environ = os.environ, params = None):
+def create(
+	param_layers : "a sequence of mappings to apply to `params`",
+	environ : "environment variables to apply" = os.environ,
+	params : "The target mapping to fill the merged parameters into" = None,
+	prompt_password : "whether to issue a password prompt" = False
+):
 	"""
-	Create the normal parameter configuration 
+	Create the normal parameter configuration.
+
+	If `params` is `None`, a new dictionary will be returned. Otherwise,
+	`params` is modified and returned.
 	"""
 	d = defaults(environ = environ, params = params)
 	for x in param_layers:
 		merge_params(d, x)
 
-	if co.prompt_password is True:
+	if prompt_password is True:
 		if sys.stdin.isatty():
 			d['password'] = getpass("Password for user %s: " %(
 				d['user'],
 			))
 		else:
 			# getpass will throw an exception if it's not a tty,
+			# so just take the next line; could be another command.
 			pw = sys.stdin.readline()
+			# try to clean it up..
 			if pw.endswith(os.linesep):
 				pw = pw[:len(pw)-len(os.linesep)]
 			d['password'] = pw

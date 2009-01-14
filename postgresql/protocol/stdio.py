@@ -1,31 +1,12 @@
 ##
-# copyright 2007, pg/python project.
+# copyright 2009, pg/python project.
 # http://python.projects.postgresql.org
 ##
-"""
-Typical PostgreSQL type I/O routines
+def date_pack(x):
+	return ts.date_pack(x.toordinal() - pg_date_offset)
 
-I/O maps for converting wire data into standard Python objects.
-"""
-import datetime
-import socket
-from decimal import Decimal
-from netaddr.address import CIDR, Addr, EUI
-
-import postgresql.types as pg_type
-import postgresql.protocol.typio as pg_typio
-
-pg_epoch_datetime = datetime.datetime(2000, 1, 1)
-pg_epoch_date = pg_epoch_datetime.date()
-pg_date_offset = pg_epoch_date.toordinal()
-## Difference between Postgres epoch and Unix epoch.
-## Used to convert a Postgres ordinal to an ordinal usable by datetime
-pg_time_days = (pg_date_offset - datetime.date(1970, 1, 1).toordinal())
-
-date_io = (
-	lambda x: pg_typio.date_pack(x.toordinal() - pg_date_offset),
-	lambda x: datetime.date.fromordinal(pg_date_offset + pg_typio.date_unpack(x))
-)
+def date_unpack(x):
+	return datetime.date.fromordinal(pg_date_offset + pg_typio.date_unpack(x))
 
 def timestamp_pack(x):
 	"""
@@ -83,80 +64,79 @@ def interval_unpack(mds):
 		seconds = sec, microseconds = ms
 	)
 
-##
-# FIXME: Don't ignore time zone.
 def timetz_pack(x):
 	"""
 	Create a ((seconds, microseconds), timezone) tuple from a `datetime.time`
 	instance.
 	"""
-	return (time_pack(x), 0)
+	return (time_pack(x), x.utcoffset())
 
 def timetz_unpack(tstz):
 	"""
 	Create a `datetime.time` instance from a ((seconds, microseconds), timezone)
 	tuple.
 	"""
-	return time_unpack(tstz[0])
+	t = time_unpack(tstz[0])
+	t.tzinfo = FixedOffset(tstz[1])
 
 datetimemap = {
-	pg_type.INTERVALOID : (interval_pack, interval_unpack),
-	pg_type.TIMEOID : (time_pack, time_unpack),
-	pg_type.TIMESTAMPOID : (time_pack, time_unpack),
+	pg_types.INTERVALOID : (interval_pack, interval_unpack),
+	pg_types.TIMEOID : (time_pack, time_unpack),
+	pg_types.TIMESTAMPOID : (time_pack, time_unpack),
 }
 
 time_io = {
-	pg_type.TIMEOID : (
-		lambda x: pg_typio.time_pack(time_pack(x)),
-		lambda x: time_unpack(pg_typio.time_unpack(x))
+	pg_types.TIMEOID : (
+		lambda x: ts.time_pack(time_pack(x)),
+		lambda x: time_unpack(ts.time_unpack(x))
 	),
-	pg_type.TIMETZOID : (
+	pg_types.TIMETZOID : (
 		lambda x: pg_typio.timetz_pack(timetz_pack(x)),
 		lambda x: timetz_unpack(pg_typio.timetz_unpack(x))
 	),
-	pg_type.TIMESTAMPOID : (
+	pg_types.TIMESTAMPOID : (
 		lambda x: pg_typio.time_pack(timestamp_pack(x)),
 		lambda x: timestamp_unpack(pg_typio.time_unpack(x))
 	),
-	pg_type.TIMESTAMPTZOID : (
+	pg_types.TIMESTAMPTZOID : (
 		lambda x: pg_typio.time_pack(timestamp_pack(x)),
 		lambda x: timestamp_unpack(pg_typio.time_unpack(x))
 	),
-	pg_type.INTERVALOID : (
+	pg_types.INTERVALOID : (
 		lambda x: pg_typio.interval_pack(interval_pack(x)),
 		lambda x: interval_unpack(pg_typio.interval_unpack(x))
 	),
 }
 time_io_noday = time_io.copy()
-time_io_noday[pg_type.INTERVALOID] = (
+time_io_noday[pg_types.INTERVALOID] = (
 	lambda x: pg_typio.interval_noday_pack(interval_pack(x)),
 	lambda x: interval_unpack(pg_typio.interval_noday_unpack(x))
 )
 
 time64_io = {
-	pg_type.TIMEOID : (
+	pg_types.TIMEOID : (
 		lambda x: pg_typio.time64_pack(time_pack(x)),
 		lambda x: time_unpack(pg_typio.time64_unpack(x))
 	),
-	pg_type.TIMETZOID : (
+	pg_types.TIMETZOID : (
 		lambda x: pg_typio.timetz64_pack(timetz_pack(x)),
 		lambda x: timetz_unpack(pg_typio.timetz64_unpack(x))
 	),
-	pg_type.TIMESTAMPOID : (
+	pg_types.TIMESTAMPOID : (
 		lambda x: pg_typio.time64_pack(timestamp_pack(x)),
 		lambda x: timestamp_unpack(pg_typio.time64_unpack(x))
 	),
-	pg_type.TIMESTAMPTZOID : (
+	pg_types.TIMESTAMPTZOID : (
 		lambda x: pg_typio.time64_pack(timestamp_pack(x)),
 		lambda x: timestamp_unpack(pg_typio.time64_unpack(x))
 	),
-	pg_type.INTERVALOID : (
+	pg_types.INTERVALOID : (
 		lambda x: pg_typio.interval64_pack(interval_pack(x)),
 		lambda x: interval_unpack(pg_typio.interval64_unpack(x))
 	),
 }
 time64_io_noday = time64_io.copy()
-time64_io_noday[pg_type.INTERVALOID] = (
+time64_io_noday[pg_types.INTERVALOID] = (
 	lambda x: pg_typio.interval64_noday_pack(interval_pack(x)),
 	lambda x: interval_unpack(pg_typio.interval64_noday_unpack(x))
 )
@@ -166,102 +146,48 @@ def circle_unpack(x):
 	Given raw circle data, (x, y, radius), make a circle instance using
 	`postgresql.types.circle`.
 	"""
-	return pg_type.circle(((x[0], x[1]), x[2]))
-
-def inet_pack(x):
-	d = socket.inet_pton(
-		x.addr_type == 4 and socket.AF_INET or socket.AF_INET6,
-		str(x)
-	)
-	return pg_typio.cidr_pack((x.addr_type == 4 and 2 or 3, x.prefixlen(), d))
-def inet_unpack(x):
-	"""
-	Given serialized inet data, make a `netaddr.address.Addr` instance.
-	"""
-	fam, mask, data = pg_typio.cidr_unpack(x)
-	d = socket.inet_ntop(
-		fam == 2 and socket.AF_INET or socket.AF_INET6, data
-	)
-	# cidr will determine family from len of data.
-	return Addr('%s' %(d,))
-
-def cidr_pack(x):
-	# INET family is 2, INET6 family is 3.
-	addr, mask = str(x).split('/', 1)
-	d = socket.inet_pton(
-		x.addr_type == 4 and socket.AF_INET or socket.AF_INET6, addr
-	)
-	return pg_typio.cidr_pack((x.addr_type == 4 and 2 or 3, x.prefixlen(), d))
-def cidr_unpack(x):
-	"""
-	Given serialized cidr data, make a `netaddr.address.CIDR` instance.
-	"""
-	fam, mask, data = pg_typio.cidr_unpack(x)
-	d = socket.inet_ntop(
-		fam == 2 and socket.AF_INET or socket.AF_INET6, data
-	)
-	return CIDR('%s/%d' %(d, mask))
-
-def macaddr_pack(x):
-	return ''.join([
-		chr(int(y, base = 16)) for y in str(x).split('-')
-	])
-def macaddr_unpack(x):
-	return EUI(':'.join([('%.2x' %(ord(y),)) for y in x]))
+	return pg_types.circle(((x[0], x[1]), x[2]))
 
 def two_pair(x):
 	'Make a pair of pairs out of a sequence of four objects'
 	return ((x[0], x[1]), (x[2], x[3]))
 
 def varbit_pack(x):
-	return pg_typio.varbit_pack((x.bits, x.data))
+	return ts.varbit_pack((x.bits, x.data))
 def varbit_unpack(x):
-	return pg_type.varbit.from_bits(*pg_typio.varbit_unpack(x))
+	return pg_types.varbit.from_bits(*ts.varbit_unpack(x))
 bitio = (varbit_pack, varbit_unpack)
 
+point_pack = ts.point_pack
 def point_unpack(x):
-	return pg_type.point(pg_typio.point_unpack(x))	
+	return pg_types.point(ts.point_unpack(x))	
+
+def box_pack(x):
+	return ts.box_pack((x[0][0], x[0][1], x[1][0], x[1][1]))
+def box_unpack(x):
+	return pg_types.box(two_pair(ts.box_unpack(x)))
+
+def lseg_pack(x):
+	return ts.lseg_pack((x[0][0], x[0][1], x[1][0], x[1][1]))
+def lseg_unpack(x):
+	return pg_types.lseg(two_pair(ts.lseg_unpack(x)))
+
+def circle_pack(x):
+	lambda x: pg_typio.circle_pack((x[0][0], x[0][1], x[1])),
+def circle_unpack(x):
+	lambda x: circle_unpack(pg_typio.circle_unpack(x))
 
 # Map type oids to a (pack, unpack) pair.
-stdio = {
-	pg_type.NUMERICOID : (str, Decimal),
+oid_to_io = {
+	pg_types.NUMERICOID : (None, Decimal),
 
-	pg_type.DATEOID : date_io,
-	pg_type.VARBITOID : bitio,
-	pg_type.BITOID : bitio,
+	pg_types.DATEOID : (date_pack, date_unpack),
 
-	pg_type.INETOID : (
-		inet_pack,
-		inet_unpack,
-	),
+	pg_types.VARBITOID : bitio,
+	pg_types.BITOID : bitio,
 
-	pg_type.CIDROID : (
-		cidr_pack,
-		cidr_unpack,
-	),
-
-	pg_type.MACADDROID : (
-		macaddr_pack,
-		macaddr_unpack,
-	),
-
-	pg_type.POINTOID : (
-		pg_typio.point_pack,
-		point_unpack,
-	),
-
-	pg_type.BOXOID : (
-		lambda x: pg_typio.box_pack((x[0][0], x[0][1], x[1][0], x[1][1])),
-		lambda x: pg_type.box(two_pair(pg_typio.box_unpack(x)))
-	),
-
-	pg_type.LSEGOID : (
-		lambda x: pg_typio.lseg_pack((x[0][0], x[0][1], x[1][0], x[1][1])),
-		lambda x: pg_type.lseg(two_pair(pg_typio.lseg_unpack(x)))
-	),
-
-	pg_type.CIRCLEOID : (
-		lambda x: pg_typio.circle_pack((x[0][0], x[0][1], x[1])),
-		lambda x: circle_unpack(pg_typio.circle_unpack(x))
-	),
+	pg_types.POINTOID : (point_pack, point_unpack),
+	pg_types.BOXOID : (box_pack, box_unpack),
+	pg_types.LSEGOID : (lseg_pack, lseg_unpack),
+	pg_types.CIRCLEOID : (circle_pack, circle_unpack),
 }

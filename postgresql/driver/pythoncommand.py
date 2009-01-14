@@ -13,6 +13,7 @@ import optparse
 import contextlib
 from .. import clientparams
 from .. import clientoptparse as pg_opt
+from .. import environ as pg_env
 from ..resolved import pythoncommand as pycmd
 
 from .pgapi import Connector
@@ -23,7 +24,7 @@ pq_trace = optparse.make_option(
 	help = 'trace PQ protocol transmissions',
 	default = None,
 )
-default_options = pg_opt.default_options + [
+default_options = [
 	pg_opt.in_xact,
 	pq_trace,
 ] + pycmd.default_optparse_options
@@ -49,7 +50,11 @@ def command(args = sys.argv):
 	co, ca = p.parse_args(args[1:])
 	in_xact = co.in_xact
 
-	cond = clientparams.create(co, os.environ)
+	cond = clientparams.create(
+		[pg_env.convert(), pg_opt.convert(co)],
+		environ = os.environ,
+		prompt_password = co.prompt_password,
+	)
 	connector = Connector(**cond)
 	connection = connector.create()
 
@@ -72,8 +77,7 @@ def command(args = sys.argv):
 
 	builtin_overload = {
 	# New built-ins
-		'pg_connector' : connector,
-		'pg_con' : connection,
+		'connector' : connector,
 		'db' : connection,
 		'query' : connection.query,
 		'cquery' : connection.cquery,
@@ -84,7 +88,7 @@ def command(args = sys.argv):
 		'proc' : connection.proc,
 		'xact' : connection.xact,
 	}
-	restore = {k : __builtins__[k] for k in builtin_overload}
+	restore = {k : __builtins__.get(k) for k in builtin_overload}
 
 	trace_file = None
 	if co.pq_trace is not None:
@@ -107,8 +111,9 @@ def command(args = sys.argv):
 	finally:
 		# restore __builtins__
 		__builtins__.update(restore)
-		for x in builtin_overload.keys():
-			del __builtins__[x]
+		for k, v in builtin_overload.items():
+			if v is None:
+				del __builtins__[x]
 		if trace_file is not None:
 			trace_file.close()
 	return rv

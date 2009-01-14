@@ -23,8 +23,7 @@ from . import api as pg_api
 from . import configfile
 from . import pg_config
 from . import exceptions as pg_exc
-# Used for connection ready check.
-from .driver import pgapi as pgapi
+from . import driver as pg_driver
 
 DEFAULT_CONFIG_FILENAME = 'postgresql.conf'
 DEFAULT_HBA_FILENAME = 'pg_hba.conf'
@@ -268,7 +267,7 @@ class Cluster(pg_api.Cluster):
 			host = '::1'
 
 		try:
-			pg.connect(
+			pg_driver.connect(
 				user = 'ping',
 				host = host,
 				port = int(d.get('port') or 5432),

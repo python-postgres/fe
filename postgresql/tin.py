@@ -45,9 +45,9 @@ class Cup(object):
 
 			# Identify a cluster by whether or not it has a pg_config link.
 			if os.path.isdir(clpath) and os.path.islink(cfpath):
-				c = pg_cluster(clpath, pg_config.dictionary(cfpath))
+				c = Cluster(clpath, pg_config.dictionary(cfpath))
 				clusters.append(c)
-				c.version_type, vstr = c.config['version'].split()
+				c.version_type, vstr = c.settings['version'].split()
 				c.version_info = pg_version.one.parse(vstr)
 
 		self.clusters = clusters
@@ -82,9 +82,9 @@ class Cup(object):
 		kw['superusername'] = 'tinman'
 		if not kw.has_key('logfile'):
 			kw['logfile'] = sys.stderr
-		clust = pg_cluster.create(ddirpath, conf, **kw)
-
-		clust.version_type, ver = clust.config['version'].split()
+		clust = Cluster(ddirpath, pg_config_data = conf)
+		clust.init(**kw)
+		clust.version_type, ver = clust.settings['version'].split()
 		pgv = pg_version.one.parse(ver)
 		clust.version_info = pgv
 		config = {
@@ -96,19 +96,19 @@ class Cup(object):
 			])),
 		}
 
-		if pgv >= (8, 0):
+		if cmp(pgv (8, 0)) >= 0:
 			config['log_destination'] = "'stderr'"
-			if pgv < (8, 3):
+			if cmp(pgv, (8, 3)):
 				config['redirect_stderr'] = 'off'
-		clust.set_parameters(config)
+		clust.settings.update(config)
 
 		# init logfile and its header.
-		f = file(os.path.join(clust.control.data, 'log'), 'w')
-		f.write("%s [%s]\n[%s]\n\n" %(
-			clust.control.data,
-			clust.config['version'],
-			clust.config['configure']
-		))
+		with open(os.path.join(clust.data_directory, 'log'), 'w') as f:
+			f.write("%s [%s]\n[%s]\n\n" %(
+				clust.data_directory,
+				clust.settings['version'],
+				clust.settings['configure']
+			))
 
 		os.symlink(abspath, os.path.join(ddirpath, 'pg_config'))
 		self.clusters.append(clust)
@@ -211,7 +211,7 @@ if os.name == 'posix':
 			r = -r
 			msg = _("process exited with signal")
 			sys.stderr.write("%s [%s]: %s %d\n" %(
-				c.control.data, c.config['version'], msg, r,
+				c.data_directory, c.config['version'], msg, r,
 			))
 else:
 	def exit_message(c, r):
@@ -227,7 +227,7 @@ def tin(args):
 
 	op = optparse.OptionParser(
 		COMMAND_HELP,
-		version = '1.0dev',
+		version = '1.0',
 	)
 	op.allow_interspersed_args = False
 
@@ -241,7 +241,7 @@ def tin(args):
 	cup = Cup(co.set_path or DEFAULT_TINCUP)
 
 	working_set = cup.clusters
-	running_set = [x for x in working_set if x.control.running()]
+	running_set = [x for x in working_set if x.running()]
 
 	if co.all:
 		pass
@@ -265,7 +265,7 @@ def tin(args):
 			ex_cl = [
 				x for x in cup.clusters
 				if int(
-					os.path.basename(x.control.data)[len('cluster_'):]
+					os.path.basename(x.data_directory)[len('cluster_'):]
 				) in co.cluster
 			]
 			if co.version or co.config:
@@ -276,7 +276,7 @@ def tin(args):
 		if co.config_path:
 			ex_cl = [
 				x for x in cup.clusters
-				if os.readlink(os.path.join(x.control.data, 'pg_config')) \
+				if os.readlink(os.path.join(x.data_directory, 'pg_config')) \
 				in co.config_path
 			]
 			if co.version or co.config or co.cluster:
@@ -292,7 +292,7 @@ def tin(args):
 			if len(working_set) > 1:
 				sys.stderr.write("Multiple clusters selected, using first.\n")
 			x = working_set[0]
-			sys.stdout.write('PGDATA=%s\n' %(x.control.data))
+			sys.stdout.write('PGDATA=%s\n' %(x.data_directory))
 			if 'PGUSER' not in os.environ:
 				sys.stdout.write('PGUSER=tinman\n')
 			sys.stdout.write('PGHOST=localhost\nPGPORT=%s\n' %(
@@ -321,14 +321,14 @@ def tin(args):
 			ca = ()
 		elif com == 'drop':
 			for x in working_set:
-				if x.control.running():
-					x.control.stop(mode = 'immediate')
+				if x.running():
+					x.kill()
 				x.drop()
 		elif com == 'recreate':
 			for x in working_set:
 				pg_config_path = os.path.join(x.config['bindir'], 'pg_config')
-				if x.control.running():
-					x.control.stop(mode = 'immediate')
+				if x.running():
+					x.stop(mode = 'immediate')
 				x.drop()
 				cup.clusters.remove(x)
 				cup.add(pg_config_path)
@@ -336,13 +336,13 @@ def tin(args):
 			# List selected clusters
 			for x in working_set:
 				sys.stdout.write("%s [%s]\n" %(
-					x.control.data,
+					x.data_directory,
 					x.config['version']
 				))
 		elif com == 'path':
 			# Paths to selected clusters
 			for x in working_set:
-				sys.stdout.write("%s\n" %(x.control.data,))
+				sys.stdout.write("%s\n" %(x.data_directory,))
 		elif com == 'name':
 			# Name the selected cluster set
 			pass
@@ -355,27 +355,27 @@ def tin(args):
 				sys.stderr.write(_("ERROR: no command specified for execution") + os.linesep)
 				sys.exit(1)
 			for x in working_set:
-				os.environ['PGDATA'] = x.control.data
+				os.environ['PGDATA'] = x.data_directory
 				if 'PGUSER' not in os.environ:
 					os.environ['PGUSER'] = 'tinman'
 				os.environ['PGHOST'] = 'localhost'
-				os.environ['PGPORT'] = x.get_parameters(('port'))['port']
+				os.environ['PGPORT'] = x.settings['port']
 				os.environ['PATH'] = x.config['bindir'] + os.path.pathsep + path
 				sys.stderr.write(
 					"%s[%s: %s]%s" %(
 						os.linesep, 
-						x.config['version'], x.control.data,
+						x.config['version'], x.data_directory,
 						os.linesep,
 					)
 				)
-				wasnt_running = not x.control.running()
+				wasnt_running = not x.running()
 				try:
 					try:
 						if wasnt_running:
-							f = open(os.path.join(x.control.data, 'log'), 'w')
+							f = open(os.path.join(x.data_directory, 'log'), 'w')
 							f.seek(0, 2)
 							try:
-								x.control.start(logfile = f.fileno())
+								x.start(logfile = f.fileno())
 							finally:
 								f.close()
 						try:
@@ -396,10 +396,10 @@ def tin(args):
 								signal.signal(signal.SIGINT, oldsig)
 					finally:
 						if wasnt_running:
-							x.control.stop(mode = 'fast')
+							x.stop(mode = 'fast')
 				except:
 					sys.stderr.write("\n[%s %s]\n" %(
-						x.control.data,
+						x.data_directory,
 						x.config['version']
 					))
 					traceback.print_exc(file = sys.stderr)
@@ -409,33 +409,33 @@ def tin(args):
 				try:
 					if com == 'start':
 						os.environ['PGUSER'] = 'tinman'
-						f = open(os.path.join(x.control.data, 'log'), 'a')
+						f = open(os.path.join(x.data_directory, 'log'), 'a')
 						try:
-							x.control.start(logfile = f.fileno())
+							x.start(logfile = f.fileno())
 						finally:
 							f.close()
 					elif com == 'stop':
-						x.control.stop(mode = 'fast')
+						x.stop()
 					elif com == 'reload':
-						x.control.reload()
+						x.reload()
 					elif com == 'restart':
 						os.environ['PGUSER'] = 'tinman'
-						f = open(os.path.join(x.control.data, 'log'), 'a')
+						f = open(os.path.join(x.data_directory, 'log'), 'a')
 						f.seek(0, 2)
 						try:
-							x.control.restart(logfile = f.fileno())
+							x.restart(logfile = f.fileno())
 						finally:
 							f.close()
 				except:
 					sys.stderr.write("%s[%s %s]%s%s" %(
 						os.linesep,
-						x.control.data,
+						x.data_directory,
 						x.config['version'],
 						os.linesep, os.linesep
 					))
 					traceback.print_exc(file = sys.stderr)
 					sys.stderr.write("\n\rLog tail:\n\r")
-					f = open(os.path.join(x.control.data, 'log'), 'r')
+					f = open(os.path.join(x.data_directory, 'log'), 'r')
 					f.seek(-1024, 2)
 					for x in f.read(1024).split(os.linesep)[1:]:
 						sys.stderr.write(x + os.linesep)
@@ -448,7 +448,7 @@ def tin(args):
 					pd[k] = v
 				x.set_parameters(pd)
 				if x in running_set:
-					x.control.reload()
+					x.reload()
 			ca = ()
 		elif com in ('show',):
 			for x in working_set:
@@ -456,7 +456,7 @@ def tin(args):
 					p = x.get_parameters(selector = lambda x: True)
 				else:
 					p = x.get_parameters(ca)
-				sys.stdout.write('[%s]\n' %(x.control.data,))
+				sys.stdout.write('[%s]\n' %(x.data_directory,))
 				for k in p:
 					sys.stdout.write('%s=%s\n' %(k, p[k]))
 			ca = ()
@@ -469,7 +469,7 @@ def tin(args):
 				)
 				continue
 			for x in working_set:
-				p = subprocess.Popen((pager, os.path.join(x.control.data, 'log')))
+				p = subprocess.Popen((pager, os.path.join(x.data_directory, 'log')))
 				exit_message(x, p.wait())
 		elif com == 'python':
 			from code import interact

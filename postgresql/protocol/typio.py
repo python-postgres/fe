@@ -1,16 +1,12 @@
 ##
-# copyright 2007, pg/python project.
+# copyright 2009, pg/python project.
 # http://python.projects.postgresql.org
 ##
 """
-PostgreSQL data type protocol--packing and unpacking functions.
+PostgreSQL type I/O tools--packing and unpacking functions.
 
 This module provides functions that pack and unpack many standard PostgreSQL
-types. These functions are completely unassociated with normally corresponding
-type Oids; that mapping is handled by the `postgresql.protocol.typical.oidmaps`
-module and the `postgresql.protocol.typical.stdio` module(The latter doesn't
-normally map to these functions, rather a higher level transformation that uses
-these functions).
+types. 
 
 The name of the function describes what type the function is intended to be used
 on. Normally, the fucntions return a structured form of the serialized data to
@@ -39,104 +35,56 @@ Map PostgreSQL type Oids to routines that pack and unpack raw data.
 
  time64_noday_io
   long-long based time I/O with noday-intervals.
-
 """
-import postgresql.types as pg_type
-from datetime import tzinfo
+import codecs
+from abc import ABCMeta, abstractmethod
+
+from decimal import Decimal
+import datetime
+
+try:
+	import xml.etree.cElementTree as etree
+except ImportError:
+	import xml.etree.ElementTree as etree
+
+from .. import types as pg_types
+from ..encodings import aliases as pg_enc_aliases
 from . import typstruct as ts
 from .element3 import StringFormat, BinaryFormat
 
-class FixedOffset(tzinfo):
-	def __init__(self, offset):
-		self._offset = offset
+pg_epoch_datetime = datetime.datetime(2000, 1, 1)
+pg_epoch_date = pg_epoch_datetime.date()
+pg_date_offset = pg_epoch_date.toordinal()
+## Difference between PostgreSQL epoch and Unix epoch.
+## Used to convert a PostgreSQL ordinal to an ordinal usable by datetime
+pg_time_days = (pg_date_offset - datetime.date(1970, 1, 1).toordinal())
+
+class FixedOffset(datetime.tzinfo):
+	def __init__(self, offset, tzname = None):
+		self._tzname = tzname
+		self._offset = datetime.timedelta(0, offset)
 
 	def utcoffset(self):
 		return self._offset
 
-def return_arg(arg):
-	return arg
+	def tzname(self):
+		return self._tzname
 
-literal = (return_arg, return_arg)
-
-oid_to_io = {
-	#pg_type.RECORDOID : (record_pack, record_unpack),
-	#pg_type.ANYARRAYOID : (array_pack, array_unpack),
-
-	pg_type.BOOLOID : (ts.bool_pack, ts.bool_unpack),
-	pg_type.BITOID : (ts.bit_pack, ts.bit_unpack),
-	pg_type.VARBITOID : (ts.varbit_pack, ts.varbit_unpack),
-
-	pg_type.BYTEAOID : (bytes, bytes),
-	pg_type.CHAROID : literal,
-	pg_type.MACADDROID : literal,
-
-	pg_type.INETOID : (ts.cidr_pack, ts.cidr_unpack),
-	pg_type.CIDROID : (ts.cidr_pack, ts.cidr_unpack),
-
-	pg_type.DATEOID : (ts.date_pack, ts.date_unpack),
-	pg_type.ABSTIMEOID : (ts.long_pack, ts.long_unpack),
-
-	pg_type.INT2OID : (ts.int2_pack, ts.int2_unpack),
-	pg_type.INT4OID : (ts.int4_pack, ts.int4_unpack),
-	pg_type.INT8OID : (ts.int8_pack, ts.int8_unpack),
-	pg_type.NUMERICOID : literal,
-
-	pg_type.OIDOID : (ts.oid_pack, ts.oid_unpack),
-	pg_type.XIDOID : (ts.xid_pack, ts.xid_unpack),
-	pg_type.CIDOID : (ts.cid_pack, ts.cid_unpack),
-	pg_type.TIDOID : (ts.tid_pack, ts.tid_unpack),
-
-	pg_type.FLOAT4OID : (ts.float_pack, ts.float_unpack),
-	pg_type.FLOAT8OID : (ts.double_pack, ts.double_unpack),
-
-	pg_type.POINTOID : (ts.point_pack, ts.point_unpack),
-	pg_type.LSEGOID : (ts.lseg_pack, ts.lseg_unpack),
-	pg_type.BOXOID : (ts.box_pack, ts.box_unpack),
-	pg_type.CIRCLEOID : (ts.circle_pack, ts.circle_unpack),
-	pg_type.PATHOID : (ts.path_pack, ts.path_unpack),
-	pg_type.POLYGONOID : (ts.polygon_pack, ts.polygon_unpack),
-
-	#pg_type.ACLITEMOID : (aclitem_pack, aclitem_unpack),
-	#pg_type.LINEOID : (line_pack, line_unpack),
-	#pg_type.CASHOID : (cash_pack, cash_unpack),
-}
-
-time_io = {
-	pg_type.TIMEOID : (ts.time_pack, ts.time_unpack),
-	pg_type.TIMETZOID : (ts.timetz_pack, ts.timetz_unpack),
-	pg_type.TIMESTAMPOID : (ts.time_pack, ts.time_unpack),
-	pg_type.TIMESTAMPTZOID : (ts.time_pack, ts.time_unpack),
-	pg_type.INTERVALOID : (ts.interval_pack, ts.interval_unpack)
-}
-
-time_noday_io = {
-	pg_type.TIMEOID : (ts.time_pack, ts.time_unpack),
-	pg_type.TIMETZOID : (ts.timetz_pack, ts.timetz_unpack),
-	pg_type.TIMESTAMPOID : (ts.time_pack, ts.time_unpack),
-	pg_type.TIMESTAMPTZOID : (ts.time_pack, ts.time_unpack),
-	pg_type.INTERVALOID : (ts.interval_noday_pack, ts.interval_noday_unpack)
-}
-
-time64_io = {
-	pg_type.TIMEOID : (ts.time64_pack, ts.time64_unpack),
-	pg_type.TIMETZOID : (ts.timetz64_pack, ts.timetz64_unpack),
-	pg_type.TIMESTAMPOID : (ts.time64_pack, ts.time64_unpack),
-	pg_type.TIMESTAMPTZOID : (ts.time64_pack, ts.time64_unpack),
-	pg_type.INTERVALOID : (ts.interval64_pack, ts.interval64_unpack)
-}
-
-time64_noday_io = {
-	pg_type.TIMEOID : (ts.time64_pack, ts.time64_unpack),
-	pg_type.TIMETZOID : (ts.timetz64_pack, ts.timetz64_unpack),
-	pg_type.TIMESTAMPOID : (ts.time64_pack, ts.time64_unpack),
-	pg_type.TIMESTAMPTZOID : (ts.time64_pack, ts.time64_unpack),
-	pg_type.INTERVALOID : (ts.interval64_noday_pack, ts.interval64_noday_unpack)
-}
+	def __repr__(self):
+		return "{path}.{name}({off}{tzname})".format(
+			path = __name__,
+			name = type(self).__name__,
+			off = repr(self._offset.days * 24 * 60 * 60 + self._offset.seconds),
+			tzname = (
+				", tzname = {tzname}	".format(tzname = self.tzname) \
+				if self.tzname is not None else ""
+			)
+		)
 
 class Row(tuple):
 	"Name addressable items tuple; mapping and sequence"
-	def __init__(subtype, iter, attmap = {}):
-		rob = tuple.__new__(subtype, attr)
+	def __new__(subtype, iter, attmap = {}):
+		rob = tuple.__new__(subtype, iter)
 		rob.attmap = attmap
 		return rob
 
@@ -160,8 +108,8 @@ class Row(tuple):
 				return tuple.__getitem__(self, idx)
 		return None
 
-	def has_key(self, k):
-		return self.attmap.has_key(k)
+	def __contains__(self, k):
+		return k in self.attmap
 
 	def keys(self):
 		return self.attmap.keys()
@@ -172,6 +120,220 @@ class Row(tuple):
 	def items(self):
 		for k, v in self.attmap.iteritems():
 			yield k, tuple.__getitem__(self, v)
+
+##
+# High level type I/O routines.
+##
+
+def date_pack(x):
+	return ts.date_pack(x.toordinal() - pg_date_offset)
+
+def date_unpack(x):
+	return datetime.date.fromordinal(pg_date_offset + ts.date_unpack(x))
+
+def timestamp_pack(x):
+	"""
+	Create a (seconds, microseconds) pair from a `datetime.datetime` instance.
+	"""
+	d = (x - pg_epoch_datetime)
+	return (d.days * 24 * 60 * 60 + d.seconds, d.microseconds)
+
+def timestamp_unpack(seconds):
+	"""
+	Create a `datetime.datetime` instance from a (seconds, microseconds) pair.
+	"""
+	return pg_epoch_datetime + datetime.timedelta(
+		seconds = seconds[0], microseconds = seconds[1]
+	)
+
+def time_pack(x):
+	"""
+	Create a (seconds, microseconds) pair from a `datetime.time` instance.
+	"""
+	return (
+		(x.hour * 60 * 60) + (x.minute * 60) + x.second,
+		x.microsecond
+	)
+
+def time_unpack(seconds_ms):
+	"""
+	Create a `datetime.time` instance from a (seconds, microseconds) pair.
+	Seconds being offset from epoch.
+	"""
+	seconds, ms = seconds_ms
+	minutes, sec = divmod(seconds, 60)
+	hours, min = divmod(minutes, 60)
+	return datetime.time(hours, min, sec, ms)
+
+def interval_pack(x):
+	"""
+	Create a (months, days, (seconds, microseconds)) tuple from a
+	`datetime.timedelta` instance.
+	"""
+	return (
+		0, x.days,
+		(x.seconds, x.microseconds)
+	)
+
+def interval_unpack(mds):
+	"""
+	Given a (months, days, (seconds, microseconds)) tuple, create a
+	`datetime.timedelta` instance.
+	"""
+	months, days, seconds_ms = mds
+	sec, ms = seconds_ms
+	return datetime.timedelta(
+		days = days + (months * 30),
+		seconds = sec, microseconds = ms
+	)
+
+def timetz_pack(x):
+	"""
+	Create a ((seconds, microseconds), timezone) tuple from a `datetime.time`
+	instance.
+	"""
+	return (time_pack(x), x.utcoffset())
+
+def timetz_unpack(tstz):
+	"""
+	Create a `datetime.time` instance from a ((seconds, microseconds), timezone)
+	tuple.
+	"""
+	t = time_unpack(tstz[0])
+	t.tzinfo = FixedOffset(tstz[1])
+
+datetimemap = {
+	pg_types.INTERVALOID : (interval_pack, interval_unpack),
+	pg_types.TIMEOID : (time_pack, time_unpack),
+	pg_types.TIMESTAMPOID : (time_pack, time_unpack),
+}
+
+time_io = {
+	pg_types.TIMEOID : (
+		lambda x: ts.time_pack(time_pack(x)),
+		lambda x: time_unpack(ts.time_unpack(x))
+	),
+	pg_types.TIMETZOID : (
+		lambda x: ts.timetz_pack(timetz_pack(x)),
+		lambda x: timetz_unpack(ts.timetz_unpack(x))
+	),
+	pg_types.TIMESTAMPOID : (
+		lambda x: ts.time_pack(timestamp_pack(x)),
+		lambda x: timestamp_unpack(ts.time_unpack(x))
+	),
+	pg_types.TIMESTAMPTZOID : (
+		lambda x: ts.time_pack(timestamp_pack(x)),
+		lambda x: timestamp_unpack(ts.time_unpack(x))
+	),
+	pg_types.INTERVALOID : (
+		lambda x: ts.interval_pack(interval_pack(x)),
+		lambda x: interval_unpack(ts.interval_unpack(x))
+	),
+}
+time_io_noday = time_io.copy()
+time_io_noday[pg_types.INTERVALOID] = (
+	lambda x: ts.interval_noday_pack(interval_pack(x)),
+	lambda x: interval_unpack(ts.interval_noday_unpack(x))
+)
+
+time64_io = {
+	pg_types.TIMEOID : (
+		lambda x: ts.time64_pack(time_pack(x)),
+		lambda x: time_unpack(ts.time64_unpack(x))
+	),
+	pg_types.TIMETZOID : (
+		lambda x: ts.timetz64_pack(timetz_pack(x)),
+		lambda x: timetz_unpack(ts.timetz64_unpack(x))
+	),
+	pg_types.TIMESTAMPOID : (
+		lambda x: ts.time64_pack(timestamp_pack(x)),
+		lambda x: timestamp_unpack(ts.time64_unpack(x))
+	),
+	pg_types.TIMESTAMPTZOID : (
+		lambda x: ts.time64_pack(timestamp_pack(x)),
+		lambda x: timestamp_unpack(ts.time64_unpack(x))
+	),
+	pg_types.INTERVALOID : (
+		lambda x: ts.interval64_pack(interval_pack(x)),
+		lambda x: interval_unpack(ts.interval64_unpack(x))
+	),
+}
+time64_io_noday = time64_io.copy()
+time64_io_noday[pg_types.INTERVALOID] = (
+	lambda x: ts.interval64_noday_pack(interval_pack(x)),
+	lambda x: interval_unpack(ts.interval64_noday_unpack(x))
+)
+
+def circle_unpack(x):
+	"""
+	Given raw circle data, (x, y, radius), make a circle instance using
+	`postgresql.types.circle`.
+	"""
+	return pg_types.circle(((x[0], x[1]), x[2]))
+
+def two_pair(x):
+	'Make a pair of pairs out of a sequence of four objects'
+	return ((x[0], x[1]), (x[2], x[3]))
+
+def varbit_pack(x):
+	return ts.varbit_pack((x.bits, x.data))
+def varbit_unpack(x):
+	return pg_types.varbit.from_bits(*ts.varbit_unpack(x))
+bitio = (varbit_pack, varbit_unpack)
+
+point_pack = ts.point_pack
+def point_unpack(x):
+	return pg_types.point(ts.point_unpack(x))	
+
+def box_pack(x):
+	return ts.box_pack((x[0][0], x[0][1], x[1][0], x[1][1]))
+def box_unpack(x):
+	return pg_types.box(two_pair(ts.box_unpack(x)))
+
+def lseg_pack(x):
+	return ts.lseg_pack((x[0][0], x[0][1], x[1][0], x[1][1]))
+def lseg_unpack(x):
+	return pg_types.lseg(two_pair(ts.lseg_unpack(x)))
+
+def circle_pack(x):
+	lambda x: ts.circle_pack((x[0][0], x[0][1], x[1])),
+def circle_unpack(x):
+	lambda x: circle_unpack(ts.circle_unpack(x))
+
+# Map type oids to a (pack, unpack) pair.
+oid_to_io = {
+	pg_types.NUMERICOID : (None, Decimal),
+
+	pg_types.DATEOID : (date_pack, date_unpack),
+
+	pg_types.VARBITOID : bitio,
+	pg_types.BITOID : bitio,
+
+	pg_types.POINTOID : (point_pack, point_unpack),
+	pg_types.BOXOID : (box_pack, box_unpack),
+	pg_types.LSEGOID : (lseg_pack, lseg_unpack),
+	pg_types.CIRCLEOID : (circle_pack, circle_unpack),
+}
+
+def anyarray_unpack_elements(a, unpack):
+	'generator for yielding None if x is None or unpack(x)'
+	for x in a:
+		if x is None:
+			yield None
+		else:
+			yield unpack(x)
+
+def anyarray_unpack(unpack, data):
+	'unpack the array, normalize the lower bounds and return a pg_types.array'
+	flags, typoid, dlb, elements = ts.array_unpack(data)
+	dim = []
+	for x in range(0, len(dlb), 2):
+		dim.append(dlb[x] - (dlb[x+1] or 1) + 1)
+	return pg_types.array(
+		tuple(anyarray_unpack_elements(elements, unpack(typoid))),
+		dimensions = dim
+	)
+anyarray_pack = ts.array_pack
 
 def array_typio(pack_element, unpack_element, typoid, hasbin_input, hasbin_output):
 	"""
@@ -192,7 +354,7 @@ def array_typio(pack_element, unpack_element, typoid, hasbin_input, hasbin_outpu
 			for x in data.dimensions:
 				dlb.append(x)
 				dlb.append(1)
-			return array_pack((
+			return ts.array_pack((
 				0, typoid, dlb,
 				pack_array_elements(data.elements)
 			))
@@ -208,7 +370,7 @@ def array_typio(pack_element, unpack_element, typoid, hasbin_input, hasbin_outpu
 					yield unpack(x)
 
 		def unpack_an_array(data):
-			flags, typoid, dlb, elements = array_unpack(data)
+			flags, typoid, dlb, elements = ts.array_unpack(data)
 			dim = []
 			for x in range(0, len(dlb), 2):
 				dim.append(dlb[x] - (dlb[x+1] or 1) + 1)
@@ -221,14 +383,39 @@ def array_typio(pack_element, unpack_element, typoid, hasbin_input, hasbin_outpu
 
 	return (pack_an_array, unpack_an_array)
 
-def attmap_from_pqdesc(desc):
+def transform_record(obj_xf, raw_columns, io):
+	i = -1
+	for x in raw_columns:
+		i += 1
+		if x is None:
+			yield None
+		else:
+			yield obj_xf[io][i](x)
+
+def composite_typio(
+	cio : "sequence (pack,unpack) tuples corresponding to the",
+	attmap : "mapping of column name to index number",
+	typids : "sequence of type Oids; index must correspond to the composite's"
+):
 	"""
-	create a dictionary from a pq desc that maps attribute names
-	to their index
+	create the typio pair for the composite type metadata passed in.
 	"""
-	return {
-		desc[x][0] : x for x in range(len(desc))
-	}
+	def unpack_a_record(data):
+		return Row(
+			transform_record(
+				cio,
+				[x[1] for x in ts.record_unpack(data)],
+				1
+			),
+			attmap
+		)
+
+	def pack_a_record(data):
+		return ts.record_pack(
+			zip(typids, transform_record(cio, data, 0))
+		)
+
+	return (pack_a_record, unpack_a_record)
 
 # Postgres always sends object data in row form, so
 # make the fundamental tranformation routines work on a sequence.
@@ -252,124 +439,108 @@ def row_pack(seq, typio, encode):
 		io = typio[x]
 		ob = seq[x]
 		if ob is None:
-			yield (StringFormat, None)
-		elif io is None or (not io is bytes and type(ob) is str):
+			yield None
+		elif io is None:
 			# StringFormat
-			yield (StringFormat, encode(ob))
+			yield encode(ob)
 		else:
 			# BinaryFormat
-			yield (BinaryFormat, io(ob))
+			yield io(ob)
 
-def composite_typio(self, ci):
-	"""
-	create the typio pair for a given composite type
-	"""
-	attmap = {}
-	rtypi = []
-	rtypo = []
-	rtypids = []
-	i = 0
-
-	for x in ci:
-		attmap[x[1]] = i
-		typid = x[0]
-		rtypids.append(typid)
-		pack, unpack = self.lookup(typid)
-		rtypi.append(pack or self.encode)
-		rtypo.append(unpack or self.decode)
-		i += 1
-	rtypi = tuple(rtypi)
-	rtypo = tuple(rtypo)
-	rtypids = tuple(rtypids)
-	del i, pack, unpack
-
-	def transform_record(obj_xf, data):
-		i = -1
-		for x in data:
-			i += 1
-			if x is None:
-				yield None
-			else:
-				tio = obj_xf[i]
-				yield tio(x)
-
-	def unpack_a_record(data):
-		return Row(
-			transform_record(
-				rtypo,
-				[x[1] for x in record_unpack(data)]
-			),
-			attmap
-		)
-
-	def pack_a_record(data):
-		return record_pack(
-			zip(rtypids, transform_record(rtypi, data))
-		)
-
-	return (pack_a_record, unpack_a_record)
-
-class TypeIO(object):
+class TypeIO(object, metaclass = ABCMeta):
 	"""
 	A class that manages I/O for a given configuration. Normally, a connection
 	would create an instance, and configure it based upon the version and
 	configuration of PostgreSQL that it is connected to.
 	"""
 
-	def __init__(self,
-		version_info : "tuple representing version of postgresql",
-		lookup_type_meta : "given a typoid, lookup the type metadata",
-		integer_datetimes : "setting from pg_settings" = False,
-		noday_times : "bool(): if none, determine from version" = None,
-		encoding = 'utf-8',
-		timezone = 'utc',
+	@abstractmethod
+	def lookup_type_info(self, typid):
+		"""
+		"""
+
+	@abstractmethod
+	def lookup_composite_type_info(self, typid):
+		"""
+		"""
+
+	def select_time_io(self, 
+		version_info : "postgresql.version.split(settings['server_version'])",
+		integer_datetimes : "bool(settings['integer_datetimes'])",
+		noday_intervals : "bool(): if none, determine from `version_info`" = None,
 	):
-		self.lookup_type_meta = lookup_type_meta
 		self.integer_datetimes = integer_datetimes
 		self.version_info = version_info
-		if noday_times is None:
-			self.noday_times = self.version_info[:2] <= (8,0)
+		if noday_intervals is None:
+			# 8.0 and lower use no-day binary times
+			self.noday_intervals = self.version_info[:2] <= (8,0)
 		else:
-			noday_times = bool(noday_times)
-
-		self._cache = {
-			pg_types.RECORDOID : (
-				record_pack,
-				lambda r: tuple([
-					self.lookup_type_meta(typoid)[1](data)
-					for typoid, data in record_unpack(r)
-				]),
-			),
-			pg_types.ANYARRAYOID : (
-				array_pack,
-				lambda a: anyarray_unpack(
-					lambda x: (
-						self.lookup(x)[1] or self.decode
-					), a
-				)
-			),
-			# Encoded character strings
-			pg_types.NAMEOID : (None, None),
-			pg_types.VARCHAROID : (None, None),
-			pg_types.TEXTOID : (None, None),
-		}
+			self.noday_intervals = bool(noday_intervals)
 
 		if integer_datetimes is True:
-			if self.noday_times:
+			if self.noday_intervals:
 				self._time_io = time64_io_noday
 			else:
 				self._time_io = time64_io
 		else:
-			if self.noday_times:
+			if self.noday_intervals:
 				self._time_io = time_io_noday
 			else:
 				self._time_io = time_io
+		self._ts_pack, self._ts_unpack = self._time_io[pg_types.TIMESTAMPOID]
 
 	def encode(self, string_data):
 		return self._encode(string_data)[0]
 
 	def decode(self, bytes_data):
 		return self._decode(bytes_data)[0]
+
+	def resolve_pack(self, typid):
+		return self.resolve(typid)[0] or self.encode
+
+	def resolve_unpack(self, typid):
+		return self.resolve(typid)[1] or self.decode
+
+	def record_unpack(self, rdata):
+		return tuple([
+			self.resolve_unpack(typid)(data)
+			for (typid, data) in ts.record_unpack(rdata)
+		])
+
+	def anyarray_unpack(self, adata):
+		return anyarray_unpack(self.resolve_unpack, adata)
+
+	def xml_pack(self, xml):
+		return self._encode(etree.tostring(xml))[0]
+
+	def xml_unpack(self, xmldata):
+		return pg_types.etree.XML(self._decode(xmldata)[0])
+
+	def __init__(self):
+		self.encoding = None
+		self.tzinfo = None
+		self._time_io = ()
+		self._cache = {
+			pg_types.RECORDOID : (
+				ts.record_pack,
+				self.record_unpack,
+			),
+			pg_types.ANYARRAYOID : (
+				anyarray_pack,
+				self.anyarray_unpack,
+			),
+			# Encoded character strings
+			pg_types.NAMEOID : (None, None),
+			pg_types.VARCHAROID : (None, None),
+			pg_types.TEXTOID : (None, None),
+			pg_types.TIMESTAMPTZOID : (
+				self._pack_timestamptz,
+				self._unpack_timestamptz,
+			),
+			pg_types.XMLOID : (
+				self.xml_pack, self.xml_unpack
+			)
+		}
 
 	def set_encoding(self, value):
 		self.encoding = value
@@ -392,54 +563,8 @@ class TypeIO(object):
 	def _unpack_timestamptz(self, data):
 		return self.tzinfo.fromutc(self._ts_unpack(data))
 
-	def set_timezone(self, tzname, offset):
-		self.timezone = value
-		self.tzinfo = FixedOffset(tzname, value)
-		self._cache.update(self._time_io)
-		# Used by _(un)?pack_timestamptz
-		self._ts_pack, self._ts_unpack = self._cache.lookup(pg_types.TIMESTAMPOID)
-		self.typio[pg_types.TIMESTAMPTZOID] = (
-			self._pack_timestamptz,
-			self._unpack_timestamptz,
-		)
-
-	def resolve(self, typoid, recursed = False):
-		"lookup a type's IO routines from a given typoid"
-		typoid = int(typoid)
-		if typio is None:
-			ti = self.cquery(TypeLookup, title = 'lookup_type').first(typoid)
-			if ti is not None:
-				typname, typtype, typlen, typelem, typrelid, \
-					ae_typid, ae_hasbin_input, ae_hasbin_output = ti
-				if typrelid:
-					# Composite/Complex/Row Type
-					typio = composite_typio(self, typrelid)
-					self.typio[typoid] = typio
-				elif ae_typid is not None:
-					# Array Type
-					#
-					# Defensive coding here,
-					# Array type, be careful to avoid infinite recursion
-					# in cases of a corrupt or malicious catalog/user.
-					if recursed is False:
-						te = self._typio(int(typelem), recursed = True) or \
-							(None, None)
-						typio = array_typio(
-							self, typelem, te, ae_hasbin_input, ae_hasbin_output
-						)
-						self.typio[typoid] = typio
-					else:
-						raise TypeError(
-							"array type element(%d) is an array type" %(typoid,)
-						)
-				else:
-					# Unknown type, check for typname entry for UDTs.
-					typio = self.typio.get(typname) or \
-						self.connector._typio(typname)
-			else:
-				warnings.warn("type %d does not exist in pg_type" %(typoid,))
-
-		return typio
+	def set_timezone(self, offset, tzname):
+		self.tzinfo = FixedOffset(offset, tzname = tzname)
 
 	def resolve_descriptor(self, desc, index):
 		'create a sequence of I/O routines from a pq descriptor'
@@ -447,30 +572,66 @@ class TypeIO(object):
 			(self.resolve(x[3]) or (None, None))[index] for x in desc
 		]
 
-def anyarray_unpack_elements(a, unpack):
-	'generator for yielding None if x is None or unpack(x)'
-	for x in a:
-		if x is None:
-			yield None
-		else:
-			yield unpack(x)
+	def resolve(
+		self,
+		typid : "The Oid of the type to resolve pack and unpack routines for.",
+		from_resolution_of : \
+		"Sequence of typid stack used to identify infinite recursion" = ()
+	):
+		"lookup a type's IO routines from a given typid"
+		if from_resolution_of and typid in from_resolution_of:
+			raise TypeError(
+				"type, %d, is already being looked up: %r" %(
+					typid, from_resolution_of
+				)
+			)
+		typid = int(typid)
 
-def anyarray_unpack(unpack, data):
-	'unpack the array, normalize the lower bounds and return a pg_types.array'
-	flags, typoid, dlb, elements = array_unpack(data)
-	dim = []
-	for x in range(0, len(dlb), 2):
-		dim.append(dlb[x] - (dlb[x+1] or 1) + 1)
-	return pg_types.array(
-		tuple(anyarray_unpack_elements(elements, unpack(typoid))),
-		dimensions = dim
-	)
+		typio = self._cache.get(typid)
+		typio = None
+		for x in (self._cache, self._time_io, oid_to_io, ts.oid_to_io):
+			if typid in x:
+				typio = x[typid]
+		if typio is None:
+			ti = self.lookup_type_info(typid)
+			if ti is not None:
+				typname, typtype, typlen, typelem, typrelid, \
+					ae_typid, ae_hasbin_input, ae_hasbin_output = ti
+				if typrelid:
+					# Composite/Complex/Row Type
+					#
+					# So the attribute name map, the column I/O, and type Oids are
+					# needed.
+					attmap = {}
+					cio = []
+					typids = []
+					i = 0
+					for x in self.lookup_composite_type_info(typrelid):
+						attmap[x[1]] = i
+						typids.append(x[0])
+						cio.append(self.resolve(
+							x[0],
+							list(from_resolution_of) + [typid]
+						))
+						i += 1
 
-def _mktuple(x, unpackers, decode):
-	'given a PQ tuple, return a map tuple'
-	return Row(
-		row_unpack(
-			x, self._output_io, self.connection._decode
-		),
-		self._output_attmap
-	)
+					self._cache[typid] = typio = composite_typio(
+						cio, typids, attmap
+					)
+				elif ae_typid is not None:
+					# Array Type
+					te = self.resolve(
+						int(typelem),
+						from_resolution_of = list(from_resolution_of) + [typid]
+					) or \
+						(None, None)
+					typio = array_typio(
+						self, typelem, te, ae_hasbin_input, ae_hasbin_output
+					)
+					self._cache[typid] = typio
+				else:
+					self._cache[typid] = typio = (None, None)
+			else:
+				# Throw warning about type without entry in pg_type?
+				typio = (None, None)
+		return typio

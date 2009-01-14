@@ -18,7 +18,7 @@ IPv6 is supported via the standard representation::
 
 	pq://[::1]:5432/database
 """
-import riparse as ri
+from .resolved import riparse as ri
 
 def structure(t):
 	'Create a dictionary of connection parameters from a six-tuple'
@@ -27,33 +27,34 @@ def structure(t):
 	if t[0] == 'pqs':
 		d['sslmode'] = 'require'
 
-	uphp = split_netloc(t[1])
-	if uphp[0]:
-		d['user'] = uphp[0]
-	if uphp[1]:
-		d['password'] = uphp[1]
-	if uphp[2].startswith('{'):
-		d['process'] = [
-			unescape(x) for x in uphp[2].strip('{}').split(' ')
-		]
-	else:
-		if uphp[2]:
-			d['host'] = uphp[2]
-		if uphp[3]:
-			d['port'] = int(uphp[3])
+	if t[1] is not None:
+		uphp = ri.split_netloc(t[1])
+		if uphp[0]:
+			d['user'] = uphp[0]
+		if uphp[1]:
+			d['password'] = uphp[1]
+		if uphp[2].startswith('{'):
+			d['process'] = [
+				unescape(x) for x in uphp[2].strip('{}').split(' ')
+			]
+		else:
+			if uphp[2]:
+				d['host'] = uphp[2]
+			if uphp[3]:
+				d['port'] = int(uphp[3])
 
-	if t[2]:
+	if t[2] is not None:
 		d['database'] = t[2]
 
-	if t[3]:
+	if t[3] is not None:
 		d['settings'] = dict([
 			[unescape(y) for y in x.split('=', 1)]
 			for x in t[3].split('&')
 		])
 
 	# Path support
-	if t[4]:
-		d['path'] = split_path(t[3])
+	if t[4] is not None:
+		d['path'] = ri.split_path(t[3])
 
 	return d
 
@@ -62,7 +63,7 @@ def construct(x):
 	return (
 		bool(x.get('ssl')) is False and 'pq' or 'pqs',
 		# netloc: user:pass@{host[:port]|process}
-		unsplit_netloc((
+		ri.unsplit_netloc((
 			x.get('user', ''),
 			x.get('password', ''),
 			x.get('process', None) is not None and '{%s}' %(
@@ -74,15 +75,15 @@ def construct(x):
 		# Path
 		x.get('settings', None) is not None and '&'.join([
 			'%s=%s' %(k, v.replace('&','%26'))
-			for k, v in x['settings'].iteritems()
+			for k, v in x['settings'].items()
 		]),
-		unsplit_path(x.get('path', [])),
+		ri.unsplit_path(x.get('path', [])),
 	)
 
 def parse(s):
 	'Parse a Postgres IRI into a dictionary object'
-	return structure(split(s))
+	return structure(ri.split(s))
 
 def serialize(x):
 	'Return a Postgres IRI from a dictionary object.'
-	return unsplit(construct(x))
+	return ri.unsplit(construct(x))
