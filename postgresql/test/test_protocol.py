@@ -1,5 +1,5 @@
 ##
-# copyright 2008, pg/python project.
+# copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
 import unittest
@@ -9,10 +9,10 @@ import postgresql.protocol.client3 as c3
 import postgresql.protocol.pbuffer as p_buffer_module
 import postgresql.protocol.typstruct as pg_typstruct
 import postgresql.protocol.typio as pg_typio
-import postgresql.types as pg_type
+import postgresql.types as pg_types
 
 try:
-	import postgresql.protocol.pqueue.cbuffer as c_buffer_module
+	import postgresql.protocol.cbuffer as c_buffer_module
 except ImportError:
 	c_buffer_module = None
 
@@ -22,58 +22,58 @@ class buffer_test(object):
 
 	def testMultiByteMessage(self):
 		b = self.buffer
-		b.write('s')
+		b.write(b's')
 		self.failUnless(b.next_message() is None)
-		b.write('\x00\x00')
+		b.write(b'\x00\x00')
 		self.failUnless(b.next_message() is None)
-		b.write('\x00\x10')
+		b.write(b'\x00\x10')
 		self.failUnless(b.next_message() is None)
-		data = 'twelve_chars'
+		data = b'twelve_chars'
 		b.write(data)
-		self.failUnless(b.next_message() == ('s', data))
+		self.failUnless(b.next_message() == (b's', data))
 
 	def testSingleByteMessage(self):
 		b = self.buffer
-		b.write('s')
+		b.write(b's')
 		self.failUnless(b.next_message() is None)
-		b.write('\x00')
+		b.write(b'\x00')
 		self.failUnless(b.next_message() is None)
-		b.write('\x00\x00\x05')
+		b.write(b'\x00\x00\x05')
 		self.failUnless(b.next_message() is None)
-		b.write('b')
-		self.failUnless(b.next_message() == ('s', 'b'))
+		b.write(b'b')
+		self.failUnless(b.next_message() == (b's', b'b'))
 
 	def testEmptyMessage(self):
 		b = self.buffer
-		b.write('x')
+		b.write(b'x')
 		self.failUnless(b.next_message() is None)
-		b.write('\x00\x00\x00')
+		b.write(b'\x00\x00\x00')
 		self.failUnless(b.next_message() is None)
-		b.write('\x04')
-		self.failUnless(b.next_message() == ('x', ''))
+		b.write(b'\x04')
+		self.failUnless(b.next_message() == (b'x', b''))
 
 	def testInvalidLength(self):
 		b = self.buffer
-		b.write('y\x00\x00\x00\x03')
+		b.write(b'y\x00\x00\x00\x03')
 		self.failUnlessRaises(ValueError, b.next_message,)
 
 	def testRemainder(self):
 		b = self.buffer
-		b.write('r\x00\x00\x00\x05Aremainder')
-		self.failUnless(b.next_message() == ('r', 'A'))
+		b.write(b'r\x00\x00\x00\x05Aremainder')
+		self.failUnless(b.next_message() == (b'r', b'A'))
 
 	def testLarge(self):
 		b = self.buffer
 		factor = 1024
-		range = 10000
-		b.write('X' + struct.pack("!L", factor * range + 4))
-		segment = '\0' * factor
-		for x in range(range-1):
+		r = 10000
+		b.write(b'X' + struct.pack("!L", factor * r + 4))
+		segment = b'\x00' * factor
+		for x in range(r-1):
 			b.write(segment)
 		b.write(segment)
 		msg = b.next_message()
 		self.failUnless(msg is not None)
-		self.failUnless(msg[0] == 'X')
+		self.failUnless(msg[0] == b'X')
 
 if c_buffer_module is not None:
 	class c_buffer(buffer_test, unittest.TestCase):
@@ -88,11 +88,11 @@ class p_buffer(buffer_test, unittest.TestCase):
 
 message_samples = [
 	e3.VoidMessage,
-	e3.Startup(
-		user = b'jwp',
-		database = b'template1',
-		options = b'-f',
-	),
+	e3.Startup(**{
+		b'user' : b'jwp',
+		b'database' : b'template1',
+		b'options' : b'-f',
+	}),
 	e3.Notice(
 		severity = b'FATAL',
 		message = b'a descriptive message',
@@ -149,22 +149,22 @@ message_samples = [
 	e3.Parse(b'statement_id', b'query', (123,)),
 	e3.Parse(b'statement_id', b'query', ()),
 	e3.Bind(b'portal_id', b'statement_id',
-		[(b'tt',b'data'),(b'\x00\x00',None)], (b'ff',b'xx')),
-	e3.Bind(b'portal_id', b'statement_id',
-		[(b'tt',None)], (b'xx',)),
-	e3.Bind(b'portal_id', b'statement_id', [(b'ff',b'data')], ()),
-	e3.Bind(b'portal_id', b'statement_id', [], (b'xx',)),
-	e3.Bind(b'portal_id', b'statement_id', [], ()),
+		[b'tt',b'\x00\x00'],
+		[b'data',None], (b'ff',b'xx')),
+	e3.Bind(b'portal_id', b'statement_id', [b'tt'], [None], (b'xx',)),
+	e3.Bind(b'portal_id', b'statement_id', [b'ff'], [b'data'], ()),
+	e3.Bind(b'portal_id', b'statement_id', [], [], (b'xx',)),
+	e3.Bind(b'portal_id', b'statement_id', [], [], ()),
 	e3.Execute(b'portal_id', 500),
 	e3.Execute(b'portal_id', 0),
 	e3.DescribeStatement(b'statement_id'),
 	e3.DescribePortal(b'portal_id'),
 	e3.CloseStatement(b'statement_id'),
 	e3.ClosePortal(b'portal_id'),
-	e3.Function(123, [], b'xx'),
-	e3.Function(321, [(b'tt', b'foo'),], b'xx'),
-	e3.Function(321, [(b'tt', None),], b'xx'),
-	e3.Function(321, [(b'aa', None),(b'aa', b'a' * 200)], b'xx'),
+	e3.Function(123, [], [], b'xx'),
+	e3.Function(321, [b'tt'], [b'foo'], b'xx'),
+	e3.Function(321, [b'tt'], [None], b'xx'),
+	e3.Function(321, [b'aa', b'aa'], [None,b'a' * 200], b'xx'),
 	e3.FunctionResult(''),
 	e3.FunctionResult(b'foobar'),
 	e3.FunctionResult(None),
@@ -182,7 +182,7 @@ message_samples = [
 ]
 
 class test_element3(unittest.TestCase):
-	def testParseSerializeConsistency(self):
+	def testSerializeParseConsistency(self):
 		for msg in message_samples:
 			smsg = msg.serialize()
 			self.failUnlessEqual(
@@ -190,7 +190,7 @@ class test_element3(unittest.TestCase):
 			)
 
 	def testEmptyMessages(self):
-		for x in e3.__dict__.itervalues():
+		for x in e3.__dict__.values():
 			if isinstance(x, e3.EmptyMessage):
 				xtype = type(x)
 				self.failUnless(x is xtype())
@@ -259,7 +259,7 @@ xact_samples = [
 	),
 	(
 		(
-			e3.Function(1, [('', '')], 1),
+			e3.Function(1, [b''], [b''], 1),
 		), (
 			e3.FunctionResult(b'foo'),
 			e3.Ready(b'I'),
@@ -274,7 +274,7 @@ xact_samples = [
 	),
 	(
 		(
-			e3.Bind(b"NAME", b"STATEMENT_ID", (), ()),
+			e3.Bind(b"NAME", b"STATEMENT_ID", (), (), ()),
 		), (
 			e3.BindComplete(),
 		)
@@ -282,7 +282,7 @@ xact_samples = [
 	(
 		(
 			e3.Parse(b"NAME", b"SQL", ()),
-			e3.Bind(b"NAME", b"STATEMENT_ID", (), ()),
+			e3.Bind(b"NAME", b"STATEMENT_ID", (), (), ()),
 		), (
 			e3.ParseComplete(),
 			e3.BindComplete(),
@@ -348,12 +348,12 @@ class test_client3(unittest.TestCase):
 # this must pack to that, and
 # that must unpack to this
 expectation_samples = {
-	pg_type.BOOLOID : [
+	pg_types.BOOLOID : [
 		(True, b'\x01'),
 		(False, b'\x00')
 	],
 
-	pg_type.INT2OID : [
+	pg_types.INT2OID : [
 		(0, b'\x00\x00'),
 		(1, b'\x00\x01'),
 		(2, b'\x00\x02'),
@@ -366,7 +366,7 @@ expectation_samples = {
 		(-3, b'\xff\xfd'),
 	],
 
-	pg_type.INT4OID : [
+	pg_types.INT4OID : [
 		(0, b'\x00\x00\x00\x00'),
 		(1, b'\x00\x00\x00\x01'),
 		(2, b'\x00\x00\x00\x02'),
@@ -380,7 +380,7 @@ expectation_samples = {
 		(-3, b'\xff\xff\xff\xfd'),
 	],
 
-	pg_type.INT8OID : [
+	pg_types.INT8OID : [
 		(0, b'\x00\x00\x00\x00\x00\x00\x00\x00'),
 		(1, b'\x00\x00\x00\x00\x00\x00\x00\x01'),
 		(2, b'\x00\x00\x00\x00\x00\x00\x00\x02'),
@@ -393,12 +393,12 @@ expectation_samples = {
 		(-3, b'\xff\xff\xff\xff\xff\xff\xff\xfd'),
 	],
 
-	pg_type.BITOID : [
+	pg_types.BITOID : [
 		(False, b'\x00\x00\x00\x01\x00'),
 		(True, b'\x00\x00\x00\x01\x01'),
 	],
 
-	pg_type.VARBITOID : [
+	pg_types.VARBITOID : [
 		((0, b'\x00'), b'\x00\x00\x00\x00\x00'),
 		((1, b'\x01'), b'\x00\x00\x00\x01\x01'),
 		((1, b'\x00'), b'\x00\x00\x00\x01\x00'),
@@ -410,32 +410,27 @@ expectation_samples = {
 		((9, b'\x00\x00\x00'), b'\x00\x00\x00\x09\x00\x00\x00'),
 	],
 
-	pg_type.BYTEAOID : [
+	pg_types.BYTEAOID : [
 		(b'foo', b'foo'),
 		(b'bar', b'bar'),
 		(b'\x00', b'\x00'),
 		(b'\x01', b'\x01'),
 	],
 
-	pg_type.CHAROID : [
+	pg_types.CHAROID : [
 		(b'a', b'a'),
 		(b'b', b'b'),
 		(b'\x00', b'\x00'),
 	],
 
-	pg_type.MACADDROID : [
-		(b'abcdef', b'abcdef'),
-		(b'fedcba', b'fedcba')
-	],
-
-	pg_type.POINTOID : [
+	pg_types.POINTOID : [
 		((1.0, 1.0), b'?\xf0\x00\x00\x00\x00\x00\x00?\xf0\x00\x00\x00\x00\x00\x00'),
 		((2.0, 2.0), b'@\x00\x00\x00\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x00'),
 		((-1.0, -1.0),
 			b'\xbf\xf0\x00\x00\x00\x00\x00\x00\xbf\xf0\x00\x00\x00\x00\x00\x00'),
 	],
 
-	pg_type.CIRCLEOID : [
+	pg_types.CIRCLEOID : [
 		((1.0, 1.0, 1.0),
 			b'?\xf0\x00\x00\x00\x00\x00\x00?\xf0\x00\x00' \
 			b'\x00\x00\x00\x00?\xf0\x00\x00\x00\x00\x00\x00'),
@@ -444,7 +439,7 @@ expectation_samples = {
 			b'\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x00'),
 	],
 
-	pg_type.RECORDOID : [
+	pg_types.RECORDOID : [
 		([], b'\x00\x00\x00\x00'),
 		([(0,b'foo')], b'\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x03foo'),
 		([(0,None)], b'\x00\x00\x00\x01\x00\x00\x00\x00\xff\xff\xff\xff'),
@@ -455,7 +450,7 @@ expectation_samples = {
 		 b'\x00\x00\x00\x01\x00\x00\x00\x04some'),
 	],
 
-	pg_type.ANYARRAYOID : [
+	pg_types.ANYARRAYOID : [
 		([0, 0xf, (1, 0), (b'foo',)],
 			b'\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x0f\x00\x00\x00\x01' \
 			b'\x00\x00\x00\x00\x00\x00\x00\x03foo'
@@ -466,8 +461,8 @@ expectation_samples = {
 		)
 	],
 }
-expectation_samples[pg_type.BOXOID] = \
-	expectation_samples[pg_type.LSEGOID] = [
+expectation_samples[pg_types.BOXOID] = \
+	expectation_samples[pg_types.LSEGOID] = [
 		((1.0, 1.0, 1.0, 1.0),
 			b'?\xf0\x00\x00\x00\x00\x00\x00?\xf0' \
 			b'\x00\x00\x00\x00\x00\x00?\xf0\x00\x00' \
@@ -482,9 +477,9 @@ expectation_samples[pg_type.BOXOID] = \
 			b'\x00\x00\x00?\xf0\x00\x00\x00\x00\x00\x00'),
 	]
 
-expectation_samples[pg_type.OIDOID] = \
-	expectation_samples[pg_type.CIDOID] = \
-	expectation_samples[pg_type.XIDOID] = [
+expectation_samples[pg_types.OIDOID] = \
+	expectation_samples[pg_types.CIDOID] = \
+	expectation_samples[pg_types.XIDOID] = [
 		(0, b'\x00\x00\x00\x00'),
 		(1, b'\x00\x00\x00\x01'),
 		(2, b'\x00\x00\x00\x02'),
@@ -495,9 +490,9 @@ expectation_samples[pg_type.OIDOID] = \
 
 # this must pack and then unpack back into this
 consistency_samples = {
-	pg_type.BOOLOID : [True, False],
+	pg_types.BOOLOID : [True, False],
 
-	pg_type.RECORDOID : [
+	pg_types.RECORDOID : [
 		[],
 		[(0,b'foo')],
 		[(0,None)],
@@ -508,7 +503,7 @@ consistency_samples = {
 		[(0,None), (1,b"s\x00me"), (0xffff, b"\x00something_else\x00")],
 	],
 
-	pg_type.ANYARRAYOID : [
+	pg_types.ANYARRAYOID : [
 		[0, 0xf, (), ()],
 		[0, 0xf, (0, 0), ()],
 		[0, 0xf, (1, 0), (b'foo',)],
@@ -523,20 +518,20 @@ consistency_samples = {
 	],
 
 	# Just some random data; it's just an integer, so nothing fancy.
-	pg_type.DATEOID : [
+	pg_types.DATEOID : [
 		123,
 		321,
 		0x7FFFFFF,
 		-0x8000000,
 	],
 
-	pg_type.TIMETZOID : [
+	pg_types.TIMETZOID : [
 		((0, 0), 0),
 		((123, 123), 123),
 		((0xFFFFFFFF, 999999), -123),
 	],
 
-	pg_type.POINTOID : [
+	pg_types.POINTOID : [
 		(0, 0),
 		(2, 2),
 		(-1, -1),
@@ -544,14 +539,14 @@ consistency_samples = {
 		(1.5, 1.2),
 	],
 
-	pg_type.CIRCLEOID : [
+	pg_types.CIRCLEOID : [
 		(0, 0, 0),
 		(2, 2, 2),
 		(-1, -1, -1),
 		(-1.5, -1.2, -1.8),
 	],
 
-	pg_type.TIDOID : [
+	pg_types.TIDOID : [
 		(0, 0),
 		(1, 1),
 		(0xffffffff, 0xffff),
@@ -560,7 +555,7 @@ consistency_samples = {
 		(0xffffffff / 2, 0xffff / 2),
 	],
 
-	pg_type.CIDROID : [
+	pg_types.CIDROID : [
 		(0, 0, b"\x00\x00\x00\x00"),
 		(2, 0, b"\x00" * 4),
 		(2, 0, b"\xFF" * 4),
@@ -568,7 +563,7 @@ consistency_samples = {
 		(3, 0, b"\x00\x00" * 16),
 	],
 
-	pg_type.INETOID : [
+	pg_types.INETOID : [
 		(2, 32, b"\x00\x00\x00\x00"),
 		(2, 16, b"\x7f\x00\x00\x01"),
 		(2, 8, b"\xff\x00\xff\x01"),
@@ -578,16 +573,16 @@ consistency_samples = {
 	],
 }
 
-consistency_samples[pg_type.TIMEOID] = \
-consistency_samples[pg_type.TIMESTAMPOID] = \
-consistency_samples[pg_type.TIMESTAMPTZOID] = [
+consistency_samples[pg_types.TIMEOID] = \
+consistency_samples[pg_types.TIMESTAMPOID] = \
+consistency_samples[pg_types.TIMESTAMPTZOID] = [
 	(0, 0),
 	(123, 123),
 	(0xFFFFFFFF, 999999),
 ]
 
 # months, days, (seconds, microseconds)
-consistency_samples[pg_type.INTERVALOID] = [
+consistency_samples[pg_types.INTERVALOID] = [
 	(0, 0, (0, 0)),
 	(1, 0, (0, 0)),
 	(0, 1, (0, 0)),
@@ -599,14 +594,14 @@ consistency_samples[pg_type.INTERVALOID] = [
 	(100, 50, (1423, 29313))
 ]
 
-consistency_samples[pg_type.OIDOID] = \
-	consistency_samples[pg_type.CIDOID] = \
-	consistency_samples[pg_type.XIDOID] = [
+consistency_samples[pg_types.OIDOID] = \
+	consistency_samples[pg_types.CIDOID] = \
+	consistency_samples[pg_types.XIDOID] = [
 	0, 0xffffffff, 0xffffffff / 2, 123, 321, 1, 2, 3
 ]
 
-consistency_samples[pg_type.LSEGOID] = \
-	consistency_samples[pg_type.BOXOID] = [
+consistency_samples[pg_types.LSEGOID] = \
+	consistency_samples[pg_types.BOXOID] = [
 	(1,2,3,4),
 	(4,3,2,1),
 	(0,0,0,0),
@@ -614,8 +609,8 @@ consistency_samples[pg_type.LSEGOID] = \
 	(-1.2,-1.5,-2.0,4.0)
 ]
 
-consistency_samples[pg_type.PATHOID] = \
-	consistency_samples[pg_type.POLYGONOID] = [
+consistency_samples[pg_types.PATHOID] = \
+	consistency_samples[pg_types.POLYGONOID] = [
 	(1,2,3,4),
 	(4,3,2,1),
 	(0,0,0,0),
@@ -631,7 +626,7 @@ def resolve(ob):
 	return [resolve(x) for x in ob]
 
 def testExpectIO(self, map, samples):
-	for oid, sample in samples.iteritems():
+	for oid, sample in samples.items():
 		for (sample_unpacked, sample_packed) in sample:
 			pack, unpack = map[oid]
 
@@ -640,7 +635,7 @@ def testExpectIO(self, map, samples):
 				pack_trial == sample_packed,
 				"%s sample: unpacked sample, %r, did not match " \
 				"%r when packed, rather, %r" %(
-					pg_type.oid_to_name[oid], sample_unpacked,
+					pg_types.oid_to_name[oid], sample_unpacked,
 					sample_packed, pack_trial
 				)
 			)
@@ -651,20 +646,20 @@ def testExpectIO(self, map, samples):
 				unpack_trial == sample_unpacked,
 				"%s sample: packed sample, %r, did not match " \
 				"%r when unpacked, rather, %r" %(
-					pg_type.oid_to_name[oid], sample_packed,
+					pg_types.oid_to_name[oid], sample_packed,
 					sample_unpacked, unpack_trial
 				)
 			)
 
-class typio(unittest.TestCase):
+class test_typio(unittest.TestCase):
 	def testExpectations(self):
 		'IO tests where the pre-made expected serialized form is compared'
-		testExpectIO(self, pg_typio.stdio, expectation_samples)
+		testExpectIO(self, pg_typio.oid_to_io, expectation_samples)
 
 	def testConsistency(self):
 		'IO tests where the unpacked source is compared to re-unpacked result'
-		for oid, sample in consistency_samples.iteritems():
-			pack, unpack = pg_typio.stdio.get(oid, (None, None))
+		for oid, sample in consistency_samples.items():
+			pack, unpack = pg_typio.oid_to_io.get(oid, (None, None))
 			if pack is not None:
 				for x in sample:
 					packed = pack(x)
@@ -672,11 +667,11 @@ class typio(unittest.TestCase):
 					x = resolve(x)
 					self.failUnless(x == unpacked,
 						"inconsistency with %s, %r -> %r -> %r" %(
-							pg_type.oid_to_name[oid],
+							pg_types.oid_to_name[oid],
 							x, packed, unpacked
 						)
 					)
-		for oid, (pack, unpack) in pg_typio.time_io.iteritems():
+		for oid, (pack, unpack) in pg_typio.time_io.items():
 			sample = consistency_samples.get(oid, [])
 			for x in sample:
 				packed = pack(x)
@@ -684,12 +679,12 @@ class typio(unittest.TestCase):
 				x = resolve(x)
 				self.failUnless(x == unpacked,
 					"inconsistency with %s, %r -> %r -> %r" %(
-						pg_type.oid_to_name[oid],
+						pg_types.oid_to_name[oid],
 						x, packed, unpacked
 					)
 				)
 
-		for oid, (pack, unpack) in pg_typio.time64_io.iteritems():
+		for oid, (pack, unpack) in pg_typio.time64_io.items():
 			sample = consistency_samples.get(oid, [])
 			for x in sample:
 				packed = pack(x)
@@ -697,7 +692,7 @@ class typio(unittest.TestCase):
 				x = resolve(x)
 				self.failUnless(x == unpacked,
 					"inconsistency with %s, %r -> %r -> %r" %(
-						pg_type.oid_to_name[oid],
+						pg_types.oid_to_name[oid],
 						x, packed, unpacked
 					)
 				)
