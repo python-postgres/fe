@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ##
-# copyright 2008, pg/python project.
+# copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
 import sys
@@ -12,6 +12,28 @@ VERSION = '0.8'
 LONG_DESCRIPTION = """
 py-postgresql is a set of Python modules providing interfaces to various parts
 of PostgreSQL. Notably, it provides a driver for interacting with a database.
+
+Sample PG-API Code
+------------------
+
+	>>> import postresql.driver as pg_driver
+	>>> db = pg_driver.connect(user = 'mydbuser', host = 'localhost', port = 5432, database = 'mydbname')
+	>>> db.execute("CREATE TABLE emp (emp_first_name text, emp_last_name text, emp_salary numeric)")
+	>>> make_emp = db.query("INSERT INTO emp VALUES ($1, $2, $3)")
+	>>> make_emp("John", "Doe", "75,322")
+	1
+	>>> with db.xact:
+	...  make_emp("Jane", "Doe", "75,322")
+	...  make_emp("Edward", "Johnson", "82,744")
+	...
+	1
+	1
+
+There is a DB-API 2.0 module as well::
+
+	postgresql.driver.dbapi20
+
+However, PG-API is recommended as it provides greater utility.
 """
 
 CLASSIFIERS = [
@@ -35,7 +57,7 @@ defaults = {
 	'long_description' : LONG_DESCRIPTION,
 	'author' : 'James William Pye',
 	'author_email' : 'x@jwp.name',
-	'maintainer' : 'pg/python project',
+	'maintainer' : 'James William Pye',
 	'maintainer_email' : 'python-general@pgfoundry.org',
 	'url' : 'http://python.projects.postgresql.org',
 	'classifiers' : CLASSIFIERS,

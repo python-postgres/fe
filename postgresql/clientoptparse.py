@@ -1,6 +1,5 @@
-# -*- encoding: utf-8 -*-
 ##
-# copyright 2008, pg/python project.
+# copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
 'PostgreSQL client optparse options'

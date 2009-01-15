@@ -1,7 +1,5 @@
-# -*- encoding: utf-8 -*-
-# $Id: test_integrity.py,v 1.5 2008/04/01 03:33:43 jwp Exp $
 ##
-# copyright 2006, pg/python project.
+# copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
 import os

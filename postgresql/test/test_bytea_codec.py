@@ -1,7 +1,5 @@
-# -*- encoding: utf-8 -*-
-# $Id: test.py,v 1.2 2008/01/29 04:25:27 jwp Exp $
 ##
-# copyright 2004-2005, pg/python project.
+# copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
 import unittest

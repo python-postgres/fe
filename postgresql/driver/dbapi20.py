@@ -1,15 +1,15 @@
 ##
-# copyright 2007, pg/python project.
+# copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
 """
-DB-API 2.0 conforming interface on postgresql.driver.pgapi.
+DB-API 2.0 conforming interface using postgresql.driver
 """
 threadsafety = 1
 paramstyle = 'pyformat'
 apilevel = '2.0'
 
-import postgresql.driver.pgapi as pg_driver
+import postgresql.driver as pg_driver
 import postgresql.types as pg_type
 import postgresql.strings as pg_str
 import datetime, time
@@ -213,12 +213,11 @@ class Connection(object):
 	def rollback(self):
 		self.pg_api.xact.restart()
 
-_connectors = {}
 def connect(**kw):
-	kwi = kw.items()
-	kwi.sort()
-	kwi = tuple(kwi)
-	con = _connectors.get(kwi)
-	if not con:
-		con = _connectors[kwi] = pg_driver.connector(**kw)
-	return Connection(con())
+	"""
+	Create a DB-API connection using the given parameters.
+
+	See the `Connecting` section in the documentation for more information about
+	suitable parameters.
+	"""
+	return Connection(pg_driver.connect(**kw))

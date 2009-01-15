@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ##
-# copyright 2008, pg/python project.
+# copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
 # Query I/O: Mass insert and select performance

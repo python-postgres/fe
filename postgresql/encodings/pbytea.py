@@ -1,6 +1,5 @@
-# -*- encoding: utf-8 -*-
 ##
-# copyright 2005, pg/python project.
+# copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
 'PostgreSQL bytea encoding and decoding functions'

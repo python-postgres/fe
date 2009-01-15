@@ -1,5 +1,5 @@
 ##
-# copyright 2008, pg/python project.
+# copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
 'pg_config Python interface; provides member based access to pg_config data'

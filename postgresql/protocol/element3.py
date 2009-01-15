@@ -1,5 +1,5 @@
 ##
-# copyright 2008, pg/python project.
+# copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
 'PQ version 3.0 elements'
@@ -457,6 +457,7 @@ class CancelQuery(KillInformation):
 	'Abort the query in the specified backend'
 	type = b''
 	from .version import CancelRequestCode as version
+	packed_version = version.bytes()
 	__slots__ = ('pid', 'key')
 
 	def serialize(self):
@@ -470,7 +471,7 @@ class CancelQuery(KillInformation):
 		return ulong.pack(len(data)) + data
 
 	def parse(self, data):
-		if data[0:4] != bytes(self.version):
+		if data[0:4] != self.packed_version:
 			raise ValueError("invalid cancel query code")
 		return self(*unpack("!xxxxLL", data))
 	parse = classmethod(parse)

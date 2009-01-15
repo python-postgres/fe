@@ -1,5 +1,5 @@
 ##
-# copyright 2008, pg/python project.
+# copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
 'PQ version 3.0 client transactions'

@@ -1,7 +1,5 @@
-# -*- encoding: utf-8 -*-
-# $Id: pgpass.py,v 1.4 2008/01/20 00:57:37 jwp Exp $
 ##
-# copyright 2007, pg/python project.
+# copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
 'Parse pgpass files and subsequently lookup a password.'
