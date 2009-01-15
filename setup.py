@@ -6,6 +6,13 @@
 import sys
 import os
 from distutils.core import Extension
+
+if sys.version_info[:2] < (3,0):
+	sys.stderr.write(
+		"ERROR: py-postgresql is for Python 3.0 and greater." + os.linesep
+	)
+	sys.exit(1)
+
 NAME = 'py-postgresql'
 VERSION = '0.8'
 
@@ -50,6 +57,14 @@ CLASSIFIERS = [
 	'Topic :: Database',
 ]
 
+extensions = [
+	Extension(
+		'postgresql.protocol.cbuffer',
+		[os.path.join('postgresql', 'protocol', 'buffer.c')],
+		libraries = (sys.platform == 'win32' and ['ws2_32'] or []),
+	),
+]
+
 defaults = {
 	'name' : NAME,
 	'version' : VERSION,
@@ -72,13 +87,13 @@ defaults = {
 		'postgresql.resolved',
 	],
 
-	'ext_modules' : [
-		Extension(
-			'postgresql.protocol.cbuffer',
-			[os.path.join('postgresql', 'protocol', 'buffer.c')],
-			libraries = (sys.platform == 'win32' and ['ws2_32'] or []),
-		),
-	],
+	# Only build extension modules on win32 if PY_BUILD_EXTENSIONS is enabled.
+	# People who get failures are more likely to just give up on the package
+	# without reading the documentation. :(
+	'ext_modules' : (
+		extensions if sys.platform != 'win32' or os.environ.get('PY_BUILD_EXTENSIONS')
+		else ()
+	),
 
 	'scripts' : [
 		'bin/pg_dotconf',
