@@ -132,9 +132,7 @@ class NoMoreSetsReturned(NoDataWarning):
 
 class Error(Exception):
 	"""
-	Implements an interface to a PostgreSQL-style exception. Use expectation is
-	for producing PostgreSQL ERRORs from a raised Error and raising an Error from
-	a given PostgreSQL ERROR from a connection, result, or trapped backend ERROR.
+	Implements an interface to a PostgreSQL-style exception.
 	"""
 	code = None
 	details = None
@@ -168,9 +166,8 @@ class Error(Exception):
 class TransactionError(Error):
 	pass
 
-class FeatureError(Error):
-	"Unsupported feature."
-	code = '0A000'
+class SQLNotYetCompleteError(Error):
+	code = '03000'
 
 class ConnectionError(Error):
 	code = '08000'
@@ -178,23 +175,44 @@ class ConnectionDoesNotExistError(ConnectionError):
 	code = '08003'
 class ConnectionFailureError(ConnectionError):
 	code = '08006'
-class ProtocolError(ConnectionError):
-	code = '08P01'
 class ClientCannotConnectError(ConnectionError):
 	code = '08001'
 class ConnectionRejectionError(ConnectionError):
 	code = '08004'
 class TransactionResolutionUnknownError(ConnectionError):
 	code = '08007'
-
-class TriggeredDataChangeViolation(Error):
-	code = '27000'
+class ProtocolError(ConnectionError):
+	code = '08P01'
 
 class TriggeredActionError(Error):
 	code = '09000'
 
-class SQLNotYetCompleteError(Error):
-	code = '03000'
+class FeatureError(Error):
+	"Unsupported feature"
+	code = '0A000'
+
+class TransactionInitiationError(TransactionError):
+	code = '0B000'
+
+class LocatorError(Error):
+	code = '0F000'
+class LocatorSpecificationError(LocatorError):
+	code = '0F001'
+
+class GrantorError(Error):
+	code = '0L000'
+class GrantorOperationError(GrantorError):
+	code = '0LP01'
+
+class RoleSpecificationError(Error):
+	code = '0P000'
+
+class CardinalityError(Error):
+	"Wrong number of rows returned"
+	code = '21000'
+
+class TriggeredDataChangeViolation(Error):
+	code = '27000'
 
 class AuthenticationSpecificationError(Error):
 	code = '28000'
@@ -290,8 +308,6 @@ class SavepointError(TransactionError):
 class InvalidSavepointSpecificationError(SavepointError):
 	code = '3B001'
 
-class TransactionInitiationError(TransactionError):
-	code = '0B000'
 class TransactionTerminationError(TransactionError):
 	code = '2D000'
 
@@ -304,22 +320,6 @@ class DiskFullError(IRError):
 	code = '53100'
 class TooManyConnectionsError(IRError):
 	code = '53300'
-
-class LocatorError(Error):
-	code = '0F000'
-class InvalidLocatorSpecificationError(LocatorError):
-	code = '0F001'
-
-class CardinalityError(Error):
-	code = '21000'
-
-class GrantorError(Error):
-	code = '0L000'
-class GrantorOperationError(GrantorError):
-	code = '0LP01'
-
-class RoleSpecificationError(Error):
-	code = '0P000'
 
 class PLEError(OverflowError):
 	"Program Limit Exceeded"
@@ -421,21 +421,24 @@ class AmbiguousAliasError(AmbiguityError):
 
 class ColumnReferenceError(SEARVError):
 	code = '42P10'
-class ColumnDefinitionError(SEARVError):
+
+class DefinitionError(SEARVError):
+	pass
+class ColumnDefinitionError(DefinitionError):
 	code = '42611'
-class CursorDefinitionError(SEARVError):
+class CursorDefinitionError(DefinitionError):
 	code = '42P11'
-class DatabaseDefinitionError(SEARVError):
+class DatabaseDefinitionError(DefinitionError):
 	code = '42P12'
-class FunctionDefinitionError(SEARVError):
+class FunctionDefinitionError(DefinitionError):
 	code = '42P13'
-class PreparedStatementDefinitionError(SEARVError):
+class PreparedStatementDefinitionError(DefinitionError):
 	code = '42P14'
-class SchemaDefinitionError(SEARVError):
+class SchemaDefinitionError(DefinitionError):
 	code = '42P15'
-class TableDefinitionError(SEARVError):
+class TableDefinitionError(DefinitionError):
 	code = '42P16'
-class ObjectDefinitionError(SEARVError):
+class ObjectDefinitionError(DefinitionError):
 	code = '42P17'
 
 
@@ -488,16 +491,14 @@ class ArrayElementError(DataError):
 class SpecificTypeMismatch(DataError):
 	code = '2200G'
 
-class NullError(DataError):
-	pass
-class NullValueNotAllowedError(NullError):
+class NullValueNotAllowedError(DataError):
 	code = '22004'
-class NullValueNoIndicatorParameter(NullError):
+class NullValueNoIndicatorParameter(DataError):
 	code = '22002'
 
-class ZeroDivisionError(DataError, ZeroDivisionError):
+class ZeroDivisionError(DataError):
 	code = '22012'
-class FloatingPointError(DataError, FloatingPointError):
+class FloatingPointError(DataError):
 	code = '22P01'
 class AssignmentError(DataError):
 	code = '22005'
@@ -515,65 +516,62 @@ class UntranslatableCharacterError(DataError):
 class NonstandardUseOfEscapeCharacterError(DataError):
 	code = '22P06'
 
-class DataValidityError(DataError):
-	"Invalid Data/Parameter"
-
-class NotXMLError(DataValidityError):
+class NotXMLError(DataError):
 	code = '2200L'
-class XMLDocumentError(DataValidityError):
+class XMLDocumentError(DataError):
 	code = '2200M'
-class XMLContentError(DataValidityError):
+class XMLContentError(DataError):
 	code = '2200N'
-class XMLCommentError(DataValidityError):
+class XMLCommentError(DataError):
 	code = '2200S'
-class XMLProcessingInstructionError(DataValidityError):
+class XMLProcessingInstructionError(DataError):
 	code = '2200T'
 
-class DateTimeFormatError(DataValidityError):
+class DateTimeFormatError(DataError):
 	code = '22007'
-class TimeZoneDisplacementValueError(DataValidityError):
+class TimeZoneDisplacementValueError(DataError):
 	code = '22009'
-class DateTimeFieldOverflowError(DataValidityError):
+class DateTimeFieldOverflowError(DataError):
 	code = '22008'
-class IntervalFieldOverflowError(DataValidityError):
+class IntervalFieldOverflowError(DataError):
 	code = '22015'
 
-class LogArgumentError(DataValidityError):
+class LogArgumentError(DataError):
 	code = '2201E'
-class PowerFunctionArgumentError(DataValidityError):
+class PowerFunctionArgumentError(DataError):
 	code = '2201F'
-class WidthBucketFunctionArgumentError(DataValidityError):
+class WidthBucketFunctionArgumentError(DataError):
 	code = '2201G'
-class CastCharacterValueError(DataValidityError):
+class CastCharacterValueError(DataError):
 	code = '22018'
 
-class EscapeCharacterError(DataValidityError):
+class EscapeCharacterError(DataError):
 	code = '22019'
-class EscapeOctetError(DataValidityError):
+class EscapeOctetError(DataError):
 	code = '2200D'
-class EscapeSequenceError(DataValidityError):
+class EscapeSequenceError(DataError):
 	code = '22025'
-class EscapeCharacterConflictError(DataValidityError):
+class EscapeCharacterConflictError(DataError):
 	code = '2200B'
-class EscapeCharacterError(DataValidityError):
+class EscapeCharacterError(DataError):
 	"Invalid escape character"
 	code = '2200C'
 
-class SubstringError(DataValidityError):
+class SubstringError(DataError):
 	code = '22011'
-class TrimError(DataValidityError):
+class TrimError(DataError):
 	code = '22027'
-class IndicatorParameterValueError(DataValidityError):
+class IndicatorParameterValueError(DataError):
 	code = '22010'
-class LimitValueError(DataValidityError):
+class LimitValueError(DataError):
 	code = '22020'
-class ParameterValueError(DataValidityError):
+class ParameterValueError(DataError):
 	code = '22023'
-class RegularExpressionError(DataValidityError):
+class RegularExpressionError(DataError):
 	code = '2201B'
-class NumericRangeError(DataValidityError):
+class NumericRangeError(DataError):
 	code = '22003'
-class UnterminatedCStringError(DataValidityError):
+class UnterminatedCStringError(DataError):
 	code = '22024'
 
 
