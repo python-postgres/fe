@@ -16,7 +16,7 @@ from .. import clientoptparse as pg_opt
 from .. import environ as pg_env
 from ..resolved import pythoncommand as pycmd
 
-from .pgapi import Connector
+from . import Connector
 
 pq_trace = optparse.make_option(
 	'--pq-trace',

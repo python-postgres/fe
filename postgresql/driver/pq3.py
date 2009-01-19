@@ -1723,7 +1723,7 @@ class Connection(pg_api.Connection):
 		sm = pq.element.Startup(**smd)
 		# encode the password in the hinted server_encoding as well
 		return pq.Negotiation(sm, 
-			self.connector.password.encode(self.connector.server_encoding)
+			(self.connector.password or '').encode(self.connector.server_encoding)
 		)
 
 	def _connect(self, timeout = None):
@@ -2208,7 +2208,7 @@ class Connector(pg_api.Connector):
 		self.port = int(kw.get('port'))
 		self.process = kw.get('process')
 		self.sslmode = kw.get('sslmode') or self.sslmode
-		self.database = kw.get('database')
+		self.database = kw.get('database') or None
 		self.sslkeyfile = kw.get('sslkeyfile')
 		self.sslcrtfile = kw.get('sslcrtfile')
 		self.sslrootcrtfile = kw.get('sslrootcrtfile')
@@ -2249,9 +2249,9 @@ class Connector(pg_api.Connector):
 				self.ipv = 6
 
 		self.user = kw['user']
-		self.password = kw.get('password') or ''
-		self.options = kw.get('options')
-		self.settings = kw.get('settings') or {}
+		self.password = kw.get('password') or None
+		self.options = kw.get('options') or None
+		self.settings = kw.get('settings') or None
 
 		self.notifier = kw.get('notifier', self.notifier)
 
