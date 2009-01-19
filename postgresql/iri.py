@@ -22,20 +22,12 @@ from .resolved import riparse as ri
 def structure(t):
 	'Create a dictionary of connection parameters from a six-tuple'
 	d = {}
-
-	if t[0] == 'pqs':
-		d['sslmode'] = 'require'
-
 	if t[1] is not None:
 		uphp = ri.split_netloc(t[1])
 		if uphp[0]:
 			d['user'] = uphp[0]
 		if uphp[1]:
 			d['password'] = uphp[1]
-		if uphp[2].startswith('{'):
-			d['process'] = [
-				unescape(x) for x in uphp[2].strip('{}').split(' ')
-			]
 		else:
 			if uphp[2]:
 				d['host'] = uphp[2]
@@ -47,36 +39,35 @@ def structure(t):
 
 	if t[3] is not None:
 		d['settings'] = dict([
-			[unescape(y) for y in x.split('=', 1)]
+			[ri.unescape(y) for y in x.split('=', 1)]
 			for x in t[3].split('&')
 		])
 
 	# Path support
 	if t[4] is not None:
-		d['path'] = ri.split_path(t[3])
+		d['path'] = t[4].split(',')
 
 	return d
 
 def construct(x):
 	'Construct a IRI tuple from a dictionary object'
 	return (
-		bool(x.get('ssl')) is False and 'pq' or 'pqs',
+		"pq",
 		# netloc: user:pass@{host[:port]|process}
 		ri.unsplit_netloc((
-			x.get('user', ''),
-			x.get('password', ''),
-			x.get('process', None) is not None and '{%s}' %(
-				' '.join([escape(y) for y in x['process']])
-			) or x.get('host', ''),
-			x.get('port', '')
+			x.get('user'),
+			x.get('password'),
+			x.get('host'),
+			x.get('port')
 		)),
-		escape(x.get('database', '') or '', '/'),
-		# Path
-		x.get('settings', None) is not None and '&'.join([
-			'%s=%s' %(k, v.replace('&','%26'))
-			for k, v in x['settings'].items()
-		]),
-		ri.unsplit_path(x.get('path', [])),
+		ri.escape_path_re.sub(x.get('database') or '', '/'),
+		None if 'settings' not in x else (
+			'&'.join([
+				'%s=%s' %(k, v.replace('&','%26'))
+				for k, v in x['settings'].items()
+			])
+		),
+		None if 'path' not in x else ','.join(x['path'])
 	)
 
 def parse(s):
@@ -86,3 +77,12 @@ def parse(s):
 def serialize(x):
 	'Return a Postgres IRI from a dictionary object.'
 	return ri.unsplit(construct(x))
+
+if __name__ == '__main__':
+	import sys
+	for x in sys.argv[1:]:
+		print("{src} -> {parsed!r} -> {serial}".format(
+			src = x,
+			parsed = parse(x),
+			serial = serialize(parse(x))
+		))
