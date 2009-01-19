@@ -82,22 +82,22 @@ def construct(x):
 	'Construct a RI dictionary from a clientparams dictionary'
 	return (
 		'pq',
-		# netloc: user:pass@{host[:port]|process}
+		# netloc: user:pass@host[:port]
 		ri.unsplit_netloc((
 			x.get('user'),
 			x.get('password'),
 			'[' + x.get('host') + ']' if (
 				str(x.get('ipv', -1)) == '6' and ':' in x.get('host', '')
 			) else x.get('host'),
-			x.get('port')
+			None if 'port' not in x else str(x['port'])
 		)),
-		None if 'database' not in x else (
+		None if x.get('database') is None else (
 			ri.escape_path_re.sub(x['database'], '/')
 		),
-		None if 'settings' not in x else (
+		None if x.get('settings') is None else (
 			ri.construct_query(x['settings'])
 		),
-		None if 'path' not in x else construct_path(x['path']),
+		None if x.get('path') is None else construct_path(x['path']),
 	)
 
 def parse(s, fieldproc = ri.unescape):
