@@ -6,9 +6,10 @@
 PostgreSQL exceptions and warnings with associated state codes.
 
 The primary entry points of this module is the `ErrorLookup` function and the
-`WarningLookup` function.
+`WarningLookup` function. Given an SQL state code, they give back the most
+appropriate Error or Warning subclass.
 
-For more information see:
+For more information on error codes see:
  http://www.postgresql.org/docs/current/static/errcodes-appendix.html
 
 This module is executable via -m: python -m postgresql.exceptions.
@@ -28,12 +29,23 @@ identity)::
 If that fails, it will return `postgresql.exceptions.Error`
 """
 import sys
+import os
 from operator import itemgetter
 from functools import partial
-try:
-	from os import linesep
-except ImportError:
-	linesep = '\n'
+from string import Formatter
+from . import api as pg_api
+
+severities = (
+	'DEBUG',
+	'INFO',
+	'NOTICE',
+	'WARNING',
+	'ERROR',
+	'FATAL',
+	'PANIC',
+)
+
+message_ife_lineage_filter = set([])
 
 class Exception(Exception):
 	'Base PostgreSQL exception class'
@@ -60,53 +72,20 @@ class AbortTransaction(Exception):
 	exception.
 	"""
 
-class UnavailableSSL(Exception):
+class PythonMessage(pg_api.Message):
 	"""
-	Exception raised when SSL is unavailable by way of it being absent or
-	disabled.
-
-	This is an exception provided for PostgreSQL clients; no code is mapped to it
-	because it's a client only exception.
+	It's a message, but with __str__ returning the element's entire lineage.
 	"""
+	def __str__(self):
+		l = [
+			': '.join((x.ife_label, str(x))) for x in self.ife_ancestry()
+		]
+		l.reverse()
+		return super().__str__(self) + os.linesep.join(l)
 
-def msgstr(ob):
-	'Create a string for display in a warning or traceback'
-	message = ob.message
-	details = ob.details
-	loc = [
-		details.get('file'),
-		details.get('line'),
-		details.get('function')
-	]
-	# If there are any location details, make the locstr.
-	if loc.count(None) < 3:
-		locstr = '%sLOCATION: File %r, line %s, in %s' %(
-			linesep,
-			loc[0] or '?',
-			loc[1] or '?',
-			loc[2] or '?',
-		)
-	else:
-		locstr = ''
-
-	return str(message or details.get('message')) + (details is not None and
-		linesep + linesep.join(
-			[
-				'%s: %s' %(k.upper(), v) for k, v in details.items()
-				if k not in ('message', 'severity', 'file', 'function', 'line')
-			]
-		) or '') + locstr
-
-class Warning(Warning):
+class Warning(PythonMessage, Warning):
 	code = '01000'
-	message = None
-	__str__ = msgstr
-
-	def __init__(self, msg, code = None, details = {}):
-		self.message = msg
-		if code is not None and self.code != code:
-			self.code = code
-		self.details = details
+	ife_label = 'WARNING'
 
 class DeprecationWarning(Warning):
 	code = '01P01'
@@ -130,38 +109,15 @@ class NoMoreSetsReturned(NoDataWarning):
 	code = '02001'
 
 
-class Error(Exception):
-	"""
-	Implements an interface to a PostgreSQL-style exception.
-	"""
-	code = None
-	details = None
-	message = None
-	display_order = ('detail', 'hint', 'context')
+class Error(PythonMessage, Exception):
+	'A PostgreSQL Error'
+	ife_label = 'ERROR'
+	code = ""
 
-	def __init__(self, msg,
-		code : "SQL state to assign to the exception"\
-		"(if None, inherit from class)" = None,
-		details : "dictionary object providing extended "\
-		"information(HINT, CONTEXT, DETAIL, etc)" = None
-	):
-		if code is not None and self.code != code:
-			self.code = code
-		if details is not None:
-			self.details = details
-		self.message = msg
-
-	__str__ = msgstr
-	def __repr__(self):
-		return '{mod}.{typname}({msg}{details})'.format(
-			mod = type(self).__module__,
-			typname = type(self).__name__,
-			msg = self.message,
-			details = (
-				', ' + str(self.details) if self.details
-				else ''
-			)
-		)
+class InsecurityError(Error):
+	"""
+	Error signifying a secure channel to a server cannot be established.
+	"""
 
 class TransactionError(Error):
 	pass
@@ -624,7 +580,7 @@ class PLPGSQLTooManyRowsError(PLPGSQLError):
 code_to_error = {}
 code_to_warning = {}
 def map_errors_and_warnings(
-	objs : "A mapping of `Warning`s, `Error`'s, and `Class`'s",
+	objs : "A iterable of `Warning`s and `Error`'s",
 	error_container : "apply the code to error association to this object" = code_to_error,
 	warning_container : "apply the code to warning association to this object" = code_to_warning,
 ):
@@ -647,6 +603,8 @@ def map_errors_and_warnings(
 		elif issubclass(obj, Warning):
 			base = Warning
 			container = warning_container
+		else:
+			continue
 
 		cur_obj = container.get(code)
 		if cur_obj is None or issubclass(cur_obj, obj):
@@ -678,10 +636,10 @@ if __name__ == '__main__':
 		else:
 			e = ErrorLookup(x)
 		sys.stdout.write('postgresql.exceptions.%s [%s]%s%s' %(
-				e.__name__, e.code, linesep, (
-					e.__doc__ is not None and linesep.join([
+				e.__name__, e.code, os.linesep, (
+					e.__doc__ is not None and os.linesep.join([
 						'  ' + x for x in (e.__doc__).split('\n')
-					]) + linesep or ''
+					]) + os.linesep or ''
 				)
 			)
 		)

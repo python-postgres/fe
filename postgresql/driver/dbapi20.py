@@ -11,11 +11,12 @@ apilevel = '2.0'
 
 import postgresql.driver as pg_driver
 import postgresql.types as pg_type
-import postgresql.strings as pg_str
+import postgresql.string as pg_str
 import datetime, time
 
 from postgresql.exceptions import \
-	Error, DataError, InternalError, IntegrityError, \
+	Error, DataError, InternalError, \
+	ICVError as IntegrityError, \
 	SEARVError as ProgrammingError, \
 	IRError as OperationalError, \
 	Warning
@@ -187,7 +188,8 @@ class Connection(object):
 	DB-API 2.0 connection implementation for PG-API connection objects.
 	"""
 	from postgresql.exceptions import \
-		Error, DataError, InternalError, IntegrityError, \
+		Error, DataError, InternalError, \
+		ICVError as IntegrityError, \
 		SEARVError as ProgrammingError, \
 		IRError as OperationalError, \
 		Warning

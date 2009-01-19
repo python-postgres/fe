@@ -8,149 +8,228 @@ Application Programmer Interface specifications for PostgreSQL (ABCs).
 PG-API
 ======
 
-postgresql.api is a Python API to the PostgreSQL RDBMS. It is designed to take
-full advantage of the database elements provided by PostgreSQL to provide the
-Python programmer with substantial convenience.
+``postgresql.api`` is a Python API to the PostgreSQL RDBMS. It is designed to take
+full advantage of PostgreSQL's features to provide the Python programmer with
+substantial convenience.
 
 This module is used to define the PG-API. It creates a set of ABCs
-that makes up the basic interfaces used to work with a PostgreSQL database.
-
-The examples herein will regularly refer to a ``pg_con`` object; this object is the
-`Connection` instance--a PG-API Connection.
-
-
-Exceptions
-----------
-
-For the most part, PG-API tries to stay out of the databases' business. When
-a database error occurs, it should be mapped to the corresponding exception in
-``postgresql.exceptions`` and raised. In the cases of fatal errors, panics, or
-unexpected closures, the same exception must be raised anytime an operation is
-enacted on the connection until the connection is explicitly closed.
-
-When a connection is closed and an operation is attempted on the connection--
-other than ``connect``, the `postgresql.exceptions.ConnectionDoesNotExistError`
-error must be raised.
-
-When a connection's link is somehow lost on an operation, the
-`postgresql.exceptions.ConnectionFailureError` exception should be raised. If
-exception chains are supported by the Python implementation, it should chain the
-literal exception onto the ``ConnectionFailureError`` instance. If no explicit
-exception caused the loss, then the ``ConnectionFailureError`` error message
-should describe the symptom indicating the loss.
+that makes up the basic interfaces used to work with a PostgreSQL.
 """
 from abc import ABCMeta, abstractproperty, abstractmethod
 import collections
+from operator import attrgetter, methodcaller
 
-class PreparedStatement(
-	collections.Callable,
-	collections.Iterable,
-	metaclass = ABCMeta
-):
+class InterfaceElement(metaclass = ABCMeta):
 	"""
-	Instances of `PreparedStatement` are returned by the `query` method of
-	`Connection` instances.
+	IFE - InterFace Element
+	=======================
 
-	A PreparedStatement is an Iterable as well as Callable. This feature is
-	supported for queries that have the default arguments filled in or take no
-	arguments at all. It allows for things like:
+	The purpose of the IFE ABC is to provide a general mechanism for specifying
+	the ancestry of a given object. Ancestry in this case is referring to the
+	instances that ultimately lead to the creation of another instance; or more
+	appropriately, the elements that ultimately lead to the creation another
+	element. Elements tend to the high-level programmer interfaces to database
+	elements. For instance, prepared statements, cursors, transactions,
+	connections, etc.
 
-		>>> for x in connection.query('select * FROM table'):
-		...  pass
+	This ancestry is important for PG-API as it provides the foundation for
+	collecting the information on the causes leading to an effect. Most notably,
+	a database error. When raised, it provides you with an error message; but,
+	this information gives you little clue as to what connection the exception
+	came from. While, it is possible for a given user to find out using a
+	debugger, it not possible to do so efficiently if fair amounts of
+	information about exception's lineage is required--consider a query's
+	execution where parameters ultimately caused the failure.
+
+	To save the user time, IFEs ancestry allows `postgresql.exceptions` to
+	include substantial information about an error. A printed exception has
+	the general structure::
+	
+		<Python Traceback>
+		postgresql.exceptions.Error: <message>
+
+		[ Element Traceback ]
+
+		DRIVER: postgresql.driver.pq3
+		CONNECTOR: pq://user@localhost:5432/database
+		CONNECTION: <connection_title> <backend_id> <socket information>
+			<settings, transaction state, connection state>
+		QUERY: <query_title> <statement_id> <parameter info>
+			<query body>
+		CURSOR: <cursor_id>
+			<parameters>
+		ERROR: <message>
 	"""
-
-	@abstractmethod
-	def __call__(self, *args):
+	@abstractproperty
+	def ife_ancestor(self):
 		"""
-		Execute the prepared statement with the given arguments as parameters. If
-		the query returns rows, a cursor object should be returned, otherwise a
-		resulthandle object.
+		The ancestor element of this element.
 
-		Usage:
-
-		>>> q=pg_con.query("SELECT table_name FROM information_schema.tables WHERE
-		... table_schema = $1")
-		>>> q('public')
-		<cursor object>
+		This can be strictly defined by the element as a read-only property, or
+		the element can allow it to be set after instantiation.
 		"""
 
-	@abstractmethod
-	def first(self, *args):
+	@abstractproperty
+	def ife_label(self):
 		"""
-		Execute the prepared statement with the given arguments as parameters. If
-		the query returns rows with multiple columns, return the first row. If the
-		query returns rows with a single column, return the first column in the
-		first row. If the query does not return rows at all, return the count or
-		`None` if no count exists in the completion message. Usage:
+		ife_label is a string that identifies the kind of element.
+		It should be used in messages to provide a more concise name for a
+		particular piece of context.
 
-		>>> pg_con.query("SELECT * FROM ttable WHERE key = $1").first("somekey")
-		('somekey', 'somevalue')
-		>>> pg_con.query("SELECT 'foo'").first()
-		'foo'
-		>>> pg_con.query("INSERT INTO atable (col) VALUES (1)").first()
-		1
+		For instance, `PreparedStatement`'s ife_label is 'QUERY'.
+
+		Usually, this is set directly on the ABC itself.
 		"""
 
 	@abstractmethod
-	def load(self, iterable):
+	def __str__(self):
 		"""
-		Given an iterable, `iterable`, feed the produced parameters to the query.
-		This is a bulk-loading interface for parameterized queries.
+		Return a string describing the element.
 
-		Effectively, it is equivalent to:
-		
-		>>> q = pg_con.query(sql)
-		>>> for i in iterable:
-		...  q(*i)
+		For instance, a `PreparedStatement` would likely return the query string,
+		information about its parameters, and the statement identifier.
 
-		Its purpose is to allow the implementation to take advantage of the
-		knowledge that a series of parameters are to be loaded and subsequently
-		optimize the operation.
+		The returned string should *not* be prefixed with `ife_label`.
 		"""
 
-	@abstractmethod
-	def close(self):
+	def ife_ancestry(self) -> "Sequence of IFE ancestors":
 		"""
-		Close the prepraed statement releasing resources associated with it.
-		"""
+		Collect all the ancestor elements that led up to the existence of this
+		element in a list and return it.
 
-	@abstractmethod
-	def prepare(self):
+		Useful in cases where the lineage of a given element needs to be
+		presented. (exceptions, warnings, etc)
 		"""
-		Prepare the already instantiated query for use. This method would only be
-		used if the query were closed at some point.
+		ancestors = []
+		ife = self.ife_ancestor
+		while ife is not None:
+			if ife in ancestors or ife is self:
+				raise TypeError("recursive element ancestry detected")
+			if isinstance(ife, InterfaceElement):
+				stack.append(ife)
+			else:
+				break
+			ife = getattr(ife, 'ife_ancestor', None)
+		return ancestors
+
+	def ife_generations(self : "ancestor", ife : "descendent") -> (int, None):
 		"""
+		The number of ancestors between `self` and `ife` (the descendent).
+
+		`None` if `ife` is not a descendent of `self`.
+		"""
+		ancestors = []
+		while ife is not None and ife is not self:
+			if ife in ancestors:
+				raise TypeError("recursive element ancestry detected")
+			if isinstance(ife, InterfaceElement):
+				stack.append(ife)
+			else:
+				break
+			ife = getattr(ife, 'ife_ancestor', None)
+		return None if ife is None else len(ancestors)
+
+	def ife_descend(self,
+		*args : "`InterfaceElement`'s descending from `self`"
+	) -> None:
+		"""
+		Set the `ife_ancestor` attribute on the arguments to `self`.
+
+		That is, specify the `InterfaceElement`s in `args` directly descend
+		from `self`.
+		"""
+		for x in args:
+			x.ife_ancestor = self
+
+class Message(InterfaceElement):
+	"A message emitted by PostgreSQL"
+	ife_label = 'MESSAGE'
+	ife_ancestor = None
+	code = "00000"
+	message = None
+	details = None
+
+	def __init__(self,
+		message : "The primary information of the message",
+		code : "Message code to attach (SQL state)" = None,
+		details : "additional information associated with the message" = {},
+	):
+		self.message = message
+		self.details = details
+		if code is not None and self.code != code:
+			self.code = code
+
+	def __repr__(self):
+		return "{mod}.{typname}({message!r}{code}{details}{source})".format(
+			mod = self.__module__,
+			typname = self.__class__.__name__,
+			message = self.message,
+			code = (
+				"" if self.code == type(self).code
+				else ", code = " + repr(self.code)
+			),
+			details = (
+				"" if not self.details
+				else ", details = " + repr(self.details)
+			),
+			source = (
+				"" if self.source is None
+				else ", source = " + repr(self.source)
+			)
+		)
+
+	def __str__(self):
+		details = self.details
+		loc = [
+			details.get(k, '?') for k in ('file', 'line', 'function')
+		]
+		locstr = (
+			"" if tuple(loc) == ('?', '?', '?')
+			else "LOCATION: File {0!r}, line {1!s}, in {2!s}".format(*loc) + os.linesep
+		)
+
+		sev = details.get('severity')
+		if sev:
+			sevmsg = "SEVERITY: " + sev.upper() + os.linesep
+		return self.message + os.linesep + sevmsg + \
+			os.linesep.join((
+				': '.join((k.upper(), v)) for k, v in sorted(details.items(), key = itemgetter(0))
+				if k not in ('message', 'severity', 'file', 'function', 'line')
+			)) + locstr
 
 class Cursor(
+	InterfaceElement,
 	collections.Iterator,
 	collections.Iterable,
-	metaclass = ABCMeta
 ):
 	"""
-	A `cursor` object is an interface to a sequence of tuples(rows). A result set.
+	A `Cursor` object is an interface to a sequence of tuples(rows). A result set.
 	Cursors publish a file-like interface for reading tuples from the database.
 
-	`cursor` objects are created by invoking `query` objects or by calling
-	`connection.cursor` with the declared cursor's name.
+	`Cursor` objects are created by invoking `PreparedStatement` objects or by
+	direct name-based instantation(`cursor` method on `Connection` objects).
 	"""
+	ife_label = 'CURSOR'
 
 	@abstractmethod
-	def read(self, quantity = -1):
+	def read(self,
+		quantity : "Number of rows to read" = None
+	) -> "List of Rows":
 		"""
-		Read the specified number of tuples and return them in a list.
+		Read the specified number of rows and return them in a list.
 		This advances the cursor's position.
 		"""
 
 	@abstractmethod
-	def close(self):
+	def close(self) -> None:
 		"""
-		Close the cursor to release its resources.
+		Close the cursor.
 		"""
 
 	@abstractmethod
-	def __next__(self):
+	def __next__(self) -> "Row":
 		"""
-		Get the next tuple in the cursor. Advances the position by one.
+		Get the next tuple in the cursor. Advances the cursor position by one.
 		"""
 
 	@abstractmethod
@@ -170,7 +249,9 @@ class Cursor(
 		"""
 
 	@abstractmethod
-	def scroll(self, rows):
+	def scroll(self,
+		nrows : "Number of rows to scroll forward or backward; negative numbers dicate backward scolls"
+	):
 		"""
 		Set the cursor's position relative to the current position.
 		Negative numbers can be used to scroll backwards.
@@ -183,39 +264,136 @@ class Cursor(
 		"""
 		Get the rows at the given absolute position.
 
-		This may only be available on scrollable cursors.
+		This is only available on scrollable cursors, where seeking is possible.
+		"""
+
+class PreparedStatement(
+	InterfaceElement,
+	collections.Callable,
+	collections.Iterable,
+):
+	"""
+	Instances of `PreparedStatement` are returned by the `query` method of
+	`Connection` instances.
+
+	A PreparedStatement is an Iterable as well as Callable. This feature is
+	supported for queries that have the default arguments filled in or take no
+	arguments at all. It allows for things like:
+
+		>>> for x in connection.query('select * FROM table'):
+		...  pass
+	"""
+	ife_label = 'QUERY'
+
+	@abstractmethod
+	def __call__(self, *args) -> Cursor:
+		"""
+		Execute the prepared statement with the given arguments as parameters. If
+		the query returns rows, a `Cursor` object should be returned, otherwise a
+		`ResultHandle` object.
+
+		Usage:
+
+		>>> q=pg_con.query("SELECT column FROM ttable WHERE key = $1")
+		>>> q('identifier')
+		<cursor object>
+		"""
+
+	@abstractmethod
+	def first(self, *args) -> "'First' object that is yield by the query":
+		"""
+		Execute the prepared statement with the given arguments as parameters. If
+		the query returns rows with multiple columns, return the first row. If the
+		query returns rows with a single column, return the first column in the
+		first row. If the query does not return rows at all, return the count or
+		`None` if no count exists in the completion message. Usage:
+
+		>>> pg_con.query("SELECT * FROM ttable WHERE key = $1").first("somekey")
+		('somekey', 'somevalue')
+		>>> pg_con.query("SELECT 'foo'").first()
+		'foo'
+		>>> pg_con.query("INSERT INTO atable (col) VALUES (1)").first()
+		1
+		"""
+
+	@abstractmethod
+	def load(self,
+		iterable : "A iterable of sequences to execute the statement with"
+	):
+		"""
+		Given an iterable, `iterable`, feed the produced parameters to the query.
+		This is a bulk-loading interface for parameterized queries.
+
+		Effectively, it is equivalent to:
+		
+			>>> q = pg_con.query(sql)
+			>>> for i in iterable:
+			...  q(*i)
+
+		Its purpose is to allow the implementation to take advantage of the
+		knowledge that a series of parameters are to be loaded and subsequently
+		optimize the operation.
+		"""
+
+	@abstractmethod
+	def declare(self,
+		*args : "The arguments--positional parameters--to bind to the cursor.",
+		hold : "Whether or not to state 'WITH HOLD' in the DECLARE statement" = True,
+		scroll : "Whether or not to state 'WITH SCROLL' in the DECLARE statement" = False,
+		cursor_id : "If none, generate the cursor_id, otherwise use the given string" = None
+	) -> Cursor:
+		"""
+		Declare a cursor for the prepared statement and return the cursor object.
+		This differs from `__call__` as it allows the 
+		"""
+
+	@abstractmethod
+	def close(self) -> None:
+		"""
+		Close the prepraed statement releasing resources associated with it.
+		"""
+
+	@abstractmethod
+	def prepare(self) -> None:
+		"""
+		Prepare the already instantiated query for use. This method would only be
+		used if the query were closed at some point.
 		"""
 
 class StoredProcedure(
+	InterfaceElement,
 	collections.Callable,
-	metaclass = ABCMeta
 ):
 	"""
-	A StoredProcedure is a function residing on the database system.
+	A function stored on the database.
 	"""
+	ife_label = 'FUNCTION'
 
 	@abstractmethod
-	def __call__(self, *args, **kw):
+	def __call__(self, *args, **kw) -> (object, Cursor, collections.Iterable):
 		"""
 		Execute the procedure with the given arguments. If keyword arguments are
 		passed they must be mapped to the argument whose name matches the key. If
-		any positional arguments are given, they must fill in any gaps created by
-		the filled keyword arguments. If too few or too many arguments are given,
+		any positional arguments are given, they must fill in gaps created by
+		the stated keyword arguments. If too few or too many arguments are given,
 		a TypeError must be raised. If a keyword argument is passed where the
 		procedure does not have a corresponding argument name, then, likewise, a
 		TypeError must be raised.
 
-		In the case where the StoredProcedure references a set returning
-		function(SRF), the result *should* be a `Cursor`.
+		In the case where the `StoredProcedure` references a set returning
+		function(SRF), the result *must* be an iterable. SRFs that return single
+		columns *must* return an iterable of that column; not row data. If the SRF
+		returns a composite(OUT parameters), it *should* return a `Cursor`.
 		"""
 
-class Transaction(metaclass = ABCMeta):
+class TransactionManager(
+	InterfaceElement
+):
 	"""
-	A xact object is the connection's transaction manager. It is already
-	instantiated for every connection. It keeps the state of the transaction and
-	provides methods for managing the state thereof.
+	A `TranactionManager` is the `Connection`'s transaction manager. It provides
+	methods for managing the transaction state.
 
-	Normal usage would merely entail the use of the with-statement::
+	Normal usage would entail the use of the with-statement::
 
 		with pg_con.xact:
 		...
@@ -225,31 +403,63 @@ class Transaction(metaclass = ABCMeta):
 		with pg_con.xact('gid'):
 		...
 	"""
+	ife_label = 'XACT'
+	ife_ancestor = property(attrgetter('connection'))
 
 	@abstractproperty
-	def failed(self) -> "True|False":
+	def connection(self):
+		"""
+		The connection whose transaction state is managed by the
+		`TransactionManager` instance.
+		"""
+
+	@abstractproperty
+	def failed(self) -> bool:
 		"""
 		bool stating if the current transaction has failed due to an error.
 		`None` if not in a transaction block.
 		"""
-	
+
 	@abstractproperty
-	def closed(self) -> "True|False":
+	def level(self) -> int:
 		"""
-		`bool` stating if there is an open transaction block.
+		`int` stating the current transaction depth.
+
+		The level starts at zero, indicating no transactions have been started.
+		For each call to `start`, this is incremented by one.
+		For each call to `abort` or `commit`, this is decremented by one.
+
+		Implementation must protect against negative levels.
 		"""
 
 	@abstractmethod
-	def start(self):
+	def start(self) -> None:
 		"""
 		Start a transaction block. If a transaction block has already been
-		started, set a savepoint.
+		started, make a savepoint.
 		``start``, ``begin``, and ``__enter__`` are synonyms.
 		"""
 	__enter__ = begin = start
 
+	def __context__(self):
+		return self
+
 	@abstractmethod
-	def commit(self):
+	def __exit__(self, typ, obj, tb):
+		"""
+		Commit the transaction, or abort if the given exception is not `None`. If
+		the transaction level is greater than one, then the savepoint
+		corresponding to the current level will be released or rolled back in
+		cases of an exception.
+
+		If an exception was raised, then the return value must indicate the need
+		to further raise the exception, unless the exception is an
+		`postgresql.exceptions.AbortTransaction`. In which case, the transaction
+		will be rolled back accordingly, but the no exception will be raised.
+		"""
+
+	@abstractmethod
+	def commit(self) -> None:
 		"""
 		Commit the transaction block, release a savepoint, or prepare the
 		transaction for commit. If the number of running transactions is greater
@@ -260,25 +470,12 @@ class Transaction(metaclass = ABCMeta):
 		"""
 
 	@abstractmethod
-	def rollback(self):
+	def rollback(self) -> None:
 		"""
 		Abort the current transaction or rollback to the last started savepoint.
 		`rollback` and `abort` are synonyms.
 		"""
 	abort = rollback
-
-	@abstractmethod
-	def restart(self):
-		"""
-		Abort and start the transaction or savepoint.
-		"""
-
-	@abstractmethod
-	def checkpoint(self):
-		"""
-		Commit and start a transaction block or savepoint. Not to be confused with
-		the effect of the CHECKPOINT command.
-		"""
 
 	@abstractmethod
 	def __call__(self, gid = None, isolation = None, readonly = None):
@@ -310,37 +507,19 @@ class Transaction(metaclass = ABCMeta):
 			>>> with pg_con.xact(isolation = 'READ COMMITTED'):
 			...
 
-		Database configured defaults apply to all `xact` operations.
+		Database configured defaults apply to all `TransactionManager` operations.
 		"""
 
 	@abstractmethod
-	def __context__(self):
-		'Return self'
-
-	@abstractmethod
-	def __exit__(self, typ, obj, tb):
-		"""
-		Commit the transaction, or abort if the given exception is not `None`. If
-		the transaction level is greater than one, then the savepoint
-		corresponding to the current level will be released or rolled back in
-		cases of an exception.
-
-		If an exception was raised, then the return value must indicate the need
-		to further raise the exception, unless the exception is an
-		`postgresql.exceptions.AbortTransaction`. In which case, the transaction
-		will be rolled back accordingly, but the no exception will be raised.
-		"""
-
-	@abstractmethod
-	def commit_prepared(self, gid):
+	def commit_prepared(self, gid : str):
 		"""
 		Commit the prepared transaction with the given `gid`.
 		"""
 
 	@abstractmethod
-	def rollback_prepared(self, *gids):
+	def rollback_prepared(self, *gids : str):
 		"""
-		Rollback the prepared transaction with the given `gid`.
+		Rollback the prepared transactions with the given `gid`.
 		"""
 
 	@abstractproperty
@@ -354,14 +533,15 @@ class Transaction(metaclass = ABCMeta):
 		"""
 
 class Settings(
-	collections.MutableMapping,
-	metaclass = ABCMeta
+	InterfaceElement,
+	collections.MutableMapping
 ):
 	"""
 	A mapping interface to the session's settings. This provides a direct interface
 	to ``SHOW`` or ``SET`` commands. Identifiers and values need not be quoted
 	specially as the implementation must do that work for the user.
 	"""
+	ife_label = 'SETTINGS'
 
 	def getpath(self) -> "Sequence of schema names that make up the search_path":
 		"""
@@ -372,7 +552,8 @@ class Settings(
 		Set the "search_path" setting to the given a sequence of schema names, 
 		[Implementations must properly escape and join the strings]
 		"""
-	path = abstractproperty(getpath, setpath,
+	path = abstractproperty(
+		getpath, setpath,
 		doc = """
 		An interface to a structured ``search_path`` setting:
 
@@ -500,42 +681,33 @@ class Settings(
 		>>> pg_con.settings.unsubscribe('TimeZone', watch)
 		"""
 
-class TypeIO(metaclass = ABCMeta):
-	"""
-	A TypeIO object is a container for type I/O management facilities. This means
-	it's the single place to go to retrieve functions for serializing objects for
-	transport over the wire. This class is only pertinent to connections that
-	communicate with the server via PQ.
-	"""
-
-
-class Connection(metaclass = ABCMeta):
+class Connection(
+	InterfaceElement
+):
 	"""
 	The connection interface.
 	"""
+	ife_label = 'CONNECTION'
+	ife_ancestor = property(attrgetter('connector'))
+
+	@abstractproperty
+	def backend_id(self):
+		"""
+		The backend's process identifier.
+		"""
 
 	@abstractmethod
 	def query(self,
 		sql : "The query text.",
-		*default_args : "The default positional parameters to pass to the statement.",
 		title : "The query's name, used in tracebacks when available" = None,
-		prepare : "Whether or not to prepare the query." = True
-	):
+	) -> PreparedStatement:
 		"""
-		Create a new `.query` instance that provides an interface to the prepared statement.
-
-		Given a single SQL statement, and optional default query arguments, create
-		a PreparedStatement instance.
-
-		The default arguments fill in the query's positional parameters.
+		Create a new `PreparedStatement` instance bound to the connection with the
+		given SQL.
 
 		The ``title`` keyword argument is only used to help identify queries.
 		The given value *must* be set to the PreparedStatement's 'title' attribute.
 		It is analogous to a function name.
-
-		The ``prepare`` keyword argument tells the driver whether or not to actually
-		prepare the query when the PreparedStatement is instantiated. When `False`,
-		defer preparation until execution or until it is explicitly ordered to prepare.
 
 		>>> q = pg_con.query("SELECT 1")
 		>>> p = q()
@@ -557,10 +729,8 @@ class Connection(metaclass = ABCMeta):
 	@abstractmethod
 	def cquery(self,
 		sql : "The query text.",
-		*default_args : "The default positional parameters to pass to the statement.",
 		title : "The query's name, used in tracebacks when available" = None,
-		prepare : "Whether or not to prepare the query." = True
-	):
+	) -> PreparedStatement:
 		"""
 		Exactly like `query`, but cache the created `PreparedStatement` using the
 		given `sql` as the key. If the same `sql` is given again, look it up and
@@ -571,11 +741,10 @@ class Connection(metaclass = ABCMeta):
 
 	@abstractmethod
 	def statement(self,
-		statement_id : "The identifier of the statement.",
+		statement_id : "The statement's identification string.",
 		*default_args : "The default positional parameters to pass to the statement.",
-		title : "The query's name, used in tracebacks when available" = None,
-		prepare : "Whether or not to prepare the query." = True
-	):
+		title : "The query's name, used in tracebacks when available" = None
+	) -> PreparedStatement:
 		"""
 		Create a `PreparedStatement` object that was already prepared on the server.
 		The distinction between this and a regular query is that it must be
@@ -586,7 +755,9 @@ class Connection(metaclass = ABCMeta):
 		"""
 
 	@abstractmethod
-	def cursor(self, cursor_id):
+	def cursor(self,
+		cursor_id : "The cursor's identification string."
+	) -> Cursor:
 		"""
 		Create a `Cursor` object from the given `cursor_id` that was already declared
 		on the server.
@@ -598,48 +769,52 @@ class Connection(metaclass = ABCMeta):
 		"""
 
 	@abstractmethod
-	def proc(self, proc_id):
+	def proc(self,
+		proc_id : "The procedure identifier; a valid ``regprocedure`` or Oid."
+	) -> StoredProcedure:
 		"""
-		Create a reference to a stored procedure on the database. The given
-		identifier can be either an Oid or a valid ``regprocedure`` string pointing at
-		the desired function.
+		Create a `StoredProcedure` instance using the given identifier.
 
-		The `proc_id` given can be either an ``Oid``, or a ``regprocedure`` identifier.
+		The `proc_id` given can be either an ``Oid``, or a ``regprocedure`` that
+		identifies the stored procedure to create the interface for.
 
 		>>> p = pg_con.proc('version()')
 		>>> p()
 		'PostgreSQL 8.3.0'
 
-		>>> ~pg_con.query("select oid from pg_proc where proname = 'generate_series'")
+		>>> pg_con.query("select oid from pg_proc where proname = 'generate_series'").first()
 		1069
-		>>> p = pg_con.proc(1069)
-		>>> list(p(1,5))
+		>>> generate_series = pg_con.proc(1069)
+		>>> list(generate_series(1,5))
 		[1, 2, 3, 4, 5]
 		"""
 
 	@abstractmethod
-	def connect(self):
+	def connect(self) -> None:
 		"""
-		Establish the connection to the server. Does nothing if the connection is
-		already established.
+		Establish the connection to the server.
+
+		Does nothing if the connection is already established.
 		"""
 
 	@abstractmethod
-	def close(self):
+	def close(self) -> None:
 		"""
-		Close the connection. Does nothing if the connection is already closed.
+		Close the connection.
+
+		Does nothing if the connection is already closed.
 		"""
 
 	@abstractmethod
-	def reconnect(self):
+	def reconnect(self) -> None:
 		"""
 		Method drawing the effect of ``close`` then ``connect``.
 		"""
 
 	@abstractmethod
-	def reset(self):
+	def reset(self) -> None:
 		"""
-		Reset as much connection configuration as possible.
+		Reset the connection into it's original state.
 
 		Issues a ``RESET ALL`` to the database. If the database supports removing
 		temporary tables created in the session, then remove them. Reapply
@@ -652,26 +827,7 @@ class Connection(metaclass = ABCMeta):
 		would be in a connection pool where the connection is done being used.
 		"""
 
-	@abstractmethod
-	def __nonzero__(self):
-		"""
-		Returns `True` if there are no known error conditions that would impede an
-		action, otherwise `False`.
-
-		If the connection is in a failed transaction block, this must be `False`.
-		If the connection is closed, this must be `False`.
-
-		>>> bool(pg_con) in (True, False)
-		True
-		"""
-
-	@abstractmethod
-	def __enter__(self):
-		"""
-		Synonym to `connect` for with-statement support.
-		"""
-
-	@abstractmethod
+	__enter__ = methodcaller('connect')
 	def __exit__(self, typ, obj, tb):
 		"""
 		Closes the connection and returns `True` when an exception is passed in,
@@ -679,27 +835,21 @@ class Connection(metaclass = ABCMeta):
 
 		If the connection has any operations queued or running, abort them.
 		"""
+		self.close()
+		return typ is not None
 
-	@abstractmethod
 	def __context__(self):
 		"""
 		Returns the connection object.
 		"""
+		return self
 
 	@abstractmethod
-	def execute(sql):
+	def execute(sql) -> None:
 		"""
 		Execute an arbitrary block of SQL. Always returns `None` and raises an
 		exception on error.
 		"""
-
-	type = property(
-		doc = """
-		`type` is a property providing the name of the database type. 'PostgreSQL'
-		would be the usual case. However, other "kinds" of Postgres exist in the
-		wild. Greenplum for example.
-		"""
-	)
 
 	@abstractproperty
 	def version_info(self):
@@ -711,15 +861,9 @@ class Connection(metaclass = ABCMeta):
 		"""
 
 	@abstractproperty
-	def closed(self):
+	def closed(self) -> bool:
 		"""
-		A property that indicates whether the connection is open. If the connection
-		is not open, then accessing closed will return True. If the connection is
-		open, closed with return False.
-
-		Additionally, setting it to `True` or `False` can open and close the
-		connection. If the value set is not `True` or `False`, a `ValueError` must be
-		raised.
+		`True` if the `Connection` is closed, `False` if the `Connection` is open.
 
 		>>> pg_con.closed
 		True
@@ -737,24 +881,90 @@ class Connection(metaclass = ABCMeta):
 	)
 
 	@abstractproperty
-	def xact(self):
+	def xact(self) -> TransactionManager:
 		"""
-		A `xact` instance applicable to the connection that the attribute is bound
-		to.
+		A `TransactionManager` instance bound to the `Connection`.
 		"""
 
 	@abstractproperty
-	def settings(self):
+	def settings(self) -> Settings:
 		"""
-		A `settings` instance applicable to the conneciton that the attribute is
-		bound to.
+		A `Settings` instance bound to the `Connection`.
 		"""
 
-class Cluster(metaclass = ABCMeta):
+class Connector(
+	InterfaceElement
+):
+	ife_label = 'CONNECTOR'
+
+	@abstractproperty
+	def driver(self):
+		"""
+		The driver implementation that created the `Connector` class.
+		"""
+
+	@abstractproperty
+	def Connection(self):
+		"""
+		The `Connection` class to instantiate when creating a connection.
+		"""
+
+	def create(self, *args, **kw):
+		"""
+		Instantiate and return the connection class.
+		"""
+		return self.Connection(self, *args, **kw)
+
+	def __call__(self, *args, **kw):
+		"""
+		Create and connect. Arguments will be given to the `Connection` instance's
+		``connect`` method.
+		"""
+		c = self.Connection(self)
+		c.connect(*args, **kw)
+		return c
+
+class Driver(InterfaceElement):
+	"""
+	The `Driver` element provides the `Connector` and other information
+	pertaining to the implementation of the driver. Information about what the
+	driver supports is available in instances.
+	"""
+	ife_label = "DRIVER"
+	ife_ancestor = None
+
+	@abstractproperty
+	def Connector(self):
+		"""
+		The `Connector` implementation for the driver.
+		"""
+
+	def connect(**kw):
+		"""
+		Create a connection using the given parameters for the Connector.
+
+		This caches the `Connector` instance for re-use when the same parameters
+		are given again.
+		"""
+		id = set(kw.items())
+		cr = self._connectors.get(id)
+		if cr is None:
+			cr = self.Connector(**kw)
+			c = cr()
+			self._connectors[id] = cr
+		return c
+
+	def __init__(self):
+		self._connectors = {}
+
+class Cluster(InterfaceElement):
 	"""
 	Interface to a PostgreSQL cluster--a data directory. An implementation of
 	this provides a means to control a server.
 	"""
+	ife_label = 'CLUSTER'
+	ife_ancestor = None
+
 	@abstractmethod
 	def init(self,
 		initdb : "path to the initdb to use" = None,
@@ -811,7 +1021,7 @@ class Cluster(metaclass = ABCMeta):
 		A `Settings` interface to the ``postgresql.conf`` file associated with the
 		cluster.
 		"""
-	
+
 	@abstractmethod
 	def wait_until_started(self,
 		timeout : "maximum time to wait" = 10
@@ -850,9 +1060,8 @@ class Cluster(metaclass = ABCMeta):
 		self.stop()
 		return exc is None
 
+__docformat__ = 'reStructuredText'
 if __name__ == '__main__':
 	help('postgresql.api')
-
-__docformat__ = 'reStructuredText'
 ##
 # vim: ts=3:sw=3:noet:

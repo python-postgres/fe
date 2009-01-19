@@ -238,6 +238,9 @@ class ResultHandle(object):
 		"The completion message's count number"
 		if self.complete is not None:
 			return extract_count(self.complete)
+	
+	def __str__(self):
+		return "ResultHandle"
 
 	def __iter__(self):
 		return self
@@ -431,14 +434,23 @@ class Portal(pg_api.Cursor):
 		1 : 'RELATIVE',
 		2 : 'LAST',
 	}
+	ife_ancestor = None
 
-	def __init__(self, connection, portal_id, fetchcount = 30):
+	def __init__(self, connection, cursor_id, fetchcount = 30):
 		self.connection = connection
-		self.portal_id = portal_id
+		self.cursor_id = cursor_id
 		self.fetchcount = fetchcount
 
 	def __iter__(self):
 		return self
+	
+	def __str__(self):
+		return "cursor"
+
+	def close(self):
+		if self.closed is False:
+			self.connection._closeportals.append(self.cursor_id)
+			self.closed = True
 
 	def _mktuple(self, data):
 		return pg_typio.Row(
@@ -465,7 +477,7 @@ class Portal(pg_api.Cursor):
 	def _xp_fetchmore(self, count = None):
 		return pq.Transaction((
 			pq.element.Execute(
-				self.connection.typio.encode(self.portal_id),
+				self.connection.typio.encode(self.cursor_id),
 				count or self.fetchcount or 10
 			),
 			pq.element.SynchronizeMessage,
@@ -536,7 +548,7 @@ class Portal(pg_api.Cursor):
 		return not (bufsize == oldbufsize)
 
 	def __getitem__(self, i):
-		q = 'FETCH ABSOLUTE %d IN "%s"' %(i+1, self.portal_id)
+		q = 'FETCH ABSOLUTE %d IN "%s"' %(i+1, self.cursor_id)
 		xact = self.connection._xp_query(q, rformats = self._rformats)
 		self.connection._push(xact)
 		self.connection._complete()
@@ -546,11 +558,6 @@ class Portal(pg_api.Cursor):
 		if x.type != pq.element.Tuple.type:
 			raise IndexError("portal index out of range(%d)" %(i,))
 		return self._mktuple(x)
-
-	def close(self):
-		if self.closed is False:
-			self.connection._closeportals.append(self.portal_id)
-			self.closed = True
 
 	def __next__(self):
 		# reduce set size if need be
@@ -590,13 +597,13 @@ class Portal(pg_api.Cursor):
 			pq.element.Parse(b'',
 				'MOVE %s %d IN "%s"' %(
 					whence, position,
-					self.portal_id.replace('"', '""')
+					self.cursor_id.replace('"', '""')
 				), ()
 			),
 			pq.element.Bind(b'', b'', (), (), ()),
 			pq.element.Execute(b'', 1),
 			pq.element.Execute(
-				self.connection.typio.encode(self.portal_id),
+				self.connection.typio.encode(self.cursor_id),
 				count or self.fetchcount
 			),
 			pq.element.SynchronizeMessage,
@@ -641,7 +648,7 @@ class Portal(pg_api.Cursor):
 					pq.element.Parse(b'',
 						self.connection.typio.encode(
 							'MOVE LAST IN "{1}"'.format(
-								self.portal_id.replace('"', '""'),
+								self.cursor_id.replace('"', '""'),
 							)
 						), ()
 					),
@@ -717,6 +724,8 @@ class Cursor(Portal):
 
 class ClientStatementCursor(Portal):
 	"Client statement created cursors"
+	ife_ancestor = property(attrgetter('query'))
+
 	def __init__(self, query, params, output, output_io, rformats, **kw):
 		Portal.__init__(self,
 			query.connection,
@@ -740,14 +749,14 @@ class ClientStatementCursor(Portal):
 			self.fetchcount = 0xFFFFFFFF
 		x = pq.Transaction((
 			pq.element.Bind(
-				self.connection.typio.encode(self.portal_id),
+				self.connection.typio.encode(self.cursor_id),
 				query.statement_id,
 				self.query._iformats,
 				params,
 				rformats,
 			),
 			pq.element.Execute(
-				self.connection.typio.encode(self.portal_id),
+				self.connection.typio.encode(self.cursor_id),
 				self.fetchcount
 			),
 			pq.element.SynchronizeMessage
@@ -770,6 +779,8 @@ class ClientStatementCursor(Portal):
 	__del__ = Portal.close
 
 class PreparedStatement(pg_api.PreparedStatement):
+	ife_ancestor = property(attrgetter('connection'))
+
 	def __init__(self, connection, statement_id, title = None):
 		# Assume that the statement is open; it's normally a
 		# statement prepared on the server in this context.
@@ -786,6 +797,9 @@ class PreparedStatement(pg_api.PreparedStatement):
 			self.connection.connector.iri,
 			self.closed and ' closed' or ''
 		)
+	
+	def __str__(self):
+		return "statement"
 
 	@property
 	def closed(self):
@@ -826,12 +840,10 @@ class PreparedStatement(pg_api.PreparedStatement):
 		tupdesc = r[-2]
 
 		if tupdesc is None or tupdesc is pq.element.NoDataMessage:
-			self.portal = self.connection._ResultHandle
 			self.output = None
 			self._output_io = ()
 			self._rformats = ()
 		else:
-			self.portal = self.connection._ClientStatementCursor
 			self.output = tupdesc
 			self._output_attmap = tupdesc.attribute_map
 			# tuple output
@@ -869,12 +881,12 @@ class PreparedStatement(pg_api.PreparedStatement):
 			params = ()
 
 		if self.output:
-			portal = self.portal(
+			portal = ClientStatementCursor(
 				self, params, self.output, self._output_io, self._rformats, **kw
 			)
 		else:
 			# non-tuple output(copy, ddl, non-returning dml)
-			portal = self.portal(self, params, **kw)
+			portal = ResultHandle(self, params, **kw)
 			if portal.type.type == pq.element.CopyFromBegin.type:
 				# Run COPY FROM if given an iterator
 				if params is () and args:
@@ -945,6 +957,13 @@ class PreparedStatement(pg_api.PreparedStatement):
 			else:
 				return None
 			return extract_count(cm)
+
+	def declare(self,
+		*args,
+		hold = True,
+		scroll = True
+	):
+		pass
 
 	def load(self, tupleseq, tps = 40):
 		if self.closed:
@@ -1103,6 +1122,8 @@ class StoredProcedure(pg_api.StoredProcedure):
 		self.output = self.query.output
 
 class Settings(pg_api.Settings):
+	ife_ancestor = property(attrgetter('connection'))
+
 	def __init__(self, connection):
 		self.connection = connection
 		self.cache = {}
@@ -1147,6 +1168,9 @@ class Settings(pg_api.Settings):
 
 	def __len__(self):
 		return self.connection.cquery("SELECT count(*) FROM pg_settings").first()
+
+	def __str__(self):
+		return "Settings"
 
 	def __call__(self, **kw):
 		# In the usual case:
@@ -1285,42 +1309,39 @@ class Settings(pg_api.Settings):
 		if callback in callbacks:
 			callbacks.remove(callback)
 
-class TransactionManager(pg_api.Transaction):
+class TransactionManager(pg_api.TransactionManager):
+	ife_ancestor = property(attrgetter('connection'))
+	level = property(attrgetter('_level'))
+	connection = None
+
 	def __init__(self, connection):
 		self._level = 0
 		self.connection = connection
 		self.isolation = None
 		self.mode = None
 		self.gid = None
+	
+	def __str__(self):
+		return "Transaction"
 
-	def failed():
-		def fget(self):
-			s = self.connection.state
-			if s is None or s == 'I':
-				return None
-			elif s == 'E':
-				return True
-			else:
-				return False
-		return locals()
-	failed = property(**failed())
+	@property
+	def failed(self):
+		s = self.connection.state
+		if s is None or s == 'I':
+			return None
+		elif s == 'E':
+			return True
+		else:
+			return False
 
-	def closed():
-		def fget(self):
-			return self.connection.state in (None, 'I')
-		return locals()
-	closed = property(**closed())
-
-	def prepared():
-		def fget(self):
-			return tuple(
-				self.connection.cquery(
-					PreparedLookup,
-					title = "usable_prepared_xacts"
-				).first(self.connection.user)
-			)
-		return locals()
-	prepared = property(**prepared())
+	@property
+	def prepared(self):
+		return tuple(
+			self.connection.cquery(
+				PreparedLookup,
+				title = "usable_prepared_xacts"
+			).first(self.connection.user)
+		)
 
 	def commit_prepared(self, gid):
 		self.connection.execute(
@@ -1387,9 +1408,7 @@ class TransactionManager(pg_api.Transaction):
 			if self.gid is None:
 				return 'COMMIT'
 			else:
-				return "PREPARE TRANSACTION '%s'".format(
-					self.gid.replace("'", "''")
-				)
+				return "PREPARE TRANSACTION '" + self.gid.replace("'", "''") + "'"
 		else:
 			return 'RELEASE "xact(%d)"' %(level - 1,)
 
@@ -1458,27 +1477,26 @@ class TransactionManager(pg_api.Transaction):
 		return self
 
 	def wrap(self, callable, *args, **kw):
-		self.start()
-		try:
-			xrob = callable(*args, **kw)
-		except self.AbortTransaction as e:
-			if not self.connection.closed:
-				self.abort()
-			xrob = getattr(e, 'returning', None)
-		except:
-			if not self.connection.closed:
-				self.abort()
-			raise
-		else:
-			self.commit()
+		"""
+		Execute the callable wrapped in a transaction.
+		"""
+		with self:
+			try:
+				xrob = callable(*args, **kw)
+			except pg_exc.AbortTransaction as e:
+				if self.connection.closed:
+					raise
+				xrob = getattr(e, 'args', (None,))[0]
 		return xrob
 
 class Connection(pg_api.Connection):
 	"""
 	Connection(connector) -> Connection
 
-	PG-API <- Driver -> PQ Protocol <- Socket -> PostgreSQL
+	PG-API <-> Driver <-> PQ Protocol <-> Socket <-> PostgreSQL
 	"""
+	ife_ancestor = property(attrgetter('connector'))
+
 	_tracer = None
 	def tracer():
 		def fget(self):
@@ -1497,16 +1515,33 @@ class Connection(pg_api.Connection):
 	tracer = property(**tracer())
 
 	type = None
-	closed = None
 	user = None
 	version_info = None
 	version = None
+	backend_id = None
 
-	def _N(self, msg):
+	def _decode_message(self, msg):
+		"[internal] decode a Notice/Error message's information"
+		for k, v in msg.items():
+			try:
+				dv = self.typio.decode(v)
+			except UnicodeDecodeError:
+				dv = repr(v)
+			yield k, v
+
+	def _N(self, msg, xact):
 		'[internal] print a notice message using the notifier attribute'
-		self.notifier(msg)
+		decoded = dict(self._decode_message(msg))
+		if decoded['severity'].upper() == 'WARNING':
+			w = pg_exc.WarningLookup(decoded['code'])
+			w = w(msg['message'], code = msg['code'], details = decoded)
+			w.connection = self
+			w.creator = getattr(xact, 'creator', None)
+			warnings.warn(w)
+		else:
+			self.notifier(decoded)
 
-	def _A(self, msg):
+	def _A(self, msg, xact):
 		'[internal] Send notification to any listeners; NOTIFY messages'
 		subs = getattr(self, '_subscriptions', {})
 		for x in subs.get(msg.relation, ()):
@@ -1514,7 +1549,7 @@ class Connection(pg_api.Connection):
 		if None in subs:
 			subs[None](self, msg)
 
-	def _S(self, msg):
+	def _S(self, msg, xact):
 		'[internal] Receive ShowOption message'
 		self.settings._notify(msg)
 
@@ -1547,10 +1582,6 @@ class Connection(pg_api.Connection):
 				args[0], self.query(*args, **kw)
 			)
 
-	def __nonzero__(self):
-		'connection can issue a query without an existing impediment'
-		return not self.closed and self.state not in ('LOST', 'E', None)
-
 	def __repr__(self):
 		return '<%s.%s[%s] %s>' %(
 			type(self).__module__,
@@ -1560,6 +1591,9 @@ class Connection(pg_api.Connection):
 				self.state, self.xact._level
 			)
 		)
+
+	def __str__(self):
+		return "Connection"
 
 	def __context__(self):
 		return self
@@ -1614,14 +1648,6 @@ class Connection(pg_api.Connection):
 		'Create a Portal object that references an already existing cursor'
 		return Cursor(*args, **kw)
 
-	def _ClientStatementCursor(self, *args, **kw):
-		'Create a Portal using the given client prepared statement'
-		return ClientStatementCursor(*args, **kw)
-
-	def _ResultHandle(*args, **kw):
-		'Execute a query with the given arguments that does not return rows'
-		return ResultHandle(*args, **kw)
-
 	def _xp_query(self, string, args = (), rformats = ()):
 		'[internal] create an extended protocol transaction for the query'
 		aformats = ()
@@ -1650,19 +1676,9 @@ class Connection(pg_api.Connection):
 			self._clear()
 			self._reset()
 
-	def closed():
-		def fget(self):
-			return self._xact is ClosedConnectionTransaction
-		def fset(self, value):
-			if value is True:
-				self.connect()
-			elif value is False:
-				self.close()
-			else:
-				raise ValueError("closed can only be set to True or False")
-		doc = 'Whether the connection is closed or not'
-		return locals()
-	closed = property(**closed())
+	@property
+	def closed(self):
+		return self._xact is ClosedConnectionTransaction or self.state in ('LOST', None)
 
 	def reconnect(self, *args, **kw):
 		'close() and connect()'
@@ -1689,6 +1705,7 @@ class Connection(pg_api.Connection):
 	__enter__ = connect
 
 	def _negotiation(self):
+		'[internal] create the negotiation transaction'
 		sp = self.connector._startup_parameters
 		##
 		# Attempt to accommodate for literal treatment of startup data.
@@ -1698,19 +1715,19 @@ class Connection(pg_api.Connection):
 			k.encode('utf-8') : \
 			# If it's a str(), encode in the hinted server_encoding.
 			# Otherwise, convert the object(int, float, bool, etc) into a string
-			# treat it as utf-8.
+			# and treat it as utf-8.
 			v.encode(self.connector.server_encoding) \
 			if type(v) is str else str(v).encode('utf-8')
 			for k, v in sp.items()
 		}
 		sm = pq.element.Startup(**smd)
-		# encode the password in the hinted server_encoding
+		# encode the password in the hinted server_encoding as well
 		return pq.Negotiation(sm, 
 			self.connector.password.encode(self.connector.server_encoding)
 		)
 
 	def _connect(self, timeout = None):
-		'[internal]'
+		'[internal] initialize the socket and run negotiation'
 		c = self.connector
 		dossl = c.sslmode in ('require', 'prefer')
 
@@ -1731,7 +1748,11 @@ class Connection(pg_api.Connection):
 					)
 					# XXX: Check Revocation List?
 				elif c.sslmode == 'require':
-					raise pg_exc.UnavailableSSL(self)
+					e = pg_exc.InsecurityError(
+						"sslmode required secure connection, but was unsupported by server",
+						connection = self,
+						context = self,
+					)
 
 			# Authenticate and read initial data.
 			try:
@@ -1928,7 +1949,7 @@ class Connection(pg_api.Connection):
 			self._n_procasyncs = True
 			while self._asyncs:
 				for x in self._asyncs[0][1]:
-					getattr(self, '_' + x.type.decode('ascii'))(x)
+					getattr(self, '_' + x.type.decode('ascii'))(x, self._asyncs[0])
 				del self._asyncs[0]
 		finally:
 			self._n_procasyncs = False
@@ -2042,8 +2063,8 @@ class Connection(pg_api.Connection):
 		return locals()
 	user = property(**user())
 
-	settings = property(attrgetter('_settings'))
-	xact = property(attrgetter('_xactman'))
+	settings = None
+	xact = None
 
 	def __init__(self, connector, *args, **kw):
 		"""
@@ -2060,8 +2081,8 @@ class Connection(pg_api.Connection):
 		self._query_cache = {}
 
 		self.typio = TypeIO(self)
-		self._settings = Settings(self)
-		self._xactman = TransactionManager(self)
+		self.settings = Settings(self)
+		self.xact = TransactionManager(self)
 		# Update the _encode and _decode attributes on the connection
 		# when a client_encoding ShowOption message comes in.
 		self.settings.subscribe('client_encoding', self._update_encoding)
@@ -2070,38 +2091,10 @@ class Connection(pg_api.Connection):
 		self._reset()
 # class Connection
 
-def format_message(msg):
-	loc = [
-		msg.get('file'),
-		msg.get('line'),
-		msg.get('function')
-	]
-	# If there are any location details, make the locstr.
-	if loc.count(None) < 3:
-		locstr = 'LOCATION: File %r, line %s, in %s' %(
-			loc[0] or '?',
-			loc[1] or '?',
-			loc[2] or '?',
-		)
-	else:
-		locstr = ''
-	detstr = os.linesep.join([
-		'%s: %s' %(k.upper(), v) for k, v in msg.items()
-		if k not in ("severity", "code", "message", "file", "line", "function")
-	]) 
-
-	return '%s(%s): %s%s%s%s%s%s' %(
-		msg["severity"].upper(),
-		msg["code"],
-		msg["message"], os.linesep,
-		locstr, locstr and os.linesep or '',
-		detstr, detstr and os.linesep or '',
-	)
-
 def stderr_notifier(c, msg):
 	sys.stderr.write(format_message(msg))
 
-class Connector():
+class Connector(pg_api.Connector):
 	"""
 	Connector(**config) -> Connector
 
@@ -2109,8 +2102,10 @@ class Connector():
 	and socket, may be provided. If socket, unix, or process is not
 	provided, host and port must be.
 	"""
-
-	connection_class = Connection
+	notifier = stderr_notifier
+	ife_ancestor = None
+	driver = None
+	Connection = Connection
 	sslmode = 'prefer'
 	words = (
 		'user',
@@ -2133,10 +2128,12 @@ class Connector():
 		# Config
 		'path', 'role'
 	)
-	notifier = stderr_notifier
+	# XXX notifier = stderr_notifier
 	iri = property(
 		fget = lambda x: pg_iri.serialize(x.__dict__)
 	)
+	def __str__(self):
+		return pg_iri.serialize(self.__dict__)
 
 	def __repr__(self):
 		return type(self).__module__ + '.' + type(self).__name__ + '(%s)' %(
@@ -2171,15 +2168,6 @@ class Connector():
 			s.close()
 			raise
 		return s
-
-	def __call__(self, *args, **kw):
-		c = self.connection_class(self, *args, **kw)
-		c.connect()
-		return c
-
-	def create(self, *args, **kw):
-		# connector is the first arguments(self)
-		return self.connection_class(self, *args, **kw)
 
 	def __init__(self, **kw):
 		for k in kw:
@@ -2281,3 +2269,17 @@ class Connector():
 
 		self._startup_parameters = tnkw
 # class Connector
+
+class Driver(pg_api.Driver):
+	Connector = Connector
+	ife_ancestor = None
+
+	def __str__(self):
+		return 'postgresql.driver.pq3'
+
+	def __new__(subtype):
+		# There is only one instance of postgresql.driver.pq3.
+		return implementation
+implementation = pg_api.Driver.__new__(Driver)
+Connector.driver = implementation
+Connector.ife_ancestor = Connector.driver

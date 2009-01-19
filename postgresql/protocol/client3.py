@@ -4,6 +4,7 @@
 ##
 'PQ version 3.0 client transactions'
 import sys
+from .. import api as pg_api
 from .. import exceptions as pg_exc
 from . import element3 as element
 
@@ -23,7 +24,11 @@ AsynchronousMap = {
 def return_arg(x):
 	return x
 
-class Negotiation(object):
+class ProtocolState(pg_api.InterfaceElement):
+	ife_label = 'PROTOCOL'
+	ife_ancestor = None
+
+class Negotiation(ProtocolState):
 	"""
 	Negotiation is a protocol transaction used to manage the initial stage of a
 	connection to PostgreSQL.
@@ -54,6 +59,9 @@ class Negotiation(object):
 		self.machine = self.state_machine()
 		self.messages = next(self.machine)
 		self.state = (Sending, self.sent)
+	
+	def __str__(self):
+		return "XXX"
 
 	def reset(self):
 		self.authtype = None
@@ -210,7 +218,7 @@ class Negotiation(object):
 			)
 		self.last_ready = element.Ready.parse(x[1])
 
-class Transaction(object):
+class Transaction(ProtocolState):
 	"""
 	A transaction object is state machine that is initialized with the request
 	messages to be sent to the server. It provides the messages to be sent and
@@ -360,6 +368,9 @@ class Transaction(object):
 					"unknown message type for PQ 3.0 protocol", cmd.type
 				)
 		self.reset()
+
+	def __str__(self):
+		return "XXX"
 
 	def __repr__(self):
 		return '%s.%s((%s))' %(

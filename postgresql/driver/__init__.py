@@ -5,8 +5,11 @@
 """
 Driver package for connecting to PostgreSQL via a data stream(sockets).
 """
-from .driver.pq3 import Connector, Connection
-__all__ = ['Connector', 'Connection', 'connect']
+from . import pgapi as implementation
+__all__ = ['Connector', 'Connection', 'connect', 'implementation']
+
+Connector = implementation.Connector
+Connection = implementation.Connection
 
 _connectors = {}
 def connect(**kw):
