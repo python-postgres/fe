@@ -7,72 +7,108 @@ Split, parse, serialize, and structure PQ IRIs.
 
 PQ IRIs take the form::
 
-	pq://user:pass@host:port/database?setting=value#public,othernamespace
-
-Liking to ``https``, the sslmode can be set to "require" by::
-
-	pqs://user:pass@host:port/database?setting=value#public,othernamespace
+	pq://user:pass@host:port/database?setting=value&setting2=value2#public,othernamespace
 
 IPv6 is supported via the standard representation::
 
 	pq://[::1]:5432/database
+
+Driver Parameters:
+
+	pq://user@host/?[driver_param]=value&[other_param]=value
 """
 from .resolved import riparse as ri
+import re
 
-def structure(t):
-	'Create a dictionary of connection parameters from a six-tuple'
-	d = {}
-	if t[1] is not None:
-		uphp = ri.split_netloc(t[1])
-		if uphp[0]:
-			d['user'] = uphp[0]
-		if uphp[1]:
-			d['password'] = uphp[1]
+escape_path_re = re.compile('[%s]' %(re.escape(ri.unescaped + ','),))
+
+def structure(d, fieldproc = ri.unescape):
+	'Create a clientparams dictionary from a parsed RI'
+	if d.get('scheme', 'pq') != 'pq':
+		raise ValueError("not a PQ-IRI")
+
+	cpd = {
+		k : fieldproc(v) for k, v in d.items()
+		if k not in ('path', 'fragment', 'query', 'host', 'scheme')
+	}
+	path = d.get('path')
+	frag = d.get('fragment')
+	query = d.get('query')
+	host = d.get('host')
+
+	if host:
+		if host.startswith('[') and host.endswith(']'):
+			cpd['ipv'] = 6
+			cpd['host'] = host[1:-1]
 		else:
-			if uphp[2]:
-				d['host'] = uphp[2]
-			if uphp[3]:
-				d['port'] = int(uphp[3])
+			cpd['host'] = fieldproc(host)
 
-	if t[2] is not None:
-		d['database'] = t[2]
+	if path:
+		if len(path) > 1:
+			raise ValueError("PQ-IRIs may only have one path component")
+		# Only state the database field's existence if the first path is non-empty.
+		if path[0]:
+			cpd['database'] = path[0]
 
-	if t[3] is not None:
-		d['settings'] = dict([
-			[ri.unescape(y) for y in x.split('=', 1)]
-			for x in t[3].split('&')
-		])
+	if frag:
+		d['path'] = [
+			fieldproc(x) for x in frag.split(',')
+		]
 
-	# Path support
-	if t[4] is not None:
-		d['path'] = t[4].split(',')
+	if query:
+		settings = {}
+		for k, v in query.items():
+			if k.startswith('[') and k.endswith(']'):
+				k = k[1:-1]
+				if k != 'settings' and k not in cpd:
+					cpd[fieldproc(k)] = fieldproc(v)
+			elif k:
+				settings[fieldproc(k)] = fieldproc(v)
+			# else: ignore empty query keys
+		if settings:
+			cpd['settings'] = settings
 
-	return d
+	return cpd
+
+def construct_path(x, re = escape_path_re):
+	"""
+	Join a path sequence using ',' and escaping ',' in the pieces.
+	"""
+	return ','.join((
+		re.sub(ri.re_pct_encode, y) for y in x
+	))
 
 def construct(x):
-	'Construct a IRI tuple from a dictionary object'
+	'Construct a RI dictionary from a clientparams dictionary'
 	return (
-		"pq",
+		'pq',
 		# netloc: user:pass@{host[:port]|process}
 		ri.unsplit_netloc((
 			x.get('user'),
 			x.get('password'),
-			x.get('host'),
+			'[' + x.get('host') + ']' if (
+				str(x.get('ipv', -1)) == '6' and ':' in x.get('host', '')
+			) else x.get('host'),
 			x.get('port')
 		)),
-		ri.escape_path_re.sub(x.get('database') or '', '/'),
-		None if 'settings' not in x else (
-			'&'.join([
-				'%s=%s' %(k, v.replace('&','%26'))
-				for k, v in x['settings'].items()
-			])
+		None if 'database' not in x else (
+			ri.escape_path_re.sub(x['database'], '/')
 		),
-		None if 'path' not in x else ','.join(x['path'])
+		None if 'settings' not in x else (
+			ri.construct_query(x['settings'])
+		),
+		None if 'path' not in x else construct_path(x['path']),
 	)
 
-def parse(s):
+def parse(s, fieldproc = ri.unescape):
 	'Parse a Postgres IRI into a dictionary object'
-	return structure(ri.split(s))
+	return structure(
+		# In ri.parse, don't unescape the parsed values as our sub-structure
+		# uses the escape mechanism in IRIs to specify literal separator
+		# characters.
+		ri.parse(s, fieldproc = str),
+		fieldproc = fieldproc
+	)
 
 def serialize(x):
 	'Return a Postgres IRI from a dictionary object.'
