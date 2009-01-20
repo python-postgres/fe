@@ -19,7 +19,7 @@ if sys.version_info[:2] < (3,0):
 	sys.exit(1)
 
 NAME = 'py-postgresql'
-VERSION = '0.8'
+VERSION = '0.8dev'
 
 LONG_DESCRIPTION = """
 py-postgresql is a set of Python modules providing interfaces to various parts
