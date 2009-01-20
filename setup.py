@@ -11,6 +11,11 @@ if sys.version_info[:2] < (3,0):
 	sys.stderr.write(
 		"ERROR: py-postgresql is for Python 3.0 and greater." + os.linesep
 	)
+	sys.stderr.write(
+		"HINT: setup.py was ran using Python " + \
+		'.'.join([str(x) for x in sys.version_info[:3]]) + 
+		': ' + sys.executable + os.linesep
+	)
 	sys.exit(1)
 
 NAME = 'py-postgresql'
@@ -41,6 +46,20 @@ There is a DB-API 2.0 module as well::
 	postgresql.driver.dbapi20
 
 However, PG-API is recommended as it provides greater utility.
+
+
+History
+-------
+
+py-postgresql is not yet another PostgreSQL driver, it's been in development for
+years. py-postgresql is the Python 3.0 port of the ``pg_proboscis`` driver and
+integration of the other ``pg/python`` projects.
+
+
+More Information
+----------------
+
+http://python.projects.postgresql.org
 """
 
 CLASSIFIERS = [
@@ -91,7 +110,8 @@ defaults = {
 	# People who get failures are more likely to just give up on the package
 	# without reading the documentation. :(
 	'ext_modules' : (
-		extensions if sys.platform != 'win32' or os.environ.get('PY_BUILD_EXTENSIONS')
+		extensions if os.environ.get('PY_BUILD_EXTENSIONS') or \
+		not sys.platform in ('win32',)
 		else ()
 	),
 
