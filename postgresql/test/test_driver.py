@@ -211,50 +211,50 @@ class test_pgapi(unittest.TestCase):
 	def testSyntaxError(self):
 		self.failUnlessRaises(
 			pg_exc.SyntaxError,
-			query, "SELEKT 1",
+			query("SELEKT 1")
 		)
 
 	def testInvalidSchemaError(self):
 		self.failUnlessRaises(
 			pg_exc.InvalidSchemaName,
-			query, "SELECT * FROM sdkfldasjfdskljZknvson.foo"
+			query("SELECT * FROM sdkfldasjfdskljZknvson.foo")
 		)
 
 	def testUndefinedTableError(self):
 		self.failUnlessRaises(
 			pg_exc.UndefinedTableError,
-			query, "SELECT * FROM public.lkansdkvsndlvksdvnlsdkvnsdlvk"
+			query("SELECT * FROM public.lkansdkvsndlvksdvnlsdkvnsdlvk")
 		)
 
 	def testUndefinedColumnError(self):
 		self.failUnlessRaises(
 			pg_exc.UndefinedColumnError,
-			query, "SELECT x____ysldvndsnkv FROM information_schema.tables"
+			query("SELECT x____ysldvndsnkv FROM information_schema.tables")
 		)
 
 	def testSEARVError_avgInWhere(self):
 		self.failUnlessRaises(
 			pg_exc.SEARVError,
-			query, "SELECT 1 WHERE avg(1) = 1"
+			query("SELECT 1 WHERE avg(1) = 1")
 		)
 
 	def testSEARVError_groupByAgg(self):
 		self.failUnlessRaises(
 			pg_exc.SEARVError,
-			query, "SELECT 1 GROUP BY avg(1)"
+			query("SELECT 1 GROUP BY avg(1)")
 		)
 
 	def testDatatypeMismatchError(self):
 		self.failUnlessRaises(
 			pg_exc.DatatypeMismatchError,
-			query, "SELECT 1 WHERE 1"
+			query("SELECT 1 WHERE 1")
 		)
 
 	def testUndefinedObjectError(self):
 		try:
 			self.failUnlessRaises(
 				pg_exc.UndefinedObjectError,
-				query, "CREATE TABLE lksvdnvsdlksnv(i intt___t)"
+				query("CREATE TABLE lksvdnvsdlksnv(i intt___t)")
 			)
 		except:
 			# newer versions throw the exception on execution
@@ -348,7 +348,7 @@ class test_pgapi(unittest.TestCase):
 # - Fix bugs in test_setoutputsize_basic and test_setinputsizes
 #
 class test_dbapi20(unittest.TestCase):
-	'''
+	"""
 	Test a database self.driver for DB API 2.0 compatibility.
 	This implementation tests Gadfly, but the TestCase
 	is structured so that other self.drivers can subclass this 
@@ -369,7 +369,7 @@ class test_dbapi20(unittest.TestCase):
 	__rcs_id__  = 'Id: dbapi20.py,v 1.10 2003/10/09 03:14:14 zenzen Exp'
 	__version__ = 'Revision: 1.10'
 	__author__ = 'Stuart Bishop <zen@shangri-la.dropbear.id.au>'
-	'''
+	"""
 
 	import postgresql.driver.dbapi20 as driver
 	table_prefix = 'dbapi20test_' # If you need to specify a prefix for tables
