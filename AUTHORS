@@ -1,2 +1,26 @@
 Primary Developers:
 	James William Pye <x@jwp.name>
+
+
+Further Credits
+===============
+
+When licenses match, people win. Code is occasionally imported from other
+projects to enhance py-postgresql and to allow users to enjoy dependency free
+installation.
+
+
+DB-API 2.0 Test Case
+--------------------
+
+postgresql/test/test_driver.py:
+
+	Stuart Bishop <zen@shangri-la.dropbear.id.au>
+
+
+fcrypt
+------
+
+postgresql/resolved/crypt.py:
+
+	Carey Evans <careye@spamcop.net>
