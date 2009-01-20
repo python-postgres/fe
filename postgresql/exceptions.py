@@ -30,9 +30,7 @@ If that fails, it will return `postgresql.exceptions.Error`
 """
 import sys
 import os
-from operator import itemgetter
 from functools import partial
-from string import Formatter
 from . import api as pg_api
 
 severities = (
@@ -44,8 +42,6 @@ severities = (
 	'FATAL',
 	'PANIC',
 )
-
-message_ife_lineage_filter = set([])
 
 class Exception(Exception):
 	'Base PostgreSQL exception class'
@@ -81,7 +77,7 @@ class PythonMessage(pg_api.Message):
 			': '.join((x.ife_label, str(x))) for x in self.ife_ancestry()
 		]
 		l.reverse()
-		return super().__str__(self) + os.linesep.join(l)
+		return super().__str__() + (os.linesep + os.linesep.join(l) if l else "")
 
 class Warning(PythonMessage, Warning):
 	code = '01000'

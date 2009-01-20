@@ -15,9 +15,30 @@ substantial convenience.
 This module is used to define the PG-API. It creates a set of ABCs
 that makes up the basic interfaces used to work with a PostgreSQL.
 """
-from abc import ABCMeta, abstractproperty, abstractmethod
+import os
+import warnings
 import collections
-from operator import attrgetter, methodcaller
+from abc import ABCMeta, abstractproperty, abstractmethod
+from operator import attrgetter, methodcaller, itemgetter
+
+class Receptor(collections.Callable):
+	"""
+	A receptor is a type of callable used by `InterfaceElement`'s `ife_emit`
+	method.
+	"""
+
+	@abstractmethod
+	def __call__(self,
+		source_ife : "The element whose `ife_emit` method was called.",
+		receiving_ife : "The element that included the `Receptor`('self').",
+		obj : "The object that was given to `ife_emit`"
+	) -> bool:
+		"""
+		This is the type signature of receptor capable functions.
+
+		If the receptor returns `True`, further propagation will be halted if the
+		`allow_consumption` parameter given to `ife_emit` is `True`(default).
+		"""
 
 class InterfaceElement(metaclass = ABCMeta):
 	"""
@@ -59,6 +80,14 @@ class InterfaceElement(metaclass = ABCMeta):
 		CURSOR: <cursor_id>
 			<parameters>
 		ERROR: <message>
+	
+
+	Receptors
+	---------
+
+	Reception is a faculty created to support PostgreSQL message and warning
+	propagation in a context specific way. For instance, the NOTICE emitted by
+	PostgreSQL when creating a table with a PRIMARY KEY might be 
 	"""
 	@abstractproperty
 	def ife_ancestor(self):
@@ -106,7 +135,7 @@ class InterfaceElement(metaclass = ABCMeta):
 			if ife in ancestors or ife is self:
 				raise TypeError("recursive element ancestry detected")
 			if isinstance(ife, InterfaceElement):
-				stack.append(ife)
+				ancestors.append(ife)
 			else:
 				break
 			ife = getattr(ife, 'ife_ancestor', None)
@@ -140,6 +169,62 @@ class InterfaceElement(metaclass = ABCMeta):
 		"""
 		for x in args:
 			x.ife_ancestor = self
+
+	def ife_emit(self,
+		obj : "object to emit",
+		allow_consumption : "whether or not receptors are allowed to stop further propagation" = True,
+	) -> (False, (collections.Callable)):
+		"""
+		Send an arbitrary object through the ancestry.
+
+		This is used in situations where the effects of an element result in an
+		object that is not returned by the element's interaction(method call,
+		property get, etc).
+
+		To handle these additional results, the object is passed up through the
+		ancestry. Any ancestor that has receptors will see the object
+
+		If `obj` was consumed by a receptor, the receptor that consumed it will be
+		returned
+		"""
+		a = self.ifa_ancestry()
+		a.insert(0, self)
+		for ife in a:
+			for recep in getattr(ife, '_ife_receptors', ()):
+				# (emit source element, reception element, object)
+				r = recep(self, ife, obj)
+				if r is True and allow_consumption:
+					# receptor indicated halt
+					return (recep, ife)
+		return False
+
+	def ife_connect(self,
+		*args : (Receptor,)
+	) -> None:
+		"""
+		Add the `Receptor`s to the element. "Connecting" a receptor allows it to
+		receive objects "emitted" by descendent elements.
+
+		Whenever an object is given to `ife_emit`, the given `Receptor`s will be
+		called with the `obj`.
+		"""
+		if not hasattr(self, '_ife_receptors'):
+			recept = self._ife_receptors = list(args)
+			return
+		# Prepend the list. Newer receptors are given priority.
+		new = list(recept)
+		self._ife_receptors = new.extend(self._ife_receptors)
+
+	def ife_sever(self,
+		*args : (Receptor,)
+	) -> None:
+		"""
+		Remove the `Receptor`s from the element.
+		"""
+		if hasattr(self, '_ife_receptors'):
+			for x in args:
+				if x in self._ife_receptors:
+					self._ife_receptors.remove(x)
 
 class Message(InterfaceElement):
 	"A message emitted by PostgreSQL"
@@ -185,17 +270,20 @@ class Message(InterfaceElement):
 		]
 		locstr = (
 			"" if tuple(loc) == ('?', '?', '?')
-			else "LOCATION: File {0!r}, line {1!s}, in {2!s}".format(*loc) + os.linesep
+			else os.linesep + "LOCATION: File {0!r}, line {1!s}, in {2!s}".format(*loc)
 		)
 
 		sev = details.get('severity')
+		sevmsg = os.linesep
 		if sev:
-			sevmsg = "SEVERITY: " + sev.upper() + os.linesep
-		return self.message + os.linesep + sevmsg + \
-			os.linesep.join((
-				': '.join((k.upper(), v)) for k, v in sorted(details.items(), key = itemgetter(0))
-				if k not in ('message', 'severity', 'file', 'function', 'line')
-			)) + locstr
+			sevmsg = os.linesep + "SEVERITY: " + sev.upper()
+		detailstr = os.linesep.join((
+			': '.join((k.upper(), v)) for k, v in sorted(details.items(), key = itemgetter(0))
+			if k not in ('message', 'severity', 'file', 'function', 'line')
+		))
+		if detailstr:
+			detailstr = os.linesep + detailstr
+		return self.message + sevmsg + detailstr + locstr
 
 class Cursor(
 	InterfaceElement,
@@ -933,29 +1021,39 @@ class Driver(InterfaceElement):
 	ife_label = "DRIVER"
 	ife_ancestor = None
 
-	@abstractproperty
-	def Connector(self):
-		"""
-		The `Connector` implementation for the driver.
-		"""
-
+	@abstractmethod
 	def connect(**kw):
 		"""
 		Create a connection using the given parameters for the Connector.
 
-		This caches the `Connector` instance for re-use when the same parameters
+		This should cache the `Connector` instance for re-use when the same parameters
 		are given again.
 		"""
-		id = set(kw.items())
-		cr = self._connectors.get(id)
-		if cr is None:
-			cr = self.Connector(**kw)
-			c = cr()
-			self._connectors[id] = cr
-		return c
+
+	def print_message(self, msg, file = None):
+		"""
+		Standard message printer.
+		"""
+		file = sys.stderr if not file else file
+		if file and not file.closed:
+			file.write(str(msg))
+		else:
+			warnings.warn("sys.stderr unavailable for printing messages")
+
+	def handle_warnings_and_messages(self, source, this, obj):
+		"""
+		Send warnings to `warnings.warn` and print `Message`s to standard error.
+		"""
+		if isinstance(obj, Message):
+			self.print_message(obj)
+		elif isinstance(obj, warnings.Warning):
+			warnings.warn(obj)
 
 	def __init__(self):
-		self._connectors = {}
+		"""
+		The driver, by default will emit warnings and messages.
+		"""
+		self.ife_connect(self.handle_warnings_and_messages)
 
 class Cluster(InterfaceElement):
 	"""

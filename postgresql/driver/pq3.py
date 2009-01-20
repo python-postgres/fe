@@ -1031,6 +1031,7 @@ class ClientPreparedStatement(PreparedStatement):
 			pq.element.DescribeStatement(self.statement_id),
 			pq.element.SynchronizeMessage,
 		))
+		self.ife_descend(self._init_xact)
 		self.connection._push(self._init_xact)
 
 class StoredProcedure(pg_api.StoredProcedure):
@@ -1520,26 +1521,37 @@ class Connection(pg_api.Connection):
 	version = None
 	backend_id = None
 
-	def _decode_message(self, msg):
-		"[internal] decode a Notice/Error message's information"
+	def _decode_pq_message(self, msg):
+		'[internal] decode the values in a message(E,N)'
+		dmsg = {}
 		for k, v in msg.items():
 			try:
-				dv = self.typio.decode(v)
+				# code should always be ascii..
+				if k == "code":
+					v = v.decode('ascii')
+				else:
+					v = self.typio._decode(v)[0]
 			except UnicodeDecodeError:
-				dv = repr(v)
-			yield k, v
+				# Fallback to the bytes representation.
+				# This should be sufficiently informative in most cases,
+				# and in the cases where it isn't, an element traceback should
+				# yield the pertinent information
+				v = repr(v)[2:-1]
+			dmsg[k] = v
+		return dmsg
 
 	def _N(self, msg, xact):
 		'[internal] print a notice message using the notifier attribute'
-		decoded = dict(self._decode_message(msg))
+		dmsg = self._decode_pq_message(msg)
+		m = dmsg.pop('message')
+		c = dmsg.pop('code')
 		if decoded['severity'].upper() == 'WARNING':
-			w = pg_exc.WarningLookup(decoded['code'])
-			w = w(msg['message'], code = msg['code'], details = decoded)
-			w.connection = self
-			w.creator = getattr(xact, 'creator', None)
-			warnings.warn(w)
+			mo = pg_exc.WarningLookup(c)(m, code = c, details = dmsg)
 		else:
-			self.notifier(decoded)
+			mo = pg_api.Message(m, code = c, details = dmsg)
+		mo.connection = self
+		xact.ife_descend(mo)
+		xact.ife_emit(mo)
 
 	def _A(self, msg, xact):
 		'[internal] Send notification to any listeners; NOTIFY messages'
@@ -1624,29 +1636,37 @@ class Connection(pg_api.Connection):
 		finally:
 			s.close()
 
-	def execute(self, query):
+	def execute(self, query : str) -> None:
 		'Execute an arbitrary block of SQL'
 		q = pq.Transaction((
 			pq.element.Query(self.typio.encode(query)),
 		))
+		self.ife_descend(q)
 		self._push(q)
 		self._complete()
 
 	def query(*args, **kw):
 		'Create a query object using the given query string'
-		return ClientPreparedStatement(*args, **kw)
+		q = ClientPreparedStatement(*args, **kw)
+		return q
 
 	def statement(*args, **kw):
 		'Create a query object using the statement identifier'
-		return PreparedStatement(*args, **kw)
+		ps = PreparedStatement(*args, **kw)
+		args[0].ife_descend(ps)
+		return ps
 
 	def proc(*args, **kw):
 		'Create a StoredProcedure object using the given procedure identity'
-		return StoredProcedure(*args, **kw)
+		sp = StoredProcedure(*args, **kw)
+		args[0].ife_descend(sp)
+		return sp
 
 	def cursor(*args, **kw):
 		'Create a Portal object that references an already existing cursor'
-		return Cursor(*args, **kw)
+		c = Cursor(*args, **kw)
+		args[0].ife_descend(c)
+		return c
 
 	def _xp_query(self, string, args = (), rformats = ()):
 		'[internal] create an extended protocol transaction for the query'
@@ -1870,7 +1890,6 @@ class Connection(pg_api.Connection):
 	def _traced_write_messages(self, messages):
 		'[internal] _message_writer used when tracing'
 		for msg in messages:
-			print(msg)
 			t = getattr(msg, 'type', None)
 			if t is not None:
 				data_out = msg.bytes()
@@ -1915,7 +1934,7 @@ class Connection(pg_api.Connection):
 		del self._closeportals[:portals], self._closestatements[:statements]
 		self._complete()
 
-	def _push(self, xact):
+	def _push(self, xact : pq.ProtocolState):
 		'[internal] setup the given transaction to be processed'
 		# Push any queued closures onto the transaction or a new transaction.
 		if xact.state is pq.Complete:
@@ -1928,19 +1947,17 @@ class Connection(pg_api.Connection):
 		self._xact = xact
 		self._step()
 
-	def _postgres_error(self, em):
+	def _postgres_error(self, em : pq.element.Error) -> pg_exc.Error:
 		'[internal] lookup a PostgreSQL error and instantiate it'
-		c = em["code"].decode('ascii')
+		m = self._decode_pq_message(em)
+		c = m.pop('code')
+		ms = m.pop('message')
 		err = pg_exc.ErrorLookup(c)
-		err = err(
-			em['message'],
-			code = c,
-			details = em
-		)
-		err.error_message = em
+
+		err = err(ms, code = c, details = m)
 		err.connection = self
 		return err
-	
+
 	def _procasyncs(self):
 		'[internal] process the async messages in self._asyncs'
 		if self._n_procasyncs:
@@ -2013,6 +2030,7 @@ class Connection(pg_api.Connection):
 		em = getattr(self._xact, 'error_message', None)
 		if em is not None:
 			xact_error = self._postgres_error(em)
+			self._xact.ife_descend(xact_error)
 			if self._xact.fatal is not True:
 				# only remove the transaction if it's *not* fatal
 				xact_error.fatal = False
@@ -2273,6 +2291,9 @@ class Connector(pg_api.Connector):
 class Driver(pg_api.Driver):
 	Connector = Connector
 	ife_ancestor = None
+
+	def connect(self):
+		pass
 
 	def __str__(self):
 		return 'postgresql.driver.pq3'
