@@ -19,7 +19,12 @@ if sys.version_info[:2] < (3,0):
 	sys.exit(1)
 
 NAME = 'py-postgresql'
-VERSION = '0.8dev'
+
+sys.path.insert(0, '')
+import postgresql
+VERSION = postgresql.__version__
+del postgresql
+del sys.path[0]
 
 LONG_DESCRIPTION = """
 py-postgresql is a set of Python modules providing interfaces to various parts
@@ -87,7 +92,7 @@ extensions = [
 defaults = {
 	'name' : NAME,
 	'version' : VERSION,
-	'description' : 'Python interfaces to PostgreSQL (driver)',
+	'description' : 'PostgreSQL tool library. Driver, API specifications, and cluster tools.',
 	'long_description' : LONG_DESCRIPTION,
 	'author' : 'James William Pye',
 	'author_email' : 'x@jwp.name',
