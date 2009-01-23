@@ -16,7 +16,7 @@ from .. import clientoptparse as pg_opt
 from .. import environ as pg_env
 from ..resolved import pythoncommand as pycmd
 
-from . import Connector
+from . import implementation as pg_driver
 
 pq_trace = optparse.make_option(
 	'--pq-trace',
@@ -55,7 +55,7 @@ def command(args = sys.argv):
 		environ = os.environ,
 		prompt_password = co.prompt_password,
 	)
-	connector = Connector(**cond)
+	connector = pg_driver.create(**cond)
 	connection = connector.create()
 
 	pythonexec = pycmd.Execution(ca,

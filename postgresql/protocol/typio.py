@@ -92,13 +92,13 @@ class Row(tuple):
 		return self.attmap.get(k)
 
 	def __getitem__(self, i):
-		if type(i) is int or type(i) is long:
+		if type(i) is int:
 			return tuple.__getitem__(self, i)
 		idx = self.attmap[i]
 		return tuple.__getitem__(self, idx)
 
 	def get(self, i):
-		if type(i) is int or type(i) is long:
+		if type(i) is int:
 			l = len(self)
 			if -l < i < l:
 				return tuple.__getitem__(self, i)
@@ -515,6 +515,12 @@ class TypeIO(object, metaclass = ABCMeta):
 
 	def xml_unpack(self, xmldata):
 		return pg_types.etree.XML(self._decode(xmldata)[0])
+	
+	def attribute_map(self, pq_descriptor):
+		return {
+			self._decode(k)[0] : v
+			for k, v in pq_descriptor.attribute_map.items()
+		}
 
 	def __init__(self):
 		self.encoding = None

@@ -14,12 +14,51 @@ substantial convenience.
 
 This module is used to define the PG-API. It creates a set of ABCs
 that makes up the basic interfaces used to work with a PostgreSQL.
+
+The `InterfaceElement` is the common ABC, the methods and attributes defined
+within that class can, should, be mostly ignored while extracting information.
 """
 import os
 import warnings
 import collections
 from abc import ABCMeta, abstractproperty, abstractmethod
 from operator import attrgetter, methodcaller, itemgetter
+
+class docstr(object):
+	"""
+	Simple object that sets the __doc__ attribute to the first parameter and
+	initializes __annotations__ using keyword arguments.
+	"""
+	def __init__(self, doc, **annotations):
+		self.__doc__ = str(doc)
+		self.__annotations__ = annotations
+
+def apdoc(ap):
+	"""
+	Helper function for extracting an `abstractproperty`'s real documentation.
+	"""
+	doc = ""
+	rstr = ""
+	if ap.fget:
+		ret = ap.fget.__annotations__.get('return')
+		if ret is not None:
+			rstr = " -> " + repr(ret)
+		if ap.fget.__doc__:
+			doc += os.linesep*2 + "GET::" + (os.linesep + ' '*4) + (os.linesep + ' '*4).join(
+				[x.strip() for x in ap.fget.__doc__.strip().split(os.linesep)]
+			)
+	if ap.fset and ap.fset.__doc__:
+		doc += os.linesep*2 + "SET::" + (os.linesep + ' '*4) + (os.linesep + ' '*4).join(
+			[x.strip() for x in ap.fset.__doc__.strip().split(os.linesep)]
+		)
+	if ap.fdel and ap.fdel.__doc__:
+		doc += os.linesep*2 + "DELETE::" + (os.linesep + ' '*4) + (os.linesep + ' '*4).join(
+			[x.strip() for x in ap.fdel.__doc__.strip().split(os.linesep)]
+		)
+	ap.__doc__ = "<no documentation>" if not doc else (
+		"Abstract Property" + rstr + doc
+	)
+	return ap
 
 class Receptor(collections.Callable):
 	"""
@@ -30,7 +69,7 @@ class Receptor(collections.Callable):
 	@abstractmethod
 	def __call__(self,
 		source_ife : "The element whose `ife_emit` method was called.",
-		receiving_ife : "The element that included the `Receptor`('self').",
+		receiving_ife : "The element that included the `Receptor` was placed on.",
 		obj : "The object that was given to `ife_emit`"
 	) -> bool:
 		"""
@@ -68,9 +107,6 @@ class InterfaceElement(metaclass = ABCMeta):
 	
 		<Python Traceback>
 		postgresql.exceptions.Error: <message>
-
-		[ Element Traceback ]
-
 		DRIVER: postgresql.driver.pq3
 		CONNECTOR: pq://user@localhost:5432/database
 		CONNECTION: <connection_title> <backend_id> <socket information>
@@ -79,7 +115,6 @@ class InterfaceElement(metaclass = ABCMeta):
 			<query body>
 		CURSOR: <cursor_id>
 			<parameters>
-		ERROR: <message>
 	
 
 	Receptors
@@ -87,19 +122,33 @@ class InterfaceElement(metaclass = ABCMeta):
 
 	Reception is a faculty created to support PostgreSQL message and warning
 	propagation in a context specific way. For instance, the NOTICE emitted by
-	PostgreSQL when creating a table with a PRIMARY KEY might be 
+	PostgreSQL when creating a table with a PRIMARY KEY might unnecessary in an
+	program automating the creation of tables as it's expected. So, providing a
+	filter for these messages is useful to reducing noise.
+
+
+	WARNING
+	-------
+
+	Many of these APIs are used to support features that users are *not* expected
+	to use. Almost everything on `InterfaceElement` is subject to deprecation.
 	"""
+
+	@apdoc
 	@abstractproperty
 	def ife_ancestor(self):
 		"""
-		The ancestor element of this element.
+		The element that created this element.
 
-		This can be strictly defined by the element as a read-only property, or
-		the element can allow it to be set after instantiation.
+		Uses:
+
+			. Propagate emitted messages(objects) to source objects.
+			. State acquisition on error for lineage reporting.
 		"""
 
+	@apdoc
 	@abstractproperty
-	def ife_label(self):
+	def ife_label(self) -> str:
 		"""
 		ife_label is a string that identifies the kind of element.
 		It should be used in messages to provide a more concise name for a
@@ -111,7 +160,7 @@ class InterfaceElement(metaclass = ABCMeta):
 		"""
 
 	@abstractmethod
-	def __str__(self):
+	def ife_snapshot_text(self) -> str:
 		"""
 		Return a string describing the element.
 
@@ -140,6 +189,31 @@ class InterfaceElement(metaclass = ABCMeta):
 				break
 			ife = getattr(ife, 'ife_ancestor', None)
 		return ancestors
+
+	def ife_ancestry_snapshot_text(self) -> [(object, str, str)]:
+		"""
+		Return a snapshot of this `InterfaceElement`'s ancestry.
+
+		Returns a sequence of tuples consisting of the `InterfaceElement`s in this
+		element's ancestry their associated `ife_label`, and the result of their
+		`ife_snapshot_text` method::
+			[
+				(`InterfaceElement`,
+				 `InterfaceElement`.`ife_label`,
+				 `InterfaceElement`.`ife_snapshot_text`()),
+				...
+			]
+
+		This gives a full snapshot while allowing for later filtering.
+		"""
+		a = self.ife_ancestry()
+		l = [
+			(
+				x, getattr(x, 'ife_label', type(x).__name__),
+				(x.ife_snapshot_text() if hasattr(x, 'ife_snapshot_text') else str(x))
+			) for x in a
+		]
+		return l
 
 	def ife_generations(self : "ancestor", ife : "descendent") -> (int, None):
 		"""
@@ -187,10 +261,16 @@ class InterfaceElement(metaclass = ABCMeta):
 		If `obj` was consumed by a receptor, the receptor that consumed it will be
 		returned
 		"""
-		a = self.ifa_ancestry()
-		a.insert(0, self)
+		# Don't include ancestors without receptors.
+		a = [
+			x for x in self.ifa_ancestry()
+			if getattr(x, '_ife_receptors', None) is not None
+		]
+		if getattr(self, '_ife_receptors', None) is not None:
+			a.insert(0, self)
+
 		for ife in a:
-			for recep in getattr(ife, '_ife_receptors', ()):
+			for recep in ife._ife_receptors:
 				# (emit source element, reception element, object)
 				r = recep(self, ife, obj)
 				if r is True and allow_consumption:
@@ -207,9 +287,12 @@ class InterfaceElement(metaclass = ABCMeta):
 
 		Whenever an object is given to `ife_emit`, the given `Receptor`s will be
 		called with the `obj`.
+
+		NOTE: The given objects do *not* have to instances of `Receptor`, rather,
+		they must merely support the call's type signature.
 		"""
 		if not hasattr(self, '_ife_receptors'):
-			recept = self._ife_receptors = list(args)
+			self._ife_receptors = list(args)
 			return
 		# Prepend the list. Newer receptors are given priority.
 		new = list(recept)
@@ -225,11 +308,31 @@ class InterfaceElement(metaclass = ABCMeta):
 			for x in args:
 				if x in self._ife_receptors:
 					self._ife_receptors.remove(x)
+			if not self._ife_receptors:
+				del self._ife_receptors
 
 class Message(InterfaceElement):
 	"A message emitted by PostgreSQL"
 	ife_label = 'MESSAGE'
 	ife_ancestor = None
+
+	severities = (
+		'DEBUG',
+		'INFO',
+		'NOTICE',
+		'WARNING',
+		'ERROR',
+		'FATAL',
+		'PANIC',
+	)
+	sources = (
+		'SERVER',
+		'DRIVER',
+	)
+
+	# What generated the message?
+	source = 'SERVER'
+
 	code = "00000"
 	message = None
 	details = None
@@ -238,11 +341,14 @@ class Message(InterfaceElement):
 		message : "The primary information of the message",
 		code : "Message code to attach (SQL state)" = None,
 		details : "additional information associated with the message" = {},
+		source : "What generated the message(SERVER, DRIVER)" = None,
 	):
 		self.message = message
 		self.details = details
 		if code is not None and self.code != code:
 			self.code = code
+		if source is not None and self.source != source:
+			self.source = source
 
 	def __repr__(self):
 		return "{mod}.{typname}({message!r}{code}{details}{source})".format(
@@ -263,7 +369,7 @@ class Message(InterfaceElement):
 			)
 		)
 
-	def __str__(self):
+	def ife_snapshot_text(self):
 		details = self.details
 		loc = [
 			details.get(k, '?') for k in ('file', 'line', 'function')
@@ -285,6 +391,10 @@ class Message(InterfaceElement):
 			detailstr = os.linesep + detailstr
 		return self.message + sevmsg + detailstr + locstr
 
+	def emit(self):
+		self.snapshot = self.ife_lineage_snapshot_text()
+		self.ife_emit(self)
+
 class Cursor(
 	InterfaceElement,
 	collections.Iterator,
@@ -298,6 +408,19 @@ class Cursor(
 	direct name-based instantation(`cursor` method on `Connection` objects).
 	"""
 	ife_label = 'CURSOR'
+	ife_ancestor = None
+
+	@abstractproperty
+	def withscroll(self) -> bool:
+		"""
+		Whether or not the cursor is scrollable.
+		"""
+
+	@abstractproperty
+	def withhold(self) -> bool:
+		"""
+		Whether or not the cursor will persist across transactions.
+		"""
 
 	@abstractmethod
 	def read(self,
@@ -337,22 +460,14 @@ class Cursor(
 		"""
 
 	@abstractmethod
-	def scroll(self,
-		nrows : "Number of rows to scroll forward or backward; negative numbers dicate backward scolls"
-	):
+	def scroll(self, number_of_rows : int):
 		"""
 		Set the cursor's position relative to the current position.
 		Negative numbers can be used to scroll backwards.
 
 		This is a convenient interface to `seek` with a relative whence(``1``).
-		"""
 
-	@abstractmethod
-	def __getitem__(self, idx):
-		"""
-		Get the rows at the given absolute position.
-
-		This is only available on scrollable cursors, where seeking is possible.
+		When `number_of_rows` is zero, there is no effect on the cursor.
 		"""
 
 class PreparedStatement(
@@ -372,6 +487,18 @@ class PreparedStatement(
 		...  pass
 	"""
 	ife_label = 'QUERY'
+
+	@apdoc
+	@abstractproperty
+	def string(self) -> str:
+		"""
+		The query string of the prepared statement.
+
+		`None` if not available. This can happen in cases where a statement is
+		prepared on the server and a reference to the statement is sent to the
+		client which subsequently uses the statement via the `Database`'s
+		`statement` constructor.
+		"""
 
 	@abstractmethod
 	def __call__(self, *args) -> Cursor:
@@ -406,7 +533,7 @@ class PreparedStatement(
 
 	@abstractmethod
 	def load(self,
-		iterable : "A iterable of sequences to execute the statement with"
+		iterable : "A iterable of tuples to execute the statement with"
 	):
 		"""
 		Given an iterable, `iterable`, feed the produced parameters to the query.
@@ -444,8 +571,10 @@ class PreparedStatement(
 	@abstractmethod
 	def prepare(self) -> None:
 		"""
-		Prepare the already instantiated query for use. This method would only be
-		used if the query were closed at some point.
+		Prepare the query for use.
+
+		If the query has already been prepared, not self.closed, prepare it again.
+		This can be useful for forcing the update of a plan.
 		"""
 
 class StoredProcedure(
@@ -456,6 +585,7 @@ class StoredProcedure(
 	A function stored on the database.
 	"""
 	ife_label = 'FUNCTION'
+	ife_ancestor = None
 
 	@abstractmethod
 	def __call__(self, *args, **kw) -> (object, Cursor, collections.Iterable):
@@ -478,8 +608,9 @@ class TransactionManager(
 	InterfaceElement
 ):
 	"""
-	A `TranactionManager` is the `Connection`'s transaction manager. It provides
-	methods for managing the transaction state.
+	A `TranactionManager` is the `Connection`'s transaction manager.
+	`TransactionManager` compliant instances *must* exist on a `Connection`
+	instance's `xact` attribute.
 
 	Normal usage would entail the use of the with-statement::
 
@@ -492,22 +623,16 @@ class TransactionManager(
 		...
 	"""
 	ife_label = 'XACT'
-	ife_ancestor = property(attrgetter('connection'))
 
+	@apdoc
 	@abstractproperty
-	def connection(self):
-		"""
-		The connection whose transaction state is managed by the
-		`TransactionManager` instance.
-		"""
-
-	@abstractproperty
-	def failed(self) -> bool:
+	def failed(self) -> (bool, None):
 		"""
 		bool stating if the current transaction has failed due to an error.
 		`None` if not in a transaction block.
 		"""
 
+	@apdoc
 	@abstractproperty
 	def level(self) -> int:
 		"""
@@ -610,6 +735,7 @@ class TransactionManager(
 		Rollback the prepared transactions with the given `gid`.
 		"""
 
+	@apdoc
 	@abstractproperty
 	def prepared(self) -> "sequence of prepared transaction identifiers":
 		"""
@@ -640,7 +766,7 @@ class Settings(
 		Set the "search_path" setting to the given a sequence of schema names, 
 		[Implementations must properly escape and join the strings]
 		"""
-	path = abstractproperty(
+	path = apdoc(abstractproperty(
 		getpath, setpath,
 		doc = """
 		An interface to a structured ``search_path`` setting:
@@ -652,7 +778,7 @@ class Settings(
 
 		>>> pg_con.settings.path = ('public', 'tools')
 		"""
-	)
+	))
 	del getpath, setpath
 
 	@abstractmethod
@@ -769,19 +895,78 @@ class Settings(
 		>>> pg_con.settings.unsubscribe('TimeZone', watch)
 		"""
 
-class Connection(
-	InterfaceElement
-):
+class Database(InterfaceElement):
 	"""
-	The connection interface.
+	The interface to an individual database. `Connection` objects inherit from
+	this
 	"""
-	ife_label = 'CONNECTION'
-	ife_ancestor = property(attrgetter('connector'))
+	ife_label = 'DATABASE'
 
+	@apdoc
 	@abstractproperty
-	def backend_id(self):
+	def backend_id(self) -> (int, None):
 		"""
 		The backend's process identifier.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def version_info(self) -> tuple:
+		"""
+		A version tuple of the database software similar Python's `sys.version_info`.
+
+		>>> pg_con.version_info
+		(8, 1, 3, '', 0)
+		"""
+
+	@apdoc
+	@abstractproperty
+	def client_address(self) -> (str, None):
+		"""
+		The client address that the server sees. This is obtainable by querying
+		the ``pg_catalog.pg_stat_activity`` relation.
+
+		`None` if unavailable.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def client_port(self) -> (int, None):
+		"""
+		The client port that the server sees. This is obtainable by querying
+		the ``pg_catalog.pg_stat_activity`` relation.
+
+		`None` if unavailable.
+		"""
+
+	user = apdoc(abstractproperty(
+		fget = docstr(
+			"Give the string returned by ``SELECT current_user``",
+			**{'return':str}
+		),
+		fset = docstr("Pass the given string as a parameter to ``SET ROLE``"),
+		fdel = docstr("Issue ``RESET ROLE`` to the server"),
+	))
+
+	@apdoc
+	@abstractproperty
+	def xact(self) -> TransactionManager:
+		"""
+		A `TransactionManager` instance bound to the `Connection`.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def settings(self) -> Settings:
+		"""
+		A `Settings` instance bound to the `Connection`.
+		"""
+
+	@abstractmethod
+	def execute(sql) -> None:
+		"""
+		Execute an arbitrary block of SQL. Always returns `None` and raise
+		a `postgresql.exceptions.Error` subclass on error.
 		"""
 
 	@abstractmethod
@@ -878,6 +1063,163 @@ class Connection(
 		"""
 
 	@abstractmethod
+	def reset(self) -> None:
+		"""
+		Reset the connection into it's original state.
+
+		Issues a ``RESET ALL`` to the database. If the database supports removing
+		temporary tables created in the session, then remove them. Reapply
+		initial configuration settings such as path. If inside a transaction
+		block when called, reset the transaction state using the `reset`
+		method on the connection's transaction manager, `xact`.
+
+		The purpose behind this method is to provide a soft-reconnect method that
+		re-initializes the connection into its original state. One obvious use of this
+		would be in a connection pool where the connection is done being used.
+		"""
+
+class Connector(InterfaceElement):
+	"""
+	A connector is a "bookmark" object and an abstraction layer for the
+	employed communication mechanism. `Connector` types should exist for each
+	mode of addressing. This allows for easier type checking and cleaner
+	implementation.
+
+	`Connector` implementations supply the tools to make a connected socket.
+	Sockets produced by the `Connector` are used by the `Connection` to
+	facilitate negotiation; once negotiation is complete, the connection is made.
+	"""
+	ife_label = 'CONNECTOR'
+
+	@apdoc
+	@abstractproperty
+	def Connection(self) -> "`Connection`":
+		"""
+		The default `Connection` class that is used.
+		This *should* be available on the type object.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def fatal_exception(self) -> Exception:
+		"""
+		The exception that is raised by sockets that indicate a fatal error.
+
+		The exception can be a base exception as the `fatal_error_message` will
+		indicate if that particular exception is actually fatal.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def timeout_exception(self) -> Exception:
+		"""
+		The exception raised by the socket when an operation could not be
+		completed due to a configured time constraint.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def tryagain_exception(self) -> Exception:
+		"""
+		The exception raised by the socket when an operation was interrupted, but
+		should be tried again.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def tryagain(self, err : Exception) -> bool:
+		"""
+		Whether or not `err` suggests the operation should be tried again.
+		"""
+
+	@abstractmethod
+	def fatal_exception_message(self, err : Exception) -> (str, None):
+		"""
+		A function returning a string describing the failure, this string will be
+		given to the `postgresql.exceptions.ConnectionFailure` instance that will
+		subsequently be raised by the `Connection` object.
+
+		Returns `None` when `err` is not actually fatal.
+		"""
+
+	@abstractmethod
+	def socket_secure(self, socket : "socket object") -> "secured socket":
+		"""
+		Return a reference to the secured socket using the given parameters.
+
+		If securing the socket for the connector is impossible, the user should
+		never be able to instantiate the connector with parameters requesting
+		security.
+		"""
+
+	@abstractmethod
+	def socket_factory_sequence(self) -> [collections.Callable]:
+		"""
+		Return a sequence of `SocketCreator`s that `Connection` objects will use to
+		create the socket object. 
+		"""
+
+	def create(self, *args, **kw):
+		"""
+		Instantiate and return the connection class.
+
+		Must *not* execute the `connect` method on the created `Connection`
+		instance.
+		"""
+		return self.Connection(self, *args, **kw)
+
+	def __call__(self, *args, **kw):
+		"""
+		Create and connect. Arguments will be given to the `Connection` instance's
+		`connect` method.
+		"""
+		c = self.Connection(self)
+		c.connect(*args, **kw)
+		return c
+
+	def __init__(self,
+		user : "required keyword specifying the user name(str)" = None,
+		password : str = None,
+		database : str = None,
+		settings : (dict, [(str,str)]) = None,
+		path : "sequence of schema names to set the search_path to" = None
+	):
+		if user is None:
+			# sure, it's a "required" keyword, makes for better documentation
+			raise TypeError("`user` is a required keyword")
+		self.user = user
+		self.password = password
+		self.database = database
+		self.settings = settings
+		self.path = path
+
+class Connection(Database):
+	"""
+	The interface to a connection to a PostgreSQL database. This is a `Database`
+	interface with the additional connection management tools that are particular
+	to using a remote database.
+	"""
+	ife_label = 'CONNECTION'
+
+	@apdoc
+	@abstractproperty
+	def connector(self) -> Connector:
+		"""
+		The `Connector` instance facilitating the `Connection` object's
+		communication and insit.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def closed(self) -> bool:
+		"""
+		`True` if the `Connection` is closed, `False` if the `Connection` is open.
+
+		>>> pg_con.closed
+		True
+		"""
+
+	@abstractmethod
 	def connect(self) -> None:
 		"""
 		Establish the connection to the server.
@@ -893,27 +1235,14 @@ class Connection(
 		Does nothing if the connection is already closed.
 		"""
 
-	@abstractmethod
-	def reconnect(self) -> None:
+	def reconnect(self, *args, **kw) -> None:
 		"""
-		Method drawing the effect of ``close`` then ``connect``.
+		Method drawing the effect of `close` then `connect`.
+		
+		Any arguments given will be applied to `connect`.
 		"""
-
-	@abstractmethod
-	def reset(self) -> None:
-		"""
-		Reset the connection into it's original state.
-
-		Issues a ``RESET ALL`` to the database. If the database supports removing
-		temporary tables created in the session, then remove them. Reapply
-		initial configuration settings such as path. If inside a transaction
-		block when called, reset the transaction state using the `reset`
-		method on the connection's transaction manager, `xact`.
-
-		The purpose behind this method is to provide a soft-reconnect method that
-		re-initializes the connection into its original state. One obvious use of this
-		would be in a connection pool where the connection is done being used.
-		"""
+		self.close()
+		self.connect(*args, **kw)
 
 	__enter__ = methodcaller('connect')
 	def __exit__(self, typ, obj, tb):
@@ -931,86 +1260,6 @@ class Connection(
 		Returns the connection object.
 		"""
 		return self
-
-	@abstractmethod
-	def execute(sql) -> None:
-		"""
-		Execute an arbitrary block of SQL. Always returns `None` and raises an
-		exception on error.
-		"""
-
-	@abstractproperty
-	def version_info(self):
-		"""
-		A version tuple of the database software similar Python's `sys.version_info`.
-
-		>>> pg_con.version_info
-		(8, 1, 3, '', 0)
-		"""
-
-	@abstractproperty
-	def closed(self) -> bool:
-		"""
-		`True` if the `Connection` is closed, `False` if the `Connection` is open.
-
-		>>> pg_con.closed
-		True
-		"""
-
-	user = property(
-		doc = """
-		A property that provides an interface to "SELECT current_user", ``SET
-		ROLE``, and ``RESET ROLE``. When the attribute is resolved, the current user will
-		be given as a character string. When the attribute is set, it will issue a
-		``SET ROLE`` command to the server, changing the session's user. When
-		the attribute is deleted, a ``RESET ROLE`` command will be issued to the
-		server.
-		"""
-	)
-
-	@abstractproperty
-	def xact(self) -> TransactionManager:
-		"""
-		A `TransactionManager` instance bound to the `Connection`.
-		"""
-
-	@abstractproperty
-	def settings(self) -> Settings:
-		"""
-		A `Settings` instance bound to the `Connection`.
-		"""
-
-class Connector(
-	InterfaceElement
-):
-	ife_label = 'CONNECTOR'
-
-	@abstractproperty
-	def driver(self):
-		"""
-		The driver implementation that created the `Connector` class.
-		"""
-
-	@abstractproperty
-	def Connection(self):
-		"""
-		The `Connection` class to instantiate when creating a connection.
-		"""
-
-	def create(self, *args, **kw):
-		"""
-		Instantiate and return the connection class.
-		"""
-		return self.Connection(self, *args, **kw)
-
-	def __call__(self, *args, **kw):
-		"""
-		Create and connect. Arguments will be given to the `Connection` instance's
-		``connect`` method.
-		"""
-		c = self.Connection(self)
-		c.connect(*args, **kw)
-		return c
 
 class Driver(InterfaceElement):
 	"""
@@ -1113,13 +1362,6 @@ class Cluster(InterfaceElement):
 		Restart the cluster.
 		"""
 
-	@abstractproperty
-	def settings(self):
-		"""
-		A `Settings` interface to the ``postgresql.conf`` file associated with the
-		cluster.
-		"""
-
 	@abstractmethod
 	def wait_until_started(self,
 		timeout : "maximum time to wait" = 10
@@ -1144,6 +1386,14 @@ class Cluster(InterfaceElement):
 
 		If the `timeout` is reached, the method *must* throw a
 		`postgresql.exceptions.ClusterTimeoutError`.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def settings(self):
+		"""
+		A `Settings` interface to the ``postgresql.conf`` file associated with the
+		cluster.
 		"""
 
 	def __enter__(self):

@@ -261,10 +261,13 @@ class Cluster(pg_api.Cluster):
 		addrs = d['listen_addresses'].split(',')
 		if 'localhost' in addrs or '*' in addrs:
 			host = 'localhost'
+			ipv = None
 		elif '127.0.0.1' in addrs:
 			host = '127.0.0.1'
+			ipv = 4
 		elif '::1' in addrs:
 			host = '::1'
+			ipv = 6
 
 		try:
 			pg_driver.connect(
@@ -272,6 +275,7 @@ class Cluster(pg_api.Cluster):
 				host = host,
 				port = int(d.get('port') or 5432),
 				database = 'template1',
+				ipv = ipv,
 			).close()
 		except pg_exc.CannotConnectNowError:
 			return False
@@ -299,11 +303,7 @@ class Cluster(pg_api.Cluster):
 				return
 
 			if time.time() - start >= timeout:
-				raise pg_exc.ClusterTimeoutError(
-					"start operation timed out: %d seconds elapsed" %(
-						timeout
-					)
-				)
+				raise pg_exc.ClusterTimeoutError((self, type(self).wait_until_started))
 			time.sleep(delay)
 
 	def wait_until_stopped(self,
@@ -322,9 +322,7 @@ class Cluster(pg_api.Cluster):
 		while self.running():
 			if time.time() - start >= timeout:
 				raise pg_exc.ClusterTimeoutError(
-					"stop operation timed out: %d seconds elapsed" %(
-						timeout
-					)
+					(self, type(self).wait_until_stopped)
 				)
 			time.sleep(delay)
 ##

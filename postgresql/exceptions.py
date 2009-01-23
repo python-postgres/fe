@@ -30,18 +30,9 @@ If that fails, it will return `postgresql.exceptions.Error`
 """
 import sys
 import os
+import traceback
 from functools import partial
 from . import api as pg_api
-
-severities = (
-	'DEBUG',
-	'INFO',
-	'NOTICE',
-	'WARNING',
-	'ERROR',
-	'FATAL',
-	'PANIC',
-)
 
 class Exception(Exception):
 	'Base PostgreSQL exception class'
@@ -72,12 +63,22 @@ class PythonMessage(pg_api.Message):
 	"""
 	It's a message, but with __str__ returning the element's entire lineage.
 	"""
+	ife_ancestor = None
+
 	def __str__(self):
+		# if a snapshot was taken, use it.
+		ss = getattr(self, 'snapshot', None)
+		if ss is None:
+			# the picture might not be accurate, but it will
+			# be better than nothing.
+			ss = self.ife_ancestry_snapshot_text()
+
 		l = [
-			': '.join((x.ife_label, str(x))) for x in self.ife_ancestry()
+			': '.join((x[1], x[2])) for x in ss
 		]
 		l.reverse()
-		return super().__str__() + (os.linesep + os.linesep.join(l) if l else "")
+		this = self.ife_snapshot_text()
+		return this + (os.linesep + os.linesep.join(l) if l else "")
 
 class Warning(PythonMessage, Warning):
 	code = '01000'
@@ -110,6 +111,16 @@ class Error(PythonMessage, Exception):
 	ife_label = 'ERROR'
 	code = ""
 
+	def raise_exception(self, raise_from = None):
+		"""
+		Raise the `Error`, `self`, after gettings a snapshot of the ancestry.
+		"""
+		self.snapshot = self.ife_ancestry_snapshot_text()
+		if raise_from is None:
+			raise self
+		else:
+			raise self from raise_from
+
 class InsecurityError(Error):
 	"""
 	Error signifying a secure channel to a server cannot be established.
@@ -126,9 +137,70 @@ class ConnectionError(Error):
 class ConnectionDoesNotExistError(ConnectionError):
 	code = '08003'
 class ConnectionFailureError(ConnectionError):
+	'Raised when a connection is dropped'
 	code = '08006'
+
 class ClientCannotConnectError(ConnectionError):
+	"""
+	Client was unable to establish a connection to the server
+
+	This is the exception that drivers must raised when a connection could not be
+	established. 
+	"""
 	code = '08001'
+	connection_failures = None
+
+	def ife_snapshot_text(self):
+		top = super().ife_snapshot_text()
+		bottom = ""
+		if self.connection_failures:
+			count = 0
+			bottom = 'FAILURES: count of ' + \
+				str(len(self.connection_failures))
+			for x in self.connection_failures:
+				count += 1
+				ssl = (
+					'SSL' if x[0] is True else 'NOSSL' if x[0] is False else "SSL,NOSSL"
+				)
+				bottom += os.linesep + ' ' + str(count) + ': '
+				bottom += str(x[1]) + ' -> (' + ssl + ') resulted in:' + os.linesep + ' '*2
+				fmt_exc = traceback.format_exception_only(type(x[2]), x[2])
+				bottom += (os.linesep + ' '*2).join(''.join(fmt_exc).split(os.linesep))
+			bottom = os.linesep + '--' + os.linesep + bottom.strip() + os.linesep + '--'
+		return top + bottom
+
+	def set_connection_failures(self, failures):
+		"""
+		When the connection cannot be establish, configure the failures to give
+		the user more information about what was attempted.
+
+		Usually, this should contain the exceptions that actually occurred in the
+		process of connecting.
+		"""
+		self.connection_failures = failures
+
+	def failure_due_to(self, exc : ""):
+		"""
+		Return a tuple indicating the amount of "fault" that the given
+		exception had on the failures.
+
+		# one of the two connection failures were due to ServerNotReadyError.
+		>>> err.failure_due_to(ServerNotReadyError)
+		(1, 2)
+		"""
+		if self.connection_failures is None:
+			return None
+		return (
+			count([
+				x for x in self.connection_failures
+				if isinstance(x.exception, exc)
+			]),
+			len(self.connection_failures)
+		)
+
+class ClientConnectTimeoutError(ClientCannotConnectError):
+	'Client was unable to esablish a connection in the given time'
+
 class ConnectionRejectionError(ConnectionError):
 	code = '08004'
 class TransactionResolutionUnknownError(ConnectionError):
@@ -557,7 +629,8 @@ class AdminShutdownError(OIError):
 	code = '57P01'
 class CrashShutdownError(OIError):
 	code = '57P02'
-class CannotConnectNowError(OIError):
+class ServerNotReadyError(OIError):
+	'Thrown when a connection is established to a server that is still starting up.'
 	code = '57P03'
 
 class PLPGSQLError(Error):

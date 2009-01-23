@@ -14,31 +14,21 @@ import ssl
 import warnings
 import types
 from operator import attrgetter
+from abc import abstractmethod, abstractproperty
+import collections
 
-import postgresql.version as pg_version
-import postgresql.iri as pg_iri
-import postgresql.exceptions as pg_exc
-import postgresql.string as pg_str
-import postgresql.encodings.aliases as pg_enc_aliases
-import postgresql.api as pg_api
+from .. import version as pg_version
+from .. import iri as pg_iri
+from .. import exceptions as pg_exc
+from .. import string as pg_str
+from ..encodings import aliases as pg_enc_aliases
+from .. import api as pg_api
 
-from postgresql.protocol.buffer import pq_message_stream
-import postgresql.protocol.client3 as pq
-import postgresql.protocol.typio as pg_typio
+from itertools import repeat
 
-def secure_socket(
-	sock,
-	keyfile = None,
-	certfile = None,
-	rootcertfile = None,
-):
-	"take a would be connection socket and secure it with SSL"
-	return ssl.wrap_socket(
-		sock,
-		keyfile = keyfile,
-		certfile = certfile,
-		ca_certs = rootcertfile,
-	)
+from ..protocol.buffer import pq_message_stream
+from ..protocol import client3 as pq
+from ..protocol import typio as pg_typio
 
 TypeLookup = """
 SELECT
@@ -154,7 +144,7 @@ class ResultHandle(object):
 	a given transaction. These objects provide a way for transactions to be
 	marked as defunct, so that no more time is wasted completing them.
 	"""
-
+	ife_ancestor = property(attrgetter('query'))
 	_result_types = (
 		pq.element.CopyFromBegin.type,
 		pq.element.CopyToBegin.type,
@@ -163,7 +153,13 @@ class ResultHandle(object):
 	)
 	_expect_types = _result_types + (pq.element.Tuple.type,)
 
-	def __init__(self, connection, query, aformats, arguments):
+	def __init__(self, query, arguments):
+		if query._oformats:
+			# this is for ddl, copy, and utility statements.
+			raise TypeError(
+				"ResultHandle cannot be created " \
+				"against a query returning tuple data"
+			)
 		self.query = query
 		self.connection = query.connection
 		self.type = None
@@ -172,10 +168,10 @@ class ResultHandle(object):
 		self.xact = pq.Transaction((
 			pq.element.Bind(
 				b'',
-				self.query.statement_id,
-				aformats, # formats
+				self.query._pq_sid,
+				query._iformats, # formats
 				arguments, # args
-				(), # rformats; not expecting tuple data.
+				(), # result formats; not expecting tuple data.
 			),
 			pq.element.Execute(b'', 1),
 			pq.element.SynchronizeMessage,
@@ -194,11 +190,11 @@ class ResultHandle(object):
 		elif typ.type == pq.element.CopyFromBegin.type:
 			self._lastcopy = None
 		else:
-			raise pq.ProtocolError(
+			err = pq.ProtocolError(
 				"%r expected COPY or utility statement" %(type(self).__name__,),
-				typ, self._expect_types
 			)
-
+			self.ife_descend(err)
+			err.raise_exception()
 		self.type = typ
 
 	def _discover_type(self, xact):
@@ -222,31 +218,35 @@ class ResultHandle(object):
 				continue
 			break
 		else:
-			raise pq.ProtocolError(
+			# XXX: protocol error is inappropriate
+			err = pq.ProtocolError(
 				"protocol transaction for %r finished before result " \
 				"type could be identified" %(type(self).__name__,),
-				None, self._result_types
+				source = "DRIVER",
 			)
+			self.ife_descend(err)
+			err.connection = self.connection
+			err.raise_exception()
 		return typ
 
 	def command(self):
 		"The completion message's command identifier"
 		if self.complete is not None:
-			return str.__str__(self.complete).strip().split()[0]
+			return bytes.__repr__(self.complete)[2:-1].strip().split()[0]
 
 	def count(self):
 		"The completion message's count number"
 		if self.complete is not None:
-			return extract_count(self.complete)
-	
-	def __str__(self):
+			return extract_count(repr(self.complete.data)[2:-1])
+
+	def ife_snapshot_text(self):
 		return "ResultHandle"
 
 	def __iter__(self):
 		return self
 
 	def __next__(self):
-		"""get the next copy line"""
+		'get the next copy line'
 		if self._state[0] > self.buffersize:
 			self._contract()
 		# nothing more to give?
@@ -264,7 +264,7 @@ class ResultHandle(object):
 
 	def _expand(self):
 		"""
-		internal helper function to put more copy data onto the buffer for
+		[internal] helper function to put more copy data onto the buffer for
 		reading. This function will only append to the buffer and never
 		set the offset.
 		"""
@@ -290,9 +290,11 @@ class ResultHandle(object):
 			if typ == pq.element.Complete.type:
 				self.complete = t
 			else:
-				raise pq.ProtocolError(
+				err = pq.ProtocolError(
 					"complete message not in expected location"
 				)
+				t.ife_descend(err)
+				err.raise_exception()
 
 		# get copy data
 		extension = [
@@ -310,7 +312,7 @@ class ResultHandle(object):
 		return True
 
 	def _contract(self):
-		"reduce the buffer's size"
+		"[internal] reduce the buffer's size"
 		offset, bufsize, buffer = self._state
 		# remove up to the offset minus the last read
 		trim = offset - self._last_readsize
@@ -444,8 +446,8 @@ class Portal(pg_api.Cursor):
 	def __iter__(self):
 		return self
 	
-	def __str__(self):
-		return "cursor"
+	def ife_snapshot_text(self):
+		return self.cursor_id
 
 	def close(self):
 		if self.closed is False:
@@ -546,18 +548,6 @@ class Portal(pg_api.Cursor):
 		if new_x is not None:
 			self.connection._push(new_x)
 		return not (bufsize == oldbufsize)
-
-	def __getitem__(self, i):
-		q = 'FETCH ABSOLUTE %d IN "%s"' %(i+1, self.cursor_id)
-		xact = self.connection._xp_query(q, rformats = self._rformats)
-		self.connection._push(xact)
-		self.connection._complete()
-		for x in xact.messages_received():
-			if x.type == pq.element.Tuple.type:
-				break
-		if x.type != pq.element.Tuple.type:
-			raise IndexError("portal index out of range(%d)" %(i,))
-		return self._mktuple(x)
 
 	def __next__(self):
 		# reduce set size if need be
@@ -688,18 +678,18 @@ class Cursor(Portal):
 	"Server declared cursor interfaces"
 	def __init__(self, connection, cursor_name, **kw):
 		self.closed = False
-		Portal.__init__(self, connection, cursor_name, **kw)
+		super().__init__(self, connection, cursor_name, **kw)
 		x = pq.Transaction((
 			pq.element.DescribePortal(cursor_name),
 			pq.element.SynchronizeMessage,
 		))
-		self.connection._push(x)
-		self.connection._complete()
+		connection._push(x)
+		connection._complete()
 		xi = x.reverse()
 		xi.next()
 		self.output = xi.next()
 		self._output_io = []
-		self._rformats = []
+		self._oformats = []
 		for x in self.output:
 			fmt = x[6]
 			self._output_io.append(
@@ -707,8 +697,10 @@ class Cursor(Portal):
 				(connection.typio.resolve(x[3]) or (None,None))[1] or
 				None
 			)
-			self._rformats.append(fmt)
-		self._output_attmap = self.output.attribute_map
+			self._oformats.append(fmt)
+		self._output_attmap = connection.typio.attribute_map(
+			self.output
+		)
 
 		prime = self._xp_fetchmore(self.fetchcount)
 		self._state = (
@@ -720,14 +712,14 @@ class Cursor(Portal):
 			# transaction in progress
 			prime,
 		)
-		self.connection._push(prime)
+		connection._push(prime)
 
 class ClientStatementCursor(Portal):
 	"Client statement created cursors"
 	ife_ancestor = property(attrgetter('query'))
 
-	def __init__(self, query, params, output, output_io, rformats, **kw):
-		Portal.__init__(self,
+	def __init__(self, query, params, output, output_io, oformats, **kw):
+		super().__init__(
 			query.connection,
 			ID(self, title = b'#'),
 			**kw
@@ -736,8 +728,10 @@ class ClientStatementCursor(Portal):
 		self.query = query
 		self.output = output
 		self._output_io = output_io
-		self._rformats = rformats
-		self._output_attmap = self.output.attribute_map
+		self._oformats = oformats
+		self._output_attmap = query.connection.typio.attribute_map(
+			self.output
+		)
 
 		# Finish any outstanding transactions to identify
 		# the current transaction state. If it's not in a
@@ -745,15 +739,15 @@ class ClientStatementCursor(Portal):
 		# won't exist after the next synchronize message.
 		if self.connection._xact is not None:
 			self.connection._complete()
-		if self.connection.state == b'I':
+		if self.connection._pq_state == b'I':
 			self.fetchcount = 0xFFFFFFFF
 		x = pq.Transaction((
 			pq.element.Bind(
 				self.connection.typio.encode(self.cursor_id),
-				query.statement_id,
+				query._pq_sid,
 				self.query._iformats,
 				params,
-				rformats,
+				oformats,
 			),
 			pq.element.Execute(
 				self.connection.typio.encode(self.cursor_id),
@@ -767,7 +761,7 @@ class ClientStatementCursor(Portal):
 			0, 0, [], x
 		)
 
-		if self.connection.state not in b'EI':
+		if self.connection._pq_state not in b'EI':
 			self.closed = False
 		self.connection._push(x)
 		# Check for bind completion or let _step() throw the exception.
@@ -780,75 +774,83 @@ class ClientStatementCursor(Portal):
 
 class PreparedStatement(pg_api.PreparedStatement):
 	ife_ancestor = property(attrgetter('connection'))
+	_cid = -1
+	string = None
+	connection = None
 
-	def __init__(self, connection, statement_id, title = None):
+	def __init__(self, statement_id, connection):
 		# Assume that the statement is open; it's normally a
 		# statement prepared on the server in this context.
-		self.statement_id = connection.typio._encode(statement_id)[0]
+		self.statement_id = statement_id
 		self.connection = connection
-		self._cid = -1
-		self.title = title and title or statement_id
-		self._init_xact = None
+		self._pq_xact = None
+		self._pq_sid = None
 
 	def __repr__(self):
 		return '<%s.%s[%s]%s>' %(
 			type(self).__module__,
 			type(self).__name__,
-			self.connection.connector.iri,
+			repr(self.connection.connector),
 			self.closed and ' closed' or ''
 		)
-	
-	def __str__(self):
-		return "statement"
 
 	@property
 	def closed(self):
 		return self._cid != self.connection._cid
 
 	def close(self):
-		if not self.closed:
-			self.connection._closestatements.append(self.statement_id)
+		if self._cid == self.connection._cid:
+			self.connection._closestatements.append(self._pq_sid)
+		# Make a distinction between explicitly closed and uninitialized.
+		# (could be handy)
 		self._cid = -2
+		self._pq_sid = None
 
 	def prepare(self):
-		if self._init_xact is None or self._init_xact is not self.connection._xact:
-			self.prime()
-		self.finish()
+		# If there's no _init_xact or the _init_xact is not the current transaction
+		if self._pq_xact is None or self._pq_xact is not self.connection._xact:
+			self._init()
+		# Regardless of what happened above, finalize the statement.
+		self._fini()
 
-	def prime(self):
+	def _init(self):
 		"""
 		Push initialization messages to the server, but don't wait for
 		the return as there may be things that can be done while waiting
-		for the return. Use the finish() to complete.
+		for the return. Use the _fini() to complete.
 		"""
-		self._init_xact = pq.Transaction((
-			pq.element.DescribeStatement(self.statement_id),
+		self._pq_sid = self.connection.typio._encode(self.statement_id)[0]
+		self._pq_xact = pq.Transaction((
+			pq.element.DescribeStatement(self._pq_sid),
 			pq.element.SynchronizeMessage,
 		))
-		self.connection._push(self._init_xact)
+		self.connection._push(self._pq_xact)
 
-	def finish(self):
+	def _fini(self):
 		"""
 		complete initialization that the prime() method started.
+
+		assumes _init has been called
 		"""
 		# assume that the transaction has been primed.
-		if self._init_xact is self.connection._xact:
+		if self._pq_xact is None:
+			raise RuntimeError("_fini called prior to _init; invalid state")
+		if self._pq_xact is self.connection._xact:
 			self.connection._complete()
 
-		r = list(self._init_xact.messages_received())
-		argtypes = r[-3]
-		tupdesc = r[-2]
+		(*head, argtypes, tupdesc, last) = self._pq_xact.messages_received()
 
 		if tupdesc is None or tupdesc is pq.element.NoDataMessage:
+			# Not typed output.
 			self.output = None
 			self._output_io = ()
-			self._rformats = ()
+			self._oformats = ()
 		else:
 			self.output = tupdesc
-			self._output_attmap = tupdesc.attribute_map
+			self._output_attmap = self.connection.typio.attribute_map(tupdesc)
 			# tuple output
 			self._output_io = self.connection.typio.resolve_descriptor(tupdesc, 1)
-			self._rformats = [
+			self._oformats = [
 				pq.element.StringFormat
 				if x is None
 				else pq.element.BinaryFormat
@@ -866,8 +868,8 @@ class PreparedStatement(pg_api.PreparedStatement):
 			else pq.element.BinaryFormat
 			for x in self._input_io
 		]
-		del self._init_xact
 		self._cid = self.connection._cid
+		self._pq_xact = None
 
 	def __call__(self, *args, **kw):
 		if self.closed:
@@ -882,7 +884,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 		if self.output:
 			portal = ClientStatementCursor(
-				self, params, self.output, self._output_io, self._rformats, **kw
+				self, params, self.output, self._output_io, self._oformats, **kw
 			)
 		else:
 			# non-tuple output(copy, ddl, non-returning dml)
@@ -918,14 +920,15 @@ class PreparedStatement(pg_api.PreparedStatement):
 		x = pq.Transaction((
 			pq.element.Bind(
 				b'',
-				self.statement_id,
+				self._pq_sid,
 				self._iformats,
 				params,
-				self._rformats,
+				self._oformats,
 			),
-			pq.element.Execute(b'', 1),
+			pq.element.Execute(b'', 0xFFFFFFFF),
 			pq.element.SynchronizeMessage
 		))
+		self.ife_descend(x)
 		c._push(x)
 		c._complete()
 
@@ -956,7 +959,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 					break
 			else:
 				return None
-			return extract_count(cm)
+			return extract_count(repr(cm.data)[2:-1])
 
 	def declare(self,
 		*args,
@@ -984,7 +987,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 					xm.extend((
 						pq.element.Bind(
 							b'',
-							self.statement_id,
+							self._pq_sid,
 							self._iformats,
 							params,
 							(),
@@ -1000,39 +1003,55 @@ class PreparedStatement(pg_api.PreparedStatement):
 				self.connection._push(pq.Transaction(xm))
 			self.connection._complete()
 		except:
-			if self.connection._xact is not None:
-				self.connection._complete()
+			##
+			# In cases where row packing errors or occur,
+			# synchronize, finishing any pending transaction,
+			# and raise the error.
+			##
+			# If the data sent to the remote end is invalid,
+			# _complete will raise the exception and the current
+			# exception being marked as the cause, so there should
+			# be no [exception] information loss.
+			##
 			self.connection.synchronize()
 			raise
 
 class ClientPreparedStatement(PreparedStatement):
 	'A prepared statement generated by the connection user'
 
-	def __init__(self, connection, src, title = None):
-		self.string = src
-		PreparedStatement.__init__(
-			self,
-			connection,
-			ID(self, title = title),
-			title = title
+	def __init__(self, string : "SQL statement to prepare", connection):
+		self.string = string
+		super().__init__(ID(self), connection)
+
+	def ife_snapshot_text(self):
+		s = ""
+		if self.closed:
+			s += "[closed] "
+		if self.title:
+			s += self.title + ", "
+		s += "statement_id(" + repr(self._pq_sid or self.statement_id) + ")"
+		s += os.linesep + ' ' * 2 + (os.linesep + ' ' * 2).join(
+			str(self.string).split(os.linesep)
 		)
+		return s
 
 	# Always close CPSs as the way the statement_id is generated
 	# might cause a conflict if Python were to reuse the previously
 	# used id()[it can and has happened]. - jwp 2007
 	__del__ = PreparedStatement.close
 
-	def prime(self):
-		'Push out initialization messages for query preparation'
-		qstr = self.connection.typio.encode(self.string)
-		self._init_xact = pq.Transaction((
-			pq.element.CloseStatement(self.statement_id),
-			pq.element.Parse(self.statement_id, qstr, ()),
-			pq.element.DescribeStatement(self.statement_id),
+	def _init(self):
+		e = self.connection.typio._encode
+		q = e(self.string)[0]
+		sid = e(self.statement_id)[0]
+		self._pq_sid = sid
+		self._pq_xact = pq.Transaction((
+			pq.element.CloseStatement(sid),
+			pq.element.Parse(sid, q, ()),
+			pq.element.DescribeStatement(sid),
 			pq.element.SynchronizeMessage,
 		))
-		self.ife_descend(self._init_xact)
-		self.connection._push(self._init_xact)
+		self.connection._push(self._pq_xact)
 
 class StoredProcedure(pg_api.StoredProcedure):
 	'Interface to functions kept in the backend'
@@ -1076,7 +1095,7 @@ class StoredProcedure(pg_api.StoredProcedure):
 			else:
 				return r.read(1)[0][0]
 
-	def __init__(self, connection, ident, description = ()):
+	def __init__(self, ident, connection, description = ()):
 		# Lookup pg_proc on connection.
 		if ident.isdigit():
 			proctup = connection.cquery(
@@ -1170,7 +1189,7 @@ class Settings(pg_api.Settings):
 	def __len__(self):
 		return self.connection.cquery("SELECT count(*) FROM pg_settings").first()
 
-	def __str__(self):
+	def ife_snapshot_text(self):
 		return "Settings"
 
 	def __call__(self, **kw):
@@ -1322,15 +1341,15 @@ class TransactionManager(pg_api.TransactionManager):
 		self.mode = None
 		self.gid = None
 	
-	def __str__(self):
+	def ife_snapshot_text(self):
 		return "Transaction"
 
 	@property
 	def failed(self):
-		s = self.connection.state
-		if s is None or s == 'I':
+		s = self.connection._pq_state
+		if s is None or s == b'I':
 			return None
-		elif s == 'E':
+		elif s == b'E':
 			return True
 		else:
 			return False
@@ -1491,12 +1510,28 @@ class TransactionManager(pg_api.TransactionManager):
 		return xrob
 
 class Connection(pg_api.Connection):
-	"""
-	Connection(connector) -> Connection
-
-	PG-API <-> Driver <-> PQ Protocol <-> Socket <-> PostgreSQL
-	"""
 	ife_ancestor = property(attrgetter('connector'))
+	connector = None
+
+	type = None
+	version_info = None
+	version = None
+
+	backend_id = None
+	client_address = None
+	client_port = None
+	settings = Settings
+	xact = TransactionManager
+
+	def user():
+		def fget(self):
+			return self.cquery('SELECT current_user').first()
+		def fset(self, val):
+			return self.execute('SET ROLE "%s"' %(val.replace('"', '""'),))
+		def fdel(self):
+			self.execute("RESET ROLE")
+		return locals()
+	user = property(**user())
 
 	_tracer = None
 	def tracer():
@@ -1514,12 +1549,6 @@ class Connection(pg_api.Connection):
 			'(Normally a write method.)'
 		return locals()
 	tracer = property(**tracer())
-
-	type = None
-	user = None
-	version_info = None
-	version = None
-	backend_id = None
 
 	def _decode_pq_message(self, msg):
 		'[internal] decode the values in a message(E,N)'
@@ -1541,7 +1570,7 @@ class Connection(pg_api.Connection):
 		return dmsg
 
 	def _N(self, msg, xact):
-		'[internal] print a notice message using the notifier attribute'
+		'[internal] emit a `Message` via'
 		dmsg = self._decode_pq_message(msg)
 		m = dmsg.pop('message')
 		c = dmsg.pop('code')
@@ -1551,7 +1580,7 @@ class Connection(pg_api.Connection):
 			mo = pg_api.Message(m, code = c, details = dmsg)
 		mo.connection = self
 		xact.ife_descend(mo)
-		xact.ife_emit(mo)
+		mo.emit()
 
 	def _A(self, msg, xact):
 		'[internal] Send notification to any listeners; NOTIFY messages'
@@ -1598,14 +1627,25 @@ class Connection(pg_api.Connection):
 		return '<%s.%s[%s] %s>' %(
 			type(self).__module__,
 			type(self).__name__,
-			self.connector.iri,
+			str(self.connector),
 			self.closed and 'closed' or '%s.%d' %(
-				self.state, self.xact._level
+				self._pq_state, self.xact._level
 			)
 		)
 
-	def __str__(self):
-		return "Connection"
+	def ife_snapshot_text(self):
+		lines = [
+			('version', repr(self.version) if self.version else "<unknown>"),
+			('backend_id', repr(self.backend_id) if self.backend_id else "<unknown>"),
+			('client_address', str(self.client_address)),
+			('client_port', str(self.client_port)),
+		]
+		# settings state.
+		return "closed" if self.closed else (
+			"" + os.linesep + '  ' + (
+				(os.linesep + '  ').join([x[0] + ': ' + x[1] for x in lines])
+			)
+		)
 
 	def __context__(self):
 		return self
@@ -1627,17 +1667,17 @@ class Connection(pg_api.Connection):
 		self._xact = x
 		self._complete()
 
-	def interrupt(self):
-		'Send a CancelQuery message to the backend'
-		cq = pq.element.CancelQuery(self._killinfo.pid, self._killinfo.key)
-		s = self.connector.socket_connect()
+	def interrupt(self, timeout = None):
+		cq = pq.element.CancelQuery(
+			self._killinfo.pid, self._killinfo.key
+		).bytes()
+		s = self._socketfactory(timeout = timeout)
 		try:
-			s.sendall(cq.bytes())
+			s.sendall(cq)
 		finally:
 			s.close()
 
 	def execute(self, query : str) -> None:
-		'Execute an arbitrary block of SQL'
 		q = pq.Transaction((
 			pq.element.Query(self.typio.encode(query)),
 		))
@@ -1645,50 +1685,24 @@ class Connection(pg_api.Connection):
 		self._push(q)
 		self._complete()
 
-	def query(*args, **kw):
-		'Create a query object using the given query string'
-		q = ClientPreparedStatement(*args, **kw)
-		return q
+	def query(self, query_string : str) -> ClientPreparedStatement:
+		return ClientPreparedStatement(query_string, self)
 
-	def statement(*args, **kw):
-		'Create a query object using the statement identifier'
-		ps = PreparedStatement(*args, **kw)
-		args[0].ife_descend(ps)
-		return ps
+	def statement(self, statement_id : str) -> PreparedStatement:
+		return PreparedStatement(statement_id, self)
 
-	def proc(*args, **kw):
-		'Create a StoredProcedure object using the given procedure identity'
-		sp = StoredProcedure(*args, **kw)
-		args[0].ife_descend(sp)
-		return sp
+	def proc(self, proc_id : (str, int)) -> StoredProcedure:
+		return StoredProcedure(proc_id, self)
 
-	def cursor(*args, **kw):
-		'Create a Portal object that references an already existing cursor'
-		c = Cursor(*args, **kw)
-		args[0].ife_descend(c)
-		return c
-
-	def _xp_query(self, string, args = (), rformats = ()):
-		'[internal] create an extended protocol transaction for the query'
-		aformats = ()
-		if args:
-			args = [self.typio.encode(x) for x in args]
-			aformats = (pq.element.StringFormat,) * len(args)
-
-		return pq.Transaction(
-			pq.element.Parse(b'', self.typio.encode(string), argtypes),
-			pq.element.Bind(b'', b'', aformats, args, rformats),
-			pq.element.Execute(b'', 0xFFFFFFFF),
-			pq.element.SynchronizeMessage,
-		)
+	def cursor(self, cursor_id : str):
+		return Cursor(self, cursor_id)
 
 	def close(self):
-		'Close the connection and reinitialize the state and information'
 		# Write out the disconnect message if the socket is around.
 		# If the connection is known to be lost, don't bother. It will
 		# generate an extra exception.
 		try:
-			if self.socket is not None and self.state != 'LOST':
+			if self.socket is not None and self._pq_state != 'LOST':
 				self._write_messages((pq.element.DisconnectMessage,))
 		finally:
 			if self.socket is not None:
@@ -1697,36 +1711,122 @@ class Connection(pg_api.Connection):
 			self._reset()
 
 	@property
-	def closed(self):
-		return self._xact is ClosedConnectionTransaction or self.state in ('LOST', None)
-
-	def reconnect(self, *args, **kw):
-		'close() and connect()'
-		self.close()
-		self.connect(*args, **kw)
+	def closed(self) -> bool:
+		return self._xact is ClosedConnectionTransaction or self._pq_state in ('LOST', None)
 
 	def reset(self):
 		'restore original settings, reset the transaction, drop temporary objects'
 		self.xact.reset()
 		self.execute("RESET ALL")
 
-	def connect(self, *args, **kw):
+	def connect(self, timeout = None):
 		'Establish the connection to the server'
+		# already connected?
 		if self.closed is not True:
-			# already connected
 			return
 		self._cid += 1
 		self.typio.set_encoding('ascii')
-		try:
-			self._connect(*args, **kw)
-		except:
-			self.close()
-			raise
+
+		timeout = timeout or self.connector.connect_timeout
+		sslmode = self.connector.sslmode
+
+		# get the list of sockets to try
+		socket_makers = self.connector.socket_factory_sequence()
+		connection_failures = []
+
+		# resolve when to do SSL.
+		with_ssl = zip(repeat(True, len(socket_makers)), socket_makers)
+		without_ssl = zip(repeat(False, len(socket_makers)), socket_makers)
+		if sslmode == 'allow':
+			# first, without ssl, then with. :)
+			pair = (iter(with_ssl), iter(without_ssl))
+			socket_makers = list((
+				next(pair[x]) for x in cycle(range(2))
+			))
+		elif sslmode in ('prefer', 'require'):
+			socket_makers = with_ssl
+		else:
+			socket_makers = without_ssl
+
+		# for each potential socket
+		for (dossl, socket_maker) in socket_makers:
+			supported = None
+			try:
+				self.socket = socket_maker(timeout = timeout)
+				if dossl:
+					supported = self._negotiate_ssl()
+					if supported is None:
+						# probably not PQv3..
+						raise pg_exc.ProtocolError(
+							"server did not support SSL negotiation",
+							source = 'DRIVER'
+						)
+					if not supported and sslmode == 'require':
+						# ssl is required..
+						raise pg_exc.InsecurityError(
+							"sslmode required secure connection, but was unsupported by server",
+							source = 'DRIVER'
+						)
+					if supported:
+						self.socket = self.connector.socket_secure(self.socket)
+				# time to negotiate
+				negxact = self._negotiation()
+				self._xact = negxact
+				self._complete()
+				self._killinfo = negxact.killinfo
+				# Use this for `interrupt`.
+				self._socketfactory = socket_maker
+				self.ssl = supported is True
+				# success!
+				break
+			except self.connector.fatal_exception as e:
+				self.ssl = None
+				self._killinfo = None
+				self._xact = None
+				if self.socket is not None:
+					self.socket.close()
+					self.socket = None
+				connection_failures.append(
+					(dossl, socket_maker, e)
+				)
+		else:
+			# no servers available, try to identify an appropriate exception
+			err = pg_exc.ClientCannotConnectError(
+				"failed to connect to server",
+				details = {
+					"severity" : "FATAL",
+				},
+				# It's really a collection of exceptions.
+				source = 'DRIVER'
+			)
+			self.ife_descend(err)
+			err.fatal = True
+			err.connection = self
+			err.set_connection_failures(connection_failures)
+			err.raise_exception()
+		self._init()
 	__enter__ = connect
+
+	def _negotiate_ssl(self) -> (bool, None):
+		"""
+		[internal] Negotiate SSL
+
+		If SSL is available--received b'S'--return True.
+		If SSL is unavailable--received b'N'--return False.
+		Otherwise, return None. Indicates non-PQv3 endpoint.
+		"""
+		self._write_messages((pq.element.NegotiateSSLMessage,))
+		status = self.socket.recv(1)
+		if status == b'S':
+			return True
+		elif status == b'N':
+			return False
+		return None
 
 	def _negotiation(self):
 		'[internal] create the negotiation transaction'
 		sp = self.connector._startup_parameters
+		se = self.connector.server_encoding or 'utf-8'
 		##
 		# Attempt to accommodate for literal treatment of startup data.
 		##
@@ -1736,78 +1836,44 @@ class Connection(pg_api.Connection):
 			# If it's a str(), encode in the hinted server_encoding.
 			# Otherwise, convert the object(int, float, bool, etc) into a string
 			# and treat it as utf-8.
-			v.encode(self.connector.server_encoding) \
+			v.encode(se) \
 			if type(v) is str else str(v).encode('utf-8')
 			for k, v in sp.items()
 		}
 		sm = pq.element.Startup(**smd)
 		# encode the password in the hinted server_encoding as well
-		return pq.Negotiation(sm, 
-			(self.connector.password or '').encode(self.connector.server_encoding)
-		)
+		return pq.Negotiation(sm, (self.connector.password or '').encode(se))
 
-	def _connect(self, timeout = None):
-		'[internal] initialize the socket and run negotiation'
-		c = self.connector
-		dossl = c.sslmode in ('require', 'prefer')
-
-		# Loop over the connection code until
-		# a connection is achieved using the selected SSL mode
-		while True:
-			# try a new socket.
-			self.socket = c.socket_connect(timeout = timeout)
-			if dossl is True:
-				self._write_messages((pq.element.NegotiateSSLMessage,))
-				status = self.socket.recv(1)
-				if status == b'S':
-					self.socket = secure_socket(
-						self.socket,
-						keyfile = c.sslkeyfile,
-						certfile = c.sslcrtfile,
-						rootcertfile = c.sslrootcrtfile,
-					)
-					# XXX: Check Revocation List?
-				elif c.sslmode == 'require':
-					e = pg_exc.InsecurityError(
-						"sslmode required secure connection, but was unsupported by server",
-						connection = self,
-						context = self,
-					)
-
-			# Authenticate and read initial data.
-			try:
-				negxact = self._negotiation()
-				self._xact = negxact
-				self._complete()
-				self._killinfo = negxact.killinfo
-				self.backend_id = negxact.killinfo.pid
-				break
-			except pg_exc.AuthenticationSpecificationError:
-				self.socket.close()
-				#  If it did not try ssl, and ssl is allowed; try with ssl.
-				#  If it did try ssl, and ssl is preferred; try without ssl.
-				if ((c.sslmode == 'allow' and dossl is False) or \
-				 (c.sslmode == 'prefer' and dossl is True)):
-					# It failed, but we can try the other option per sslmode.
-					dossl = not dossl
-				else:
-					raise
-		##
-		# Connection established, complete initialization.
-		#
-		# Ready for [protocol] transactions.
+	def _init(self):
+		'[internal] configure the connection after negotiation'
+		# Use the version_info and integer_datetimes setting to identify
+		# the necessary binary type i/o functions to use.
+		self.backend_id = self._killinfo.pid
 		self.typio.select_time_io(
 			self.version_info,
 			self.settings.cache.get("integer_datetimes", "off").lower() in (
 				't', 'true', 'on', 'yes',
 			),
 		)
+		# Get the *full* version string.
+		self.version = self.query("SELECT pg_catalog.version()").first()
+		# First word from the version string.
+		self.type = self.version.split()[0]
+
 		try:
-			self.version = self.query("SELECT version()").first()
-			self.type = self.version.split()[0]
+			r = self.query(
+				"SELECT * FROM pg_catalog.pg_stat_activity " \
+				"WHERE procpid = " + str(self.backend_id)
+			).first()
+			self.client_address = r.get('client_addr')
+			self.client_port = r.get('client_port')
+			self.backend_start = r.get('backend_start')
 		except pg_exc.Error as e:
-			self.version = self.type = '<failed to get version string>'
-			raise
+			w = pg_exc.Warning("failed to get pg_stat_activity data")
+			e.ife_descend(w)
+			w.emit()
+			# Toss a warning instead of the error.
+			# This is not vital information, but is useful in exceptions.
 
 	def _read_into(self):
 		'[internal] protocol message reader. internal use only'
@@ -1819,32 +1885,48 @@ class Connection(pg_api.Connection):
 
 			try:
 				self._read_data = self.socket.recv(self._readbytes)
-			except socket.error as e:
-				if e.errno == errno.ECONNRESET:
+			except self.connector.fatal_exception as e:
+				msg = self.connector.fatal_error_message(e)
+				if msg is not None:
 					lost_connection_error = pg_exc.ConnectionFailureError(
-						'The server explicitly closed the connection',
-						details = {'severity' : 'FATAL'}
+						msg,
+						details = {
+							'severity' : 'FATAL',
+							'detail' : 'Connector identified the exception as fatal.',
+						},
+						source = 'DRIVER'
 					)
 					lost_connection_error.connection = self
 					lost_connection_error.fatal = True
-					self.state = 'LOST'
-					raise lost_connection_error from e
+					# descend LCE from whatever we have :)
+					(self._xact or self).ife_descend(
+						lost_connection_error
+					)
+					self._pq_state = b'LOST'
+					lost_connection_error.raise_exception(raise_from = e)
 				# It's probably a non-fatal error.
-				# XXX: Need a better way to identify fatalities. :(
 				raise
+
+			##
 			# nothing read from a blocking socket? it's over.
+			# Asynchronous frameworks need to make sure the socket object is
+			# raising the appropriate error.
 			if not self._read_data:
 				lost_connection_error = pg_exc.ConnectionFailureError(
 					"unexpected EOF from server",
 					details = {
 						'severity' : 'FATAL',
-						'detail' : 'Zero-length string read from the connection.'
-					}
+						'detail' : "Zero-length string read from the connection's socket.",
+					},
+					source = 'DRIVER'
 				)
 				lost_connection_error.connection = self
 				lost_connection_error.fatal = True
-				self.state = 'LOST'
-				raise lost_connection_error
+				self._pq_state = b'LOST'
+				(self._xact or self).ife_descend(lost_connection_error)
+				lost_connection_error.raise_exception(raise_from = e)
+
+			# Got data. Put it in the buffer and clear _read_data.
 			self._pq_in_buffer.write(self._read_data)
 			self._read_data = None
 
@@ -1859,19 +1941,25 @@ class Connection(pg_api.Connection):
 		'[internal] send unsent data initialized for delivery'
 		try:
 			while self._message_data:
+				# Send data while there is data to send.
 				self._message_data = self._message_data[
 					self.socket.send(self._message_data):
 				]
-		except (IOError, socket.error,) as e:
-			if e.errno == errno.EPIPE:
+		except self.connector.fatal_exception as e:
+			msg = self.connector.fatal_error_message(e)
+			if msg is not None:
 				lost_connection_error = pg_exc.ConnectionFailureError(
-					"broken connection detected on send",
-					details = {'severity' : 'FATAL'}
+					msg,
+					details = {
+						'severity' : 'FATAL',
+					},
+					source = 'DRIVER',
 				)
 				lost_connection_error.connection = self
 				lost_connection_error.fatal = True
-				self.state = 'LOST'
-				raise lost_connection_error from e
+				self._pq_state = b'LOST'
+				lost_connection_error.raise_exception(e)
+			# It wasn't fatal, so just raise:
 			raise
 
 	def _standard_write_messages(self, messages):
@@ -1916,8 +2004,9 @@ class Connection(pg_api.Connection):
 
 	def _backend_gc(self):
 		"""
-		close portals and statements slated for closure.
-		NOTE: Assumes no running transaction.
+		[internal] close portals and statements slated for closure.
+
+		WARNING: This will trample any existing transaction.
 		"""
 		xm = []
 		portals = 0
@@ -1992,14 +2081,14 @@ class Connection(pg_api.Connection):
 				return errno.EINTR
 			else:
 				raise
-		self.state = getattr(self._xact, 'last_ready', self.state)
+		self._pq_state = getattr(self._xact, 'last_ready', self._pq_state)
 		if self._xact.state is pq.Complete:
 			self._pop()
 
 	def _complete(self):
 		'[internal] complete the current transaction'
 		# Continue to transition until all transactions have been
-		# completed, or an exception occurs that is not EINTR.
+		# completed, or an exception occurs that does not signal retry.
 		while self._xact.state is not pq.Complete:
 			try:
 				while self._xact.state[0] is pq.Receiving:
@@ -2014,10 +2103,10 @@ class Connection(pg_api.Connection):
 					# completion *should* yield the same set over
 					# and over again.
 					self._xact.state[1]()
-			except (socket.error, IOError) as e:
-				if e[0] != errno.EINTR:
+			except self.connector.tryagain_exception as e:
+				if not self.connector.tryagain(e):
 					raise
-		self.state = getattr(self._xact, 'last_ready', self.state)
+		self._pq_state = getattr(self._xact, 'last_ready', self._pq_state)
 		self._pop()
 
 	def _pop(self):
@@ -2037,7 +2126,7 @@ class Connection(pg_api.Connection):
 				self._xact = None
 			else:
 				xact_error.fatal = True
-			raise xact_error
+			xact_error.raise_exception()
 		# state is Complete, so remove it as the working transaction
 		self._xact = None
 
@@ -2067,22 +2156,9 @@ class Connection(pg_api.Connection):
 
 		self._killinfo = None
 		self.backend_id = None
-		self.state = None
+		self._pq_state = None
 
 		self._xact = ClosedConnectionTransaction
-
-	def user():
-		def fget(self):
-			return self.cquery('SELECT current_user').first()
-		def fset(self, val):
-			return self.execute('SET ROLE "%s"' %(val.replace('"', '""'),))
-		def fdel(self):
-			self.execute("RESET ROLE")
-		return locals()
-	user = property(**user())
-
-	settings = None
-	xact = None
 
 	def __init__(self, connector, *args, **kw):
 		"""
@@ -2090,7 +2166,6 @@ class Connection(pg_api.Connection):
 		"""
 		self._cid = 0
 		self.connector = connector
-		self.notifier = connector.notifier
 		self._closestatements = []
 		self._closeportals = []
 		self._pq_in_buffer = pq_message_stream()
@@ -2109,169 +2184,62 @@ class Connection(pg_api.Connection):
 		self._reset()
 # class Connection
 
-def stderr_notifier(c, msg):
-	sys.stderr.write(format_message(msg))
-
 class Connector(pg_api.Connector):
 	"""
-	Connector(**config) -> Connector
-
 	All arguments to Connector are keywords. At the very least, user,
 	and socket, may be provided. If socket, unix, or process is not
 	provided, host and port must be.
 	"""
-	notifier = stderr_notifier
 	ife_ancestor = None
-	driver = None
 	Connection = Connection
-	sslmode = 'prefer'
-	words = (
-		'user',
-		# Piping
-		'host', 'port', 'ipv',
-		'process',
-		'pipe',
-		'socket',
-		'unix',
-		'sslmode',
-		'sslcrtfile',
-		'sslkeyfile',
-		'sslrootcrtfile',
-		'sslrootcrlfile',
-		'tracer',
-		'connect_timeout',
-		'server_encoding',
-		# PostgreSQL
-		'database', 'options', 'settings', 'password',
-		# Config
-		'path', 'role'
-	)
-	# XXX notifier = stderr_notifier
-	iri = property(
-		fget = lambda x: pg_iri.serialize(x.__dict__)
-	)
-	def __str__(self):
-		return pg_iri.serialize(self.__dict__)
 
 	def __repr__(self):
 		return type(self).__module__ + '.' + type(self).__name__ + '(%s)' %(
-			', '.join([
+			',' + os.linesep + ' '.join([
 				'%s = %r' %(k, getattr(self, k, None)) for k in self.words
 				if getattr(self, k, None) is not None
 			]),
 		)
 
-	def __getitem__(self, k):
-		return getattr(self, k)
-
-	def get(self, k, otherwise = None):
-		return getattr(self, k, otherwise)
-
-	def socket_create(self):
+	@abstractmethod
+	def socket_factory_sequence(self) -> [collections.Callable]:
 		"""
-		Method used by connections to create a socket to the target host.
+		Generate a list of callables that will be used to attempt to make the
+		connection to the server. It is assumed that each factory will produce an
+		object with a socket interface that is ready for reading and writing data.
+
+		The callables in the sequence must take a timeout parameter.
 		"""
-		return socket.socket(*self._socket_data[0])	
 
-	def socket_connect(self, timeout = None):
+	@abstractmethod
+	def socket_secure(self, socket):
 		"""
-		Create and connect a socket using the configured _socket_data
+		Given a socket produced using one of the callables created in the
+		`socket_factory_sequence`, secure it using SSL.
 		"""
-		s = socket.socket(*self._socket_data[0])
-		s.settimeout(timeout or self.connect_timeout)
-		try:
-			s.connect(self._socket_data[1])
-			s.settimeout(None)
-		except:
-			s.close()
-			raise
-		return s
 
-	def __init__(self, **kw):
-		for k in kw:
-			if k not in self.words:
-				raise TypeError(
-					"%s() got an unexpected keyword argument '%s'" %(
-						type(self).__name__, k,
-					)
-				)
+	def __init__(self,
+		connect_timeout : int = None,
+		server_encoding : "server encoding hint for driver" = None,
+		sslmode : ('allow', 'prefer', 'require', 'disallow') = 'prefer',
+		sslcrtfile : "filepath" = None,
+		sslkeyfile : "filepath" = None,
+		sslrootcrtfile : "filepath" = None,
+		sslrootcrlfile : "filepath" = None,
 
-		if not 'user' in kw:
-			raise TypeError(
-				"missing required key 'user' for Connection class"
-			)
+		path : list = None,
+		role : str = None,
+		**kw
+	):
+		super().__init__(**kw)
 
-		count = (
-			(int('pipe' in kw)) + \
-			(int('socket' in kw)) + \
-			(int('unix' in kw)) + \
-			(int('host' in kw)) + \
-			(int('process' in kw))
-		)
-		if count != 1:
-			raise TypeError(
-				"only one of the keyword arguments " \
-				"'host', 'socket', 'unix', 'process', 'pipe' may be supplied"
-			)
-
-		if 'host' in kw and not 'port' in kw:
-			raise TypeError(
-				"missing keyword 'port' required by 'host' connections"
-			)
-
-		self.pipe = kw.get('pipe')
-		self.socket = kw.get('socket')
-		self.unix = kw.get('unix')
-		self.host = kw.get('host')
-		self.port = int(kw.get('port'))
-		self.process = kw.get('process')
-		self.sslmode = kw.get('sslmode') or self.sslmode
-		self.database = kw.get('database') or None
-		self.sslkeyfile = kw.get('sslkeyfile')
-		self.sslcrtfile = kw.get('sslcrtfile')
-		self.sslrootcrtfile = kw.get('sslrootcrtfile')
-		self.sslrootcrlfile = kw.get('sslrootcrlfile')
-		self.connect_timeout = kw.get('connect_timeout')
-		self.server_encoding = kw.get('server_encoding', 'utf-8')
-		self.ipv = kw.get('ipv')
-
-		# Initialize the socket arguments.
-		if self.socket is not None:
-			# Nothing to do with user specified socket.
-			self._socket_data = self.socket
-		elif self.unix is not None:
-			self._socket_data = (
-				(socket.AF_UNIX, socket.SOCK_STREAM), self.unix
-			)
-		elif self.process is not None:
-			raise NotImplementedError("'process' method is currently unsupported")
-		elif self.ipv == 4:
-			self._socket_data = (
-				(socket.AF_INET, socket.SOCK_STREAM),
-				(self.host, self.port)
-			)
-		elif self.ipv == 6:
-			self._socket_data = (
-				(socket.AF_INET6, socket.SOCK_STREAM),
-				(self.host, self.port)
-			)
-		else:
-			ai = socket.getaddrinfo(
-				self.host, self.port, socket.AF_UNSPEC, socket.SOCK_STREAM
-			)
-			af, socktype, proto, cname, sa, = ai[0]
-			self._socket_data = ((af, socktype, proto), (self.host, self.port))
-			if af == socket.AF_INET:
-				self.ipv = 4
-			elif af == getattr(socket, 'AF_INET6', 0):
-				self.ipv = 6
-
-		self.user = kw['user']
-		self.password = kw.get('password') or None
-		self.options = kw.get('options') or None
-		self.settings = kw.get('settings') or None
-
-		self.notifier = kw.get('notifier', self.notifier)
+		self.server_encoding = server_encoding
+		self.connect_timeout = connect_timeout
+		self.sslmode = sslmode
+		self.sslkeyfile = sslkeyfile
+		self.sslcrtfile = sslcrtfile
+		self.sslrootcrtfile = sslrootcrtfile
+		self.sslrootcrlfile = sslrootcrlfile
 
 		# Startup message parameters.
 		tnkw = {}
@@ -2281,26 +2249,283 @@ class Connector(pg_api.Connector):
 		tnkw['user'] = self.user
 		if self.database is not None:
 			tnkw['database'] = self.database
-		if self.options is not None:
-			tnkw['options'] = self.options
 		tnkw['standard_conforming_strings'] = True
 
 		self._startup_parameters = tnkw
 # class Connector
 
-class Driver(pg_api.Driver):
-	Connector = Connector
-	ife_ancestor = None
+class SocketCreator(object):
+	def __call__(self, timeout = None):
+		s = socket.socket(*self.socket_create)
+		s.settimeout(timeout)
+		s.connect(self.socket_connect)
+		s.settimeout(None)
+		return s
 
-	def connect(self):
-		pass
+	def __init__(self,
+		socket_create : "positional parameters given to socket.socket()",
+		socket_connect : "parameter given to socket.connect()",
+	):
+		self.socket_create = socket_create
+		self.socket_connect = socket_connect
 
 	def __str__(self):
+		return 'socket' + repr(self.socket_connect)
+
+class SocketConnector(Connector):
+	'abstract connector for using `socket` and `ssl`'
+	def ife_snapshot_text(self):
+		return pg_iri.serialize(self.__dict__)
+
+	fatal_exception_messages = {
+		errno.ECONNRESET : 'server explicitly closed the connection',
+		errno.EPIPE : 'broken connection detected on send',
+	}
+	timeout_exception = socket.timeout
+	fatal_exception = socket.error
+	tryagain_exception = socket.error
+
+	def tryagain(self, err) -> bool:
+		# pretty easy
+		return getattr(err, 'errno', 0) == errno.EINTR
+
+	def fatal_exception_message(self, err) -> (str, None):
+		# None indicates that it was not fatal.
+		self.fatal_exception_messages.get(err.errno)
+
+	@abstractmethod
+	def socket_factory_sequence(self) -> [SocketCreator]:
+		"""
+		Return a sequence of `SocketCreator`s for a connection to use to connect
+		to the target host.
+		"""
+
+	def socket_secure(self, socket : socket.socket) -> ssl.SSLSocket:
+		"take a would be connection socket and secure it with SSL"
+		return ssl.wrap_socket(
+			socket,
+			keyfile = self.sslkeyfile,
+			certfile = self.sslcertfile,
+			ca_certs = self.sslrootcertfile,
+		)
+		# XXX: check revocation list?
+
+class IP4(SocketConnector):
+	'Connector for establishing IPv4 connections'
+	ipv = 4
+
+	def socket_factory_sequence(self):
+		return self._socketcreators
+
+	def __init__(self,
+		ipv = 4,
+		host = None,
+		port = None,
+		**kw
+	):
+		if ipv != self.ipv:
+			raise TypeError("`ipv` keyword must be `4`")
+		if host is None:
+			raise TypeError("`host` is a required keyword and cannot be `None`")
+		if port is None:
+			raise TypeError("`port` is a required keyword and cannot be `None`")
+		self.host = host
+		self.port = port
+		# constant socket connector
+		self._socketcreator = SocketCreator(
+			(socket.AF_INET4, socket.SOCK_STREAM), (self.host, self.port)
+		)
+		self._socketcreators = (
+			self._socketcreator,
+		)
+		super().__init__(**kw)
+
+class IP6(SocketConnector):
+	'Connector for establishing IPv6 connections'
+	ipv = 6
+	def socket_factory_sequence(self):
+		return self._socketcreators
+
+	def __init__(self, host = None, port = None, ipv = 6, **kw):
+		if ipv != self.ipv:
+			raise TypeError("`ipv` keyword must be `6`")
+		if host is None:
+			raise TypeError("`host` is a required keyword and cannot be `None`")
+		if port is None:
+			raise TypeError("`port` is a required keyword and cannot be `None`")
+		# constant socket connector
+		self._socketcreator = SocketCreator(
+			(socket.AF_INET6, socket.SOCK_STREAM), (self.host, self.port)
+		)
+		self._socketcreators = (
+			self._socketcreator,
+		)
+		super().__init__(**kw)
+
+class Unix(SocketConnector):
+	'Connector for establishing unix domain socket connections'
+	def socket_factory_sequence(self):
+		return self._socketcreators
+
+	def __init__(self, unix = None, **kw):
+		if unix is None:
+			raise TypeError("`unix` is a required keyword and cannot be `None`")
+		self.unix = unix
+		# constant socket connector
+		self._socketcreator = SocketCreator((socket.AF_UNIX, socket.SOCK_STREAM), self.unix)
+		self._socketcreators = (self._socketcreator,)
+		super().__init__(**kw)
+
+class Host(SocketConnector):
+	"""
+	Connector for establishing hostname based connections.
+
+	This connector exercises socket.getaddrinfo.
+	"""
+
+	def socket_factory_sequence(self):
+		"""
+		Return a list of `SocketCreator`s based on the results of
+		`socket.getaddrinfo`.
+		"""
+		return [
+			# (AF, socktype, proto), (IP, Port)
+			SocketCreator(x[0:3], x[4][:2])
+			for x in socket.getaddrinfo(
+				self.host, self.port, self._address_family, socket.SOCK_STREAM
+			)
+		]
+
+	def __init__(self,
+		host : str = None,
+		port : (str, int) = None,
+		ipv : int = None,
+		address_family : "address family to use(AF_INET,AF_INET6)" = None,
+		**kw
+	):
+		if host is None:
+			raise TypeError("`host` is a required keyword")
+		if port is None:
+			raise TypeError("`port` is a required keyword")
+
+		if address_family is not None and ipv is not None:
+			raise TypeError("`ipv` and `address_family` on mutually exclusive")
+
+		if ipv is None:
+			self._address_family = address_family or socket.AF_UNSPEC
+		elif ipv == 4:
+			self._address_family = socket.AF_INET
+		elif ipv == 6:
+			self._address_family = socket.AF_INET6
+		else:
+			raise TypeError("unknown IP version selected: `ipv` = " + repr(ipv))
+		self.host = host
+		self.port = port
+		super().__init__(**kw)
+
+implementation = None
+class Driver(pg_api.Driver):
+	ife_ancestor = None
+	# Connectors
+	IP4 = IP4
+	IP6 = IP6
+	Host = Host
+	Unix = Unix
+
+	def select(self,
+		unix = None,
+		host = None,
+		port = None,
+	) -> Connector:
+		"""
+		Select the appropriate `Connector` based on the parameters.
+
+		This also protects against mutually exclusive parameters.
+		"""
+		if unix is not None:
+			if host is not None:
+				raise TypeError("`unix` and `host` keywords are exclusive")
+			if port is not None:
+				raise TypeError("`unix` and `port` keywords are exclusive")
+			return self.Unix
+		else:
+			if host is None or port is None:
+				raise TypeError("`host` and `port`, or `unix` must be supplied")
+			# We have a host and a port.
+			# If it's an IP address, IP4 or IP6 should be selected.
+			if ':' in host:
+				# There's a ':' in host, good chance that it's IPv6.
+				try:
+					socket.inet_pton(socket.AF_INET6, host)
+					return self.IP6
+				except (socket.error, NameError):
+					pass
+
+			# Not IPv6, maybe IPv4...
+			try:
+				socket.inet_aton(host)
+				# It's IP4
+				return self.IP4
+			except socket.error:
+				pass
+
+			# neither host, nor port are None, probably a hostname.
+			return self.Host
+
+	def create(self,
+		unix = None,
+		host = None,
+		port = None,
+		**kw
+	) -> Connector:
+		c = self.select(unix = unix, host = host, port = port)
+		if c is self.Unix:
+			return c(unix = unix, **kw)
+		# Everything else uses host and port.
+		return c(host = host, port = port, **kw)
+
+	def connect(self,
+		unix = None,
+		host = None,
+		port = None,
+		**kw
+	) -> Connection:
+		"""
+		For more information on acceptable keywords, see help on:
+
+			`postgresql.driver.pq3.Connector`
+			 Keywords that apply to PostgreSQL, user
+			`postgresql.driver.pq3.IP4`
+			 Keywords that apply to IPv4 only connections.
+			`postgresql.driver.pq3.IP6`
+			 Keywords that apply to IPv6 only connections.
+			`postgresql.driver.pq3.Unix`
+			 Keywords that apply to Unix Domain Socket connections.
+			`postgresql.driver.pq3.Host`
+			 Keywords that apply to host-based connections(resolving connector).
+		"""
+		cid = set(kw.items())
+		if cid in self._connectors:
+			c = self._connectors[cid]
+		else:
+			c = self._connectors[cid] = self.create(**kw)
+			self.ife_descend(c)
+		return c()
+
+	def ife_snapshot_text(self):
 		return 'postgresql.driver.pq3'
+
+	def __init__(self):
+		self._connectors = dict()
+		self.ife_descend(
+			self.Unix,
+			self.IP4,
+			self.IP6,
+			self.Host,
+		)
 
 	def __new__(subtype):
 		# There is only one instance of postgresql.driver.pq3.
 		return implementation
 implementation = pg_api.Driver.__new__(Driver)
-Connector.driver = implementation
-Connector.ife_ancestor = Connector.driver
+implementation.__init__()

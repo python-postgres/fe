@@ -5,6 +5,7 @@
 'PQ version 3.0 elements'
 import sys
 import os
+import pprint
 from struct import pack, unpack, Struct
 
 StringFormat = b'\x00\x00'
@@ -113,7 +114,7 @@ def dict_message_repr(self):
 	return '%s.%s(**%s)' %(
 		type(self).__module__,
 		type(self).__name__,
-		dict.__repr__(self)
+		pprint.pformat(dict(self))
 	)
 
 class WireMessage(Message):

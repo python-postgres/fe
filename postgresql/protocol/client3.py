@@ -4,6 +4,9 @@
 ##
 'PQ version 3.0 client transactions'
 import sys
+import os
+from abc import abstractmethod
+from pprint import pformat
 from .. import api as pg_api
 from .. import exceptions as pg_exc
 from . import element3 as element
@@ -27,6 +30,22 @@ def return_arg(x):
 class ProtocolState(pg_api.InterfaceElement):
 	ife_label = 'PROTOCOL'
 	ife_ancestor = None
+
+	@abstractmethod
+	def messages_received(self):
+		"""
+		Return an iterable to the messages received.
+		"""
+
+	def ife_snapshot_text(self):
+		s = os.linesep
+		s += repr(self)
+		s += os.linesep*2 + '   [Received]' + os.linesep*2
+		s += pformat(list(self.messages_received()))
+		if hasattr(self, 'error_message'):
+			s += os.linesep*2 + '   [Error Message]' + os.linesep*2
+			s += repr(self.error_message)
+		return s
 
 class Negotiation(ProtocolState):
 	"""
@@ -60,8 +79,10 @@ class Negotiation(ProtocolState):
 		self.messages = next(self.machine)
 		self.state = (Sending, self.sent)
 	
-	def __str__(self):
-		return "XXX"
+	def __repr__(self):
+		s = type(self).__module__ + "." + type(self).__name__
+		s += pformat((self.startup_message, self.password)).lstrip()
+		return s
 
 	def reset(self):
 		self.authtype = None
@@ -369,17 +390,12 @@ class Transaction(ProtocolState):
 				)
 		self.reset()
 
-	def __str__(self):
-		return "XXX"
-
 	def __repr__(self):
-		return '%s.%s((%s))' %(
+		return '%s.%s(%s%s)' %(
 			type(self).__module__,
 			type(self).__name__,
-			self.commands and (
-			'\n\t' + ',\n\t'.join(
-				[repr(x) for x in self.commands]
-			) + ',\n') or ''
+			os.linesep,
+			pformat(self.commands)
 		)
 
 	def reset(self):
@@ -479,14 +495,19 @@ class Transaction(ProtocolState):
 				else:
 					##
 					# Procotol violation
-					raise pg_exc.ProtocolError(
+					err = pg_exc.ProtocolError(
 						"expected message of types %r, "\
 						"but received %r instead" % (
 							tuple(paths[current_step].keys()), x[0]
 						),
-						expected = paths[current_step].keys(),
-						invalid_message = x
+						source = 'DRIVER',
+						details = {
+							'SEVERITY': 'FATAL',
+						}
 					)
+					self.ife_descend(err)
+					err.fatal = True
+					err.raise_exception()
 			else:
 				# Valid message
 				r = path(x[1])
@@ -639,5 +660,5 @@ class Transaction(ProtocolState):
 		else:
 			# initialize to CopyFail, if the messages attribute is not
 			# set properly before each invocation, the transaction is
-			# being misused and should be terminated.
+			# being misused and will be terminated.
 			self.messages = self.CopyFailSequence
