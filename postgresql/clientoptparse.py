@@ -75,7 +75,7 @@ password = make_option('-W', '--password',
 	default = False,
 )
 
-unix = make_option('--unix-socket',
+unix = make_option('--unix',
 	help = 'path to filesystem socket',
 	type = 'str',
 	action = 'callback',
@@ -84,20 +84,6 @@ unix = make_option('--unix-socket',
 )
 unix.socket_provider_type = 'unix'
 
-process = make_option('--process',
-	help = 'the subprocess to execute to facilitate the connection',
-	type = 'str',
-	action = 'callback',
-	dest = 'socket_provider',
-	callback = set_socket_provider
-)
-process.socket_provider_type = 'process'
-
-server_options = make_option('--server-options',
-	dest = 'options',
-	help = 'command line options for the remote Postgres backend',
-	default = None,
-)
 require_ssl = make_option('--require-ssl',
 	dest = 'sslmode',
 	help = 'require an SSL connection',
@@ -142,7 +128,7 @@ path = make_option('--path',
 
 service_file = make_option('--pg-service-file',
 	dest = 'pg_service_file',
-	help = 'Postgres service file use to for lookups',
+	help = 'PostgreSQL service file use to for lookups',
 	default = None,
 )
 
@@ -212,8 +198,8 @@ def iri_callback(option, opt_str, value, parser):
 	parser.values.settings.extend(list(
 		d.pop('settings', {}).items()
 	))
-	if 'process' in d:
-		parser.values.socket_provider = ('process', d.pop('process'))
+	if 'unix' in d:
+		parser.values.socket_provider = ('unix', d.pop('unix'))
 	elif 'host' in d:
 		parser.values.socket_provider = ('host', d.pop('host'))
 
@@ -235,8 +221,8 @@ def dsn_callback(option, opt_str, value, parser):
 	parser.values.settings.extend(list(
 		d.pop('settings', {}).items()
 	))
-	if 'process' in d:
-		parser.values.socket_provider = ('process', d.pop('process'))
+	if 'unix' in d:
+		parser.values.socket_provider = ('unix', d.pop('unix'))
 	elif 'host' in d:
 		parser.values.socket_provider = ('host', d.pop('host'))
 
@@ -269,8 +255,6 @@ class StandardParser(OptionParser):
 # Extended Options
 default = standard + [
 	unix,
-	process,
-	server_options,
 	sslmode,
 	require_ssl,
 	role,
@@ -285,35 +269,27 @@ default = standard + [
 class DefaultParser(StandardParser):
 	"""
 	Parser that includes a variety of connectivity options.
-	(IRI, DSN, sslmode, role(set role), settings, server_options)
+	(IRI, DSN, sslmode, role(set role), settings)
 	"""
 	standard_option_list = default
 
-optionmap = {
-	'server_options' : 'options',
-}
 optionattr = [
 	'user',
 	'port',
 	'database',
 	'settings',
-	'fragment',
 	'sslmode',
 	'role',
 	'path',
 ]
 
-def convert(co, attrlist = optionattr, attrmap = optionmap):
+def convert(co, attrlist = optionattr):
 	"""
 	Convert an OptionParser instance into a `postgresql.clientparams` dictionary.
 	"""
-	for attname, key in attrmap.items():
-		v = getattr(co, attname, None)
-		if v is not None:
-			yield (key, value)
 	for key in attrlist:
 		v = getattr(co, key, None)
-		if v is not None and v != () and v != []:
+		if v is not None and v != () and v != [] and v != {}:
 			yield (key, v)
 	sp = getattr(co, 'socket_provider', None)
 	if sp is not None:
@@ -321,24 +297,21 @@ def convert(co, attrlist = optionattr, attrmap = optionmap):
 		if sp[0] == 'host' and co.port:
 			yield ('port', co.port)
 
-def parse_named_connections(args, parser = DefaultParser):
+def parse_named_args(
+	args, parser = DefaultParser,
+) -> ('name', {}, ()):
 	"""
-	Given a sequence of command line arguments, parse the options for each
-	"non-option", associating the converted options with the "non-option":
+	Given a sequence of command line arguments, parse the options of the
+	"connection name"
 
-	>>> parse_connection_set(['src', '-h', 'localhost', 'dst', '-h', 'remote'])
-	{'src' : {'host' : 'localhost'}, 'dst' : {'host' : 'remote'}}
+	>>> parse_named_client_parameters(['src', '-h', 'localhost', 'dst', '-h', 'remote'])
+	('src', {'host' : 'localhost'}, ('dst', '-h', 'remote'))
 
-	This is useful for 
+	This is useful for scripts that deal with multiple databases.
 	"""
-	r = {}
 	args = list(args)
-
-	while args:
-		name = args.pop(0)
-		p = parser()
-		p.disable_interspersed_args()
-		co, ca = p.parse_args(args)
-		r[name] = dict(convert(co))
-		args = list(ca)
-	return r
+	name = args.pop(0)
+	p = parser(description = "client connection parameters for " + repr(name))
+	p.disable_interspersed_args()
+	co, ca = p.parse_args(args)
+	return (name, dict(convert(co)), ca)
