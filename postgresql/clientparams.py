@@ -11,7 +11,7 @@ pgpass, pg_service.conf, etc.
 """
 import sys
 import os
-import postgresql.pgpass as pgpass
+from . import pgpassfile as pgpass
 
 try:
 	from getpass import getuser, getpass

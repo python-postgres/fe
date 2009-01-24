@@ -3,8 +3,8 @@
 # http://python.projects.postgresql.org
 ##
 import unittest
-import postgresql.pgpass as client_pgpass
-from StringIO import StringIO
+from .. import pgpass as client_pgpass
+from io import StringIO
 
 passfile_sample = """
 host:1111:dbname:user:password1
@@ -47,7 +47,7 @@ class test_pgpass(unittest.TestCase):
 		sample1 = client_pgpass.parse(StringIO(passfile_sample))
 		sample2 = client_pgpass.parse(StringIO(difficult_passfile_sample))
 
-		for k, pw in passfile_sample_map.iteritems():
+		for k, pw in passfile_sample_map.items():
 			lpw = client_pgpass.lookup_password(sample1, k)
 			self.failUnless(lpw == pw,
 				"password lookup incongruity, expecting %r got %r with %r"
@@ -56,7 +56,7 @@ class test_pgpass(unittest.TestCase):
 				)
 			)
 
-		for k, pw in difficult_passfile_sample_map.iteritems():
+		for k, pw in difficult_passfile_sample_map.items():
 			lpw = client_pgpass.lookup_password(sample2, k)
 			self.failUnless(lpw == pw,
 				"password lookup incongruity, expecting %r got %r with %r"
