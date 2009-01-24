@@ -3,8 +3,7 @@
 # http://python.projects.postgresql.org
 ##
 """
-String join and split operations for dealing with literals
-and identifiers.
+String split and join operations for dealing with literals and identifiers.
 
 Notably, the functions in this module are intended to be used for simple
 use-cases. It attempts to stay away from "real" parsing and simply provides
@@ -12,22 +11,16 @@ functions for common needs, like the ability to identify unquoted portions of a
 query string so that logic or transformations can be applied to only unquoted
 portions. Scanning for statement terminators, or safely interpolating
 identifiers.
+
+All functions deal with strict quoting rules.
 """
 import re
 
 def escape_literal(text):
-	"Replace every instance of ' with '' and every \\ with \\\\"
-	return text.replace('\\', '\\\\').replace("'", "''")
-
-def escape_literal_strict(text):
 	"Replace every instance of ' with ''"
 	return text.replace("'", "''")
 
 def quote_literal(text):
-	"Escape the literal and wrap it in [single] quotations prefixed with 'E'"
-	return "E'" + text.replace('\\', '\\\\').replace("'", "''") + "'"
-
-def quote_literal_strict(text):
 	"Escape the literal and wrap it in [single] quotations"
 	return "'" + text.replace("'", "''") + "'"
 
@@ -46,12 +39,6 @@ def quote_ident(text):
 
 quote_re = re.compile(r"""(?xu)
 	E'(?:''|\\.|[^'])*(?:'|$)          (?# Backslash escapes E'str')
-|	'(?:''|\\.|[^'])*(?:'|$)           (?# Regular literals 'str')
-|	"(?:""|[^"])*(?:"|$)               (?# Identifiers "str")
-|	(\$(?:[^0-9$]\w*)?\$).*?(?:\1|$)   (?# Dollar quotes $$str$$)
-""")
-quote_strict_re = re.compile(r"""(?xu)
-	E'(?:''|\\.|[^'])*(?:'|$)          (?# Backslash escapes E'str')
 |	'(?:''|[^'])*(?:'|$)               (?# Regular literals 'str')
 |	"(?:""|[^"])*(?:"|$)               (?# Identifiers "str")
 |	(\$(?:[^0-9$]\w*)?\$).*?(?:\1|$)   (?# Dollar quotes $$str$$)
@@ -67,7 +54,7 @@ def split(text, re = quote_re):
 	pair-tuples specifying the quotation mechanism and the content thereof.
 
 	>>> list(split("select $$foobar$$"))
-	['select ', ('$$', foobar), '']
+	['select ', ('$$', 'foobar'), '']
 
 	If the split ends on a quoted section, it means the string's quote was not
 	terminated. Subsequently, there will be an even number of objects in the
@@ -116,7 +103,7 @@ def split(text, re = quote_re):
 def unsplit(splitted_iter):
 	"""
 	catenate a split string. This is needed to handle the special
-	cases created by pg.strings.split(). (Run-away quotations, primarily)
+	cases created by pg.string.split(). (Run-away quotations, primarily)
 	"""
 	s = ''
 	quoted = False
