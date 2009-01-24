@@ -17,7 +17,7 @@ from operator import attrgetter
 from abc import abstractmethod, abstractproperty
 import collections
 
-from .. import version as pg_version
+from .. import versionstring as pg_version
 from .. import iri as pg_iri
 from .. import exceptions as pg_exc
 from .. import string as pg_str

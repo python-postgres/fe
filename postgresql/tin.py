@@ -13,7 +13,7 @@ import subprocess
 import warnings
 from random import random
 
-from . import version as pg_version
+from . import versionstring as pg_version
 from . import pg_config
 from .cluster import Cluster
 
