@@ -5,7 +5,7 @@
 import sys
 import os
 import unittest
-import postgresql.strings as pg_str
+from .. import string as pg_str
 
 # strange possibility, split, normalized
 split_qname_samples = [
@@ -218,19 +218,11 @@ class test_strings(unittest.TestCase):
 
 	def test_quotes(self):
 		self.failUnlessEqual(
-			pg_str.quote_literal_strict("""foo'bar"""),
+			pg_str.quote_literal("""foo'bar"""),
 			"""'foo''bar'"""
 		)
 		self.failUnlessEqual(
-			pg_str.quote_literal("""foo'bar"""),
-			"""E'foo''bar'"""
-		)
-		self.failUnlessEqual(
 			pg_str.quote_literal("""\\foo'bar\\"""),
-			"""E'\\\\foo''bar\\\\'"""
-		)
-		self.failUnlessEqual(
-			pg_str.quote_literal_strict("""\\foo'bar\\"""),
 			"""'\\foo''bar\\'"""
 		)
 		self.failUnlessEqual(
@@ -258,7 +250,7 @@ class test_strings(unittest.TestCase):
 			if chr(x) != "'"
 		])
 		self.failUnlessEqual(
-			pg_str.escape_literal_strict(chars),
+			pg_str.escape_literal(chars),
 			chars,
 		)
 		chars = ''.join([
