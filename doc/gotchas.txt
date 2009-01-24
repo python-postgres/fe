@@ -5,29 +5,17 @@ It is recognized that decisions were made that may not always be ideal for a
 given user. In order to highlight those potential issues and hopefully bring
 some sense into a confusing situation, this document was drawn.
 
-Cursors are not usable after transaction commits or aborts
-----------------------------------------------------------
 
-`postgresql.driver` uses protocol level cursors. When a cursor is bound, there
-is no way for the driver to state that the cursor should be held via the
-protocol. This causes two potentially unfortunate things:
+client_encoding and TimeZone GUCs should be altered carefully
+-------------------------------------------------------------
 
- - In auto-commit mode, the entire cursor is read.
- - When a transaction closes, all cursors created become unusable.
-
-Prepared statements, in contrast, are not automatically closed.
-
-
-client_encoding and TimeZone GUCs should not be altered
--------------------------------------------------------
-
-`postgresql.driver`'s cursor implementation reads a fixed set of rows when it
-queries the server for more. In order to optimized some situations, the driver
-will send a request for more data, but makes no attempt to wait and process the
-data as it is not yet needed. When the user comes back to read more data from
-the cursor, it will then look at this new data. The problem being, if the
-`client_encoding` or the `TimeZone` was switched, it may use the wrong codec and
-tzinfo to transform the wire data into higher level Python objects.
+`postgresql.driver`'s streaming cursor implementation reads a fixed set of rows
+when it queries the server for more. In order to optimized some situations, the
+driver will send a request for more data, but makes no attempt to wait and
+process the data as it is not yet needed. When the user comes back to read more
+data from the cursor, it will then look at this new data. The problem being, if
+the `client_encoding` or the `TimeZone` was switched, it may use the wrong codec
+and tzinfo to transform the wire data into higher level Python objects.
 
 To avoid this problem from ever happening, set the `TimeZone` or
 `client_encoding` early. Furthermore, it is probably best to never change the
