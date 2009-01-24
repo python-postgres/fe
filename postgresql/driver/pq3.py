@@ -2223,7 +2223,7 @@ class Connector(pg_api.Connector):
 	def __init__(self,
 		connect_timeout : int = None,
 		server_encoding : "server encoding hint for driver" = None,
-		sslmode : ('allow', 'prefer', 'require', 'disallow') = 'prefer',
+		sslmode : ('allow', 'prefer', 'require', 'disable') = 'prefer',
 		sslcrtfile : "filepath" = None,
 		sslkeyfile : "filepath" = None,
 		sslrootcrtfile : "filepath" = None,
