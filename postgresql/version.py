@@ -15,63 +15,53 @@ PostgreSQL version parsing.
 0
 """
 
-def split(vstr):
+def split(vstr : str) -> (
+	'major','minor','patch',...,'state_class','state_level'
+):
 	"""
 	Split a PostgreSQL version string into a tuple
-	(major,minor,patch,state_class,state_level)
+	(major,minor,patch,...,state_class,state_level)
 	"""
-	v = vstr.strip().split('.', 3)
+	v = vstr.strip().split('.')
 
-	# Get rid of the numbers around the state_class (beta,a,dev,alpha)
+	# Get rid of the numbers around the state_class (beta,a,dev,alpha, etc)
 	state_class = v[-1].strip('0123456789')
 	if state_class:
-		last_version_num, state_level = v[-1].split(state_class)
+		last_version, state_level = v[-1].split(state_class)
 		if not state_level:
 			state_level = None
 		else:
 			state_level = int(state_level)
+		vlist = [int(x or '0') for x in v[:-1]]
+		if last_version:
+			vlist.append(int(last_version))
+		vlist += [None] * (3 - len(vlist))
+		vlist += [state_class, state_level]
 	else:
-		last_version_num = v[-1]
 		state_level = None
 		state_class = None
+		vlist = [int(x or '0') for x in v]
+		# pad the difference with `None` objects, and +2 for the state_*.
+		vlist += [None] * ((3 - len(vlist)) + 2)
+	return tuple(vlist)
 
-	if last_version_num:
-		last_version_num = int(last_version_num)
-	else:
-		last_version_num = None
-	
-	if len(v) == 3:
-		major = int(v[0])
-		if v[1]:
-			minor = int(v[1])
-		else:
-			minor = None
-		patch = last_version_num
-	elif len(v) == 2:
-		major = int(v[0])
-		minor = last_version_num
-		patch = None
-	else:
-		major = last_version_num
-		minor = None
-		patch = None
-
-	return (
-		major,
-		minor,
-		patch,
-		state_class,
-		state_level
+def unsplit(vtup : tuple) -> str:
+	'join a version tuple back into the original version string'
+	svtup = [str(x) for x in vtup[:-2] if x is not None]
+	state_class, state_level = vtup[-2:]
+	return '.'.join(svtup) + (
+		'' if state_class is None else state_class + str(state_level)
 	)
 
-def unsplit(vtup):
-	'join a version tuple back into a version string'
-	return '%s%s%s%s%s' %(
-		vtup[0],
-		vtup[1] is not None and '.' + str(vtup[1]) or '',
-		vtup[2] is not None and '.' + str(vtup[2]) or '',
-		vtup[3] is not None and str(vtup[3]) or '',
-		vtup[4] is not None and str(vtup[4]) or ''
+def normalize(split_version : "a tuple returned by `split`") -> tuple:
+	"""
+	Given a tuple produced by `split`, normalize the `None` objects into int(0)
+	or 'final' if it's the ``state_class``
+	"""
+	(*head, state_class, state_level) = split_version
+	mmp = [x if x is not None else 0 for x in head]
+	return tuple(
+		mmp + [state_class or 'final', state_level or 0]
 	)
 
 default_state_class_priority = [
@@ -81,6 +71,7 @@ default_state_class_priority = [
 	'b',
 	'beta',
 	'rc',
+	'final',
 	None,
 ]
 
@@ -108,17 +99,15 @@ def compare(
 		raise ValueError("second argument has unknown state class %r" %(v2[-2],))
 	return cmp(v1l, v2l)
 
-
-def python(self):
-	return repr(self)
+python = repr
 
 def xml(self):
 	return '<version type="one">\n' + \
 		' <major>' + str(self[0]) + '</major>\n' + \
 		' <minor>' + str(self[1]) + '</minor>\n' + \
 		' <patch>' + str(self[2]) + '</patch>\n' + \
-		' <state>' + str(self[3]) + '</state>\n' + \
-		' <level>' + str(self[4]) + '</level>\n' + \
+		' <state>' + str(self[-2]) + '</state>\n' + \
+		' <level>' + str(self[-1]) + '</level>\n' + \
 		'</version>'
 
 def sh(self):
@@ -130,12 +119,13 @@ PG_VERSION_LEVEL=%s""" %(
 		str(self[0]),
 		str(self[1]),
 		str(self[2]),
-		str(self[3]),
-		str(self[4]),
+		str(self[-2]),
+		str(self[-1]),
 	)
 
 if __name__ == '__main__':
 	import sys
+	import os
 	from optparse import OptionParser
 	op = OptionParser()
 	op.add_option('-f', '--format',
@@ -145,20 +135,19 @@ if __name__ == '__main__':
 		choices=('sh', 'xml', 'python'),
 		default='sh',
 	)
-	op.add_option('-t', '--type',
-		type='choice',
-		dest='type',
-		help='type of version string to parse',
-		choices=('auto', 'one',),
-		default='auto',
+	op.add_option('-n', '--normalize',
+		action='store_true',
+		dest='normalize',
+		help='replace missing values with defaults',
+		default=False,
 	)
 	op.set_usage(op.get_usage().strip() + ' "version to parse"')
 	co, ca = op.parse_args()
 	if len(ca) != 1:
 		op.error('requires exactly one argument, the version')
-	if co.type != 'auto':
-		v = getattr(sys.modules[__name__], co.type).parse(ca[0])
 	else:
 		v = split(ca[0])
-	sys.stdout.write(getattr(v, co.format)())
-	sys.stdout.write('\n')
+	if co.normalize:
+		v = normalize(v)
+	sys.stdout.write(getattr(sys.modules[__name__], co.format)(v))
+	sys.stdout.write(os.linesep)
