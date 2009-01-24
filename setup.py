@@ -121,10 +121,10 @@ defaults = {
 	),
 
 	'scripts' : [
-		'bin/pg_dotconf',
-		'bin/pg_python',
-		'bin/pg_tin',
-		'bin/pg_withcluster'
+		'postgresql/bin/pg_dotconf',
+		'postgresql/bin/pg_python',
+		'postgresql/bin/pg_tin',
+		'postgresql/bin/pg_withcluster'
 	]
 }
 

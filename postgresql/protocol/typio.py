@@ -515,7 +515,7 @@ class TypeIO(object, metaclass = ABCMeta):
 
 	def xml_unpack(self, xmldata):
 		return pg_types.etree.XML(self._decode(xmldata)[0])
-	
+
 	def attribute_map(self, pq_descriptor):
 		return {
 			self._decode(k)[0] : v
