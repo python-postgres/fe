@@ -445,7 +445,7 @@ class Portal(pg_api.Cursor):
 
 	def __iter__(self):
 		return self
-	
+
 	def ife_snapshot_text(self):
 		return self.cursor_id
 
@@ -717,6 +717,8 @@ class Cursor(Portal):
 class ClientStatementCursor(Portal):
 	"Client statement created cursors"
 	ife_ancestor = property(attrgetter('query'))
+	withhold = False
+	withscroll = False
 
 	def __init__(self, query, params, output, output_io, oformats, **kw):
 		super().__init__(
