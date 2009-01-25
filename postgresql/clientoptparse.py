@@ -281,6 +281,7 @@ optionattr = [
 	'sslmode',
 	'role',
 	'path',
+	'prompt_password',
 ]
 
 def convert(co, attrlist = optionattr):
