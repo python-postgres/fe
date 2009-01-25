@@ -96,7 +96,7 @@ class Cup(object):
 			])),
 		}
 
-		if cmp(pgv (8, 0)) >= 0:
+		if cmp(pgv, (8, 0)) >= 0:
 			config['log_destination'] = "'stderr'"
 			if cmp(pgv, (8, 3)):
 				config['redirect_stderr'] = 'off'
@@ -170,7 +170,6 @@ selection_options = [
 	select_configure,
 	select_all,
 ]
-
 
 COMMAND_HELP = _("""%prog [options] command [args]
 
@@ -488,9 +487,6 @@ def tin(args):
 				)
 			)
 			sys.exit(1)
-
-def main():
-	tin(sys.argv)
 
 if __name__ == '__main__':
 	tin(sys.argv)
