@@ -2246,7 +2246,13 @@ class Connector(pg_api.Connector):
 		# Startup message parameters.
 		tnkw = {}
 		if self.settings:
-			tnkw.update(self.settings)
+			s = dict(self.settings)
+			sp = s.get('search_path')
+			if not isinstance(sp, str):
+				s['search_path'] = ','.join(
+					pg_str.quote_ident(x) for x in sp
+				)
+			tnkw.update(s)
 
 		tnkw['user'] = self.user
 		if self.database is not None:

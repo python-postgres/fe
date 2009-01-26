@@ -11,7 +11,7 @@ import re
 import code
 import optparse
 import contextlib
-from .. import clientparams
+from .. import clientparameters
 from .. import clientoptparse as pg_opt
 from ..resolved import pythoncommand as pycmd
 
@@ -49,10 +49,8 @@ def command(args = sys.argv):
 	co, ca = p.parse_args(args[1:])
 	in_xact = co.in_xact
 
-	cond = clientparams.defaults()
-	cond = clientparams.merge(cond, clientparams.convert_envvars(os.environ))
-	cond = clientparams.merge(cond, pg_opt.convert(co))
-	clientparams.resolve_password(cond)
+	cond = clientparameters.standard(co = co, prompt_title = "pg_python")
+	print(cond)
 	connector = pg_driver.create(**cond)
 	connection = connector.create()
 

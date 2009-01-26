@@ -3,7 +3,7 @@
 # http://python.projects.postgresql.org
 ##
 """
-Split, parse, serialize, and structure PQ IRIs.
+Parse and serialize PQ IRIs.
 
 PQ IRIs take the form::
 
@@ -18,6 +18,7 @@ Driver Parameters:
 	pq://user@host/?[driver_param]=value&[other_param]=value
 """
 from .resolved import riparse as ri
+from . import string as pg_str
 import re
 
 escape_path_re = re.compile('[%s]' %(re.escape(ri.unescaped + ','),))
@@ -38,26 +39,29 @@ def structure(d, fieldproc = ri.unescape):
 
 	if host:
 		if host.startswith('[') and host.endswith(']'):
-			cpd['ipv'] = 6
-			cpd['host'] = host[1:-1]
+			host = host[1:-1]
+			if host.startswith('unix:'):
+				cpd['unix'] = host[len('unix:'):]
+			else:
+				cpd['host'] = host[1:-1]
 		else:
 			cpd['host'] = fieldproc(host)
 
 	if path:
-		if len(path) > 1:
-			raise ValueError("PQ-IRIs may only have one path component")
 		# Only state the database field's existence if the first path is non-empty.
 		if path[0]:
 			cpd['database'] = path[0]
+		path = path[1:]
+		if path:
+			cpd['path'] = path
 
-	if frag:
-		d['path'] = [
-			fieldproc(x) for x in frag.split(',')
-		]
-
+	settings = {}
 	if query:
-		settings = {}
-		for k, v in query.items():
+		if hasattr(query, 'items'):
+			qiter = query.items()
+		else:
+			qiter = query
+		for k, v in qiter:
 			if k.startswith('[') and k.endswith(']'):
 				k = k[1:-1]
 				if k != 'settings' and k not in cpd:
@@ -65,8 +69,14 @@ def structure(d, fieldproc = ri.unescape):
 			elif k:
 				settings[fieldproc(k)] = fieldproc(v)
 			# else: ignore empty query keys
-		if settings:
-			cpd['settings'] = settings
+
+	if frag:
+		settings['search_path'] = [
+			fieldproc(x) for x in frag.split(',')
+		]
+
+	if settings:
+		cpd['settings'] = settings
 
 	return cpd
 
@@ -78,26 +88,69 @@ def construct_path(x, re = escape_path_re):
 		re.sub(ri.re_pct_encode, y) for y in x
 	))
 
-def construct(x):
+def construct(x, obscure_password = False):
 	'Construct a RI dictionary from a clientparams dictionary'
+	# the rather exhaustive settings choreography is due to
+	# a desire to allow 
+	settings = x.get('settings')
+	no_path_settings = None
+	search_path = None
+	if settings:
+		if isinstance(settings, dict):
+			siter = settings.items()
+			search_path = settings.get('search_path')
+		else:
+			siter = list(settings)
+			search_path = [(k,v) for k,v in siter if k == 'search_path']
+			search_path.append((None,None))
+			search_path = search_path[-1][1]
+		no_path_settings = [(k,v) for k,v in siter if k != 'search_path']
+		if not no_path_settings:
+			no_path_settings = None
+
+	# It could be a string search_path, split if it is.
+	if search_path is not None and isinstance(search_path, str):
+		search_path = pg_str.split_ident(search_path, ',')
+
+	port = None
+	if 'unix' in x:
+		host = '[unix:/' + x['unix'] + ']'
+		# ignore port.. it's a mis-config.
+	elif 'host' in x:
+		host = x['host']
+		if ':' in host:
+			host = '[' + host + ']'
+		port = x.get('port')
+	else:
+		host = None
+		port = x.get('port')
+	
+	path = []
+	if 'database' in x:
+		path.append(x['database'])
+	if 'path' in x:
+		path.extend(x['path'])
+
+	password = x.get('password')
+	if obscure_password and password is not None:
+		password = '***'
 	return (
 		'pq',
 		# netloc: user:pass@host[:port]
 		ri.unsplit_netloc((
 			x.get('user'),
-			x.get('password'),
-			'[' + x.get('host') + ']' if (
-				str(x.get('ipv', -1)) == '6' and ':' in x.get('host', '')
-			) else x.get('host'),
+			password,
+			host,
 			None if 'port' not in x else str(x['port'])
 		)),
-		None if x.get('database') is None else (
-			ri.escape_path_re.sub(x['database'], '/')
+		None if not path else '/'.join([
+			ri.escape_path_re.sub(path_comp, '/')
+			for path_comp in path
+		]),
+		None if no_path_settings is None else (
+			ri.construct_query(no_path_settings)
 		),
-		None if x.get('settings') is None else (
-			ri.construct_query(x['settings'])
-		),
-		None if x.get('path') is None else construct_path(x['path']),
+		None if search_path is None else construct_path(search_path),
 	)
 
 def parse(s, fieldproc = ri.unescape):
@@ -110,9 +163,9 @@ def parse(s, fieldproc = ri.unescape):
 		fieldproc = fieldproc
 	)
 
-def serialize(x):
+def serialize(x, obscure_password = False):
 	'Return a Postgres IRI from a dictionary object.'
-	return ri.unsplit(construct(x))
+	return ri.unsplit(construct(x, obscure_password = obscure_password))
 
 if __name__ == '__main__':
 	import sys
