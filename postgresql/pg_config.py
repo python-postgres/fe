@@ -34,7 +34,7 @@ def dictionary(pg_config_path):
 	default_output = call(pg_config_path)
 	if default_output is not None:
 		d = {}
-		for x in call(pg_config_path).splitlines():
+		for x in default_output.splitlines():
 			if not x or x.isspace() or x.find('=') == -1:
 				continue
 			k, v = x.split('=', 1)
