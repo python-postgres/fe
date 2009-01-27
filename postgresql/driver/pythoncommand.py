@@ -12,7 +12,6 @@ import code
 import optparse
 import contextlib
 from .. import clientparameters
-from .. import clientoptparse as pg_opt
 from ..resolved import pythoncommand as pycmd
 
 from . import implementation as pg_driver
@@ -24,7 +23,7 @@ pq_trace = optparse.make_option(
 	default = None,
 )
 default_options = [
-	pg_opt.in_xact,
+	clientparameters.option_in_xact,
 	pq_trace,
 ] + pycmd.default_optparse_options
 
@@ -40,7 +39,7 @@ def extract_parameters(src):
 
 def command(args = sys.argv):
 	# Allow connection options to be collected in #!pg_python lines
-	p = pg_opt.DefaultParser(
+	p = clientparameters.DefaultParser(
 		"%prog [connection options] [script] [-- script options] [args]",
 		version = '1.0',
 		option_list = default_options
@@ -50,7 +49,6 @@ def command(args = sys.argv):
 	in_xact = co.in_xact
 
 	cond = clientparameters.standard(co = co, prompt_title = "pg_python")
-	print(cond)
 	connector = pg_driver.create(**cond)
 	connection = connector.create()
 
@@ -93,17 +91,13 @@ def command(args = sys.argv):
 	try:
 		if trace_file is not None:
 			connection.tracer = trace_file.write
-
-		with connection:
-			if in_xact:
-				with connection.xact:
-					rv = pythonexec(
-						context = pycmd.postmortem(os.environ.get('PYTHON_POSTMORTEM'))
-					)
-			else:
-				rv = pythonexec(
-					context = pycmd.postmortem(os.environ.get('PYTHON_POSTMORTEM'))
-				)
+		context = [connection]
+		if in_xact:
+			context.append(connection.xact)
+		with contextlib.nested(*context):
+			rv = pythonexec(
+				context = pycmd.postmortem(os.environ.get('PYTHON_POSTMORTEM'))
+			)
 	finally:
 		# restore __builtins__
 		__builtins__.update(restore)

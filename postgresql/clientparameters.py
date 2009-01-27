@@ -8,7 +8,10 @@ Collect client connection parameters from various sources.
 import sys
 import os
 import configparser
+import optparse
 from itertools import chain
+from functools import partial
+
 
 from . import iri as pg_iri
 from . import dsn as pg_dsn
@@ -62,7 +65,7 @@ default_envvar_map = {
 	# Extensions
 	'ROLE' : 'role', # SET ROLE $PGROLE
 
-	# This keyword will never make it to a connect() function
+	# This keyword *should* never make it to a connect() function
 	# as `resolve_password` should be called to fill in the
 	# parameter accordingly.
 	'PASSFILE' : 'pgpassfile',
@@ -149,6 +152,158 @@ def envvars(environ = os.environ, modifier : "environment variable key modifier"
 	service = modifier('SERVICE')
 	if service in environ:
 		yield ('pg_service', environ[service])
+
+##
+# optparse options
+##
+
+option_datadir = optparse.make_option('-D', '--datadir',
+	help = 'location of the database storage area',
+	default = None,
+	dest = 'datadir',
+)
+
+option_in_xact = optparse.make_option('-1', '--with-transaction',
+	dest = 'in_xact',
+	action = 'store_true',
+	help = 'run operation with a transaction block',
+)
+
+def append_db_client_parameters(option, opt_str, value, parser):
+	# for options without arguments, None is passed in.
+	value = True if value is None else value
+	parser.values.db_client_parameters.append(
+		((option.dest,), value)
+	)
+
+make_option = partial(optparse.make_option,
+	action = 'callback',
+	callback = append_db_client_parameters
+)
+
+option_user = make_option('-U', '--username',
+	dest = 'user',
+	type = 'str',
+	help = 'user name to connect as',
+)
+option_database = make_option('-d', '--database',
+	type = 'str',
+	help = "database's name",
+	dest = 'database',
+)
+option_password = make_option('-W', '--password',
+	dest = 'prompt_password',
+	help = 'prompt for password',
+)
+option_host = make_option('-h', '--host',
+	help = 'database server host',
+	type = 'str',
+	dest = 'host',
+)
+option_port = make_option('-p', '--port',
+	help = 'database server port',
+	type = 'str',
+	dest = 'port',
+)
+option_unix = make_option('--unix',
+	help = 'path to filesystem socket',
+	type = 'str',
+	dest = 'unix',
+)
+
+def append_settings(option, opt_str, value, parser):
+	'split the string into a (key,value) pair tuple'
+	kv = value.split('=', 1)
+	if len(kv) != 2:
+		raise OptionValueError("invalid setting argument, %r" %(value,))
+	parser.values.db_client_parameters.append(
+		((option.dest, kv[0]), kv[1])
+	)
+
+option_settings = make_option('-s', '--setting',
+	dest = 'settings',
+	help = 'run-time parameters to set upon connecting',
+	callback = append_settings,
+	type = 'str',
+)
+
+option_sslmode = make_option('--ssl-mode',
+	dest = 'sslmode',
+	help = 'SSL rules for connectivity',
+	choices = ('require','prefer','allow','disable'),
+	type = 'choice',
+)
+
+option_role = make_option('--role',
+	dest = 'role',
+	help = 'run operation as the role',
+	type = 'str',
+)
+
+def append_db_client_x_parameters(option, opt_str, value, parser):
+	parser.values.db_client_parameters.append((option.dest, value))
+make_x_option = partial(make_option, callback = append_db_client_x_parameters)
+
+option_iri = make_x_option('-I', '--iri',
+	help = 'complete resource identifier, pq-IRI',
+	type = 'str',
+	dest = 'pq_iri',
+)
+option_dsn = make_x_option('--dsn',
+	help = 'DSN for connection',
+	type = 'str',
+	dest = 'pq_dsn',
+)
+
+# PostgreSQL Standard Options
+standard_optparse_options = (
+	option_host, option_port,
+	option_user, option_password,
+	option_database,
+)
+
+class StandardParser(optparse.OptionParser):
+	"""
+	Option parser limited to the basic -U, -h, -p, -W, and -D options.
+	This parser subclass is necessary for two reasons:
+
+	 1. _add_help_option override to not conflict with -h
+	 2. Initialize the db_client_parameters on the parser's values.
+
+	See the DefaultParser for more fun.
+	"""
+	standard_option_list = standard_optparse_options
+
+	def get_default_values(self, *args, **kw):
+		v = super().get_default_values(*args, **kw)
+		v.db_client_parameters = []
+		return v
+
+	def _add_help_option(self):
+		# Only allow long --help so that it will not conflict with -h(host)
+		self.add_option("--help",
+			action = "help",
+			help = "show this help message and exit",
+		)
+
+# Extended Options
+default_optparse_options = [
+	option_unix,
+	option_sslmode,
+	option_role,
+	option_settings,
+# Complex Options
+	option_iri,
+	option_dsn,
+]
+default_optparse_options.extend(standard_optparse_options)
+
+class DefaultParser(StandardParser):
+	"""
+	Parser that includes a variety of connectivity options.
+	(IRI, DSN, sslmode, role(set role), settings)
+	"""
+	standard_option_list = default_optparse_options
 
 def resolve_password(
 	d : "a fully normalized set of client parameters(dict)",
@@ -367,8 +522,7 @@ def standard(
 
 if __name__ == '__main__':
 	import pprint
-	from . import clientoptparse as cop
-	p = cop.DefaultParser(
+	p = DefaultParser(
 		description = "print the clientparams dictionary for the environment"
 	)
 	(co, ca) = p.parse_args()
