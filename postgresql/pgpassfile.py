@@ -22,7 +22,8 @@ def parse(data):
 	]
 
 def lookup_password(words, uhpd):
-	"""lookup_password(words, (user, host, port, database)) -> password
+	"""
+	lookup_password(words, (user, host, port, database)) -> password
 
 	Where 'words' is the output from pgpass.parse()
 	"""
@@ -36,11 +37,8 @@ def lookup_password(words, uhpd):
 
 def lookup_password_file(path, t):
 	'like lookup_password, but takes a file path'
-	f = open(path)
-	try:
+	with open(path) as f:
 		return lookup_password(parse(f), t)
-	finally:
-		f.close()
 
 def lookup_pgpass(d, passfile):
 	# If the password file exists, lookup the password
