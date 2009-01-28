@@ -5,7 +5,7 @@
 'PostgreSQL configuration file parser and editor functions.'
 import sys
 import os
-import postgresql.strings as pg_str
+import postgresql.string as pg_str
 import postgresql.api as pg_api
 
 quote = "'"
@@ -362,7 +362,7 @@ def pg_dotconf(args):
 		settings[k] = v
 
 	fp = ca[0]
-	with open(fp, 'r') as fr
+	with open(fp, 'r') as fr:
 		lines = alter_config(settings, fr)
 
 	if co.stdout or fp == '/dev/stdin':

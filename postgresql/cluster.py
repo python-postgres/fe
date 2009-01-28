@@ -18,13 +18,15 @@ import subprocess as sp
 import warnings
 import tempfile
 from contextlib import closing
+from operator import attrgetter
 
 from . import api as pg_api
 from . import configfile
-from . import pg_config
+from . import installation as pg_inn
 from . import exceptions as pg_exc
 from . import driver as pg_driver
 
+DEFAULT_CLUSTER_ENCODING = 'utf-8'
 DEFAULT_CONFIG_FILENAME = 'postgresql.conf'
 DEFAULT_HBA_FILENAME = 'pg_hba.conf'
 DEFAULT_PID_FILENAME = 'postmaster.pid'
@@ -38,7 +40,7 @@ initdb_option_map = {
 	'numeric' : '--lc-numeric',
 	'time' : '--lc-time',
 	'authentication' : '-A',
-	'superusername' : '-U',
+	'user' : '-U',
 }
 
 class Cluster(pg_api.Cluster):
@@ -48,12 +50,29 @@ class Cluster(pg_api.Cluster):
 	Provides mechanisms to start, stop, restart, kill, drop, and configure a
 	cluster(data directory).
 	"""
+	installation = None
+	DEFAULT_CLUSTER_ENCODING = DEFAULT_CLUSTER_ENCODING
+	DEFAULT_CONFIG_FILENAME = DEFAULT_CONFIG_FILENAME
+	DEFAULT_PID_FILENAME = DEFAULT_PID_FILENAME
+	DEFAULT_HBA_FILENAME = DEFAULT_HBA_FILENAME
+
+	ife_ancestor = property(attrgetter('installation'))
+	def ife_snapshot_text(self):
+		return self.data_directory + ' [' + (
+			'running: ' + str(self.get_pid_from_file())
+			if self.running() else 'not running'
+		) + ']'
+
+	@property
+	def daemon_path(self):
+		return self.installation.postmaster or self.installation.postgres
+
 	def get_pid_from_file(self):
 		"""
 		The current pid from the postmaster.pid file.
 		"""
 		try:
-			with closing(open(os.path.join(self.data_directory, DEFAULT_PID_FILENAME))) as f:
+			with open(os.path.join(self.data_directory, self.DEFAULT_PID_FILENAME)) as f:
 				return int(f.readline())
 		except IOError as e:
 			if e.errno in (errno.EIO, errno.ENOENT):
@@ -69,24 +88,21 @@ class Cluster(pg_api.Cluster):
 	def hba_file(self):
 		return self.settings.get(
 			'hba_file',
-			os.path.join(self.data_directory, DEFAULT_HBA_FILENAME)
+			os.path.join(self.data_directory, self.DEFAULT_HBA_FILENAME)
 		)
+
+	@classmethod
+	def from_pg_config_path(type, data_directory, pg_config_path):
+		"Create the cluster using the data_directory and the *path* to pg_config"
+		return type(data_directory, pg_inn.Installation(pg_config_path))
 
 	def __init__(self,
 		data_directory : "path to the data directory",
-		pg_config_path : "path to pg_config to use" = 'pg_config',
-		pg_config_data : "pg_config data to use; uses _path if None" = None
+		installation : "postgresql.installation.Installation",
 	):
 		self.data_directory = os.path.abspath(data_directory)
-		self.pgsql_dot_conf = os.path.join(data_directory, DEFAULT_CONFIG_FILENAME)
-		if pg_config_data is None:
-			self.config = pg_config.dictionary(pg_config_path)
-		else:
-			self.config = pg_config_data
-
-		self.postgres_path = os.path.join(self.config['bindir'], 'postmaster')
-		if not os.path.exists(self.postgres_path):
-			self.postgres_path = os.path.join(self.config['bindir'], 'postgres')
+		self.installation = installation
+		self.pgsql_dot_conf = os.path.join(data_directory, self.DEFAULT_CONFIG_FILENAME)
 		self.daemon_process = None
 		self.last_known_pid = self.get_pid_from_file()
 
@@ -95,13 +111,12 @@ class Cluster(pg_api.Cluster):
 			type(self).__module__,
 			type(self).__name__,
 			self.data_directory,
-			self.postgres_path,
+			self.installation,
 		)
 
 	def init(self,
-		initdb : "explicitly state the initdb binary to use" = None,
-		verbose = False,
-		superuserpass = None,
+		password : "Password to assign to the cluster's superuser(`user` keyword)." = None,
+		initdb : "[BEWARE] explicitly state the initdb binary to use" = None,
 		**kw
 	):
 		"""
@@ -111,7 +126,16 @@ class Cluster(pg_api.Cluster):
 		`command_option_map` provides the mapping of keyword arguments
 		to command options.
 		"""
+		if initdb is None:
+			initdb = self.installation.initdb
+			if initdb is None:
+				raise pg_exc.ClusterInitializationError(
+					"unable to find `initdb` executable for installation: " + \
+					repr(self.installation)
+				)
+
 		# Transform keyword options into command options for the executable.
+		kw.setdefault('encoding', self.DEFAULT_CLUSTER_ENCODING)
 		opts = []
 		for x in kw:
 			if x in ('logfile', 'extra_arguments'):
@@ -124,14 +148,16 @@ class Cluster(pg_api.Cluster):
 		extra_args = tuple([
 			str(x) for x in kw.get('extra_arguments', ())
 		])
-		verbose = (initdb_option_map['verbose'],) if verbose is False else ()
-		if superuserpass is not None:
-			pass
 
-		if initdb is None:
-			initdb = os.path.join(self.config['bindir'], 'initdb')
+		supw_file = ()
+		if password is not None:
+			# got a superuserpass, it's
+			supw_tmp = tempfile.NamedTemporaryFile(mode = 'w', encoding = kw['encoding'])
+			supw_tmp.write(password)
+			supw_tmp.flush()
+			supw_file = ('--pwfile=' + supw_tmp.name,)
 
-		cmd = (initdb, '-D', self.data_directory) + verbose + tuple(opts) + extra_args
+		cmd = (initdb, '-D', self.data_directory) + tuple(opts) + supw_file + extra_args
 		p = sp.Popen(
 			cmd,
 			close_fds = True,
@@ -142,6 +168,9 @@ class Cluster(pg_api.Cluster):
 		p.stdin.close()
 
 		rc = p.wait()
+		if password is not None:
+			supw_tmp.close()
+
 		if rc != 0:
 			raise pg_exc.InitDBError(cmd, rc, p.stderr.read())
 
@@ -168,9 +197,9 @@ class Cluster(pg_api.Cluster):
 		"""
 		if self.running():
 			return None
-		cmd = [self.postgres_path, '-D', self.data_directory]
+		cmd = [self.daemon_path, '-D', self.data_directory]
 		if settings is not None:
-			for k,v in settings:
+			for k,v in dict(settings).items():
 				cmd.append('--{k}={v}'.format(k=k,v=v))
 
 		p = sp.Popen(
@@ -205,7 +234,7 @@ class Cluster(pg_api.Cluster):
 			self.stop()
 			self.wait_until_stopped(timeout = timeout)
 		if not self.running():
-			raise ClusterError("failed to shutdown cluster")
+			raise pg_exc.ClusterError("failed to shutdown cluster")
 		self.start()
 		self.wait_until_started(timeout = timeout)
 
@@ -253,7 +282,7 @@ class Cluster(pg_api.Cluster):
 			'port',
 		))
 		if 'listen_addresses' not in d:
-			raise ClusterError(
+			raise pg_exc.ClusterError(
 				"postmaster pings can only be made to TCP/IP configurations"
 			)
 
@@ -288,7 +317,7 @@ class Cluster(pg_api.Cluster):
 
 	def wait_until_started(self,
 		timeout : "how long to wait before throwing a timeout exception" = 10,
-		delay : "how long to sleep before re-testing" = 0.1
+		delay : "how long to sleep before re-testing" = 0.05
 	):
 		"""
 		After the `start` method is used, this can be ran in order to block until
@@ -308,7 +337,7 @@ class Cluster(pg_api.Cluster):
 
 	def wait_until_stopped(self,
 		timeout : "how long to wait before throwing a timeout exception" = 10,
-		delay : "how long to sleep before re-testing" = 0.1
+		delay : "how long to sleep before re-testing" = 0.05
 	):
 		"""
 		After the `stop` method is used, this can be ran in order to block until
@@ -316,7 +345,7 @@ class Cluster(pg_api.Cluster):
 
 		Additionally, catching `ClusterTimeoutError` exceptions would be a
 		starting point for making decisions about whether or not to issue a kill
-		to the postgres daemon.
+		to the daemon.
 		"""
 		start = time.time()
 		while self.running():

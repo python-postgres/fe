@@ -22,7 +22,7 @@ import os
 import warnings
 import collections
 from abc import ABCMeta, abstractproperty, abstractmethod
-from operator import attrgetter, methodcaller, itemgetter
+from operator import methodcaller, itemgetter
 
 class docstr(object):
 	"""
@@ -1304,6 +1304,38 @@ class Driver(InterfaceElement):
 		"""
 		self.ife_connect(self.handle_warnings_and_messages)
 
+class Installation(InterfaceElement):
+	"""
+	Interface to a PostgreSQL installation. Instances would provide various
+	information about an installation of PostgreSQL accessible by the Python 
+	"""
+	ife_label = "INSTALLATION"
+
+	@apdoc
+	@abstractproperty
+	def version(self):
+		"""
+		A version string consistent with what `SELECT version()` would output.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def version_info(self):
+		"""
+		A tuple specifying the version in a form similar to Python's
+		sys.version_info. (8, 3, 3, 'final', 0)
+
+		See `postgresql.versionstring`.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def type(self):
+		"""
+		The "type" of PostgreSQL. Normally, the first component of the string
+		returned by pg_config.
+		"""
+
 class Cluster(InterfaceElement):
 	"""
 	Interface to a PostgreSQL cluster--a data directory. An implementation of
@@ -1311,6 +1343,13 @@ class Cluster(InterfaceElement):
 	"""
 	ife_label = 'CLUSTER'
 	ife_ancestor = None
+
+	@apdoc
+	@abstractproperty
+	def installation(self) -> Installation:
+		"""
+		The installation used by the cluster.
+		"""
 
 	@abstractmethod
 	def init(self,

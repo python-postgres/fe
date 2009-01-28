@@ -39,18 +39,6 @@ class Exception(Exception):
 	pass
 
 ##
-# Exceptions pertinent to cluster initialization and management
-##
-class ClusterError(Exception):
-	pass
-class InitDBError(ClusterError):
-	pass
-class ClusterNotRunningError(ClusterError):
-	pass
-class ClusterTimeoutError(ClusterError):
-	pass
-
-##
 # Miscellaneous exceptions not tied to an SQL state code.
 ##
 class AbortTransaction(Exception):
@@ -121,10 +109,25 @@ class Error(PythonMessage, Exception):
 		else:
 			raise self from raise_from
 
+##
+# Exceptions pertinent to cluster initialization and management
+##
+class ClusterError(Error):
+	source = 'CLUSTER'
+class ClusterInitializationError(ClusterError):
+	pass
+class InitDBError(ClusterInitializationError):
+	"A non-zero result was returned by the initdb command"
+class ClusterNotRunningError(ClusterError):
+	pass
+class ClusterTimeoutError(ClusterError):
+	pass
+
 class InsecurityError(Error):
 	"""
 	Error signifying a secure channel to a server cannot be established.
 	"""
+	source = 'DRIVER'
 
 class TransactionError(Error):
 	pass
