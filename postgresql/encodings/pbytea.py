@@ -6,23 +6,20 @@
 import codecs
 import struct
 
-byte = struct.Struct('B').pack
-
-def bchr(ord):
-	if not (32 < ord < 126):
-		return b"\\" + oct(ord).lstrip('0').rjust(3, '0')
-	elif ord == 92:
-		return br'\\'
-	else:
-		return byte(ord)
+ord_to_seq = {
+	i : \
+		"\\" + oct(i)[2:].rjust(3, '0') \
+		if not (32 < i < 126) else r'\\' \
+		if i == 92 else chr(i)
+	for i in range(256)
+}
+def decode(data):
+	return ''.join(map(ord_to_seq.__getitem__, (data[x][0] for x in range(len(data)))))
 
 def encode(data):
-	return ''.join([bchr(ord(x)) for x in data])
-
-def decode(data):
-	diter = iter(data)
+	diter = ((data[i] for i in range(len(data))))
 	output = []
-	next = diter.next
+	next = diter.__next__
 	for x in diter:
 		if x == "\\":
 			try:
@@ -31,7 +28,7 @@ def decode(data):
 				raise ValueError("incomplete backslash sequence")
 			if y == "\\":
 				# It's a backslash, so let x(\) be appended.
-				pass
+				x = ord(x)
 			elif y.isdigit():
 				try:
 					os = ''.join((y, next(), next()))
@@ -39,13 +36,15 @@ def decode(data):
 					# requires three digits
 					raise ValueError("incomplete backslash sequence")
 				try:
-					x = chr(int(os, base = 8))
+					x = int(os, base = 8)
 				except ValueError:
 					raise ValueError("invalid bytea octal sequence '%s'" %(os,))
 			else:
 				raise ValueError("invalid backslash follow '%s'" %(y,))
+		else:
+			x = ord(x)
 		output.append(x)
-	return ''.join(output)
+	return struct.pack(str(len(output)) + 'B', *output)
 
 class Codec(codecs.Codec):
 	'bytea codec'
