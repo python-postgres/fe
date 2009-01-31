@@ -129,7 +129,7 @@ def construct(x, obscure_password = False):
 	if 'database' in x:
 		path.append(x['database'])
 	if 'path' in x:
-		path.extend(x['path'])
+		path.extend(x['path'] or ())
 
 	password = x.get('password')
 	if obscure_password and password is not None:
