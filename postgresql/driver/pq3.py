@@ -970,11 +970,11 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self._pq_statement_id = None
 
 	def __repr__(self):
-		return '<%s.%s[%s]%s>' %(
-			type(self).__module__,
-			type(self).__name__,
-			repr(self.connection.connector),
-			self.closed and ' closed' or ''
+		return '<{mod}.{name}[{ci}] {state}>'.format(
+			mod = type(self).__module__,
+			name = type(self).__name__,
+			ci = ci,
+			state = self.closed and 'closed' or 'prepared',
 		)
 
 	@property
@@ -1802,7 +1802,7 @@ class Connection(pg_api.Connection):
 	_update_timezone = staticmethod(_update_timezone)
 
 	def _update_server_version(connection, key, value):
-		connection.version_info = pg_version.split(value)
+		connection.version_info = pg_version.normalize(pg_version.split(value))
 	_update_server_version = staticmethod(_update_server_version)
 
 	def cquery(self, *args, **kw):
@@ -1823,7 +1823,7 @@ class Connection(pg_api.Connection):
 		return '<%s.%s[%s] %s>' %(
 			type(self).__module__,
 			type(self).__name__,
-			str(self.connector),
+			self.connector._pq_iri,
 			self.closed and 'closed' or '%s.%d' %(
 				self._pq_state, self.xact._level
 			)
@@ -1940,7 +1940,7 @@ class Connection(pg_api.Connection):
 		self.typio.set_encoding('ascii')
 
 		timeout = timeout or self.connector.connect_timeout
-		sslmode = self.connector.sslmode
+		sslmode = self.connector.sslmode or 'prefer'
 
 		# get the list of sockets to try
 		socket_makers = self.connector.socket_factory_sequence()
@@ -2405,12 +2405,27 @@ class Connector(pg_api.Connector):
 	ife_ancestor = None
 	Connection = Connection
 
+	@property
+	def _pq_iri(self):
+		return pg_iri.serialize(
+			{
+				k : v for k,v in self.__dict__.items()
+				if v is not None \
+				and k not in ('_startup_parameters', '_address_family', '_pq_iri')
+			},
+			obscure_password = True
+		)
+
 	def __repr__(self):
-		return type(self).__module__ + '.' + type(self).__name__ + '(%s)' %(
-			',' + os.linesep + ' '.join([
-				'%s = %r' %(k, getattr(self, k, None)) for k in self.words
-				if getattr(self, k, None) is not None
-			]),
+		keywords = (',' + os.linesep + ' ').join([
+			'%s = %r' %(k, getattr(self, k, None)) for k in self.__dict__
+			if k not in ('_startup_parameters', '_address_family', '_pq_iri') \
+			and getattr(self, k, None) is not None
+		])
+		return '{mod}.{name}({keywords})'.format(
+			mod = type(self).__module__,
+			name = type(self).__name__,
+			keywords = os.linesep + ' ' + keywords if keywords else ''
 		)
 
 	@abstractmethod
@@ -2433,7 +2448,7 @@ class Connector(pg_api.Connector):
 	def __init__(self,
 		connect_timeout : int = None,
 		server_encoding : "server encoding hint for driver" = None,
-		sslmode : ('allow', 'prefer', 'require', 'disable') = 'prefer',
+		sslmode : ('allow', 'prefer', 'require', 'disable') = None,
 		sslcrtfile : "filepath" = None,
 		sslkeyfile : "filepath" = None,
 		sslrootcrtfile : "filepath" = None,
@@ -2493,7 +2508,7 @@ class SocketCreator(object):
 class SocketConnector(Connector):
 	'abstract connector for using `socket` and `ssl`'
 	def ife_snapshot_text(self):
-		return pg_iri.serialize(self.__dict__, obscure_password = True)
+		return self._pq_iri
 
 	fatal_exception_messages = {
 		errno.ECONNRESET : 'server explicitly closed the connection',
