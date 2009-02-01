@@ -1305,7 +1305,6 @@ class StoredProcedure(pg_api.StoredProcedure):
 		if not proctup:
 			raise LookupError("no function with an oid %d" %(oid,))
 		proctup = proctup[0]
-		self.proctup = proctup
 
 		self.procedure_id = proctup["procedure_id"]
 		self.oid = proctup[0]
