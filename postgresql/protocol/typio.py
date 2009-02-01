@@ -63,23 +63,28 @@ class FixedOffset(datetime.tzinfo):
 	def __init__(self, offset, tzname = None):
 		self._tzname = tzname
 		self._offset = datetime.timedelta(0, offset)
+		self._dst = datetime.timedelta(0)
 
-	def utcoffset(self):
+	def utcoffset(self, offset_from):
 		return self._offset
 
 	def tzname(self):
 		return self._tzname
 
+	def dst(self, arg):
+		return self._dst
+
 	def __repr__(self):
 		return "{path}.{name}({off}{tzname})".format(
-			path = __name__,
+			path = type(self).__module__,
 			name = type(self).__name__,
 			off = repr(self._offset.days * 24 * 60 * 60 + self._offset.seconds),
 			tzname = (
-				", tzname = {tzname}	".format(tzname = self.tzname) \
-				if self.tzname is not None else ""
+				", tzname = {tzname!r}".format(tzname = self._tzname) \
+				if self._tzname is not None else ""
 			)
 		)
+UTC = FixedOffset(0, tzname = 'UTC')
 
 class Row(tuple):
 	"Name addressable items tuple; mapping and sequence"
@@ -315,9 +320,9 @@ oid_to_io = {
 	pg_types.CIRCLEOID : (circle_pack, circle_unpack),
 }
 
-def anyarray_unpack_elements(a, unpack):
+def anyarray_unpack_elements(elements, unpack):
 	'generator for yielding None if x is None or unpack(x)'
-	for x in a:
+	for x in elements:
 		if x is None:
 			yield None
 		else:
@@ -335,7 +340,10 @@ def anyarray_unpack(unpack, data):
 	)
 anyarray_pack = ts.array_pack
 
-def array_typio(pack_element, unpack_element, typoid, hasbin_input, hasbin_output):
+def array_typio(
+	pack_element, unpack_element,
+	typoid, hasbin_input, hasbin_output
+):
 	"""
 	create an array's typio pair
 	"""
@@ -367,7 +375,7 @@ def array_typio(pack_element, unpack_element, typoid, hasbin_input, hasbin_outpu
 				if x is None:
 					yield None
 				else:
-					yield unpack(x)
+					yield unpack_element(x)
 
 		def unpack_an_array(data):
 			flags, typoid, dlb, elements = ts.array_unpack(data)
@@ -557,8 +565,6 @@ class TypeIO(object, metaclass = ABCMeta):
 
 	def _pack_timestamptz(self, dt):
 		if dt.tzinfo:
-			# _pack_timestamp ignores the tzinfo,
-			# so we can just adjust to 
 			return self._ts_pack(
 				(dt - dt.tzinfo.utcoffset(dt)).replace(tzinfo = None)
 			)
@@ -567,7 +573,9 @@ class TypeIO(object, metaclass = ABCMeta):
 			return self._ts_pack(dt)
 
 	def _unpack_timestamptz(self, data):
-		return self.tzinfo.fromutc(self._ts_unpack(data))
+		dt = self._ts_unpack(data)
+		dt = dt.replace(tzinfo = UTC)
+		return dt.astimezone(self.tzinfo)
 
 	def set_timezone(self, offset, tzname):
 		self.tzinfo = FixedOffset(offset, tzname = tzname)
@@ -593,12 +601,14 @@ class TypeIO(object, metaclass = ABCMeta):
 			)
 		typid = int(typid)
 
-		typio = self._cache.get(typid)
 		typio = None
 		for x in (self._cache, self._time_io, oid_to_io, ts.oid_to_io):
 			if typid in x:
 				typio = x[typid]
+				break
 		if typio is None:
+			# Lookup the type information for the typid as it's not cached.
+			##
 			ti = self.lookup_type_info(typid)
 			if ti is not None:
 				typname, typtype, typlen, typelem, typrelid, \
@@ -632,7 +642,7 @@ class TypeIO(object, metaclass = ABCMeta):
 					) or \
 						(None, None)
 					typio = array_typio(
-						self, typelem, te, ae_hasbin_input, ae_hasbin_output
+						te[0], te[1], typelem, ae_hasbin_input, ae_hasbin_output
 					)
 					self._cache[typid] = typio
 				else:

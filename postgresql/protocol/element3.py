@@ -190,13 +190,30 @@ class ShowOption(Message):
 	parse = classmethod(parse)
 
 class Complete(StringMessage):
-	'Complete command'
+	'Command completion message.'
 	type = b'C'
 	__slots__ = ()
 
 	def parse(self, data):
 		return self(data[:-1])
 	parse = classmethod(parse)
+
+	def extract_count(self):
+		"""
+		Extract the last set of digits as an integer.
+		"""
+		rms = self.data.strip().split()
+		if rms[0].lower() == b'copy':
+			if len(rms) > 1:
+				return int(rms[-1])
+		elif rms[-1].isdigit():
+			return int(rms[-1])
+
+	def extract_command(self):
+		t = self.data.strip().split()
+		if t:
+			return t[0]
+		return None
 
 class Null(EmptyMessage):
 	'Null command'

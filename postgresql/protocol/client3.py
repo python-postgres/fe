@@ -430,12 +430,10 @@ class Transaction(ProtocolState):
 		A generator that producing an iterator of completed messages in reverse
 		order. Last in, first out.
 		"""
-		r = []
 		for x in range(len(self.completed) - 1, -1, -1):
 			c = self.completed[x][1]
 			for y in range(len(c) - 1, -1, -1):
-				r.append(c[y])
-		return r
+				yield c[y]
 
 	def standard_put(self, messages):
 		"""
@@ -562,7 +560,7 @@ class Transaction(ProtocolState):
 			# Check the context to identify if the state should be
 			# switched to an optimized processor.
 			last = processed[-1]
-			if type(last) is str:
+			if type(last) is bytes:
 				self.state = (Receiving, self.put_copydata)
 			elif last.type == element.CopyToBegin.type:
 				self.state = (Receiving, self.put_copydata)
@@ -654,11 +652,14 @@ class Transaction(ProtocolState):
 		"""
 		if self.messages is self.CopyDoneSequence or \
 		self.messages is self.CopyFailSequence:
-			# if done or fail, finish out the transaction
+			# If the last sent `messages` is CopyDone or CopyFail, finish out the
+			# transaction.
+			##
 			self.messages = ()
 			self.state = (Receiving, self.standard_put)
 		else:
-			# initialize to CopyFail, if the messages attribute is not
+			##
+			# Initialize to CopyFail, if the messages attribute is not
 			# set properly before each invocation, the transaction is
 			# being misused and will be terminated.
 			self.messages = self.CopyFailSequence

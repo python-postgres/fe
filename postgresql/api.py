@@ -130,9 +130,11 @@ class InterfaceElement(metaclass = ABCMeta):
 	WARNING
 	-------
 
-	Many of these APIs are used to support features that users are *not* expected
-	to use. Almost everything on `InterfaceElement` is subject to deprecation.
+	Many of these APIs are used to support features that users are *not*
+	expected to use. Almost everything on `InterfaceElement` is subject to
+	deprecation.
 	"""
+	ife_object_title = "<untitled>"
 
 	@apdoc
 	@abstractproperty
@@ -409,15 +411,51 @@ class Cursor(
 	"""
 	ife_label = 'CURSOR'
 	ife_ancestor = None
+	_seek_whence_map = {
+		0 : 'ABSOLUTE',
+		1 : 'RELATIVE',
+		2 : 'LAST',
+	}
 
+	@apdoc
 	@abstractproperty
-	def withscroll(self) -> bool:
+	def cursor_id(self) -> str:
+		"""
+		The cursor's identifier.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def parameters(self) -> (tuple, None):
+		"""
+		The parameters bound to the cursor. `None`, if unknown.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def query(self) -> ("PreparedStatement", None):
+		"""
+		The query object used to create the cursor. `None`, if unknown.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def insensitive(self) -> bool:
+		"""
+		Whether or not the cursor is insensitive. Extant versions of PostgreSQL
+		only support insensitive cursors.
+		"""
+
+	@apdoc
+	@abstractproperty
+	def with_scroll(self) -> bool:
 		"""
 		Whether or not the cursor is scrollable.
 		"""
 
+	@apdoc
 	@abstractproperty
-	def withhold(self) -> bool:
+	def with_hold(self) -> bool:
 		"""
 		Whether or not the cursor will persist across transactions.
 		"""
@@ -425,7 +463,7 @@ class Cursor(
 	@abstractmethod
 	def read(self,
 		quantity : "Number of rows to read" = None
-	) -> "List of Rows":
+	) -> [()]:
 		"""
 		Read the specified number of rows and return them in a list.
 		This advances the cursor's position.
@@ -444,7 +482,26 @@ class Cursor(
 		"""
 
 	@abstractmethod
-	def seek(self, offset, whence = 0):
+	def scroll(self, number_of_rows : int):
+		"""
+		Set the cursor's position relative to the current position.
+		Negative numbers can be used to scroll backwards.
+
+		This is a convenient interface to `seek` with a relative whence(``1``).
+
+		When `number_of_rows` is zero, there is no effect on the cursor.
+		"""
+
+	@abstractmethod
+	def move(self, position_in_cursor : int):
+		"""
+		Move the cursor's pointer to the specified position, `position_in_cursor`.
+		The position is absolute, from which a negative position indicates
+		relative to the end where a positive position indicate relative to the
+		beginning.
+		"""
+
+	def seek(self, offset, whence = 'ABSOLUTE'):
 		"""
 		Set the cursor's position to the given offset with respect to the
 		whence parameter.
@@ -457,18 +514,21 @@ class Cursor(
 		  Relative.
 		 ``2``
 		  Absolute from end.
-		"""
 
-	@abstractmethod
-	def scroll(self, number_of_rows : int):
+		(seek is not an abstractmethod and is implemented using `move` and `scroll`)
 		"""
-		Set the cursor's position relative to the current position.
-		Negative numbers can be used to scroll backwards.
-
-		This is a convenient interface to `seek` with a relative whence(``1``).
-
-		When `number_of_rows` is zero, there is no effect on the cursor.
-		"""
+		rwhence = self._seek_whence_map.get(whence, whence)
+		if rwhence is None or rwhence.upper() not in self._seek_whence_map.values():
+			raise TypeError(
+				"unknown whence parameter, %r" %(whence,)
+			)
+		rwhence = rwhence.upper()
+		if rwhence == 'RELATIVE':
+			return self.scroll(offset)
+		elif rwhence == 'ABSOLUTE':
+			return self.move(offset, count = count)
+		else:
+			return self.move(-offset, count = count)
 
 class PreparedStatement(
 	InterfaceElement,
@@ -487,6 +547,13 @@ class PreparedStatement(
 		...  pass
 	"""
 	ife_label = 'QUERY'
+
+	@apdoc
+	@abstractproperty
+	def statement_id(self) -> str:
+		"""
+		The statment's identifier.
+		"""
 
 	@apdoc
 	@abstractproperty
@@ -1019,10 +1086,11 @@ class Database(InterfaceElement):
 		title : "The query's name, used in tracebacks when available" = None
 	) -> PreparedStatement:
 		"""
-		Create a `PreparedStatement` object that was already prepared on the server.
-		The distinction between this and a regular query is that it must be
-		explicitly closed if it is no longer desired, and it is instantiated using
-		the statement identifier as opposed to the SQL statement itself.
+		Create a `PreparedStatement` object that was already prepared on the
+		server. The distinction between this and a regular query is that it
+		must be explicitly closed if it is no longer desired, and it is
+		instantiated using the statement identifier as opposed to the SQL
+		statement itself.
 
 		If no ``title`` keyword is given, it will default to the statement_id.
 		"""
@@ -1032,13 +1100,14 @@ class Database(InterfaceElement):
 		cursor_id : "The cursor's identification string."
 	) -> Cursor:
 		"""
-		Create a `Cursor` object from the given `cursor_id` that was already declared
-		on the server.
+		Create a `Cursor` object from the given `cursor_id` that was already
+		declared on the server.
 		
-		`Cursor` objects created this way must *not* be closed when the object is garbage
-		collected. Rather, the user must explicitly close it for the server
-		resources to be released. This is in contrast to `Cursor` objects that
-		are created by invoking a `PreparedStatement` or a SRF `StoredProcedure`.
+		`Cursor` objects created this way must *not* be closed when the object
+		is garbage collected. Rather, the user must explicitly close it for
+		the server resources to be released. This is in contrast to `Cursor`
+		objects that are created by invoking a `PreparedStatement` or a SRF
+		`StoredProcedure`.
 		"""
 
 	@abstractmethod
@@ -1054,8 +1123,8 @@ class Database(InterfaceElement):
 		>>> p = pg_con.proc('version()')
 		>>> p()
 		'PostgreSQL 8.3.0'
-
-		>>> pg_con.query("select oid from pg_proc where proname = 'generate_series'").first()
+		>>> qstr = "select oid from pg_proc where proname = 'generate_series'"
+		>>> pg_con.query(qstr).first()
 		1069
 		>>> generate_series = pg_con.proc(1069)
 		>>> list(generate_series(1,5))
@@ -1067,15 +1136,16 @@ class Database(InterfaceElement):
 		"""
 		Reset the connection into it's original state.
 
-		Issues a ``RESET ALL`` to the database. If the database supports removing
-		temporary tables created in the session, then remove them. Reapply
-		initial configuration settings such as path. If inside a transaction
-		block when called, reset the transaction state using the `reset`
-		method on the connection's transaction manager, `xact`.
+		Issues a ``RESET ALL`` to the database. If the database supports
+		removing temporary tables created in the session, then remove them.
+		Reapply initial configuration settings such as path. If inside a
+		transaction block when called, reset the transaction state using the
+		`reset` method on the connection's transaction manager, `xact`.
 
-		The purpose behind this method is to provide a soft-reconnect method that
-		re-initializes the connection into its original state. One obvious use of this
-		would be in a connection pool where the connection is done being used.
+		The purpose behind this method is to provide a soft-reconnect method
+		that re-initializes the connection into its original state. One
+		obvious use of this would be in a connection pool where the connection
+		is done being used.
 		"""
 
 class Connector(InterfaceElement):

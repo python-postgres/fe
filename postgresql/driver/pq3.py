@@ -11,9 +11,10 @@ import os
 import errno
 import socket
 import ssl
-import warnings
-import types
-from operator import attrgetter
+
+from operator import attrgetter, itemgetter
+from itertools import repeat, chain
+
 from abc import abstractmethod, abstractproperty
 import collections
 
@@ -23,8 +24,6 @@ from .. import exceptions as pg_exc
 from .. import string as pg_str
 from ..encodings import aliases as pg_enc_aliases
 from .. import api as pg_api
-
-from itertools import repeat
 
 from ..protocol.buffer import pq_message_stream
 from ..protocol import client3 as pq
@@ -67,6 +66,7 @@ SELECT
  pg_proc.oid,
  pg_proc.*,
  pg_proc.oid::regproc AS _proid,
+ pg_proc.oid::regprocedure as procedure_id,
  array_in(array_out(proargtypes::regtype[]), 'text'::regtype, 0) AS _proargs,
  (pg_type.oid = 'record'::regtype or pg_type.typtype = 'c') AS composite
 FROM
@@ -94,6 +94,15 @@ SELECT
 	), ('{}'::text[]))
 """
 
+GetPreparedStatement = """
+SELECT
+	statement
+FROM
+	pg_catalog.pg_prepared_statements
+WHERE
+	statement_id = $1
+"""
+
 IDNS = '%s(py:%s)'
 def ID(s, title = None):
 	'generate an id for a client statement or cursor'
@@ -114,19 +123,6 @@ class ClosedConnection(object):
 		return ClosedConnectionTransaction
 ClosedConnectionTransaction = object.__new__(ClosedConnection)
 
-def extract_count(rmsg):
-	"""
-	helper function to get the last set of digits in a command completion
-	as an integer.
-	"""
-	if rmsg is not None:
-		rms = rmsg.strip().split()
-		if rms[0].lower() == 'copy':
-			if len(rms) > 1:
-				return int(rms[-1])
-		elif rms[-1].isdigit():
-			return int(rms[-1])
-
 class TypeIO(pg_typio.TypeIO):
 	def __init__(self, connection):
 		self.connection = connection
@@ -138,12 +134,12 @@ class TypeIO(pg_typio.TypeIO):
 	def lookup_composite_type_info(self, typid):
 		return self.connection.cquery(CompositeLookup)(typid)
 
-class ResultHandle(object):
+class ResultHandle(pg_api.InterfaceElement):
 	"""
-	Object used to provide interfaces for copy and simple commands. Ties to
-	a given transaction. These objects provide a way for transactions to be
-	marked as defunct, so that no more time is wasted completing them.
+	Object used to provide interfaces for COPY and simple commands.
+	(Utility statements, DDL, and DML)
 	"""
+	ife_label = 'ResultHandle'
 	ife_ancestor = property(attrgetter('query'))
 	_result_types = (
 		pq.element.CopyFromBegin.type,
@@ -153,8 +149,8 @@ class ResultHandle(object):
 	)
 	_expect_types = _result_types + (pq.element.Tuple.type,)
 
-	def __init__(self, query, arguments):
-		if query._oformats:
+	def __init__(self, parameters, query):
+		if query._output_formats:
 			# this is for ddl, copy, and utility statements.
 			raise TypeError(
 				"ResultHandle cannot be created " \
@@ -162,27 +158,47 @@ class ResultHandle(object):
 			)
 		self.query = query
 		self.connection = query.connection
-		self.type = None
-		self.complete = None
+		self.parameters = parameters
 
-		self.xact = pq.Transaction((
+	@property
+	def closed(self):
+		"it's closed if it's not the current transaction of the conneciton"
+		return self._pq_xact is not self.connection._pq_xact
+	def close(self):
+		self._pq_xact.messages = self._pq_xact.CopyDoneSequence
+		self.connection._pq_complete()
+
+	def _init(self):
+		self._type = None
+		self._complete = None
+		self._pq_xact = None
+		if self.parameters:
+			_pq_parameters = list(pg_typio.row_pack(
+				self.parameters, self.query._input_io,
+				self.connection.typio.encode
+			))
+		else:
+			_pq_parameters = ()
+		self._pq_xact = pq.Transaction((
 			pq.element.Bind(
 				b'',
-				self.query._pq_sid,
-				query._iformats, # formats
-				arguments, # args
+				self.query._pq_statement_id,
+				self.query._input_formats,
+				_pq_parameters,
 				(), # result formats; not expecting tuple data.
 			),
 			pq.element.Execute(b'', 1),
 			pq.element.SynchronizeMessage,
 		))
-		self.connection._push(self.xact)
+		self.ife_descend(self._pq_xact)
+		self.connection._pq_push(self._pq_xact)
 
-		typ = self._discover_type(self.xact)
+	def _fini(self):
+		typ = self._discover_type(self._pq_xact)
 		if typ.type == pq.element.Complete.type:
-			self.complete = typ
-			if self.xact.state is not pq.Complete:
-				self.connection._complete()
+			self._complete = typ
+			if self._pq_xact.state is not pq.Complete:
+				self.connection._pq_complete()
 		elif typ.type == pq.element.CopyToBegin.type:
 			self._state = (0, 0, [])
 			self._last_readsize = 0
@@ -190,19 +206,19 @@ class ResultHandle(object):
 		elif typ.type == pq.element.CopyFromBegin.type:
 			self._lastcopy = None
 		else:
-			err = pq.ProtocolError(
+			err = pg_exc.ProtocolError(
 				"%r expected COPY or utility statement" %(type(self).__name__,),
 			)
 			self.ife_descend(err)
 			err.raise_exception()
-		self.type = typ
+		self._type = typ.type
 
 	def _discover_type(self, xact):
 		"""
 		helper method to step until the result handle's type message
 		is received. This is a copy begin message or a complete message.
 		"""
-		typ = self.type
+		typ = self._type
 		while typ is None:
 			for x in xact.messages_received():
 				if x.type in self._result_types:
@@ -211,15 +227,15 @@ class ResultHandle(object):
 			else:
 				# If the handle's transaction is not the current,
 				# then it's already complete.
-				if xact is self.connection._xact:
-					self.connection._step()
+				if xact is self.connection._pq_xact:
+					self.connection._pq_step()
 				else:
 					raise TypeError("unable to identify ResultHandle type")
 				continue
 			break
 		else:
 			# XXX: protocol error is inappropriate
-			err = pq.ProtocolError(
+			err = pg_exc.ProtocolError(
 				"protocol transaction for %r finished before result " \
 				"type could be identified" %(type(self).__name__,),
 				source = "DRIVER",
@@ -231,13 +247,19 @@ class ResultHandle(object):
 
 	def command(self):
 		"The completion message's command identifier"
-		if self.complete is not None:
-			return bytes.__repr__(self.complete)[2:-1].strip().split()[0]
+		if self._complete is not None:
+			return self._complete.extract_command()
+		if self._pq_xact is self.connection._pq_xact:
+			self._fini()
+			return self._complete.extract_command()
 
 	def count(self):
 		"The completion message's count number"
-		if self.complete is not None:
-			return extract_count(repr(self.complete.data)[2:-1])
+		if self._complete is not None:
+			return self._complete.extract_count()
+		if self._pq_xact is self.connection._pq_xact:
+			self._fini()
+			return self._complete.extract_count()
 
 	def ife_snapshot_text(self):
 		return "ResultHandle"
@@ -267,38 +289,48 @@ class ResultHandle(object):
 		[internal] helper function to put more copy data onto the buffer for
 		reading. This function will only append to the buffer and never
 		set the offset.
+
+		Used to support ``COPY ... TO STDOUT ...;``
 		"""
 		offset, oldbufsize, buffer = self._state
-		x = self.xact
+		x = self._pq_xact
 
 		# get more data while incomplete and within buffer needs/limits
-		while self.connection._xact is x and len(x.completed) < 2:
-			self.connection._step()
+		while self.connection._pq_xact is x and len(x.completed) < 2:
+			self.connection._pq_step()
 
 		if not x.completed:
 			# completed list depleted, can't buffer more
 			return False
 
-		# check for completion message after xact is done
-		if x.state is pq.Complete and self.complete is None:
+		# Find the Complete message when _pq_xact is done
+		if x.state is pq.Complete and self._complete is None:
 			for t in x.reverse():
+				##
+				# NOTE: getattr is used here to avoid AttributeErrors
+				# if a COPY line is found. COPY lines are not formalized
+				# to reduce CPU and memory consumption.
 				typ = getattr(t, 'type', None)
-				# ignore the ready type
+				##
+				# Ignore the ready type
 				if typ == pq.element.Ready.type:
+					# The Complete message is being looked
+					# for and it must come directly before the Ready.
 					continue
 				break
 			if typ == pq.element.Complete.type:
-				self.complete = t
+				self._complete = t
 			else:
-				err = pq.ProtocolError(
-					"complete message not in expected location"
+				err = pg_exc.ProtocolError(
+					"complete message not in expected location",
+					source = 'DRIVER'
 				)
 				t.ife_descend(err)
 				err.raise_exception()
 
 		# get copy data
 		extension = [
-			y for y in x.completed[0][1] if type(y) is str
+			y for y in x.completed[0][1] if type(y) is bytes
 		]
 
 		# set the next state
@@ -334,7 +366,8 @@ class ResultHandle(object):
 		offset, bufsize, buffer = self._state
 		# nothing more to give, get more?
 		if offset == bufsize:
-			if self.xact.state is pq.Complete and not self.xact.completed:
+			if self._pq_xact.state is pq.Complete \
+			and not self._pq_xact.completed:
 				# Nothing more to read...
 				return []
 			else:
@@ -358,7 +391,8 @@ class ResultHandle(object):
 	def __call__(self, copyseq, buffersize = 100):
 		i = iter(copyseq)
 		if isinstance(i, ResultHandle) and \
-		i.type.type == pq.element.CopyToBegin.type:
+		i._type.type == pq.element.CopyToBegin.type:
+			# connection-to-connection copy
 			if getattr(self, '_lastcopyseq', None) is None:
 				self._lastcopyseq = i.read()
 			while self._lastcopyseq:
@@ -367,6 +401,7 @@ class ResultHandle(object):
 				self._lastcopyseq = None
 				self._lastcopyseq = i.read()
 		else:
+			# apparently, a random iterator
 			self._lastcopyseq = getattr(self, '_lastcopyseq', [])
 			self._lastcopyseq_x = getattr(self, '_lastcopyseq_x', None)
 			if self._lastcopyseq_x is not None:
@@ -376,8 +411,8 @@ class ResultHandle(object):
 
 			while self._lastcopyseq is not None:
 				c = len(self._lastcopyseq)
-				while self.xact.messages is not self.xact.CopyFailSequence:
-					self.connection._step()
+				while self._pq_xact.messages is not self._pq_xact.CopyFailSequence:
+					self.connection._pq_step()
 				for self._lastcopyseq_x in i:
 					c += 1
 					self._lastcopyseq.append(
@@ -386,399 +421,545 @@ class ResultHandle(object):
 					# XXX: interrupt gain
 					self._lastcopyseq_x = None
 					if c > buffersize:
-						self.xact.messages = self._lastcopyseq
+						self._pq_xact.messages = self._lastcopyseq
 						self._lastcopyseq = []
 						c = 0
 						break
 				else:
 					# iterator depleted.
-					self.xact.messages = self._lastcopyseq
+					self._pq_xact.messages = self._lastcopyseq
 					self._lastcopyseq = None
-					while self.xact.messages is not self.xact.CopyFailSequence:
-						self.connection._step()
+					while self._pq_xact.messages is not self._pq_xact.CopyFailSequence:
+						self.connection._pq_step()
 
-	def write(self, copylines):
+	def write(self, copylines : [b'copy_line']):
 		"""
 		Write a sequence of COPY lines to the connection.
 		"""
 		if self._lastcopy is not None:
-			self.xact.messages.append(
-				pq.element.CopyData(self._lastcopy)
-			)
+			self._pq_xact.messages.append(pq.element.CopyData(self._lastcopy))
 			self._lastcopy = None
 		# Step through the transaction until it's ready for more.
-		while self.xact.messages is not self.xact.CopyFailSequence:
-			self.connection._step()
-		m = self.xact.messages = []
+		while self._pq_xact.messages is not self._pq_xact.CopyFailSequence:
+			self.connection._pq_step()
+		m = self._pq_xact.messages = []
 
 		for self._lastcopy in copylines:
 			m.append(pq.element.CopyData(self._lastcopy))
 			# XXX: interrupt gain
 			self._lastcopy = None
 
-		self.connection._step()
+		# send the new copy data
+		self.connection._pq_step()
 
-	closed = property(
-		fget = lambda s: s.xact is not s.connection._xact,
-		doc = 'whether the result handle is the current transaction'
-	)
-	def close(self):
-		self.xact.messages = self.xact.CopyDoneSequence
-		self.connection._complete()
+##
+# The cursor implementation covers many cases of a cursor which contribute to
+# the unfortunate complexity of this class:
+#
+# 1. Cursor declared by the server.
+#    . It's already open(declared).
+#    . The output data is *not* known. A DescribePortal message is necessary.
+#    . It *must* use SQL FETCH for typed data to be received.
+#    . WITH HOLD and WITH SCROLL is unknown; it is assumed to have both.
+#    .. This may be resolvable if pg_cursors is available.
+#    ... It will not be resolved automatically by the class.
+#    . Extra metadata may be discovered using ``pg_catalog.pg_cursors``
+# 2. Cursor declared by SQL from a query object.
+#    . It's not open yet, and the query string must be interpolated into a
+#      DECLARE statement.
+#    . The output data is already known as the query has been prepared.
+# 3. Cursor bound via the protocol from a query object.
+#    . Only usable if WITHOUT HOLD and NO SCROLL.
+#    . It uses postgresql.protocol.element3.Bind()
+#    . It always pre-fetches(server-side state is not a concern).
+#    . The output data is already known as the query must have been prepared.
+##
+# The `fetchcount` attribute dictates whether or not to read-ahead. This
+# can be applied to cursors of any style, and is disabled by default on
+# scrollable cursors and server declared cursors. (0 is disabled)
+##
+# Prior, it was suspected that these different cases would indicate the need
+# for sub-classing, but the amount of overlapping functionality caused the
+# integration. For instance, in the case of '1', if query discovery is
+# possible, the restart() method is available and may change how the cursor
+# is treated after the restart.
+# 
+class Cursor(pg_api.Cursor):
+	"""
+	Cursor interface handling all cursor objects. This class is exclusively
+	used to provide an interface with an arbitrary SQL cursor.
 
-class Portal(pg_api.Cursor):
+	How, or whether, the cursor is declared depends on the configuration. If
+	the cursor is initialized without reference to a query a DescribeMessage
+	must be employed.
 	"""
-	Class for controlling a Postgres protocol cursor. Provides buffering,
-	seeking, and iterator interfaces
-	"""
-	whence_map = {
-		0 : 'ABSOLUTE',
-		1 : 'RELATIVE',
-		2 : 'LAST',
-	}
 	ife_ancestor = None
 
-	def __init__(self, connection, cursor_id, fetchcount = 30):
+	default_fetchcount = 40
+
+	cursor_id = None
+	query = None
+	parameters = None
+
+	with_hold = None
+	with_scroll = None
+	insensitive = None
+
+	_output_io = None
+	_output = None
+	_output_formats = None
+	_output_attmap = None
+	_cid = -1
+	_state = None
+	_cursor_type = None
+
+	@classmethod
+	def from_query(type,
+		parameters, query,
+		with_hold = False,
+		with_scroll = False,
+		insensitive = True,
+		fetchcount = None,
+	):
+		c = super().__new__(type)
+		c.parameters = parameters
+		c.query = query
+		c.with_hold = with_hold
+		c.with_scroll = with_scroll
+		c.insensitive = insensitive
+		##
+		# fetchcount determines whether or not to pre-fetch.
+		# If the cursor is not scrollable, and fetchcount
+		# was not supplied, set it as the default fetchcount.
+		if not with_scroll and fetchcount is None:
+			fetchcount = type.default_fetchcount
+		c.__init__(ID(c), query.connection, fetchcount = fetchcount)
+		return c
+
+	def __init__(self, cursor_id, connection, fetchcount = None):
+		if not cursor_id:
+			raise ValueError("invalid cursor identifier, " + repr(cursor_id))
+		self.cursor_id = str(cursor_id)
+		self._quoted_cursor_id = '"' + self.cursor_id.replace('"', '""') + '"'
 		self.connection = connection
-		self.cursor_id = cursor_id
-		self.fetchcount = fetchcount
+		self.fetchcount = fetchcount or 0
+
+	def __del__(self):
+		if not self.closed and ID(self) == self.cursor_id:
+			self.close()
 
 	def __iter__(self):
 		return self
 
-	def ife_snapshot_text(self):
-		return self.cursor_id
+	@property
+	def closed(self):
+		return self._cid != self.connection._cid
 
 	def close(self):
 		if self.closed is False:
 			self.connection._closeportals.append(self.cursor_id)
-			self.closed = True
+			self._cid = -2
+			del self._state
 
-	def _mktuple(self, data):
-		return pg_typio.Row(
-			pg_typio.row_unpack(
-				data,
-				self._output_io,
-				self.connection.typio.decode
+	def _init(self):
+		if self.query is not None:
+			# If the cursor comes from a query, always
+			# get the output information from it if it's closed.
+			if self.query.closed:
+				self.query.prepare()
+			self._output = self.query._output
+			self._output_formats = self.query._output_formats
+			self._output_io = self.query._output_io
+			self._output_attmap = self.query._output_attmap
+			if self._output is None:
+				raise RuntimeError(
+					"cursor created against query that does not return rows"
+				)
+
+		if self._output is None and self.query is None:
+			# If there's no _output, it must have been declared on the server.
+			# treat it as an SQL declared cursor.
+			self._cursor_type = 'declared'
+			##
+			# There *may* not be a way to determine the configuration.
+			self.with_scroll = None
+			self.with_hold = None
+			##
+			# The result description is needed, so get it, but *only* the
+			# description. At this point it's not known whether or not
+			# pre-fetching should occur.
+			setup = (
+				pq.element.DescribePortal(self._pq_cursor_id),
+				pq.element.SynchronizeMessage,
+			)
+		else:
+			# There's a query that's giving rows.
+			##
+			self._pq_cursor_id = self.connection.typio._encode(self.cursor_id)[0]
+			if self.query._input_io:
+				if self.parameters is None:
+					raise RuntimeError(
+						"cannot bind cursor when parameters are unknown"
+					)
+				_pq_parameters = list(pg_typio.row_pack(
+					self.parameters, self.query._input_io,
+					self.connection.typio.encode
+				))
+			else:
+				# Query takes no parameters.
+				self.parameters = ()
+				_pq_parameters = ()
+			##
+			# Finish any outstanding transactions to identify
+			# the current transaction state.
+			if self.connection._pq_xact is not None:
+				self.connection._pq_complete()
+			##
+			# In auto-commit mode or with_hold is on?
+			if (self.connection._pq_state == b'I' or self.with_hold is True) \
+			and self.query.string is not None:
+				# The existence of the query string is also necessary here
+				##
+				##
+				# Force with_hold as there is no transaction block.
+				# If this were not forced, the cursor would disappear
+				# before the user had a chance to read rows from it.
+				# Of course, the alternative is to read all the rows. :(
+				self.with_hold = True
+				self._cursor_type = 'declared'
+				qstr = self.query.string
+				qstr = \
+				'DECLARE {name}{insensitive} {scroll} '\
+				'CURSOR {hold} FOR {query}'.format(
+					name = self._quoted_cursor_id,
+					insensitive = ' INSENSITIVE' if self.insensitive else '',
+					scroll = 'SCROLL' if self.with_scroll else 'NO SCROLL',
+					hold = 'WITH HOLD' if self.with_hold else 'WITHOUT HOLD',
+					query = qstr
+				)
+				setup = (
+					pq.element.Parse(b'', self.connection.typio.encode(qstr), ()),
+					pq.element.Bind(
+						b'', b'', self.query._input_formats, _pq_parameters, ()
+					),
+					pq.element.Execute(b'', 1),
+				)
+			else:
+				# Protocol-bound cursor.
+				##
+				if self.with_scroll:
+					# That doesn't work.
+					##
+					raise RuntimeError("cannot bind cursor WITH SCROLL")
+				self._cursor_type = 'protocol'
+				setup = (
+					pq.element.Bind(
+						self._pq_cursor_id,
+						self.query._pq_statement_id,
+						self.query._input_formats,
+						_pq_parameters,
+						self._output_formats,
+					),
+				)
+
+		if self.fetchcount:
+			# a configured fetchcount means a pre-fetching cursor.
+			##
+			initial_fetch = self._pq_xp_fetchmore(self.fetchcount)
+		else:
+			initial_fetch = ()
+
+		x = pq.Transaction(
+			setup + initial_fetch + (pq.element.SynchronizeMessage,)
+		)
+		self._state = (
+			# position in buffer, buffer, nextdata (pq_xact)
+			0, (), x
+		)
+		self.connection._pq_push(x)
+
+	def _fini(self):
+		if self._state[-1] is self.connection._pq_xact:
+			self.connection._pq_complete()
+
+		# if _output is unknown, _init better have described.
+		if self._output is None:
+			tupdesc = None
+			for x in self._state[-1].messages_received():
+				if getattr(x, 'type', None) == pq.element.TupleDescriptor.type:
+					tupdesc = x
+					break
+			else:
+				raise RuntimeError("cursor does not return tuples")
+			# Find the TupleDescriptor message in the results, if there is None,
+			# then the cursor does not return data, which means this is the wrong
+			# place to process the data.
+			##
+			self._output = tupdesc
+			self._output_attmap = self.connection.typio.attribute_map(tupdesc)
+			# tuple output
+			self._output_io = self.connection.typio.resolve_descriptor(
+				tupdesc, 1 # (input, output)[1]
+			)
+			self._output_formats = [
+				pq.element.StringFormat
+				if x is None
+				else pq.element.BinaryFormat
+				for x in self._output_io
+			]
+		##
+		# Mark the Cursor as open.
+		self._cid = connection._cid
+
+		# Cursor is ready for fetching rows.
+		##
+
+	def ife_snapshot_text(self):
+		return self.cursor_id + '' if self.parameters is None else (
+			os.linesep + ' PARAMETERS: ' + repr(self.parameters)
+		)
+
+	def _pq_xact_get_rows(self):
+		return [
+			pg_typio.Row(
+				pg_typio.row_unpack(
+					y,
+					self._output_io,
+					self.connection.typio.decode
+				),
+				attmap = self._output_attmap
+			)
+			for y in self._state[-1].messages_received()
+			if y.type == pq.element.Tuple.type
+		]
+
+	def _pq_xp_fetchmore(self, count):
+		'[internal] make and return a transaction to get more rows'
+		if self.fetchcount:
+			# ignore the count if fetchcount is non-zero
+			count = self.fetchcount
+		if count == 0:
+			return ()
+
+		if self._cursor_type == 'protocol':
+			# If it's not a _declared_cursor, it's a protocol bound cursor.
+			# Meaning, Execute will give the typed data that is longed for.
+			##
+			return (
+				pq.element.Execute(self._pq_cursor_id, count),
+			)
+		elif self._cursor_type == 'declared':
+			# It's an SQL declared cursor, manually construct the fetch commands.
+			##
+			if count is None:
+				qstr = "FETCH ALL IN " + self._quoted_cursor_id
+			else:
+				qstr = "FETCH FORWARD " + str(count) + " IN " + \
+					self._quoted_cursor_id
+			return (
+				pq.element.Parse(b'', self.connection.typio.encode(qstr), ()),
+				pq.element.Bind(b'', b'', (), (), self._output_formats),
+				# The "limit" is defined in the fetch query.
+				pq.element.Execute(b'', 0xFFFFFFFF),
+			)
+		else:
+			raise RuntimeError("invalid cursor type, " + repr(self._cursor_type))
+
+	def _pq_xp_move(self, whence, position):
+		'[internal] make a command sequence for a MOVE single command'
+		return (
+			pq.element.Parse(b'',
+				self.connection.typio.encode(
+					'MOVE %s %s IN ' %(whence, position) + self._quoted_cursor_id
+				),
+				()
 			),
-			attmap = self._output_attmap
+			pq.element.Bind(b'', b'', (), (), ()),
+			pq.element.Execute(b'', 1),
 		)
 
 	def _contract(self):
 		"reduce the number of tuples in the buffer by removing past tuples"
-		offset, bufsize, buffer, x = self._state
+		offset, buffer, x = self._state
 		trim = offset - self.fetchcount
 		if trim > self.fetchcount:
 			self._state = (
 				offset - trim,
-				bufsize - trim,
 				buffer[trim:],
 				x
 			)
 
-	def _xp_fetchmore(self, count = None):
-		return pq.Transaction((
-			pq.element.Execute(
-				self.connection.typio.encode(self.cursor_id),
-				count or self.fetchcount or 10
-			),
-			pq.element.SynchronizeMessage,
-		))
-
-	def _expand(self, count = None, next_xact = None):
+	def _expand(self, count):
 		"""
-		internal helper function to put more tuples onto the buffer for
-		reading. This function will only append to the buffer and never
-		set the offset.
+		[internal] Expand the buffer with more tuples. Does not alter position.
 		"""
-		offset, oldbufsize, buffer, x = self._state
-		# end of portal
+		if self._output is None:
+			# Make sure the cursor is initialized.
+			if self._state is None:
+				self._init()
+			self._fini()
+		##
+		# get the current state information
+		offset, buffer, x = self._state
 		if x is None:
-			return False
+			# No previous transaction started, so make one.
+			x = self._pq_xp_fetchmore(count) + (pq.element.SynchronizeMessage,)
+			x = pq.Transaction(x)
+			self.ife_descend(x)
+			self._state = (offset, buffer, x)
 
-		# be sure to complete the transaction
-		if x is self.connection._xact:
-			self.connection._complete()
-		elif x.state is not pq.Complete:
-			# push and complete if need be
-			self.connection._push(x)
-			self.connection._complete()
+		if x.state is not pq.Complete:
+			# Push and complete.
+			self.connection._pq_push(x)
+			if self.connection._pq_xact is x:
+				self.connection._pq_complete()
 		elif hasattr(x, 'error_message'):
+			# Retry.
+			# Chances are that it will fail again,
+			# but a consistent error is important.
 			x.reset()
-			self.connection._push(x)
-			return True
+			self.connection._pq_push(x)
+			if self.connection._pq_xact is x:
+				self.connection._pq_complete()
 
-		extension = [
-			self._mktuple(y)
-			for y in x.messages_received()
-			if y.type == pq.element.Tuple.type
-		]
-		newbuffer = buffer + extension
-		bufsize = oldbufsize + len(extension)
-		# final message before the Ready message('Z')
-		for final_msg in x.reverse():
-			if final_msg.type == pq.element.Complete.type:
-				# end of portal
-				new_x = None
-			elif final_msg.type == pq.element.Suspension.type:
-				new_x = self._xp_fetchmore(count)
-			elif final_msg.type == pq.element.Ready.type:
-				continue
-			else:
-				raise pq.ProtocolError(
-					"unexpected final message %r, expecting %r" %(
-						final_msg.type, (
-							pq.element.Complete.type,
-							pq.element.Suspension.type,
-						)
-					), final_msg, expected = (
-						pq.element.Complete.type,
-						pq.element.Suspension.type,
-					)
-				)
-			break
+		# At this point, it is expected that the transaction has more tuples
+		# It's the cursor's current transaction and that won't change until
+		# all the tuples have been extracted.
+
+		##
+		# Extension to the buffer.
+		extension = self._pq_xact_get_rows()
+		newbuffer = tuple(chain(buffer, extension))
+
+		##
+		# Final message before the Ready message('Z')
+		mi = x.reverse()
+		ready_msg = next(mi)
+		status_msg = next(mi)
+
+		if status_msg.type == pq.element.Complete.type:
+			new_x = None
+			if self.fetchcount and self._cursor_type == 'declared' \
+			and len(extension) == self.fetchcount or count:
+				# If the cursor is pre-fetching(not-scrollable), and
+				# the extension length was fulfilled indicating
+				# the possibility of more rows, setup a new transaction.
+				##
+				new_x = self._pq_xp_fetchmore(count) + \
+					(pq.element.SynchronizeMessage,)
+				new_x = pq.Transaction(new_x)
+				self.ife_descend(new_x)
+		elif status_msg.type == pq.element.Suspension.type:
+			# Infer a protocol bound cursor.
+			##
+			new_x = self._pq_xp_fetchmore(count) + \
+				(pq.element.SynchronizeMessage,)
+			new_x = pq.Transaction(new_x)
+			self.ife_descend(new_x)
+
 		self._state = (
 			offset,
-			bufsize,
 			newbuffer,
 			new_x
 		)
-		# push must occur after the state is set, otherwise it would
-		# be possible for data loss from the portal
+		# Push must occur *after* the state is set, otherwise it would
+		# be possible for data loss from the portal.
 		if new_x is not None:
-			self.connection._push(new_x)
-		return not (bufsize == oldbufsize)
+			self.connection._pq_push(new_x)
+		return len(extension)
 
 	def __next__(self):
-		# reduce set size if need be
-		if self._state[1] > (2 * self.fetchcount):
+		# Reduce set size if need be.
+		if len(self._state[1]) > (2 * self.fetchcount):
 			self._contract()
 
-		offset, bufsize, buffer, x = self._state
-		while offset >= bufsize:
-			if self._expand() is False:
-				self._state = (bufsize, bufsize, buffer, x)
+		offset, buffer, x = self._state
+		while offset >= len(buffer):
+			if self._expand(1) == 0:
+				# End of cursor.
+				##
 				raise StopIteration
-			offset, bufsize, buffer, x = self._state
+			offset, buffer, x = self._state
 		t = buffer[offset]
-		self._state = (
-			offset + 1, bufsize, buffer, x
-		)
+		self._state = (offset + 1, buffer, x)
 		return t
 
-	def read(self, quantity = 0xFFFFFFFF):
+	def read(self, quantity = None):
 		# reduce set size if need be
-		if self._state[1] > (2 * self.fetchcount):
+		if len(self._state[1]) > (2 * self.fetchcount):
 			self._contract()
 
-		# expand the buffer until there is enough for the request
-		offset, bufsize, buffer, x = self._state
-		while bufsize - offset < quantity and self._expand() is True:
-			offset, bufsize, buffer, x = self._state
-		offset, bufsize, buffer, x = self._state
+		offset = self._state[0]
+		if quantity is None:
+			# Read all.
+			##
+			while self._expand(None) > 0:
+				pass
+			##
+			# Reading all, so the quantity becomes the difference
+			# in the buffer length(len(1)) and the offset(0).
+			quantity = len(self._state[1]) - offset
+		else:
+			# Read some.
+			##
+			left_to_read = (quantity - (len(self._state[1]) - offset))
+			while left_to_read > 0:
+				left_to_read -= self._expand(left_to_read)
 
-		newoff = offset + quantity
-		t = buffer[offset:newoff]
-		self._state = (min(newoff, bufsize), bufsize, buffer, x)
+		end_of_block = offset + quantity
+		t = self._state[1][offset:end_of_block]
+		self._state = (end_of_block, self._state[1], self._state[2])
 		return t
-
-	def _xp_move(self, whence, position, count = None):
-		return (
-			pq.element.Parse(b'',
-				'MOVE %s %d IN "%s"' %(
-					whence, position,
-					self.cursor_id.replace('"', '""')
-				), ()
-			),
-			pq.element.Bind(b'', b'', (), (), ()),
-			pq.element.Execute(b'', 1),
-			pq.element.Execute(
-				self.connection.typio.encode(self.cursor_id),
-				count or self.fetchcount
-			),
-			pq.element.SynchronizeMessage,
-		)
 
 	def scroll(self, quantity):
-		offset, bufsize, buffer, x = self._state
+		offset, buffer, x = self._state
 
-		# Identify the relative server position, bufsize + ntups
-		if x is not None:
-			self.connection._push(x)
-			if x is self.connection._xact:
-				self.connection._complete()
-			newtups = 0
-			for y in x.messages_received():
-				if y.type is pq.element.Tuple.type:
-					newtups += 1
-			totalbufsize = newtups + bufsize
-		else:
-			totalbufsize = bufsize
-
-		newpos = quantity + offset
+		newpos = offset + quantity
 		if newpos < 0:
-			precede_by = self.fetchcount // 2
-			scrollback = (totalbufsize - newpos)
-			raise NotImplementedError("cannot scroll prior to buffer window")
+			raise RuntimeError("cannot scroll before the buffer window")
 		else:
 			# in range of the existing buffer
-			new_x = x
 			offset = newpos
-		self._state = (
-			offset,
-			bufsize,
-			buffer,
-			new_x
-		)
+		self._state = (offset, buffer, x)
 
-	def move(self, location, count = None):
-		if location < 0:
-			x = pq.Transaction(
-				(
-					pq.element.Parse(b'',
-						self.connection.typio.encode(
-							'MOVE LAST IN "{1}"'.format(
-								self.cursor_id.replace('"', '""'),
-							)
-						), ()
-					),
-					pq.element.Bind(b'', b'', (), (), ()),
-					pq.element.Execute(b'', 1),
-				) + \
-				self._xp_move(b'RELATIVE', location, count = count)
-			)
+	def move(self, position : "absolute position to move to"):
+		if position < 0:
+			cmd = self._pq_xp_move(b'LAST', b'') + \
+				self._pq_xp_move(b'BACKWARD', str(-position).decode('ascii'))
 		else:
-			x = pq.Transaction(
-				self._xp_move(b'ABSOLUTE', location, count = count)
+			cmd = self._pq_xp_move(b'ABSOLUTE', str(position).decode('ascii'))
+		x = pq.Transaction(
+			chain(
+				cmd, self._pq_xp_fetchmore(0),
+				(pq.element.SynchronizeMessage,)
 			)
-		# Just forget about the last transaction, there's nothing there for
-		# the user after the move.
-		self.connection._push(x)
-		self._state = (0, 0, [], x)
-		self._expand()
-
-	def seek(self, location, whence = None, count = None):
-		if whence is None:
-			whence = 'ABSOLUTE'
-		elif whence in whence_map or \
-		whence in self.whence_map.values():
-			whence = self.whence_map.get(whence, whence)
-		else:
-			raise TypeError(
-				"unknown whence parameter, %r" %(whence,)
-			)
-		if whence == 'RELATIVE':
-			return self.scroll(location)
-		elif whence == 'ABSOLUTE':
-			return self.move(location, count = count)
-		else:
-			return self.move(-location, count = count)
-
-class Cursor(Portal):
-	"Server declared cursor interfaces"
-	def __init__(self, connection, cursor_name, **kw):
-		self.closed = False
-		super().__init__(self, connection, cursor_name, **kw)
-		x = pq.Transaction((
-			pq.element.DescribePortal(cursor_name),
-			pq.element.SynchronizeMessage,
-		))
-		connection._push(x)
-		connection._complete()
-		xi = x.reverse()
-		xi.next()
-		self.output = xi.next()
-		self._output_io = []
-		self._oformats = []
-		for x in self.output:
-			fmt = x[6]
-			self._output_io.append(
-				fmt == pq.element.BinaryFormat and
-				(connection.typio.resolve(x[3]) or (None,None))[1] or
-				None
-			)
-			self._oformats.append(fmt)
-		self._output_attmap = connection.typio.attribute_map(
-			self.output
 		)
-
-		prime = self._xp_fetchmore(self.fetchcount)
-		self._state = (
-			# position in buffer, buffer length
-			0, 0,
-			# available buffers associated with the id of the
-			# transaction who produced the tuples.
-			[],
-			# transaction in progress
-			prime,
-		)
-		connection._push(prime)
-
-class ClientStatementCursor(Portal):
-	"Client statement created cursors"
-	ife_ancestor = property(attrgetter('query'))
-	withhold = False
-	withscroll = False
-
-	def __init__(self, query, params, output, output_io, oformats, **kw):
-		super().__init__(
-			query.connection,
-			ID(self, title = b'#'),
-			**kw
-		)
-		self.closed = True
-		self.query = query
-		self.output = output
-		self._output_io = output_io
-		self._oformats = oformats
-		self._output_attmap = query.connection.typio.attribute_map(
-			self.output
-		)
-
-		# Finish any outstanding transactions to identify
-		# the current transaction state. If it's not in a
-		# transaction block, fetch them all as the Portal
-		# won't exist after the next synchronize message.
-		if self.connection._xact is not None:
-			self.connection._complete()
-		if self.connection._pq_state == b'I':
-			self.fetchcount = 0xFFFFFFFF
-		x = pq.Transaction((
-			pq.element.Bind(
-				self.connection.typio.encode(self.cursor_id),
-				query._pq_sid,
-				self.query._iformats,
-				params,
-				oformats,
-			),
-			pq.element.Execute(
-				self.connection.typio.encode(self.cursor_id),
-				self.fetchcount
-			),
-			pq.element.SynchronizeMessage
-		))
-
-		self._state = (
-			# position in buffer, buffer length, buffer, nextdata
-			0, 0, [], x
-		)
-
-		if self.connection._pq_state not in b'EI':
-			self.closed = False
-		self.connection._push(x)
-		# Check for bind completion or let _step() throw the exception.
-		y = None
-		while y is not pq.element.BindCompleteMessage:
-			self.connection._step()
-			for y in x.messages_received():
-				break
-	__del__ = Portal.close
+		self.ife_descend(x)
+		##
+		# Clear all the state, the position has changed.
+		self._state = (0, (), x)
+		self.connection._pq_push(x)
 
 class PreparedStatement(pg_api.PreparedStatement):
-	ife_ancestor = property(attrgetter('connection'))
+	ife_ancestor = None
 	_cid = -1
 	string = None
 	connection = None
+	statement_id = None
+
+	@classmethod
+	def from_query_string(type,
+		string : "SQL statement to prepare",
+		connection : "connection to bind the query to",
+		statement_id : "statement_id to use instead of generating one" = None
+	) -> "PreparedStatement instance":
+		"""
+		Create a PreparedStatement from a query string.
+		"""
+		r = super().__new__(type)
+		r.string = string
+		r.__init__(statement_id or ID(r), connection)
+		return r
 
 	def __init__(self, statement_id, connection):
 		# Assume that the statement is open; it's normally a
@@ -786,7 +967,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self.statement_id = statement_id
 		self.connection = connection
 		self._pq_xact = None
-		self._pq_sid = None
+		self._pq_statement_id = None
 
 	def __repr__(self):
 		return '<%s.%s[%s]%s>' %(
@@ -797,23 +978,56 @@ class PreparedStatement(pg_api.PreparedStatement):
 		)
 
 	@property
-	def closed(self):
+	def command(self) -> str:
+		"get the detected command (first uncommented word in string)"
+		if self.string:
+			# FIXME: needs a comment filter for proper functionality
+			s = self.string.strip().split()
+			if s:
+				return s[0]
+		return None
+
+	@property
+	def closed(self) -> bool:
 		return self._cid != self.connection._cid
 
 	def close(self):
 		if self._cid == self.connection._cid:
-			self.connection._closestatements.append(self._pq_sid)
+			self.connection._closestatements.append(self._pq_statement_id)
 		# Make a distinction between explicitly closed and uninitialized.
 		# (could be handy)
 		self._cid = -2
-		self._pq_sid = None
+		self._pq_statement_id = None
 
 	def prepare(self):
-		# If there's no _init_xact or the _init_xact is not the current transaction
-		if self._pq_xact is None or self._pq_xact is not self.connection._xact:
+		# If there's no _init_xact or the _init_xact is not the current
+		# transaction
+		if self._pq_xact is None \
+		or self._pq_xact is not self.connection._pq_xact:
 			self._init()
-		# Regardless of what happened above, finalize the statement.
+		# Finalize the statement for use. It should be ready.
 		self._fini()
+
+	def ife_snapshot_text(self):
+		s = ""
+		if self.closed:
+			s += "[closed] "
+		if self.title:
+			s += self.title + ", "
+		s += "statement_id(" + repr(self._pq_statement_id or self.statement_id) + ")"
+		s += os.linesep + ' ' * 2 + (os.linesep + ' ' * 2).join(
+			str(self.string).split(os.linesep)
+		)
+		return s
+
+	def __del__(self):
+		# Only close statements that have generated IDs as the ones
+		# with explicitly created
+		if not self.closed and ID(self) == self.statement_id:
+			# Always close CPSs as the way the statement_id is generated
+			# might cause a conflict if Python were to reuse the previously
+			# used id()[it can and has happened]. - jwp 2007
+			self.close()
 
 	def _init(self):
 		"""
@@ -821,50 +1035,60 @@ class PreparedStatement(pg_api.PreparedStatement):
 		the return as there may be things that can be done while waiting
 		for the return. Use the _fini() to complete.
 		"""
-		self._pq_sid = self.connection.typio._encode(self.statement_id)[0]
-		self._pq_xact = pq.Transaction((
-			pq.element.DescribeStatement(self._pq_sid),
-			pq.element.SynchronizeMessage,
-		))
-		self.connection._push(self._pq_xact)
+		self._pq_statement_id = self.connection.typio._encode(self.statement_id)[0]
+		if self.string is not None:
+			q = self.connection.typio._encode(self.string)[0]
+			cmd = [
+				pq.element.CloseStatement(self._pq_statement_id),
+				pq.element.Parse(self._pq_statement_id, q, ()),
+			]
+		else:
+			cmd = []
+		cmd.extend(
+			(
+				pq.element.DescribeStatement(self._pq_statement_id),
+				pq.element.SynchronizeMessage,
+			)
+		)
+		self._pq_xact = pq.Transaction(cmd)
+		self.connection._pq_push(self._pq_xact)
 
 	def _fini(self):
 		"""
-		complete initialization that the prime() method started.
-
-		assumes _init has been called
+		Complete initialization that the _init() method started.
 		"""
 		# assume that the transaction has been primed.
 		if self._pq_xact is None:
 			raise RuntimeError("_fini called prior to _init; invalid state")
-		if self._pq_xact is self.connection._xact:
-			self.connection._complete()
+		if self._pq_xact is self.connection._pq_xact:
+			self.connection._pq_complete()
 
 		(*head, argtypes, tupdesc, last) = self._pq_xact.messages_received()
 
 		if tupdesc is None or tupdesc is pq.element.NoDataMessage:
 			# Not typed output.
-			self.output = None
-			self._output_io = ()
-			self._oformats = ()
+			self._output = None
+			self._output_attmap = None
+			self._output_io = None
+			self._output_formats = None
 		else:
-			self.output = tupdesc
+			self._output = tupdesc
 			self._output_attmap = self.connection.typio.attribute_map(tupdesc)
 			# tuple output
 			self._output_io = self.connection.typio.resolve_descriptor(tupdesc, 1)
-			self._oformats = [
+			self._output_formats = [
 				pq.element.StringFormat
 				if x is None
 				else pq.element.BinaryFormat
 				for x in self._output_io
 			]
 
-		self.input = argtypes
+		self._input = argtypes
 		self._input_io = [
 			(self.connection.typio.resolve(x) or (None,None))[0]
 			for x in argtypes
 	 	]
-		self._iformats = [
+		self._input_formats = [
 			pq.element.StringFormat
 			if x is None
 			else pq.element.BinaryFormat
@@ -873,35 +1097,26 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self._cid = self.connection._cid
 		self._pq_xact = None
 
-	def __call__(self, *args, **kw):
+	def __call__(self, *parameters):
 		if self.closed:
 			self.prepare()
 
-		if self._input_io:
-			params = list(pg_typio.row_pack(
-				args, self._input_io, self.connection.typio.encode
-			))
-		else:
-			params = ()
-
-		if self.output:
-			portal = ClientStatementCursor(
-				self, params, self.output, self._output_io, self._oformats, **kw
+		if self._output:
+			# Tuple output per the results of DescribeStatement.
+			##
+			portal = Cursor.from_query(
+				parameters, self,
+				with_hold = False,
+				with_scroll = False,
 			)
 		else:
 			# non-tuple output(copy, ddl, non-returning dml)
-			portal = ResultHandle(self, params, **kw)
-			if portal.type.type == pq.element.CopyFromBegin.type:
-				# Run COPY FROM if given an iterator
-				if params is () and args:
-					portal(*args, **kw)
-					portal.close()
-			elif portal.type.type == pq.element.Null.type:
-				return None
+			portal = ResultHandle(parameters, self)
+		portal._init()
 		return portal
 	__iter__ = __call__
 
-	def first(self, *args):
+	def first(self, *parameters):
 		if self.closed:
 			self.prepare()
 		# Parameters? Build em'.
@@ -910,7 +1125,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		if self._input_io:
 			params = list(
 				pg_typio.row_pack(
-					args,
+					parameters,
 					self._input_io,
 					c.typio.encode
 				)
@@ -922,19 +1137,20 @@ class PreparedStatement(pg_api.PreparedStatement):
 		x = pq.Transaction((
 			pq.element.Bind(
 				b'',
-				self._pq_sid,
-				self._iformats,
+				self._pq_statement_id,
+				self._input_formats,
 				params,
-				self._oformats,
+				self._output_formats,
 			),
 			pq.element.Execute(b'', 0xFFFFFFFF),
 			pq.element.SynchronizeMessage
 		))
 		self.ife_descend(x)
-		c._push(x)
-		c._complete()
+		c._pq_push(x)
+		c._pq_complete()
 
 		if self._output_io:
+			##
 			# Look for the first tuple.
 			for xt in x.messages_received():
 				if xt.type is pq.element.Tuple.type:
@@ -950,25 +1166,31 @@ class PreparedStatement(pg_api.PreparedStatement):
 			else:
 				if xt[0] is None:
 					return None
-				io = self._output_io[0]
-				if io:
-					return io(xt[0])
-				return c.typio.decode(xt[0])
+				io = self._output_io[0] or self.connection.typio.decode
+				return io(xt[0])
 		else:
+			##
 			# It doesn't return rows, so return a count.
 			for cm in x.messages_received():
-				if cm.type == pq.element.Complete.type:
+				if getattr(cm, 'type', None) == pq.element.Complete.type:
 					break
 			else:
+				# Probably a Null command.
 				return None
-			return extract_count(repr(cm.data)[2:-1])
+			return cm.extract_count() or cm.extract_command()
 
 	def declare(self,
 		*args,
-		hold = True,
-		scroll = True
+		with_hold = True,
+		with_scroll = True
 	):
-		pass
+		"""
+		In contrast to the __call__ interface which defaults with_hold and
+		with_scroll to False; identifying it as simple fetch all rows usage.
+		"""
+		dc = Cursor.from_query(args, self, with_hold = with_hold, with_scroll = with_scroll)
+		dc._init()
+		return dc
 
 	def load(self, tupleseq, tps = 40):
 		if self.closed:
@@ -989,8 +1211,8 @@ class PreparedStatement(pg_api.PreparedStatement):
 					xm.extend((
 						pq.element.Bind(
 							b'',
-							self._pq_sid,
-							self._iformats,
+							self._pq_statement_id,
+							self._input_formats,
 							params,
 							(),
 						),
@@ -1002,8 +1224,8 @@ class PreparedStatement(pg_api.PreparedStatement):
 				else:
 					last = pq.element.SynchronizeMessage
 				xm.append(last)
-				self.connection._push(pq.Transaction(xm))
-			self.connection._complete()
+				self.connection._pq_push(pq.Transaction(xm))
+			self.connection._pq_complete()
 		except:
 			##
 			# In cases where row packing errors or occur,
@@ -1018,49 +1240,16 @@ class PreparedStatement(pg_api.PreparedStatement):
 			self.connection.synchronize()
 			raise
 
-class ClientPreparedStatement(PreparedStatement):
-	'A prepared statement generated by the connection user'
-
-	def __init__(self, string : "SQL statement to prepare", connection):
-		self.string = string
-		super().__init__(ID(self), connection)
+class StoredProcedure(pg_api.StoredProcedure):
+	ife_ancestor = None
+	procedure_id = None
 
 	def ife_snapshot_text(self):
-		s = ""
-		if self.closed:
-			s += "[closed] "
-		if self.title:
-			s += self.title + ", "
-		s += "statement_id(" + repr(self._pq_sid or self.statement_id) + ")"
-		s += os.linesep + ' ' * 2 + (os.linesep + ' ' * 2).join(
-			str(self.string).split(os.linesep)
-		)
-		return s
-
-	# Always close CPSs as the way the statement_id is generated
-	# might cause a conflict if Python were to reuse the previously
-	# used id()[it can and has happened]. - jwp 2007
-	__del__ = PreparedStatement.close
-
-	def _init(self):
-		e = self.connection.typio._encode
-		q = e(self.string)[0]
-		sid = e(self.statement_id)[0]
-		self._pq_sid = sid
-		self._pq_xact = pq.Transaction((
-			pq.element.CloseStatement(sid),
-			pq.element.Parse(sid, q, ()),
-			pq.element.DescribeStatement(sid),
-			pq.element.SynchronizeMessage,
-		))
-		self.connection._push(self._pq_xact)
-
-class StoredProcedure(pg_api.StoredProcedure):
-	'Interface to functions kept in the backend'
+		return self.procedure_id
 
 	def __repr__(self):
 		return '<%s:%s>' %(
-			self.name, self.query.string
+			self.procedure_id, self.query.string
 		)
 
 	def __call__(self, *args, **kw):
@@ -1074,7 +1263,7 @@ class StoredProcedure(pg_api.StoredProcedure):
 						self.name, k.message
 					)
 				)
-			word_idx.sort(cmp = lambda x, y: cmp(x[1], y[1]))
+			word_idx.sort(key = itemgetter(1))
 			current_word = word_idx.pop(0)
 			for x in range(argc):
 				if x == current_word[1]:
@@ -1090,6 +1279,9 @@ class StoredProcedure(pg_api.StoredProcedure):
 			if self.composite is True:
 				return r
 			else:
+				# A generator expression is very appropriate here
+				# as SRFs returning large number of rows would require
+				# substantial amounts of memory.
 				return (x[0] for x in r)
 		else:
 			if self.composite is True:
@@ -1113,8 +1305,10 @@ class StoredProcedure(pg_api.StoredProcedure):
 		if not proctup:
 			raise LookupError("no function with an oid %d" %(oid,))
 		proctup = proctup[0]
+		self.proctup = proctup
 
-		self.procid = self.oid = proctup[0]
+		self.procedure_id = proctup["procedure_id"]
+		self.oid = proctup[0]
 		self.name = proctup["proname"]
 
 		self._input_attmap = {}
@@ -1138,10 +1332,9 @@ class StoredProcedure(pg_api.StoredProcedure):
 					'(' + ','.join(description) + ')' or '')
 			)
 		)
+		self.ife_descend(self.query)
 		self.srf = bool(proctup.get("proretset"))
 		self.composite = proctup["composite"]
-		self.input = self.query.input
-		self.output = self.query.output
 
 class Settings(pg_api.Settings):
 	ife_ancestor = property(attrgetter('connection'))
@@ -1383,7 +1576,7 @@ class TransactionManager(pg_api.TransactionManager):
 		x = pq.Transaction((
 			pq.element.Query(self.connection.typio._encode(qstring)[0]),
 		))
-		self.connection._push(x)
+		self.connection._pq_push(x)
 
 		# The operation is going to happen. Adjust the level accordingly.
 		if adjustment < 0 and self._level <= -adjustment:
@@ -1391,7 +1584,7 @@ class TransactionManager(pg_api.TransactionManager):
 			self._level = 0
 		else:
 			self._level += adjustment
-		self.connection._complete()
+		self.connection._pq_complete()
 
 	def _start_block_string(mode, isolation):
 		return 'START TRANSACTION' + (
@@ -1455,13 +1648,13 @@ class TransactionManager(pg_api.TransactionManager):
 			self._level - 1, isolation = isolation, mode = mode
 		)
 
-		self.connection._push(
+		self.connection._pq_push(
 			pq.Transaction((
 				pq.element.Query(self.connection.typio._encode(abort)[0]),
 				pq.element.Query(self.connection.typio._encode(start)[0]),
 			))
 		)
-		self.connection._complete()
+		self.connection._pq_complete()
 
 	def checkpoint(self, isolation = None, mode = None):
 		commit = self._commit_string(self._level)
@@ -1469,13 +1662,13 @@ class TransactionManager(pg_api.TransactionManager):
 			self._level - 1, isolation = isolation, mode = mode
 		)
 
-		self.connection._push(
+		self.connection._pq_push(
 			pq.Transaction((
 				pq.element.Query(self.connection.typio._encode(commit)[0]),
 				pq.element.Query(self.connection.typio._encode(start)[0]),
 			))
 		)
-		self.connection._complete()
+		self.connection._pq_complete()
 
 	# with statement interface
 	__enter__ = start
@@ -1603,7 +1796,9 @@ class Connection(pg_api.Connection):
 
 	def _update_timezone(connection, key, value):
 		'[internal] subscription method to TimeZone on settings'
-		offset = connection.cquery("SELECT EXTRACT(timezone FROM now())").first()
+		offset = connection.cquery(
+			"SELECT EXTRACT(timezone FROM now())"
+		).first()
 		connection.typio.set_timezone(offset, value)
 	_update_timezone = staticmethod(_update_timezone)
 
@@ -1638,7 +1833,8 @@ class Connection(pg_api.Connection):
 	def ife_snapshot_text(self):
 		lines = [
 			('version', repr(self.version) if self.version else "<unknown>"),
-			('backend_id', repr(self.backend_id) if self.backend_id else "<unknown>"),
+			('backend_id',
+				repr(self.backend_id) if self.backend_id else "<unknown>"),
 			('client_address', str(self.client_address)),
 			('client_port', str(self.client_port)),
 		]
@@ -1663,15 +1859,15 @@ class Connection(pg_api.Connection):
 		Useful for forcing the completion of lazily processed transactions.
 		[Avoids garbage collection not pushing; _complete, then set _xact.]
 		"""
-		if self._xact is not None:
-			self._complete()
+		if self._pq_xact is not None:
+			self._pq_complete()
 		x = pq.Transaction((pq.element.SynchronizeMessage,))
-		self._xact = x
-		self._complete()
+		self._pq_xact = x
+		self._pq_complete()
 
 	def interrupt(self, timeout = None):
 		cq = pq.element.CancelQuery(
-			self._killinfo.pid, self._killinfo.key
+			self._pq_killinfo.pid, self._pq_killinfo.key
 		).bytes()
 		s = self._socketfactory(timeout = timeout)
 		try:
@@ -1684,20 +1880,31 @@ class Connection(pg_api.Connection):
 			pq.element.Query(self.typio.encode(query)),
 		))
 		self.ife_descend(q)
-		self._push(q)
-		self._complete()
+		self._pq_push(q)
+		self._pq_complete()
 
-	def query(self, query_string : str) -> ClientPreparedStatement:
-		return ClientPreparedStatement(query_string, self)
+	def query(self, query_string : str, title = None) -> PreparedStatement:
+		ps = PreparedStatement.from_query_string(query_string, self)
+		self.ife_descend(ps)
+		ps._init()
+		return ps
 
 	def statement(self, statement_id : str) -> PreparedStatement:
-		return PreparedStatement(statement_id, self)
+		ps = PreparedStatement(statement_id, self)
+		self.ife_descend(ps)
+		ps._init()
+		return ps
 
 	def proc(self, proc_id : (str, int)) -> StoredProcedure:
-		return StoredProcedure(proc_id, self)
+		sp =  StoredProcedure(proc_id, self)
+		self.ife_descend(sp)
+		return sp
 
-	def cursor(self, cursor_id : str):
-		return Cursor(self, cursor_id)
+	def cursor(self, cursor_id : str) -> Cursor:
+		c = Cursor(cursor_id, self)
+		self.ife_descend(c)
+		c._init()
+		return c
 
 	def close(self):
 		# Write out the disconnect message if the socket is around.
@@ -1714,10 +1921,14 @@ class Connection(pg_api.Connection):
 
 	@property
 	def closed(self) -> bool:
-		return self._xact is ClosedConnectionTransaction or self._pq_state in ('LOST', None)
+		return self._pq_xact is ClosedConnectionTransaction \
+		or self._pq_state in ('LOST', None)
 
 	def reset(self):
-		'restore original settings, reset the transaction, drop temporary objects'
+		"""
+		restore original settings, reset the transaction, drop temporary
+		objects.
+		"""
 		self.xact.reset()
 		self.execute("RESET ALL")
 
@@ -1766,16 +1977,17 @@ class Connection(pg_api.Connection):
 					if not supported and sslmode == 'require':
 						# ssl is required..
 						raise pg_exc.InsecurityError(
-							"sslmode required secure connection, but was unsupported by server",
+							"sslmode required secure connection, " \
+							"but was unsupported by server",
 							source = 'DRIVER'
 						)
 					if supported:
 						self.socket = self.connector.socket_secure(self.socket)
 				# time to negotiate
 				negxact = self._negotiation()
-				self._xact = negxact
-				self._complete()
-				self._killinfo = negxact.killinfo
+				self._pq_xact = negxact
+				self._pq_complete()
+				self._pq_killinfo = negxact.killinfo
 				# Use this for `interrupt`.
 				self._socketfactory = socket_maker
 				self.ssl = supported is True
@@ -1783,8 +1995,8 @@ class Connection(pg_api.Connection):
 				break
 			except self.connector.fatal_exception as e:
 				self.ssl = None
-				self._killinfo = None
-				self._xact = None
+				self._pq_killinfo = None
+				self._pq_xact = None
 				if self.socket is not None:
 					self.socket.close()
 					self.socket = None
@@ -1792,7 +2004,7 @@ class Connection(pg_api.Connection):
 					(dossl, socket_maker, e)
 				)
 		else:
-			# no servers available, try to identify an appropriate exception
+			# No servers available.
 			err = pg_exc.ClientCannotConnectError(
 				"failed to connect to server",
 				details = {
@@ -1838,8 +2050,7 @@ class Connection(pg_api.Connection):
 			# If it's a str(), encode in the hinted server_encoding.
 			# Otherwise, convert the object(int, float, bool, etc) into a string
 			# and treat it as utf-8.
-			v.encode(se) \
-			if type(v) is str else str(v).encode('utf-8')
+			v.encode(se) if type(v) is str else str(v).encode('utf-8')
 			for k, v in sp.items()
 		}
 		sm = pq.element.Startup(**smd)
@@ -1850,7 +2061,7 @@ class Connection(pg_api.Connection):
 		'[internal] configure the connection after negotiation'
 		# Use the version_info and integer_datetimes setting to identify
 		# the necessary binary type i/o functions to use.
-		self.backend_id = self._killinfo.pid
+		self.backend_id = self._pq_killinfo.pid
 		self.typio.select_time_io(
 			self.version_info,
 			self.settings.cache.get("integer_datetimes", "off").lower() in (
@@ -1901,7 +2112,7 @@ class Connection(pg_api.Connection):
 					lost_connection_error.connection = self
 					lost_connection_error.fatal = True
 					# descend LCE from whatever we have :)
-					(self._xact or self).ife_descend(
+					(self._pq_xact or self).ife_descend(
 						lost_connection_error
 					)
 					self._pq_state = b'LOST'
@@ -1925,7 +2136,7 @@ class Connection(pg_api.Connection):
 				lost_connection_error.connection = self
 				lost_connection_error.fatal = True
 				self._pq_state = b'LOST'
-				(self._xact or self).ife_descend(lost_connection_error)
+				(self._pq_xact or self).ife_descend(lost_connection_error)
 				lost_connection_error.raise_exception(raise_from = e)
 
 			# Got data. Put it in the buffer and clear _read_data.
@@ -2021,22 +2232,22 @@ class Connection(pg_api.Connection):
 			statements += 1
 		xm.append(pq.element.SynchronizeMessage)
 		x = pq.Transaction(xm)
-		self._xact = x
+		self._pq_xact = x
 		del self._closeportals[:portals], self._closestatements[:statements]
-		self._complete()
+		self._pq_complete()
 
-	def _push(self, xact : pq.ProtocolState):
+	def _pq_push(self, xact : pq.ProtocolState):
 		'[internal] setup the given transaction to be processed'
 		# Push any queued closures onto the transaction or a new transaction.
 		if xact.state is pq.Complete:
 			return
-		if self._xact is not None:
-			self._complete()
+		if self._pq_xact is not None:
+			self._pq_complete()
 		if self._closestatements or self._closeportals:
 			self._backend_gc()
 		# set it as the current transaction and begin
-		self._xact = xact
-		self._step()
+		self._pq_xact = xact
+		self._pq_step()
 
 	def _postgres_error(self, em : pq.element.Error) -> pg_exc.Error:
 		'[internal] lookup a PostgreSQL error and instantiate it'
@@ -2062,12 +2273,12 @@ class Connection(pg_api.Connection):
 		finally:
 			self._n_procasyncs = False
 
-	def _step(self):
+	def _pq_step(self):
 		'[internal] make a single transition on the transaction'
 		try:
-			dir, op = self._xact.state
+			dir, op = self._pq_xact.state
 			if dir is pq.Sending:
-				self._write_messages(self._xact.messages)
+				self._write_messages(self._pq_xact.messages)
 				# The "op" callable will either switch the state, or
 				# set the 'messages' attribute with a new sequence
 				# of message objects for more writing.
@@ -2083,54 +2294,54 @@ class Connection(pg_api.Connection):
 				return errno.EINTR
 			else:
 				raise
-		self._pq_state = getattr(self._xact, 'last_ready', self._pq_state)
-		if self._xact.state is pq.Complete:
-			self._pop()
+		self._pq_state = getattr(self._pq_xact, 'last_ready', self._pq_state)
+		if self._pq_xact.state is pq.Complete:
+			self._pq_pop()
 
-	def _complete(self):
+	def _pq_complete(self):
 		'[internal] complete the current transaction'
 		# Continue to transition until all transactions have been
 		# completed, or an exception occurs that does not signal retry.
-		while self._xact.state is not pq.Complete:
+		while self._pq_xact.state is not pq.Complete:
 			try:
-				while self._xact.state[0] is pq.Receiving:
+				while self._pq_xact.state[0] is pq.Receiving:
 					self._read_messages()
-					self._read = self._read[self._xact.state[1](self._read):]
-				# _push() always takes one step, so it is likely that
+					self._read = self._read[self._pq_xact.state[1](self._read):]
+				# _pq_push() always takes one step, so it is likely that
 				# the transaction is done sending out data by the time
-				# _complete() is called.
-				while self._xact.state[0] is pq.Sending:
-					self._write_messages(self._xact.messages)
+				# _pq_complete() is called.
+				while self._pq_xact.state[0] is pq.Sending:
+					self._write_messages(self._pq_xact.messages)
 					# Multiple calls to get() without signaling
 					# completion *should* yield the same set over
 					# and over again.
-					self._xact.state[1]()
+					self._pq_xact.state[1]()
 			except self.connector.tryagain_exception as e:
 				if not self.connector.tryagain(e):
 					raise
-		self._pq_state = getattr(self._xact, 'last_ready', self._pq_state)
-		self._pop()
+		self._pq_state = getattr(self._pq_xact, 'last_ready', self._pq_state)
+		self._pq_pop()
 
-	def _pop(self):
+	def _pq_pop(self):
 		'[internal] remove the transaction and raise the exception if any'
 		# collect any asynchronous messages from the xact
-		if self._xact not in (x[0] for x in self._asyncs):
-			self._asyncs.append((self._xact, list(self._xact.asyncs())))
+		if self._pq_xact not in (x[0] for x in self._asyncs):
+			self._asyncs.append((self._pq_xact, list(self._pq_xact.asyncs())))
 			self._procasyncs()
 
-		em = getattr(self._xact, 'error_message', None)
+		em = getattr(self._pq_xact, 'error_message', None)
 		if em is not None:
 			xact_error = self._postgres_error(em)
-			self._xact.ife_descend(xact_error)
-			if self._xact.fatal is not True:
+			self._pq_xact.ife_descend(xact_error)
+			if self._pq_xact.fatal is not True:
 				# only remove the transaction if it's *not* fatal
 				xact_error.fatal = False
-				self._xact = None
+				self._pq_xact = None
 			else:
 				xact_error.fatal = True
 			xact_error.raise_exception()
 		# state is Complete, so remove it as the working transaction
-		self._xact = None
+		self._pq_xact = None
 
 	def _clear(self):
 		"""
@@ -2156,11 +2367,11 @@ class Connection(pg_api.Connection):
 		self._asyncs = []
 		self._n_procasyncs = None
 
-		self._killinfo = None
+		self._pq_killinfo = None
 		self.backend_id = None
 		self._pq_state = None
 
-		self._xact = ClosedConnectionTransaction
+		self._pq_xact = ClosedConnectionTransaction
 
 	def __init__(self, connector, *args, **kw):
 		"""
@@ -2283,7 +2494,7 @@ class SocketCreator(object):
 class SocketConnector(Connector):
 	'abstract connector for using `socket` and `ssl`'
 	def ife_snapshot_text(self):
-		return pg_iri.serialize(self.__dict__)
+		return pg_iri.serialize(self.__dict__, obscure_password = True)
 
 	fatal_exception_messages = {
 		errno.ECONNRESET : 'server explicitly closed the connection',
@@ -2294,7 +2505,7 @@ class SocketConnector(Connector):
 	tryagain_exception = socket.error
 
 	def tryagain(self, err) -> bool:
-		# pretty easy
+		# pretty easy; should the user try the operation again?
 		return getattr(err, 'errno', 0) == errno.EINTR
 
 	def fatal_exception_message(self, err) -> (str, None):
