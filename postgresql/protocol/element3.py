@@ -142,14 +142,17 @@ class EmptyMessage(Message):
 	__slots__ = ()
 	type = b''
 
+	def __new__(type):
+		return type.SingleInstance
+
 	def serialize(self):
 		return b''
 
+	@classmethod
 	def parse(self, data):
 		if data != b'':
 			raise ValueError("empty message(%r) had data" %(self.type,))
 		return self.SingleInstance
-	parse = classmethod(parse)
 
 class Notify(Message):
 	'Asynchronous notification message'
@@ -219,54 +222,42 @@ class Null(EmptyMessage):
 	'Null command'
 	type = b'I'
 	__slots__ = ()
-	def __new__(subtype):
-		return NullMessage
-NullMessage = EmptyMessage.__new__(Null)
+NullMessage = Message.__new__(Null)
 Null.SingleInstance = NullMessage
 
 class NoData(EmptyMessage):
 	'Null command'
 	type = b'n'
 	__slots__ = ()
-	def __new__(subtype):
-		return NoDataMessage
-NoDataMessage = EmptyMessage.__new__(NoData)
+NoDataMessage = Message.__new__(NoData)
 NoData.SingleInstance = NoDataMessage
 
 class ParseComplete(EmptyMessage):
 	'Parse reaction'
 	type = b'1'
 	__slots__ = ()
-	def __new__(subtype):
-		return ParseCompleteMessage
-ParseCompleteMessage = EmptyMessage.__new__(ParseComplete)
+ParseCompleteMessage = Message.__new__(ParseComplete)
 ParseComplete.SingleInstance = ParseCompleteMessage
 
 class BindComplete(EmptyMessage):
 	'Bind reaction'
 	type = b'2'
 	__slots__ = ()
-	def __new__(subtype):
-		return BindCompleteMessage
-BindCompleteMessage = EmptyMessage.__new__(BindComplete)
+BindCompleteMessage = Message.__new__(BindComplete)
 BindComplete.SingleInstance = BindCompleteMessage
 
 class CloseComplete(EmptyMessage):
 	'Close statement or Portal'
 	type = b'3'
 	__slots__ = ()
-	def __new__(subtype):
-		return CloseCompleteMessage
-CloseCompleteMessage = EmptyMessage.__new__(CloseComplete)
+CloseCompleteMessage = Message.__new__(CloseComplete)
 CloseComplete.SingleInstance = CloseCompleteMessage
 
 class Suspension(EmptyMessage):
 	'Portal was suspended, more tuples for reading'
 	type = b's'
 	__slots__ = ()
-	def __new__(subtype):
-		return SuspensionMessage
-SuspensionMessage = EmptyMessage.__new__(Suspension)
+SuspensionMessage = Message.__new__(Suspension)
 Suspension.SingleInstance = SuspensionMessage
 
 class Ready(Message):
@@ -609,27 +600,21 @@ class Disconnect(EmptyMessage):
 	'Close the connection'
 	type = b'X'
 	__slots__ = ()
-	def __new__(subtype):
-		return DisconnectMessage
-DisconnectMessage = EmptyMessage.__new__(Disconnect)
+DisconnectMessage = Message.__new__(Disconnect)
 Disconnect.SingleInstance = DisconnectMessage
 
 class Flush(EmptyMessage):
 	'Flush'
 	type = b'H'
 	__slots__ = ()
-	def __new__(subtype):
-		return FlushMessage
-FlushMessage = EmptyMessage.__new__(Flush)
+FlushMessage = Message.__new__(Flush)
 Flush.SingleInstance = FlushMessage
 
 class Synchronize(EmptyMessage):
 	'Synchronize'
 	type = b'S'
 	__slots__ = ()
-	def __new__(subtype):
-		return SynchronizeMessage
-SynchronizeMessage = EmptyMessage.__new__(Synchronize)
+SynchronizeMessage = Message.__new__(Synchronize)
 Synchronize.SingleInstance = SynchronizeMessage
 
 class Query(StringMessage):
@@ -870,7 +855,7 @@ class CopyBegin(Message):
 		])
 
 	def parse(subtype, data):
-		format, natts = self.struct.unpack(data[:3])
+		format, natts = subtype.struct.unpack(data[:3])
 		formats_str = data[3:]
 		if len(formats_str) != natts * 2:
 			raise ValueError("number of formats and data do not match up")
@@ -914,6 +899,5 @@ class CopyFail(StringMessage):
 class CopyDone(EmptyMessage):
 	type = b'c'
 	__slots__ = ()
-	def __new__(subtype):
-		return CopyDoneMessage
-CopyDoneMessage = EmptyMessage.__new__(CopyDone)
+CopyDoneMessage = Message.__new__(CopyDone)
+CopyDone.SingleInstance = CopyDoneMessage
