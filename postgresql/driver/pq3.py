@@ -514,14 +514,15 @@ class Cursor(pg_api.Cursor):
 	_cursor_type = None
 
 	@classmethod
-	def from_query(type,
+	def from_query(
+		typ,
 		parameters, query,
 		with_hold = False,
 		with_scroll = False,
 		insensitive = True,
 		fetchcount = None,
 	):
-		c = super().__new__(type)
+		c = super().__new__(typ)
 		c.parameters = parameters
 		c.query = query
 		c.with_hold = with_hold
@@ -532,7 +533,7 @@ class Cursor(pg_api.Cursor):
 		# If the cursor is not scrollable, and fetchcount
 		# was not supplied, set it as the default fetchcount.
 		if not with_scroll and fetchcount is None:
-			fetchcount = type.default_fetchcount
+			fetchcount = typ.default_fetchcount
 		c.__init__(ID(c), query.connection, fetchcount = fetchcount)
 		return c
 
@@ -948,7 +949,8 @@ class PreparedStatement(pg_api.PreparedStatement):
 	statement_id = None
 
 	@classmethod
-	def from_query_string(type,
+	def from_query_string(
+		typ,
 		string : "SQL statement to prepare",
 		connection : "connection to bind the query to",
 		statement_id : "statement_id to use instead of generating one" = None
@@ -956,7 +958,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		"""
 		Create a PreparedStatement from a query string.
 		"""
-		r = super().__new__(type)
+		r = super().__new__(typ)
 		r.string = string
 		r.__init__(statement_id or ID(r), connection)
 		return r
@@ -973,8 +975,8 @@ class PreparedStatement(pg_api.PreparedStatement):
 		return '<{mod}.{name}[{ci}] {state}>'.format(
 			mod = type(self).__module__,
 			name = type(self).__name__,
-			ci = ci,
-			state = self.closed and 'closed' or 'prepared',
+			ci = self.connection.connector._pq_iri,
+			state = self.state,
 		)
 
 	@property
@@ -990,6 +992,17 @@ class PreparedStatement(pg_api.PreparedStatement):
 	@property
 	def closed(self) -> bool:
 		return self._cid != self.connection._cid
+
+	@property
+	def state(self) -> str:
+		if self.closed:
+			if self._pq_xact is not None:
+				if self.string is not None:
+					return 'parsing'
+				else:
+					return 'describing'
+			return 'closed'
+		return 'prepared'
 
 	def close(self):
 		if self._cid == self.connection._cid:
@@ -1010,11 +1023,10 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 	def ife_snapshot_text(self):
 		s = ""
-		if self.closed:
-			s += "[closed] "
-		if self.title:
-			s += self.title + ", "
-		s += "statement_id(" + repr(self._pq_statement_id or self.statement_id) + ")"
+		s += "[" + self.state + "] "
+		if self.ife_object_title != pg_api.InterfaceElement.ife_object_title:
+			s += self.ife_object_title + ", "
+		s += "statement_id(" + repr(self.statement_id) + ")"
 		s += os.linesep + ' ' * 2 + (os.linesep + ' ' * 2).join(
 			str(self.string).split(os.linesep)
 		)
@@ -1051,6 +1063,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			)
 		)
 		self._pq_xact = pq.Transaction(cmd)
+		self.ife_descend(self._pq_xact)
 		self.connection._pq_push(self._pq_xact)
 
 	def _fini(self):

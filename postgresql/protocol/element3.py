@@ -151,7 +151,7 @@ class EmptyMessage(Message):
 	@classmethod
 	def parse(typ, data):
 		if data != b'':
-			raise ValueError("empty message(%r) had data" %(self.type,))
+			raise ValueError("empty message(%r) had data" %(typ.type,))
 		return typ.SingleInstance
 
 class Notify(Message):
@@ -321,7 +321,7 @@ class Notice(Message, dict):
 		kw = {}
 		for frag in data.split(b'\x00'):
 			if frag:
-				kw[self._dtm[frag[0:1]]] = frag[1:]
+				kw[typ._dtm[frag[0:1]]] = frag[1:]
 		return typ(**kw)
 
 class Error(Notice):
@@ -481,7 +481,7 @@ class CancelQuery(KillInformation):
 
 	@classmethod
 	def parse(typ, data):
-		if data[0:4] != self.packed_version:
+		if data[0:4] != typ.packed_version:
 			raise ValueError("invalid cancel query code")
 		return typ(*unpack("!xxxxLL", data))
 
@@ -504,7 +504,7 @@ class NegotiateSSL(Message):
 
 	@classmethod
 	def parse(typ, data):
-		if data != self.packed_version:
+		if data != typ.packed_version:
 			raise ValueError("invalid SSL Negotiation code")
 		return NegotiateSSLMessage
 NegotiateSSLMessage = Message.__new__(NegotiateSSL)
@@ -532,7 +532,7 @@ class Startup(Message, dict):
 
 	@classmethod
 	def parse(typ, data):
-		if data[0:4] != self.version.bytes():
+		if data[0:4] != typ.packed_version:
 			raise ValueError("invalid version code {1}".format(repr(data[0:4])))
 		kw = dict()
 		key = None
