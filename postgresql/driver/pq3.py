@@ -2551,9 +2551,9 @@ class IP4(SocketConnector):
 		return self._socketcreators
 
 	def __init__(self,
+		host : "IPv4 Address (str)" = None,
+		port : int = None,
 		ipv = 4,
-		host = None,
-		port = None,
 		**kw
 	):
 		if ipv != self.ipv:
@@ -2563,7 +2563,7 @@ class IP4(SocketConnector):
 		if port is None:
 			raise TypeError("`port` is a required keyword and cannot be `None`")
 		self.host = host
-		self.port = port
+		self.port = int(port)
 		# constant socket connector
 		self._socketcreator = SocketCreator(
 			(socket.AF_INET4, socket.SOCK_STREAM), (self.host, self.port)
@@ -2579,13 +2579,20 @@ class IP6(SocketConnector):
 	def socket_factory_sequence(self):
 		return self._socketcreators
 
-	def __init__(self, host = None, port = None, ipv = 6, **kw):
+	def __init__(self,
+		host : "IPv6 Address (str)" = None,
+		port : int = None,
+		ipv = 6,
+		**kw
+	):
 		if ipv != self.ipv:
 			raise TypeError("`ipv` keyword must be `6`")
 		if host is None:
 			raise TypeError("`host` is a required keyword and cannot be `None`")
 		if port is None:
 			raise TypeError("`port` is a required keyword and cannot be `None`")
+		self.host = host
+		self.port = int(port)
 		# constant socket connector
 		self._socketcreator = SocketCreator(
 			(socket.AF_INET6, socket.SOCK_STREAM), (self.host, self.port)
