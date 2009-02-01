@@ -106,7 +106,7 @@ class Void(Message):
 	def serialize(self):
 		return b''
 	
-	def __new__(self, *args, **kw):
+	def __new__(typ, *args, **kw):
 		return VoidMessage
 VoidMessage = Message.__new__(Void)
 
@@ -142,8 +142,8 @@ class EmptyMessage(Message):
 	__slots__ = ()
 	type = b''
 
-	def __new__(type):
-		return type.SingleInstance
+	def __new__(typ):
+		return typ.SingleInstance
 
 	def serialize(self):
 		return b''
