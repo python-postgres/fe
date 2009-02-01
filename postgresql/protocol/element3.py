@@ -39,9 +39,9 @@ class Message(object):
 	def serialization(self, writer):
 		writer(self.serialize())
 
+	@classmethod
 	def parse(self, data):
 		return self(data)
-	parse = classmethod(parse)
 
 class StringMessage(Message):
 	"""
@@ -126,6 +126,7 @@ class WireMessage(Message):
 	def serialize(self):
 		return self[1]
 
+	@classmethod
 	def parse(self, data):
 		if ulong.unpack(data[1:5])[0] != len(data) - 1:
 			raise ValueError(
@@ -135,7 +136,6 @@ class WireMessage(Message):
 				)
 			)
 		return self((data[0], data[5:]))
-	parse = classmethod(parse)
 
 class EmptyMessage(Message):
 	'An abstract message that is always empty'
@@ -169,11 +169,11 @@ class Notify(Message):
 			self.relation + b'\x00' + \
 			self.parameter + b'\x00'
 
+	@classmethod
 	def parse(self, data):
 		pid = ulong.unpack(data[0:4])[0]
 		relname, param, nothing = data[4:].split(b'\x00', 2)
 		return self(pid, relname, param)
-	parse = classmethod(parse)
 
 class ShowOption(Message):
 	"""ShowOption(name, value)
@@ -188,18 +188,18 @@ class ShowOption(Message):
 	def serialize(self):
 		return self.name + b'\x00' + self.value + b'\x00'
 
+	@classmethod
 	def parse(self, data):
 		return self(*(data.split(b'\x00', 2)[0:2]))
-	parse = classmethod(parse)
 
 class Complete(StringMessage):
 	'Command completion message.'
 	type = b'C'
 	__slots__ = ()
 
+	@classmethod
 	def parse(self, data):
 		return self(data[:-1])
-	parse = classmethod(parse)
 
 	def extract_count(self):
 		"""
@@ -316,13 +316,13 @@ class Notice(Message, dict):
 			if self.get(v) is not None
 		]) + b'\x00'
 
+	@classmethod
 	def parse(self, data):
 		kw = {}
 		for frag in data.split(b'\x00'):
 			if frag:
 				kw[self._dtm[frag[0:1]]] = frag[1:]
 		return self(**kw)
-	parse = classmethod(parse)
 
 class Error(Notice):
 	"""Incoming error"""
@@ -341,6 +341,7 @@ class FunctionResult(Message):
 		return self.result is None and b'\xff\xff\xff\xff' or \
 			ulong.pack(len(self.result)) + self.result
 	
+	@classmethod
 	def parse(self, data):
 		if data == b'\xff\xff\xff\xff':
 			return self(None)
@@ -353,7 +354,6 @@ class FunctionResult(Message):
 				)
 			)
 		return self(data)
-	parse = classmethod(parse)
 
 class AttributeTypes(TupleMessage):
 	"""Tuple attribute types"""
@@ -363,13 +363,13 @@ class AttributeTypes(TupleMessage):
 	def serialize(self):
 		return ushort.pack(len(self)) + b''.join([ulong.pack(x) for x in self])
 
+	@classmethod
 	def parse(self, data):
 		ac = ushort.unpack(data[0:2])[0]
 		args = data[2:]
 		if len(args) != ac * 4:
 			raise ValueError("invalid argument type data size")
 		return self(unpack('!%dL'%(ac,), args))
-	parse = classmethod(parse)
 
 class TupleDescriptor(TupleMessage):
 	"""Tuple description"""
@@ -396,6 +396,7 @@ class TupleDescriptor(TupleMessage):
 			for x in self
 		])
 
+	@classmethod
 	def parse(self, data):
 		ac = ushort.unpack(data[0:2])[0]
 		atts = []
@@ -411,7 +412,6 @@ class TupleDescriptor(TupleMessage):
 			data = data[18:]
 			ca += 1
 		return self(atts)
-	parse = classmethod(parse)
 
 class Tuple(TupleMessage):
 	"""Incoming tuple"""
@@ -424,6 +424,7 @@ class Tuple(TupleMessage):
 			for x in self
 		])
 
+	@classmethod
 	def parse(self, data):
 		natts = ushort.unpack(data[0:2])[0]
 		atts = list()
@@ -443,7 +444,6 @@ class Tuple(TupleMessage):
 			atts.append(att)
 			natts -= 1
 		return self(atts)
-	parse = classmethod(parse)
 
 class KillInformation(Message):
 	'Backend cancellation information'
@@ -458,9 +458,9 @@ class KillInformation(Message):
 	def serialize(self):
 		return self.struct.pack(self.pid, self.key)
 
+	@classmethod
 	def parse(self, data):
 		return self(*self.struct.unpack(data))
-	parse = classmethod(parse)
 
 class CancelQuery(KillInformation):
 	'Abort the query in the specified backend'
@@ -479,11 +479,11 @@ class CancelQuery(KillInformation):
 		data = self.serialize()
 		return ulong.pack(len(data)) + data
 
+	@classmethod
 	def parse(self, data):
 		if data[0:4] != self.packed_version:
 			raise ValueError("invalid cancel query code")
 		return self(*unpack("!xxxxLL", data))
-	parse = classmethod(parse)
 
 class NegotiateSSL(Message):
 	"Discover backend's SSL support"
@@ -502,11 +502,11 @@ class NegotiateSSL(Message):
 	def serialize(self):
 		return self.packed_version
 
+	@classmethod
 	def parse(self, data):
 		if data != self.packed_version:
 			raise ValueError("invalid SSL Negotiation code")
 		return NegotiateSSLMessage
-	parse = classmethod(parse)
 NegotiateSSLMessage = Message.__new__(NegotiateSSL)
 
 class Startup(Message, dict):
@@ -530,6 +530,7 @@ class Startup(Message, dict):
 		data = self.serialize()
 		return ulong.pack(len(data) + 4) + data
 
+	@classmethod
 	def parse(self, data):
 		if data[0:4] != self.version.bytes():
 			raise ValueError("invalid version code {1}".format(repr(data[0:4])))
@@ -542,7 +543,6 @@ class Startup(Message, dict):
 			kw[key] = value
 			key = None
 		return self(kw)
-	parse = classmethod(parse)
 
 
 AuthRequest_OK = 0
@@ -584,9 +584,9 @@ class Authentication(Message):
 	def serialize(self):
 		return ulong.pack(self.request) + self.salt
 
+	@classmethod
 	def parse(subtype, data):
 		return subtype(ulong.unpack(data[0:4])[0], data[4:])
-	parse = classmethod(parse)
 
 class Password(StringMessage):
 	'Password supplement'
@@ -622,9 +622,9 @@ class Query(StringMessage):
 	type = b'Q'
 	__slots__ = ()
 
+	@classmethod
 	def parse(self, data):
 		return self(data[0:-1])
-	parse = classmethod(parse)
 
 class Parse(Message):
 	"""Parse a query with the specified argument types"""
@@ -636,6 +636,7 @@ class Parse(Message):
 		self.statement = statement
 		self.argtypes = argtypes
 
+	@classmethod
 	def parse(self, data):
 		name, statement, args = data.split(b'\x00', 2)
 		ac = ushort.unpack(args[0:2])[0]
@@ -644,7 +645,6 @@ class Parse(Message):
 			raise ValueError("invalid argument type data")
 		at = unpack('!%dL'%(ac,), args)
 		return self(name, statement, at)
-	parse = classmethod(parse)
 
 	def serialize(self):
 		ac = ushort.pack(len(self.argtypes))
@@ -689,6 +689,7 @@ class Bind(Message):
 			ac + b''.join(self.aformats) + ac + ad + rfc + \
 			b''.join(self.rformats)
 
+	@classmethod
 	def parse(subtype, message_data):
 		name, statement, data = message_data.split(b'\x00', 2)
 		ac = ushort.unpack(data[:2])[0]
@@ -719,7 +720,6 @@ class Bind(Message):
 		rformats = unpack(("2s" * rfc), data[ao:offset])
 
 		return subtype(name, statement, aformats, args, rformats)
-	parse = classmethod(parse)
 
 class Execute(Message):
 	"""Fetch results from the specified Portal"""
@@ -732,11 +732,11 @@ class Execute(Message):
 
 	def serialize(self):
 		return self.name + pack("!BL", 0, self.max)
-	
+
+	@classmethod
 	def parse(self, data):
 		name, max = data.split(b'\x00', 1)
 		return self(name, ulong.unpack(max)[0])
-	parse = classmethod(parse)
 
 class Describe(StringMessage):
 	"""Describe a Portal or Prepared Statement"""
@@ -746,6 +746,7 @@ class Describe(StringMessage):
 	def serialize(self):
 		return self.subtype + self.data + b'\x00'
 
+	@classmethod
 	def parse(subtype, data):
 		if data[0] != subtype.subtype:
 			raise ValueError(
@@ -754,7 +755,6 @@ class Describe(StringMessage):
 				)
 			)
 		return subtype(data[1:-1])
-	parse = classmethod(parse)
 
 class DescribeStatement(Describe):
 	subtype = b'S'
@@ -772,6 +772,7 @@ class Close(StringMessage):
 	def serialize(self):
 		return self.subtype + self.data + b'\x00'
 
+	@classmethod
 	def parse(subtype, data):
 		if data[0] != subtype.subtype:
 			raise ValueError(
@@ -780,7 +781,6 @@ class Close(StringMessage):
 				)
 			)
 		return subtype(data[1:-1])
-	parse = classmethod(parse)
 
 class CloseStatement(Close):
 	"""Close the specified Statement"""
@@ -812,6 +812,7 @@ class Function(Message):
 				for x in self.arguments
 			]) + self.rformat
 
+	@classmethod
 	def parse(self, data):
 		oid = ulong.unpack(data[0:4])[0]
 
@@ -838,7 +839,6 @@ class Function(Message):
 			natts -= 1
 
 		return self(oid, aformats, args, data[offset:])
-	parse = classmethod(parse)
 
 class CopyBegin(Message):
 	type = None
@@ -854,6 +854,7 @@ class CopyBegin(Message):
 			ushort.pack(x) for x in self.formats
 		])
 
+	@classmethod
 	def parse(subtype, data):
 		format, natts = subtype.struct.unpack(data[:3])
 		formats_str = data[3:]
@@ -862,7 +863,6 @@ class CopyBegin(Message):
 		return subtype(format, [
 			ushort.unpack(formats_str[x:x+2])[0] for x in range(0, natts * 2, 2)
 		])
-	parse = classmethod(parse)
 
 class CopyToBegin(CopyBegin):
 	"""Begin copying to"""
@@ -884,17 +884,17 @@ class CopyData(Message):
 	def serialize(self):
 		return self.data
 
+	@classmethod
 	def parse(subtype, data):
 		return subtype(data)
-	parse = classmethod(parse)
 
 class CopyFail(StringMessage):
 	type = b'f'
 	__slots__ = ()
 
+	@classmethod
 	def parse(self, data):
 		return self(data[:-1])
-	parse = classmethod(parse)
 
 class CopyDone(EmptyMessage):
 	type = b'c'
