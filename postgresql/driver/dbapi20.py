@@ -3,7 +3,7 @@
 # http://python.projects.postgresql.org
 ##
 """
-DB-API 2.0 conforming interface using postgresql.driver
+DB-API 2.0 conforming interface using postgresql.driver.
 """
 threadsafety = 1
 paramstyle = 'pyformat'
@@ -19,9 +19,8 @@ from postgresql.exceptions import \
 	ICVError as IntegrityError, \
 	SEARVError as ProgrammingError, \
 	IRError as OperationalError, \
+	DriverError as InterfaceError, \
 	Warning
-class InterfaceError(Error):
-	pass
 DatabaseError = Error
 class NotSupportedError(DatabaseError):
 	pass
@@ -192,8 +191,8 @@ class Connection(object):
 		ICVError as IntegrityError, \
 		SEARVError as ProgrammingError, \
 		IRError as OperationalError, \
+		DriverError as InterfaceError, \
 		Warning
-	InterfaceError = InterfaceError
 	DatabaseError = DatabaseError
 	NotSupportedError = NotSupportedError
 
@@ -218,8 +217,7 @@ class Connection(object):
 def connect(**kw):
 	"""
 	Create a DB-API connection using the given parameters.
-
-	See the `Connecting` section in the documentation for more information about
-	suitable parameters.
 	"""
-	return Connection(pg_driver.connect(**kw))
+	pgapi = pg_driver.connect(**kw)
+	dbapi = Connection(pgapi)
+	return dbapi

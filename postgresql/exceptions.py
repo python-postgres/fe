@@ -72,6 +72,12 @@ class Warning(PythonMessage, Warning):
 	code = '01000'
 	ife_label = 'WARNING'
 
+class DriverWarning(Warning):
+	code = ''
+	source = 'DRIVER'
+class IgnoredClientParameterWarning(DriverWarning):
+	'Warn the user of a valid, but ignored parameter.'
+
 class DeprecationWarning(Warning):
 	code = '01P01'
 class DynamicResultSetsReturnedWarning(Warning):
@@ -108,6 +114,19 @@ class Error(PythonMessage, Exception):
 			raise self
 		else:
 			raise self from raise_from
+
+class DriverError(Error):
+	"Errors originating in the driver's implementation."
+	source = 'DRIVER'
+class OperationError(DriverError):
+	"""
+	An invalid operation on an interface element.
+
+	Usually this occurs in dynamically configured instances where the action is
+	not actually valid for the, actual, finalized type.
+
+	For instance, calling the seek() method on a cursor who's query is a COPY.
+	"""
 
 ##
 # Exceptions pertinent to cluster initialization and management

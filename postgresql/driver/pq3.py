@@ -479,10 +479,10 @@ class ResultHandle(pg_api.InterfaceElement):
 # scrollable cursors and server declared cursors. (0 is disabled)
 ##
 # Prior, it was suspected that these different cases would indicate the need
-# for sub-classing, but the amount of overlapping functionality caused the
-# integration. For instance, in the case of '1', if query discovery is
-# possible, the restart() method is available and may change how the cursor
-# is treated after the restart.
+# for sub-classing, but the amount of overlapping functionality and dynamic
+# decisions caused the integration. For instance, in the case of '1', if
+# query discovery is possible, the restart() method may be available and may
+# change how the cursor is treated after the restart.
 # 
 class Cursor(pg_api.Cursor):
 	"""
@@ -505,10 +505,11 @@ class Cursor(pg_api.Cursor):
 	with_scroll = None
 	insensitive = None
 
-	_output_io = None
 	_output = None
+	_output_io = None
 	_output_formats = None
 	_output_attmap = None
+
 	_cid = -1
 	_state = None
 	_cursor_type = None
@@ -533,6 +534,10 @@ class Cursor(pg_api.Cursor):
 		# If the cursor is not scrollable, and fetchcount
 		# was not supplied, set it as the default fetchcount.
 		if not with_scroll and fetchcount is None:
+			# This restriction on scroll was set to insure
+			# any possible needed consistency with the cursor position
+			# on the backend.
+			##
 			fetchcount = typ.default_fetchcount
 		c.__init__(ID(c), query.connection, fetchcount = fetchcount)
 		return c
@@ -1547,9 +1552,9 @@ class TransactionManager(pg_api.TransactionManager):
 		self.isolation = None
 		self.mode = None
 		self.gid = None
-	
+
 	def ife_snapshot_text(self):
-		return "Transaction"
+		return "[level: " + str(self._level) + "]"
 
 	@property
 	def failed(self):
@@ -1572,16 +1577,12 @@ class TransactionManager(pg_api.TransactionManager):
 
 	def commit_prepared(self, gid):
 		self.connection.execute(
-			"COMMIT PREPARED '{1}'".format(
-				gid.replace("'", "''")
-			)
+			"COMMIT PREPARED '" + gid.replace("'", "''") + "'"
 		)
 
 	def rollback_prepared(self, gid):
 		self.connection.execute(
-			"ROLLBACK PREPARED '{1}'".format(
-				gid.replace("'", "''")
-			)
+			"ROLLBACK PREPARED '" + gid.replace("'", "''") + "'"
 		)
 
 	def _execute(self, qstring, adjustment):
@@ -1637,7 +1638,7 @@ class TransactionManager(pg_api.TransactionManager):
 			else:
 				return "PREPARE TRANSACTION '" + self.gid.replace("'", "''") + "'"
 		else:
-			return 'RELEASE "xact(%d)"' %(level - 1,)
+			return 'RELEASE "xact(' + str(level - 1) + ')"'
 
 	def commit(self):
 		self._execute(self._commit_string(self._level), -1)
@@ -2455,7 +2456,12 @@ class Connector(pg_api.Connector):
 	def socket_secure(self, socket):
 		"""
 		Given a socket produced using one of the callables created in the
-		`socket_factory_sequence`, secure it using SSL.
+		`socket_factory_sequence`, secure it using SSL with the SSL parameters:
+		
+		 - sslcrtfile
+		 - sslkeyfile
+		 - sslrootcrtfile
+		 - sslrootcrlfile
 		"""
 
 	def __init__(self,
@@ -2480,6 +2486,12 @@ class Connector(pg_api.Connector):
 		self.sslcrtfile = sslcrtfile
 		self.sslrootcrtfile = sslrootcrtfile
 		self.sslrootcrlfile = sslrootcrlfile
+
+		if self.sslrootcrlfile is not None:
+			w = pg_exc.IgnoredClientParameterWarning(
+				"Certificate Revocation Lists are *not* checked."
+			)
+			self.ife_descend(w)
 
 		# Startup message parameters.
 		tnkw = {}
@@ -2554,7 +2566,6 @@ class SocketConnector(Connector):
 			certfile = self.sslcertfile,
 			ca_certs = self.sslrootcertfile,
 		)
-		# XXX: check revocation list?
 
 class IP4(SocketConnector):
 	'Connector for establishing IPv4 connections'
@@ -2780,5 +2791,6 @@ class Driver(pg_api.Driver):
 	def __new__(subtype):
 		# There is only one instance of postgresql.driver.pq3.
 		return implementation
+# More of a formality than anything.
 implementation = pg_api.Driver.__new__(Driver)
 implementation.__init__()
