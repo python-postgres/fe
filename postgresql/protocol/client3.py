@@ -481,12 +481,17 @@ class Transaction(ProtocolState):
 							if self.commands[offset] is element.SynchronizeMessage:
 								break
 						else:
+							##
+							# It's done.
 							self.state = Complete
 							return count
+					##
 					# Not quite done, the state(Ready) message still
 					# needs to be received.
 					cmd = self.commands[offset]
 					paths = self.hook[cmd.type]
+					# On a new command, setup the new step.
+					current_step = 0
 					continue
 				elif x[0] in self.asynchook:
 					asyncs.append(self.asynchook[x[0]](x[1]))
@@ -494,7 +499,7 @@ class Transaction(ProtocolState):
 					##
 					# Procotol violation
 					err = pg_exc.ProtocolError(
-						"expected message of types %r, "\
+						"expected message of types %r, " \
 						"but received %r instead" % (
 							tuple(paths[current_step].keys()), x[0]
 						),

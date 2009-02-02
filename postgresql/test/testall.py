@@ -8,6 +8,7 @@ import unittest
 
 from postgresql.test.test_iri import *
 from postgresql.test.test_protocol import *
+from postgresql.test.test_exceptions import *
 
 if __name__ == '__main__':
 	from types import ModuleType
