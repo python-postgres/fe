@@ -747,10 +747,10 @@ class Describe(StringMessage):
 
 	@classmethod
 	def parse(typ, data):
-		if data[0] != typ.subtype:
+		if data[0:1] != typ.subtype:
 			raise ValueError(
 				"invalid Describe message subtype, %r; expected %r" %(
-					typ.subtype, data[0]
+					typ.subtype, data[0:1]
 				)
 			)
 		return typ(data[1:-1])
@@ -773,10 +773,10 @@ class Close(StringMessage):
 
 	@classmethod
 	def parse(typ, data):
-		if data[0] != typ.subtype:
+		if data[0:1] != typ.subtype:
 			raise ValueError(
 				"invalid Close message subtype, %r; expected %r" %(
-					typ.subtype, data[0]
+					typ.subtype, data[0:1]
 				)
 			)
 		return typ(data[1:-1])

@@ -149,23 +149,23 @@ message_samples = [
 	e3.Parse(b'statement_id', b'query', (123,)),
 	e3.Parse(b'statement_id', b'query', ()),
 	e3.Bind(b'portal_id', b'statement_id',
-		[b'tt',b'\x00\x00'],
+		(b'tt',b'\x00\x00'),
 		[b'data',None], (b'ff',b'xx')),
-	e3.Bind(b'portal_id', b'statement_id', [b'tt'], [None], (b'xx',)),
-	e3.Bind(b'portal_id', b'statement_id', [b'ff'], [b'data'], ()),
-	e3.Bind(b'portal_id', b'statement_id', [], [], (b'xx',)),
-	e3.Bind(b'portal_id', b'statement_id', [], [], ()),
+	e3.Bind(b'portal_id', b'statement_id', (b'tt',), [None], (b'xx',)),
+	e3.Bind(b'portal_id', b'statement_id', (b'ff',), [b'data'], ()),
+	e3.Bind(b'portal_id', b'statement_id', (), [], (b'xx',)),
+	e3.Bind(b'portal_id', b'statement_id', (), [], ()),
 	e3.Execute(b'portal_id', 500),
 	e3.Execute(b'portal_id', 0),
 	e3.DescribeStatement(b'statement_id'),
 	e3.DescribePortal(b'portal_id'),
 	e3.CloseStatement(b'statement_id'),
 	e3.ClosePortal(b'portal_id'),
-	e3.Function(123, [], [], b'xx'),
-	e3.Function(321, [b'tt'], [b'foo'], b'xx'),
-	e3.Function(321, [b'tt'], [None], b'xx'),
-	e3.Function(321, [b'aa', b'aa'], [None,b'a' * 200], b'xx'),
-	e3.FunctionResult(''),
+	e3.Function(123, (), [], b'xx'),
+	e3.Function(321, (b'tt',), [b'foo'], b'xx'),
+	e3.Function(321, (b'tt',), [None], b'xx'),
+	e3.Function(321, (b'aa', b'aa'), [None,b'a' * 200], b'xx'),
+	e3.FunctionResult(b''),
 	e3.FunctionResult(b'foobar'),
 	e3.FunctionResult(None),
 	e3.CopyToBegin(123, [321,123]),
@@ -185,9 +185,7 @@ class test_element3(unittest.TestCase):
 	def testSerializeParseConsistency(self):
 		for msg in message_samples:
 			smsg = msg.serialize()
-			self.failUnlessEqual(
-				msg, msg.parse(smsg),
-			)
+			self.failUnlessEqual(msg, msg.parse(smsg))
 
 	def testEmptyMessages(self):
 		for x in e3.__dict__.values():
@@ -335,7 +333,7 @@ class test_client3(unittest.TestCase):
 			x.state[1]()
 			self.failUnlessEqual(x.messages, ())
 			x.state[1](r)
-			self.failUnlessEqual(x.state[0], c3.Complete)
+			self.failUnlessEqual(x.state, c3.Complete)
 			rec = []
 			for y in x.completed:
 				for z in y[1]:
@@ -552,7 +550,7 @@ consistency_samples = {
 		(0xffffffff, 0xffff),
 		(0, 0xffff),
 		(0xffffffff, 0),
-		(0xffffffff / 2, 0xffff / 2),
+		(0xffffffff // 2, 0xffff // 2),
 	],
 
 	pg_types.CIDROID : [
@@ -597,7 +595,7 @@ consistency_samples[pg_types.INTERVALOID] = [
 consistency_samples[pg_types.OIDOID] = \
 	consistency_samples[pg_types.CIDOID] = \
 	consistency_samples[pg_types.XIDOID] = [
-	0, 0xffffffff, 0xffffffff / 2, 123, 321, 1, 2, 3
+	0, 0xffffffff, 0xffffffff // 2, 123, 321, 1, 2, 3
 ]
 
 consistency_samples[pg_types.LSEGOID] = \
@@ -654,12 +652,12 @@ def testExpectIO(self, map, samples):
 class test_typio(unittest.TestCase):
 	def testExpectations(self):
 		'IO tests where the pre-made expected serialized form is compared'
-		testExpectIO(self, pg_typio.oid_to_io, expectation_samples)
+		testExpectIO(self, pg_typstruct.oid_to_io, expectation_samples)
 
 	def testConsistency(self):
 		'IO tests where the unpacked source is compared to re-unpacked result'
 		for oid, sample in consistency_samples.items():
-			pack, unpack = pg_typio.oid_to_io.get(oid, (None, None))
+			pack, unpack = pg_typstruct.oid_to_io.get(oid, (None, None))
 			if pack is not None:
 				for x in sample:
 					packed = pack(x)
@@ -671,7 +669,7 @@ class test_typio(unittest.TestCase):
 							x, packed, unpacked
 						)
 					)
-		for oid, (pack, unpack) in pg_typio.time_io.items():
+		for oid, (pack, unpack) in pg_typstruct.time_io.items():
 			sample = consistency_samples.get(oid, [])
 			for x in sample:
 				packed = pack(x)
@@ -684,7 +682,7 @@ class test_typio(unittest.TestCase):
 					)
 				)
 
-		for oid, (pack, unpack) in pg_typio.time64_io.items():
+		for oid, (pack, unpack) in pg_typstruct.time64_io.items():
 			sample = consistency_samples.get(oid, [])
 			for x in sample:
 				packed = pack(x)

@@ -388,7 +388,7 @@ def record_pack(seq):
 	"""
 	pack a record given an iterable of (type_oid, data) pairs.
 	"""
-	return long_pack(len(seq)) + ''.join([
+	return long_pack(len(seq)) + b''.join([
 		# typid + (null_seq or data)
 		oid_pack(x) + (y is None and null_sequence or (long_pack(len(y)) + y))
 		for x, y in seq
@@ -432,7 +432,7 @@ def array_pack(array_data):
 	header = llL_pack((len(dlb) // 2, flags, typid))
 	return header + \
 		struct.pack("!%dl" %(len(dlb),), *dlb) + \
-		''.join(elements_pack(elements))
+		b''.join(elements_pack(elements))
 
 def elements_unpack(data, offset):
 	"""
