@@ -138,12 +138,12 @@ class Cursor(object):
 		else:
 			q = self.pg_api_c.query(query)
 			r = q()
-		if q.output is not None and len(q.output) > 0:
+		if q._output is not None and len(q._output) > 0:
 			# name, relationId, columnNumber, typeId, typlen, typmod, format
 			self.description = tuple([
 				(x[0], dbapi_type(x[3]),
 					None, None, None, None, None)
-				for x in q.output
+				for x in q._output
 			])
 			self.__portals.insert(0, r)
 		else:
