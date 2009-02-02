@@ -6,12 +6,8 @@ import sys
 import os
 import unittest
 
-from postgresql.test.test_ri import *
-from postgresql.test.test_environ import *
-from postgresql.test.test_options import *
-from postgresql.test.test_strings import *
-from postgresql.test.test_types import *
-from postgresql.test.test_bytea_codec import *
+from postgresql.test.test_iri import *
+from postgresql.test.test_protocol import *
 
 if __name__ == '__main__':
 	from types import ModuleType
