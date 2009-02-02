@@ -25,19 +25,19 @@ escape_path_re = re.compile('[%s]' %(re.escape(ri.unescaped + ','),))
 
 def structure(d, fieldproc = ri.unescape):
 	'Create a clientparams dictionary from a parsed RI'
-	if d.get('scheme', 'pq') != 'pq':
-		raise ValueError("not a PQ-IRI")
-
+	if d.get('scheme', 'pq').lower() != 'pq':
+		raise ValueError("PQ-IRI scheme is not 'pq'")
 	cpd = {
 		k : fieldproc(v) for k, v in d.items()
 		if k not in ('path', 'fragment', 'query', 'host', 'scheme')
 	}
+
 	path = d.get('path')
 	frag = d.get('fragment')
 	query = d.get('query')
 	host = d.get('host')
 
-	if host:
+	if host is not None:
 		if host.startswith('[') and host.endswith(']'):
 			host = host[1:-1]
 			if host.startswith('unix:'):
@@ -124,7 +124,7 @@ def construct(x, obscure_password = False):
 	else:
 		host = None
 		port = x.get('port')
-	
+
 	path = []
 	if 'database' in x:
 		path.append(x['database'])
@@ -135,7 +135,7 @@ def construct(x, obscure_password = False):
 	if obscure_password and password is not None:
 		password = '***'
 	return (
-		'pq',
+		'pqs' if x.get('ssl', False) is True else 'pq',
 		# netloc: user:pass@host[:port]
 		ri.unsplit_netloc((
 			x.get('user'),
