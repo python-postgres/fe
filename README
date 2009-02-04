@@ -44,7 +44,8 @@ Sample PG-API Code
 Further Information
 -------------------
 
-The documentation directory, `doc`, contains more detailed information on the
-modules herein, and HTML versions of the documentation can be found at::
+The documentation directory, `postgresql/documentation`, contains more detailed
+information on the modules herein, and HTML versions of the documentation can
+be found at::
 
 	http://python.projects.postgresql.org
