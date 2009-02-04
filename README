@@ -17,7 +17,7 @@ Installation should be as simple as::
 	$ python3.0 ./setup.py install
 
 
-Further information is located in doc/install.txt.
+Further information is located in postgresql/documentation/install.txt.
 
 
 Basic Driver Usage
