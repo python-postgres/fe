@@ -6,21 +6,20 @@ given user. In order to highlight those potential issues and hopefully bring
 some sense into a confusing situation, this document was drawn.
 
 
-client_encoding and TimeZone GUCs should be altered carefully
--------------------------------------------------------------
+client_encoding GUCs should be altered carefully
+------------------------------------------------
 
 `postgresql.driver`'s streaming cursor implementation reads a fixed set of rows
 when it queries the server for more. In order to optimized some situations, the
 driver will send a request for more data, but makes no attempt to wait and
 process the data as it is not yet needed. When the user comes back to read more
 data from the cursor, it will then look at this new data. The problem being, if
-the `client_encoding` or the `TimeZone` was switched, it may use the wrong codec
-and tzinfo to transform the wire data into higher level Python objects.
+`client_encoding` was switched, it may use the wrong codec to transform the
+wire data into higher level Python objects(str).
 
-To avoid this problem from ever happening, set the `TimeZone` or
-`client_encoding` early. Furthermore, it is probably best to never change the
-`client_encoding` as the driver automatically makes the necessary tranformation
-to Python strings.
+To avoid this problem from ever happening, set the `client_encoding` early.
+Furthermore, it is probably best to never change the `client_encoding` as the
+driver automatically makes the necessary tranformation to Python strings.
 
 
 The user and password is correct, but does it not work when using `postgresql.driver`
