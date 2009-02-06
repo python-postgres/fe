@@ -339,15 +339,15 @@ class SequenceCursor(CursorStrategy):
 		if len(self._state[1]) > (2 * self.fetchcount):
 			self._contract()
 
-		offset, buffer, x = self._state
+		offset, buffer = self._state[:2]
 		while offset >= len(buffer):
 			if self._expand(1) == 0:
 				# End of cursor.
 				##
 				raise StopIteration
-			offset, buffer, x = self._state
+			offset, buffer = self._state[:2]
 		t = buffer[offset]
-		self._state = (offset + 1, buffer, x)
+		self._state = (offset + 1,) + self._state[1:]
 		return t
 
 	def read(self, quantity = None):
@@ -369,12 +369,14 @@ class SequenceCursor(CursorStrategy):
 			# Read some.
 			##
 			left_to_read = (quantity - (len(self._state[1]) - offset))
-			while left_to_read > 0:
-				left_to_read -= self._expand(left_to_read)
+			expanded = -1 
+			while left_to_read > 0 and expanded != 0:
+				expanded = self._expand(left_to_read)
+				left_to_read -= expanded
 
 		end_of_block = offset + quantity
 		t = self._state[1][offset:end_of_block]
-		self._state = (end_of_block, self._state[1], self._state[2])
+		self._state = (end_of_block,) + self._state[1:]
 		return t
 
 class TupleCursor(SequenceCursor):
@@ -426,10 +428,7 @@ class TupleCursor(SequenceCursor):
 			# Push and complete.
 			self.connection._pq_push(x)
 			if self.connection._pq_xact is x:
-				if self._cursor_type == 'copy':
-					self.connection._pq_step()
-				else:
-					self.connection._pq_complete()
+				self.connection._pq_complete()
 
 		# At this point, it is expected that the transaction has more tuples
 		# It's the cursor's current transaction and that won't change until
@@ -565,7 +564,7 @@ class ProtocolCursor(TupleCursor):
 				self._output_formats,
 			),
 		)
-		super()._init(self, setup)
+		super()._init(setup)
 
 	def _pq_xp_fetchmore(self, count):
 		'[internal] make and return a transaction to get more rows'
@@ -688,6 +687,7 @@ class UtilityCursor(CursorStrategy):
 			for x in self._pq_xact.messages_received():
 				if x.type is pq.element.CopyToBegin.type:
 					self.__class__ = CopyCursor
+					self._init()
 					return
 					# The COPY TO STDOUT transaction terminates the loop
 					# *without* finishing the transaction.
@@ -709,7 +709,10 @@ class CopyCursor(SequenceCursor):
 			if type(y) is bytes
 		]
 
-	def _expand(self):
+	def _init(self):
+		self._state = (0, (), None, self._pq_xact)
+
+	def _expand(self, count : "ignored"):
 		"""
 		[internal] helper function to put more copy data onto the buffer for
 		reading. This function will only append to the buffer and never
@@ -740,7 +743,7 @@ class CopyCursor(SequenceCursor):
 		extension = self._pq_xact_get_copy_data()
 		self._state = (
 			offset,
-			buffer + extension,
+			tuple(chain(buffer,extension)),
 			x.completed[0],
 			x
 		)
