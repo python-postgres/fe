@@ -62,30 +62,30 @@ Keyword parameters accepted by `connect`:
  sslrootcrtfile
   Root certificate file path given to `ssl.wrap_socket`
  sslrootcrlfile
-  Revocation list file path. Currently unused.
+  Revocation list file path. [Throws a NotSupportedWarning]
 
-From here on `pg_con` will be assumed to exist and serve as the documentation's
+From here on `db` will be assumed to exist and serve as the documentation's
 Connection instance.
 
 Querying
 --------
 
-Querying PostgreSQL is very easy. A query object is created, a
-`PreparedStatement` instance, using the `query` method on the connection
+Querying PostgreSQL is very easy. A statement object is created, a
+`PreparedStatement` instance, using the `prepare` method on the connection
 object::
 
-	>>> my_query = pg_con.query("SELECT 'hello, world!'")
+	>>> my_statement = db.prepare("SELECT 'hello, world!'")
 
-This creates a bound query object, so it's only usable on the `pg_con`
+This creates a bound statement object, so it's only usable on the `db`
 connection. While this may seem to be a trifle for some situations, it's very
-handy to be able to pass around the query object without having to explicitly
+handy to be able to pass around the statement object without having to explicitly
 carry the connection object with it.
 
 Now, to execute it::
 
-	>>> my_results = my_query()
+	>>> my_results = my_statement()
 
-Just like executing a function. In this case, invoking `my_query` will return a
+Just like executing a function. In this case, invoking `my_statement` will return a
 `Cursor` object to the result set.
 
 NOTE: Don't confuse PG-API cursors with DB-API cursors. PG-API cursors are SQL
@@ -117,15 +117,15 @@ As cursors have a couple methods for reading tuples, queries a few methods for
 executing the prepared statement:
 
  ``__call__(...)``
-  As shown before, query objects can be simply invoked like a function to get a
-  cursor to the query's results.
+  As shown before, statement objects can be simply invoked like a function to get a
+  cursor to the statement's results.
 
  ``first(...)``
   For simple queries, a cursor object can be a bit tiresome to get data from,
   consider the data contained in ``my_results``, 'hello world!'. To get at this
   data directly from the ``__call__(...)`` method, it looks something like::
 
-	>>> my_query().read()[0][0]
+	>>> my_statement().read()[0][0]
 
   While it's certainly easy to understand, it can be quite cumbersome and
   perhaps even error prone for more complicated queries returing single values.
@@ -145,33 +145,24 @@ executing the prepared statement:
   The first row count: When DML--for instance, an INSERT-statement--is executed,
   ``first()`` will return the row count returned by the statement as an integer.
 
-  The result set created by the query determines what is actually returned.
-  Naturally, a query used with ``first()`` should be crafted with these rules in
-  mind.
+  The result set created by the statement determines what is actually returned.
+  Naturally, a statement used with ``first()`` should be crafted with these
+  rules in mind.
 
- ``declare(...)``
-  For situations where cursor declaration parameters are needed, the ``declare``
-  method should be used. By default it will create a cursor for the query with
-  hold and with scroll; enabling the cursor's ``seek()`` and ``scroll()``
-  methods to be used. Cursors created in this fashion are a stark contrast from
-  those created by ``__call__()``, as the kind of cursors returned by
-  ``__call__()`` are optimized for fast, sequential row retrivial, whereas
-  declared cursors are built to guarantee the positioning.
-
-Query objects can take parameters. To do this, the query must be defined using
+Statement objects can take parameters. To do this, the statement must be defined using
 PostgreSQL's positional parameter notation. ``$1``, ``$2``, ``$3``, etc. If the
-query object ``my_query`` were to be re-written to take a parameter, it would be
+statement object ``my_statement`` were to be re-written to take a parameter, it would be
 done simply::
 
-	>>> my_query = pg_con.query("SELECT $1")
+	>>> my_statement = db.prepare("SELECT $1")
 
 And, re-create the ``my_cursor``::
 
-	>>> my_cursor = my_query('hello, world!')
+	>>> my_cursor = my_statement('hello, world!')
 
 It's that easy. And using ``first()``::
 
-	>>> 'hello, world!' == my_query.first('hello, world!')
+	>>> 'hello, world!' == my_statement.first('hello, world!')
 	True
 
 Inserting
@@ -183,7 +174,6 @@ Copying
 
 Transacting
 -----------
-
 
 Setting
 -------
