@@ -378,7 +378,9 @@ class Message(InterfaceElement):
 		]
 		locstr = (
 			"" if tuple(loc) == ('?', '?', '?')
-			else os.linesep + "LOCATION: File {0!r}, line {1!s}, in {2!s}".format(*loc)
+			else os.linesep + \
+				"LOCATION: File {0!r}, "\
+				"line {1!s}, in {2!s}".format(*loc)
 		)
 
 		sev = details.get('severity')
@@ -386,7 +388,8 @@ class Message(InterfaceElement):
 		if sev:
 			sevmsg = os.linesep + "SEVERITY: " + sev.upper()
 		detailstr = os.linesep.join((
-			': '.join((k.upper(), v)) for k, v in sorted(details.items(), key = itemgetter(0))
+			': '.join((k.upper(), v))
+			for k, v in sorted(details.items(), key = itemgetter(0))
 			if k not in ('message', 'severity', 'file', 'function', 'line')
 		))
 		if detailstr:
@@ -403,8 +406,9 @@ class Cursor(
 	collections.Iterable,
 ):
 	"""
-	A `Cursor` object is an interface to a sequence of tuples(rows). A result set.
-	Cursors publish a file-like interface for reading tuples from the database.
+	A `Cursor` object is an interface to a sequence of tuples(rows). A result
+	set. Cursors publish a file-like interface for reading tuples from the
+	database.
 
 	`Cursor` objects are created by invoking `PreparedStatement` objects or by
 	direct name-based instantation(`cursor` method on `Connection` objects).
@@ -433,7 +437,7 @@ class Cursor(
 
 	@apdoc
 	@abstractproperty
-	def query(self) -> ("PreparedStatement", None):
+	def statement(self) -> ("PreparedStatement", None):
 		"""
 		The query object used to create the cursor. `None`, if unknown.
 		"""
@@ -466,7 +470,9 @@ class Cursor(
 	) -> [()]:
 		"""
 		Read the specified number of rows and return them in a list.
-		This advances the cursor's position.
+		This alters the cursor's position.
+
+		If the quantity is a negative value, read backwards.
 		"""
 
 	@abstractmethod
@@ -482,25 +488,6 @@ class Cursor(
 		"""
 
 	@abstractmethod
-	def scroll(self, number_of_rows : int):
-		"""
-		Set the cursor's position relative to the current position.
-		Negative numbers can be used to scroll backwards.
-
-		This is a convenient interface to `seek` with a relative whence(``1``).
-
-		When `number_of_rows` is zero, there is no effect on the cursor.
-		"""
-
-	@abstractmethod
-	def move(self, position_in_cursor : int):
-		"""
-		Move the cursor's pointer to the specified position, `position_in_cursor`.
-		The position is absolute, from which a negative position indicates
-		relative to the end where a positive position indicate relative to the
-		beginning.
-		"""
-
 	def seek(self, offset, whence = 'ABSOLUTE'):
 		"""
 		Set the cursor's position to the given offset with respect to the
@@ -508,27 +495,13 @@ class Cursor(
 
 		Whence values:
 
-		 ``0``
+		 ``0`` or ``"ABSOLUTE"``
 		  Absolute.
-		 ``1``
+		 ``1`` or ``"RELATIVE"``
 		  Relative.
-		 ``2``
+		 ``2`` or ``"FROM_END"``
 		  Absolute from end.
-
-		(seek is not an abstractmethod and is implemented using `move` and `scroll`)
 		"""
-		rwhence = self._seek_whence_map.get(whence, whence)
-		if rwhence is None or rwhence.upper() not in self._seek_whence_map.values():
-			raise TypeError(
-				"unknown whence parameter, %r" %(whence,)
-			)
-		rwhence = rwhence.upper()
-		if rwhence == 'RELATIVE':
-			return self.scroll(offset)
-		elif rwhence == 'ABSOLUTE':
-			return self.move(offset, count = count)
-		else:
-			return self.move(-offset, count = count)
 
 class PreparedStatement(
 	InterfaceElement,
@@ -536,17 +509,17 @@ class PreparedStatement(
 	collections.Iterable,
 ):
 	"""
-	Instances of `PreparedStatement` are returned by the `query` method of
-	`Connection` instances.
+	Instances of `PreparedStatement` are returned by the `prepare` method of
+	`Database` instances.
 
 	A PreparedStatement is an Iterable as well as Callable. This feature is
 	supported for queries that have the default arguments filled in or take no
 	arguments at all. It allows for things like:
 
-		>>> for x in connection.query('select * FROM table'):
+		>>> for x in db.prepare('select * FROM table'):
 		...  pass
 	"""
-	ife_label = 'QUERY'
+	ife_label = 'STATEMENT'
 
 	@apdoc
 	@abstractproperty
@@ -559,7 +532,7 @@ class PreparedStatement(
 	@abstractproperty
 	def string(self) -> str:
 		"""
-		The query string of the prepared statement.
+		The SQL string of the prepared statement.
 
 		`None` if not available. This can happen in cases where a statement is
 		prepared on the server and a reference to the statement is sent to the
@@ -568,33 +541,41 @@ class PreparedStatement(
 		"""
 
 	@abstractmethod
-	def __call__(self, *args) -> Cursor:
+	def __call__(self, *args,
+		with_hold : \
+			"Whether or not to request 'WITH HOLD'" = True,
+		with_scroll : \
+			"Whether or not to request 'SCROLL'" = False,
+		cursor_id : \
+			"If `None`, generate the cursor_id, " \
+			"otherwise use the given string" = None
+	) -> Cursor:
 		"""
-		Execute the prepared statement with the given arguments as parameters. If
-		the query returns rows, a `Cursor` object should be returned, otherwise a
-		`ResultHandle` object.
+		Execute the prepared statement with the given arguments as parameters.
 
 		Usage:
 
-		>>> q=pg_con.query("SELECT column FROM ttable WHERE key = $1")
-		>>> q('identifier')
-		<cursor object>
+		>>> p=db.prepare("SELECT column FROM ttable WHERE key = $1")
+		>>> p('identifier')
+		<`Cursor` instance>
 		"""
 
 	@abstractmethod
 	def first(self, *args) -> "'First' object that is yield by the query":
 		"""
-		Execute the prepared statement with the given arguments as parameters. If
-		the query returns rows with multiple columns, return the first row. If the
-		query returns rows with a single column, return the first column in the
-		first row. If the query does not return rows at all, return the count or
-		`None` if no count exists in the completion message. Usage:
+		Execute the prepared statement with the given arguments as parameters.
+		If the statement returns rows with multiple columns, return the first
+		row. If the statement returns rows with a single column, return the
+		first column in the first row. If the query does not return rows at all,
+		return the count or `None` if no count exists in the completion message.
 
-		>>> pg_con.query("SELECT * FROM ttable WHERE key = $1").first("somekey")
+		Usage:
+
+		>>> db.prepare("SELECT * FROM ttable WHERE key = $1").first("somekey")
 		('somekey', 'somevalue')
-		>>> pg_con.query("SELECT 'foo'").first()
+		>>> db.prepare("SELECT 'foo'").first()
 		'foo'
-		>>> pg_con.query("INSERT INTO atable (col) VALUES (1)").first()
+		>>> db.prepare("INSERT INTO atable (col) VALUES (1)").first()
 		1
 		"""
 
@@ -603,30 +584,18 @@ class PreparedStatement(
 		iterable : "A iterable of tuples to execute the statement with"
 	):
 		"""
-		Given an iterable, `iterable`, feed the produced parameters to the query.
-		This is a bulk-loading interface for parameterized queries.
+		Given an iterable, `iterable`, feed the produced parameters to the
+		query. This is a bulk-loading interface for parameterized queries.
 
 		Effectively, it is equivalent to:
 		
-			>>> q = pg_con.query(sql)
+			>>> q = db.prepare(sql)
 			>>> for i in iterable:
 			...  q(*i)
 
 		Its purpose is to allow the implementation to take advantage of the
 		knowledge that a series of parameters are to be loaded and subsequently
 		optimize the operation.
-		"""
-
-	@abstractmethod
-	def declare(self,
-		*args : "The arguments--positional parameters--to bind to the cursor.",
-		hold : "Whether or not to state 'WITH HOLD' in the DECLARE statement" = True,
-		scroll : "Whether or not to state 'WITH SCROLL' in the DECLARE statement" = False,
-		cursor_id : "If none, generate the cursor_id, otherwise use the given string" = None
-	) -> Cursor:
-		"""
-		Declare a cursor for the prepared statement and return the cursor object.
-		This differs from `__call__` as it allows the 
 		"""
 
 	@abstractmethod
@@ -638,9 +607,11 @@ class PreparedStatement(
 	@abstractmethod
 	def prepare(self) -> None:
 		"""
-		Prepare the query for use.
+		Prepare the statement for use.
 
-		If the query has already been prepared, not self.closed, prepare it again.
+		If the query has already been prepared, not self.closed,
+		the implementation *must* prepare it again.
+
 		This can be useful for forcing the update of a plan.
 		"""
 
@@ -658,17 +629,17 @@ class StoredProcedure(
 	def __call__(self, *args, **kw) -> (object, Cursor, collections.Iterable):
 		"""
 		Execute the procedure with the given arguments. If keyword arguments are
-		passed they must be mapped to the argument whose name matches the key. If
-		any positional arguments are given, they must fill in gaps created by
-		the stated keyword arguments. If too few or too many arguments are given,
-		a TypeError must be raised. If a keyword argument is passed where the
-		procedure does not have a corresponding argument name, then, likewise, a
-		TypeError must be raised.
+		passed they must be mapped to the argument whose name matches the key.
+		If any positional arguments are given, they must fill in gaps created by
+		the stated keyword arguments. If too few or too many arguments are
+		given, a TypeError must be raised. If a keyword argument is passed where
+		the procedure does not have a corresponding argument name, then,
+		likewise, a TypeError must be raised.
 
 		In the case where the `StoredProcedure` references a set returning
 		function(SRF), the result *must* be an iterable. SRFs that return single
-		columns *must* return an iterable of that column; not row data. If the SRF
-		returns a composite(OUT parameters), it *should* return a `Cursor`.
+		columns *must* return an iterable of that column; not row data. If the
+		SRF returns a composite(OUT parameters), it *should* return a `Cursor`.
 		"""
 
 class TransactionManager(
@@ -681,12 +652,12 @@ class TransactionManager(
 
 	Normal usage would entail the use of the with-statement::
 
-		with pg_con.xact:
+		with db.xact:
 		...
 	
 	Or, in cases where two-phase commit is desired::
 
-		with pg_con.xact('gid'):
+		with db.xact('gid'):
 		...
 	"""
 	ife_label = 'XACT'
@@ -701,11 +672,11 @@ class TransactionManager(
 
 	@apdoc
 	@abstractproperty
-	def level(self) -> int:
+	def depth(self) -> int:
 		"""
 		`int` stating the current transaction depth.
 
-		The level starts at zero, indicating no transactions have been started.
+		The depth starts at zero, indicating no transactions have been started.
 		For each call to `start`, this is incremented by one.
 		For each call to `abort` or `commit`, this is decremented by one.
 
@@ -727,8 +698,8 @@ class TransactionManager(
 	@abstractmethod
 	def __exit__(self, typ, obj, tb):
 		"""
-		Commit the transaction, or abort if the given exception is not `None`. If
-		the transaction level is greater than one, then the savepoint
+		Commit the transaction, or abort if the given exception is not `None`.
+		If the transaction level is greater than one, then the savepoint
 		corresponding to the current level will be released or rolled back in
 		cases of an exception.
 
@@ -745,8 +716,8 @@ class TransactionManager(
 		transaction for commit. If the number of running transactions is greater
 		than one, then the corresponding savepoint is released. If no savepoints
 		are set and the transaction is configured with a 'gid', then the
-		transaction is prepared instead of committed, otherwise the transaction is
-		simply committed.
+		transaction is prepared instead of committed, otherwise the transaction 
+		is simply committed.
 		"""
 
 	@abstractmethod
@@ -758,28 +729,29 @@ class TransactionManager(
 	abort = rollback
 
 	@abstractmethod
-	def __call__(self, gid = None, isolation = None, readonly = None):
+	def __call__(self, gid = None, isolation = None, read_only = None):
 		"""
 		Initialize the transaction using parameters and return self to support a
 		convenient with-statement syntax.
 
-		The configuration only applies to transaction blocks as savepoints have no 
-		parameters to be configured.
+		The configuration only applies to transaction blocks as savepoints have 
+		no parameters to be configured.
 
-		If the `gid`, the first keyword parameter, is configured, the transaction
-		manager will issue a ``PREPARE TRANSACTION`` with the specified identifier
-		instead of a ``COMMIT``.
+		If the `gid`, the first keyword parameter, is configured, the
+		transaction manager will issue a ``PREPARE TRANSACTION`` with the
+		specified identifier instead of a ``COMMIT``.
 
-		If `isolation` is specified, the ``START TRANSACTION`` will include it as
-		the ``ISOLATION LEVEL``. This must be a character string.
+		If `isolation` is specified, the ``START TRANSACTION`` will include it
+		as the ``ISOLATION LEVEL``. This must be a character string.
 
-		If the `readonly` parameter is specified, the transaction block will be
-		started in the ``READ ONLY`` mode if True, and ``READ WRITE`` mode if False.
-		If `None`, neither ``READ ONLY`` or ``READ WRITE`` will be specified.
+		If the `read_only` parameter is specified, the transaction block will be
+		started in the ``READ ONLY`` mode if True, and ``READ WRITE`` mode if
+		False.  If `None`, neither ``READ ONLY`` or ``READ WRITE`` will be
+		specified.
 
 		Read-only transaction::
 
-			>>> with pg_con.xact(readonly = True):
+			>>> with db.xact(read_only = True):
 			...
 
 		Read committed isolation::
@@ -787,7 +759,8 @@ class TransactionManager(
 			>>> with pg_con.xact(isolation = 'READ COMMITTED'):
 			...
 
-		Database configured defaults apply to all `TransactionManager` operations.
+		Database configured defaults apply to all `TransactionManager`
+		operations.
 		"""
 
 	@abstractmethod
@@ -806,11 +779,11 @@ class TransactionManager(
 	@abstractproperty
 	def prepared(self) -> "sequence of prepared transaction identifiers":
 		"""
-		A sequence of available prepared transactions for the current user on the
-		current database. This is intended to be more relavent for the current
-		context than selecting the contents of ``pg_prepared_xacts``. So, the view
-		*must* be limited to those of the current database, and those which the
-		user can commit.
+		A sequence of available prepared transactions for the current user on
+		the current database. This is intended to be more relavent for the
+		current context than selecting the contents of ``pg_prepared_xacts``.
+		So, the view *must* be limited to those of the current database, and
+		those which the user can commit.
 		"""
 
 class Settings(
@@ -818,17 +791,18 @@ class Settings(
 	collections.MutableMapping
 ):
 	"""
-	A mapping interface to the session's settings. This provides a direct interface
-	to ``SHOW`` or ``SET`` commands. Identifiers and values need not be quoted
-	specially as the implementation must do that work for the user.
+	A mapping interface to the session's settings. This provides a direct
+	interface to ``SHOW`` or ``SET`` commands. Identifiers and values need
+	not be quoted specially as the implementation must do that work for the
+	user.
 	"""
 	ife_label = 'SETTINGS'
 
-	def getpath(self) -> "Sequence of schema names that make up the search_path":
+	def getpath(self) -> [str]:
 		"""
 		Returns a sequence of the schemas that make up the current search_path.
 		"""
-	def setpath(self, seq : "Sequence of schema names"):
+	def setpath(self, seq : [str]):
 		"""
 		Set the "search_path" setting to the given a sequence of schema names, 
 		[Implementations must properly escape and join the strings]
@@ -838,12 +812,12 @@ class Settings(
 		doc = """
 		An interface to a structured ``search_path`` setting:
 
-		>>> pg_con.settings.path
+		>>> db.settings.path
 		['public', '$user']
 
 		It may also be used to set the path:
 
-		>>> pg_con.settings.path = ('public', 'tools')
+		>>> db.settings.path = ('public', 'tools')
 		"""
 	))
 	del getpath, setpath
@@ -870,7 +844,7 @@ class Settings(
 		settings object. This is normally used in conjunction with a
 		with-statement:
 
-		>>> with pg_con.settings(search_path = 'local,public'):
+		>>> with db.settings(search_path = 'local,public'):
 		...
 
 		When called, the settings' object will configure itself to use the given
@@ -901,8 +875,8 @@ class Settings(
 	@abstractmethod
 	def get(self, key, default = None):
 		"""
-		Get the setting with the corresponding key. If the setting does not exist,
-		return the `default`.
+		Get the setting with the corresponding key. If the setting does not
+		exist, return the `default`.
 		"""
 
 	@abstractmethod
@@ -949,17 +923,17 @@ class Settings(
 
 		>>> def watch(connection, key, newval):
 		...
-		>>> pg_con.settings.subscribe('TimeZone', watch)
+		>>> db.settings.subscribe('TimeZone', watch)
 		"""
 
 	@abstractmethod
 	def unsubscribe(self, key, callback):
 		"""
-		Stop listening for changes to a setting. The setting name(`key`), and the
-		callback used to subscribe must be given again for successful termination
-		of the subscription.
+		Stop listening for changes to a setting. The setting name(`key`), and
+		the callback used to subscribe must be given again for successful
+		termination of the subscription.
 
-		>>> pg_con.settings.unsubscribe('TimeZone', watch)
+		>>> db.settings.unsubscribe('TimeZone', watch)
 		"""
 
 class Database(InterfaceElement):
@@ -982,7 +956,7 @@ class Database(InterfaceElement):
 		"""
 		A version tuple of the database software similar Python's `sys.version_info`.
 
-		>>> pg_con.version_info
+		>>> db.version_info
 		(8, 1, 3, '', 0)
 		"""
 
@@ -1019,14 +993,14 @@ class Database(InterfaceElement):
 	@abstractproperty
 	def xact(self) -> TransactionManager:
 		"""
-		A `TransactionManager` instance bound to the `Connection`.
+		A `TransactionManager` instance bound to the `Database`.
 		"""
 
 	@apdoc
 	@abstractproperty
 	def settings(self) -> Settings:
 		"""
-		A `Settings` instance bound to the `Connection`.
+		A `Settings` instance bound to the `Database`.
 		"""
 
 	@abstractmethod
@@ -1037,52 +1011,27 @@ class Database(InterfaceElement):
 		"""
 
 	@abstractmethod
-	def query(self,
-		sql : "The query text.",
-		title : "The query's name, used in tracebacks when available" = None,
+	def prepare(self,
+		sql : str, title : str = None, statement_id : str = None,
 	) -> PreparedStatement:
 		"""
-		Create a new `PreparedStatement` instance bound to the connection with the
-		given SQL.
+		Create a new `PreparedStatement` instance bound to the connection
+		using the given SQL.
 
 		The ``title`` keyword argument is only used to help identify queries.
-		The given value *must* be set to the PreparedStatement's 'title' attribute.
+		The given value *must* be set to the PreparedStatement's
+		'ife_object_title' attribute.
 		It is analogous to a function name.
 
-		>>> q = pg_con.query("SELECT 1")
-		>>> p = q()
-		>>> p.next()
+		>>> s = db.prepare("SELECT 1")
+		>>> c = s()
+		>>> c.next()
 		(1,)
-
-		It allows default arguments to be configured:
-
-		>>> q = pg_con.query("SELECT $1::int", 1)
-		>>> q().next()
-		(1,)
-
-		And they are overrideable:
-
-		>>> q(2).next()
-		(2,)
 		"""
 
 	@abstractmethod
-	def cquery(self,
-		sql : "The query text.",
-		title : "The query's name, used in tracebacks when available" = None,
-	) -> PreparedStatement:
-		"""
-		Exactly like `query`, but cache the created `PreparedStatement` using the
-		given `sql` as the key. If the same `sql` is given again, look it up and
-		return the existing `PreparedStatement` instead of creating a new one.
-
-		This method is provided to the user for convenience.
-		"""
-
-	@abstractmethod
-	def statement(self,
+	def statement_from_id(self,
 		statement_id : "The statement's identification string.",
-		*default_args : "The default positional parameters to pass to the statement.",
 		title : "The query's name, used in tracebacks when available" = None
 	) -> PreparedStatement:
 		"""
@@ -1096,7 +1045,7 @@ class Database(InterfaceElement):
 		"""
 
 	@abstractmethod
-	def cursor(self,
+	def cursor_from_id(self,
 		cursor_id : "The cursor's identification string."
 	) -> Cursor:
 		"""
@@ -1112,21 +1061,22 @@ class Database(InterfaceElement):
 
 	@abstractmethod
 	def proc(self,
-		proc_id : "The procedure identifier; a valid ``regprocedure`` or Oid."
+		procedure_id : \
+			"The procedure identifier; a valid ``regprocedure`` or Oid."
 	) -> StoredProcedure:
 		"""
 		Create a `StoredProcedure` instance using the given identifier.
 
-		The `proc_id` given can be either an ``Oid``, or a ``regprocedure`` that
-		identifies the stored procedure to create the interface for.
+		The `proc_id` given can be either an ``Oid``, or a ``regprocedure``
+		that identifies the stored procedure to create the interface for.
 
-		>>> p = pg_con.proc('version()')
+		>>> p = db.proc('version()')
 		>>> p()
 		'PostgreSQL 8.3.0'
 		>>> qstr = "select oid from pg_proc where proname = 'generate_series'"
-		>>> pg_con.query(qstr).first()
+		>>> db.prepare(qstr).first()
 		1069
-		>>> generate_series = pg_con.proc(1069)
+		>>> generate_series = db.proc(1069)
 		>>> list(generate_series(1,5))
 		[1, 2, 3, 4, 5]
 		"""
@@ -1157,7 +1107,8 @@ class Connector(InterfaceElement):
 
 	`Connector` implementations supply the tools to make a connected socket.
 	Sockets produced by the `Connector` are used by the `Connection` to
-	facilitate negotiation; once negotiation is complete, the connection is made.
+	facilitate negotiation; once negotiation is complete, the connection is
+	made.
 	"""
 	ife_label = 'CONNECTOR'
 
@@ -1265,9 +1216,9 @@ class Connector(InterfaceElement):
 
 class Connection(Database):
 	"""
-	The interface to a connection to a PostgreSQL database. This is a `Database`
-	interface with the additional connection management tools that are particular
-	to using a remote database.
+	The interface to a connection to a PostgreSQL database. This is a
+	`Database` interface with the additional connection management tools that
+	are particular to using a remote database.
 	"""
 	ife_label = 'CONNECTION'
 
@@ -1276,16 +1227,17 @@ class Connection(Database):
 	def connector(self) -> Connector:
 		"""
 		The `Connector` instance facilitating the `Connection` object's
-		communication and insit.
+		communication and initialization.
 		"""
 
 	@apdoc
 	@abstractproperty
 	def closed(self) -> bool:
 		"""
-		`True` if the `Connection` is closed, `False` if the `Connection` is open.
+		`True` if the `Connection` is closed, `False` if the `Connection` is
+		open.
 
-		>>> pg_con.closed
+		>>> db.closed
 		True
 		"""
 
@@ -1319,8 +1271,6 @@ class Connection(Database):
 		"""
 		Closes the connection and returns `True` when an exception is passed in,
 		`False` when `None`.
-
-		If the connection has any operations queued or running, abort them.
 		"""
 		self.close()
 		return typ is not None
@@ -1345,8 +1295,8 @@ class Driver(InterfaceElement):
 		"""
 		Create a connection using the given parameters for the Connector.
 
-		This should cache the `Connector` instance for re-use when the same parameters
-		are given again.
+		This should cache the `Connector` instance for re-use when the same
+		parameters are given again.
 		"""
 
 	def print_message(self, msg, file = None):

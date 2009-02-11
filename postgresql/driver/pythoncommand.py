@@ -14,7 +14,7 @@ import contextlib
 from .. import clientparameters
 from ..resolved import pythoncommand as pycmd
 
-from . import implementation as pg_driver
+from . import default as pg_driver
 
 pq_trace = optparse.make_option(
 	'--pq-trace',
@@ -73,12 +73,9 @@ def command(args = sys.argv):
 	# New built-ins
 		'connector' : connector,
 		'db' : connection,
-		'query' : connection.query,
-		'cquery' : connection.cquery,
-		'statement' : connection.statement,
+		'prepare' : connection.prepare,
 		'execute' : connection.execute,
 		'settings' : connection.settings,
-		'cursor' : connection.cursor,
 		'proc' : connection.proc,
 		'xact' : connection.xact,
 	}

@@ -5,13 +5,13 @@
 """
 Driver package for connecting to PostgreSQL via a data stream(sockets).
 """
-__all__ = ['IP4', 'IP6', 'Host', 'Unix', 'connect', 'implementation']
+__all__ = ['IP4', 'IP6', 'Host', 'Unix', 'connect', 'default']
 
-from .pq3 import implementation
+from .pq3 import default
 
-IP4 = implementation.IP4
-IP6 = implementation.IP6
-Host = implementation.Host
-Unix = implementation.Unix
+IP4 = default.IP4
+IP6 = default.IP6
+Host = default.Host
+Unix = default.Unix
 
-connect = implementation.connect
+connect = default.connect
