@@ -383,18 +383,20 @@ class Message(InterfaceElement):
 				"line {1!s}, in {2!s}".format(*loc)
 		)
 
+		code = (os.linesep + "CODE: " + self.code) if self.code else ""
+
 		sev = details.get('severity')
 		sevmsg = os.linesep
 		if sev:
 			sevmsg = os.linesep + "SEVERITY: " + sev.upper()
 		detailstr = os.linesep.join((
-			': '.join((k.upper(), v))
+			': '.join((k.upper(), str(v)))
 			for k, v in sorted(details.items(), key = itemgetter(0))
 			if k not in ('message', 'severity', 'file', 'function', 'line')
 		))
 		if detailstr:
 			detailstr = os.linesep + detailstr
-		return self.message + sevmsg + detailstr + locstr
+		return self.message + code + sevmsg + detailstr + locstr
 
 	def emit(self):
 		self.snapshot = self.ife_lineage_snapshot_text()

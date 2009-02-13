@@ -59,7 +59,7 @@ class Cluster(pg_api.Cluster):
 	ife_ancestor = property(attrgetter('installation'))
 	def ife_snapshot_text(self):
 		return self.data_directory + ' [' + (
-			'running: ' + str(self.get_pid_from_file())
+			'running: ' + str(self.pid)
 			if self.running() else 'not running'
 		) + ']'
 
@@ -72,15 +72,28 @@ class Cluster(pg_api.Cluster):
 		The current pid from the postmaster.pid file.
 		"""
 		try:
-			with open(os.path.join(self.data_directory, self.DEFAULT_PID_FILENAME)) as f:
+			path = os.path.join(self.data_directory, self.DEFAULT_PID_FILENAME)
+			with open(path) as f:
 				return int(f.readline())
 		except IOError as e:
 			if e.errno in (errno.EIO, errno.ENOENT):
 				return None
 
 	@property
+	def pid(self):
+		"""
+		If we have the subprocess, use the pid on the object.
+		"""
+		pid = self.get_pid_from_file()
+		if pid is None:
+			d = self.daemon_process
+			if d is not None:
+				return d.pid
+		return pid
+
+	@property
 	def settings(self):
-		if getattr(self, '_settings', None) is None:
+		if not hasattr(self, '_settings'):
 			self._settings = configfile.ConfigFile(self.pgsql_dot_conf)
 		return self._settings
 
@@ -93,18 +106,22 @@ class Cluster(pg_api.Cluster):
 
 	@classmethod
 	def from_pg_config_path(type, data_directory, pg_config_path):
-		"Create the cluster using the data_directory and the *path* to pg_config"
+		"""
+		Create the cluster using the data_directory and the *path* to pg_config
+		"""
 		return type(data_directory, pg_inn.Installation(pg_config_path))
 
 	def __init__(self,
 		data_directory : "path to the data directory",
-		installation : "postgresql.installation.Installation",
+		installation : pg_inn.Installation,
 	):
 		self.data_directory = os.path.abspath(data_directory)
 		self.installation = installation
-		self.pgsql_dot_conf = os.path.join(data_directory, self.DEFAULT_CONFIG_FILENAME)
+		self.pgsql_dot_conf = os.path.join(
+			self.data_directory,
+			self.DEFAULT_CONFIG_FILENAME
+		)
 		self.daemon_process = None
-		self.last_known_pid = self.get_pid_from_file()
 
 	def __repr__(self):
 		return "%s.%s(%r, %r)" %(
@@ -115,7 +132,9 @@ class Cluster(pg_api.Cluster):
 		)
 
 	def init(self,
-		password : "Password to assign to the cluster's superuser(`user` keyword)." = None,
+		password : \
+			"Password to assign to the " \
+			"cluster's superuser(`user` keyword)." = None,
 		initdb : "[BEWARE] explicitly state the initdb binary to use" = None,
 		**kw
 	):
@@ -129,10 +148,12 @@ class Cluster(pg_api.Cluster):
 		if initdb is None:
 			initdb = self.installation.initdb
 			if initdb is None:
-				raise pg_exc.ClusterInitializationError(
+				e = pg_exc.ClusterInitializationError(
 					"unable to find `initdb` executable for installation: " + \
 					repr(self.installation)
 				)
+				self.ife_descend(e)
+				e.raise_exception()
 
 		# Transform keyword options into command options for the executable.
 		kw.setdefault('encoding', self.DEFAULT_CLUSTER_ENCODING)
@@ -151,13 +172,18 @@ class Cluster(pg_api.Cluster):
 
 		supw_file = ()
 		if password is not None:
-			# got a superuserpass, it's
-			supw_tmp = tempfile.NamedTemporaryFile(mode = 'w', encoding = kw['encoding'])
+			# got a superuserpass, store it in a tempfile for initdb
+			supw_tmp = tempfile.NamedTemporaryFile(
+				mode = 'w', encoding = kw['encoding']
+			)
 			supw_tmp.write(password)
 			supw_tmp.flush()
 			supw_file = ('--pwfile=' + supw_tmp.name,)
 
-		cmd = (initdb, '-D', self.data_directory) + tuple(opts) + supw_file + extra_args
+		cmd = (initdb, '-D', self.data_directory) \
+			+ tuple(opts) \
+			+ supw_file \
+			+ extra_args
 		p = sp.Popen(
 			cmd,
 			close_fds = True,
@@ -172,7 +198,23 @@ class Cluster(pg_api.Cluster):
 			supw_tmp.close()
 
 		if rc != 0:
-			raise pg_exc.InitDBError(cmd, rc, p.stderr.read())
+			r = p.stderr.read().strip()
+			try:
+				msg = r.decode('utf-8') # :(
+			except UnicodeDecodeError:
+				# split up the lines, and use rep.
+				msg = os.linesep.join([
+					repr(x)[2:-1] for x in r.splitlines()
+				])
+			e = pg_exc.InitDBError(
+				msg,
+				details = {
+					'COMMAND': cmd,
+					'RESULT': rc,
+				}
+			)
+			self.ife_descend(e)
+			e.raise_exception()
 
 	def drop(self):
 		"""
@@ -180,6 +222,7 @@ class Cluster(pg_api.Cluster):
 		"""
 		if self.running():
 			self.kill()
+			self.wait_until_stopped()
 		# Really, using rm -rf would be the best, but use this for portability.
 		for root, dirs, files in os.walk(self.data_directory, topdown = False):
 			for name in files:
@@ -189,14 +232,14 @@ class Cluster(pg_api.Cluster):
 		os.rmdir(self.data_directory)
 
 	def start(self,
-		logfile : "Where to send stderr" = sp.PIPE,
+		logfile : "Where to send stderr" = None,
 		settings : "Mapping of runtime parameters" = None
 	):
 		"""
-		Start the cluster
+		Start the cluster.
 		"""
 		if self.running():
-			return None
+			return
 		cmd = [self.daemon_path, '-D', self.data_directory]
 		if settings is not None:
 			for k,v in dict(settings).items():
@@ -205,25 +248,16 @@ class Cluster(pg_api.Cluster):
 		p = sp.Popen(
 			cmd,
 			close_fds = True,
-			stdout = logfile,
+			stdout = sp.PIPE if logfile is None else logfile,
 			stderr = sp.STDOUT,
 			stdin = sp.PIPE,
 		)
+		if logfile is None:
+			p.stdout.close()
 		p.stdin.close()
-		self.last_known_pid = p.pid
 		self.daemon_process = p
 
-	def stop(self):
-		"""
-		Stop the cluster gracefully(SIGTERM).
-
-		Does *not* wait for shutdown.
-		"""
-		pid = self.get_pid_from_file()
-		if pid is not None:
-			os.kill(pid, signal.SIGTERM)
-
-	def restart(self, timeout = 10):
+	def restart(self, logfile = None, settings = None, timeout = 10):
 		"""
 		Restart the cluster gracefully.
 
@@ -233,10 +267,26 @@ class Cluster(pg_api.Cluster):
 		if self.running():
 			self.stop()
 			self.wait_until_stopped(timeout = timeout)
-		if not self.running():
-			raise pg_exc.ClusterError("failed to shutdown cluster")
-		self.start()
+		if self.running():
+			e = pg_exc.ClusterError("failed to shutdown cluster")
+			self.ife_descend(e)
+			e.raise_exception()
+		self.start(logfile = logfile, settings = settings)
 		self.wait_until_started(timeout = timeout)
+
+	def stop(self):
+		"""
+		Stop the cluster gracefully(SIGTERM).
+
+		Does *not* wait for shutdown.
+		"""
+		pid = self.pid
+		if pid is not None:
+			try:
+				os.kill(pid, signal.SIGTERM)
+			except OSError as e:
+				if e.errno != errno.ESRCH:
+					raise
 
 	def kill(self):
 		"""
@@ -244,9 +294,14 @@ class Cluster(pg_api.Cluster):
 
 		Does *not* wait for shutdown.
 		"""
-		pid = self.get_pid_from_file()
+		pid = self.pid
 		if pid is not None:
-			os.kill(pid, signal.SIGKILL)
+			try:
+				os.kill(pid, signal.SIGKILL)
+			except OSError as e:
+				if e.errno != errno.ESRCH:
+					raise
+				# already dead, so it would seem.
 
 	def initialized(self):
 		"""
@@ -264,10 +319,72 @@ class Cluster(pg_api.Cluster):
 
 		This does *not* mean the cluster is accepting connections.
 		"""
-		pid = self.get_pid_from_file()
+		pid = self.pid
 		if pid is None:
 			return False
-		return os.kill(pid, signal.SIG_DFL) == 0
+		try:
+			os.kill(pid, signal.SIG_DFL)
+		except OSError as e:
+			if e.errno != errno.ESRCH:
+				raise
+			return False
+		return True
+
+	def connector(self, **kw):
+		"""
+		Create a postgresql.driver connector based on the given keywords and
+		listen_addresses and port configuration in settings.
+		"""
+		host, port = self.address()
+		return pg_driver.default.create(
+			host = host or 'localhost',
+			port = port or 5432,
+			**kw
+		)
+
+	def connection(self, **kw):
+		"""
+		Create a connection object to the cluster, but do not connect.
+		"""
+		return self.connector(**kw).create()
+
+	def connect(self, **kw):
+		"""
+		Create an established connection from the connector.
+
+		Cluster must be running.
+		"""
+		if not self.running():
+			e = ClusterNotRunningError(
+				"cannot connect if cluster is not running"
+			)
+			self.ife_descend(e)
+			e.raise_exception()
+		c = self.connector(**kw)
+		return c()
+
+	def address(self):
+		"""
+		Get the host-port pair from the configuration.
+		"""
+		d = self.settings.getset((
+			'listen_addresses', 'port',
+		))
+		if 'listen_addresses' in d:
+			# Prefer localhost over other addresses.
+			# More likely to get a successful connection.
+			addrs = d['listen_addresses'].lower().split(',')
+			if 'localhost' in addrs or '*' in addrs:
+				host = 'localhost'
+			elif '127.0.0.1' in addrs:
+				host = '127.0.0.1'
+			elif '::1' in addrs:
+				host = '::1'
+			else:
+				host = addrs[0]
+		else:
+			host = None
+		return (host, d.get('port'))
 
 	def ready_for_connections(self):
 		"""
@@ -277,62 +394,51 @@ class Cluster(pg_api.Cluster):
 		"""
 		if not self.running():
 			return False
-		d = self.settings.getset((
-			'listen_addresses',
-			'port',
-		))
-		if 'listen_addresses' not in d:
-			raise pg_exc.ClusterError(
-				"postmaster pings can only be made to TCP/IP configurations"
-			)
-
-		# Prefer localhost over other addresses.
-		addrs = d['listen_addresses'].split(',')
-		if 'localhost' in addrs or '*' in addrs:
-			host = 'localhost'
-			ipv = None
-		elif '127.0.0.1' in addrs:
-			host = '127.0.0.1'
-			ipv = 4
-		elif '::1' in addrs:
-			host = '::1'
-			ipv = 6
-
+		host, port = self.address()
 		try:
 			pg_driver.connect(
-				user = 'ping',
-				host = host,
-				port = int(d.get('port') or 5432),
+				user = '-*-ping-*-',
+				host = host or 'localhost',
+				port = port or 5432,
 				database = 'template1',
-				ipv = ipv,
 			).close()
-		except pg_exc.CannotConnectNowError:
-			return False
-		except pg_exc.Error:
-			return True
-		except:
-			return False
-
-		return True
+		except pg_exc.ClientCannotConnectError as e:
+			for (ssltried, sockc, x) in e.connection_failures:
+				if isinstance(x, pg_exc.AuthenticationSpecificationError):
+					# Finally. ;)
+					return True
+		return False
 
 	def wait_until_started(self,
 		timeout : "how long to wait before throwing a timeout exception" = 10,
-		delay : "how long to sleep before re-testing" = 0.05
+		delay : "how long to sleep before re-testing" = 0.05,
+		least : "minimum wait time" = 0.5,
 	):
 		"""
-		After the `start` method is used, this can be ran in order to block until
-		the cluster is ready for use.
+		After the `start` method is used, this can be ran in order to block
+		until the cluster is ready for use.
+
+		This method loops until `ready_for_connections` returns `True` in
+		order to make sure that the cluster is actually up.
 		"""
 		start = time.time()
+		checkpoint = start
 		while True:
 			if not self.running():
-				raise pg_exc.ClusterNotRunningError("postres daemon has not been started")
+				if checkpoint - start > least:
+					e = pg_exc.ClusterNotRunningError(
+						"postgresql daemon has not been started"
+					)
+					self.ife_descend(e)
+					e.raise_exception()
+			if self.ready_for_connections() is True:
+				break
 
-			if self.ready_for_connections():
-				return
-
-			if time.time() - start >= timeout:
-				raise pg_exc.ClusterTimeoutError((self, type(self).wait_until_started))
+			checkpoint = time.time()
+			if checkpoint - start >= timeout:
+				e = pg_exc.ClusterTimeoutError('timeout on startup')
+				self.ife_descend(e)
+				e.raise_exception()
 			time.sleep(delay)
 
 	def wait_until_stopped(self,
@@ -348,11 +454,14 @@ class Cluster(pg_api.Cluster):
 		to the daemon.
 		"""
 		start = time.time()
-		while self.running():
+		while self.running() is True:
+			# pickup the exit code.
+			if self.daemon_process is not None:
+				self.last_exit_code = self.daemon_process.poll()
 			if time.time() - start >= timeout:
-				raise pg_exc.ClusterTimeoutError(
-					(self, type(self).wait_until_stopped)
-				)
+				e = pg_exc.ClusterTimeoutError('timeout on shutdown')
+				self.ife_descend(e)
+				e.raise_exception()
 			time.sleep(delay)
 ##
 # vim: ts=3:sw=3:noet:

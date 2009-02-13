@@ -10,6 +10,7 @@ import subprocess
 import io
 import pprint
 from itertools import chain
+from operator import itemgetter
 from . import versionstring
 from . import api as pg_api
 from . import string as pg_str
@@ -36,9 +37,9 @@ def get_command_output(exe, *args):
 
 def pg_config_dictionary(pg_config_path):
 	"""
-	Create a dictionary of the information available in the given pg_config_path.
-	This provides a one-shot solution to fetching information from the pg_config
-	binary.
+	Create a dictionary of the information available in the given
+	pg_config_path. This provides a one-shot solution to fetching information
+	from the pg_config binary.
 	"""
 	default_output = get_command_output(pg_config_path)
 	if default_output is not None:
@@ -141,14 +142,16 @@ class Installation(pg_api.Installation):
 	)
 
 	def ife_snapshot_text(self):
+		l = list(self.configure_options.items())
+		l.sort(key = itemgetter(0))
 		return "{ver}{confopt}".format(
 			ver = self.version,
-			confopt = os.linesep + ' CONFIGURED: ' + (
-				', '.join((
+			confopt = (os.linesep + ' [CONFIGURED]' + os.linesep + ' ' + \
+				(os.linesep + ' ').join((
 					k if v is True else k + '=' + v
-					for k,v in self.configure_options.items()
+					for k,v in l
 				))
-			) if self.configure_options else ''
+			) if l else ''
 		)
 
 	def __repr__(self):
@@ -158,7 +161,22 @@ class Installation(pg_api.Installation):
 			path = self.pg_config_path
 		)
 
-	def __new__(type, pg_config_path):
+	@staticmethod
+	def default_pg_config():
+		pg_config_path = os.environ.get(
+			'PGINSTALLATION', ([
+				os.path.join(x, 'pg_config')
+				for x in os.environ.get('PATH', '').split(os.pathsep)
+				if os.path.exists(os.path.join(x, 'pg_config'))
+			] + [None])[0]
+		)
+		return pg_config_path if os.path.exists(pg_config_path) else None
+
+	@classmethod
+	def default(typ):
+		return typ(typ.default_pg_config())
+
+	def __new__(typ, pg_config_path):
 		# One instance for each installation.
 		global installations
 		if not os.path.isabs(pg_config_path):
@@ -173,7 +191,7 @@ class Installation(pg_api.Installation):
 				return current
 		else:
 			pg_config_data = pg_config_dictionary(pg_config_path)
-		rob = super().__new__(type)
+		rob = super().__new__(typ)
 		rob.pg_config_data = pg_config_data
 		return rob
 
@@ -181,7 +199,9 @@ class Installation(pg_api.Installation):
 		self.version = self.pg_config_data["version"]
 		self.type, vs = self.version.split()
 		self.version_info = versionstring.normalize(versionstring.split(vs))
-		self.configure_options = dict(parse_configure_options(self.pg_config_data.get('configure')))
+		self.configure_options = dict(
+			parse_configure_options(self.pg_config_data.get('configure'))
+		)
 
 		bindir_path = self.pg_config_data.get('bindir')
 		libdir_path = self.pg_config_data.get('libdir')

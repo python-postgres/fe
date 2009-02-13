@@ -215,6 +215,14 @@ class ConfigFile(pg_api.Settings):
 
 	Every action will cause the file to be wholly read.
 	"""
+	ife_ancestor = None
+	ife_label = 'CONFIGFILE'
+	def ife_snapshot_text(self):
+		s = (os.linesep+' ').join(
+			k + ' = ' + v for k,v in self.items()
+		)
+		return self._path + (os.linesep+' ' + s if s else '')
+
 	def __init__(self, path, open = open):
 		self._path = path
 		self._open = open
@@ -227,6 +235,16 @@ class ConfigFile(pg_api.Settings):
 			type(self).__name__,
 			self._path
 		)
+
+	def _save(self, lines : [str]):
+		with self._open(self._path, 'w') as cf:
+			for l in lines:
+				cf.write(l)
+
+	def __delitem__(self, k):
+		with self._open(self._path) as cf:
+			lines = alter_config({k : None}, cf)
+		self._save()
 
 	def __getitem__(self, k):
 		return read_config(
@@ -242,6 +260,12 @@ class ConfigFile(pg_api.Settings):
 
 	def __context__(self):
 		return self
+
+	def __iter__(self):
+		return self.keys()
+
+	def __len__(self):
+		return len(list(self.keys()))
 
 	def __enter__(self):
 		res = self.getset(self._store[0].keys())
@@ -274,18 +298,12 @@ class ConfigFile(pg_api.Settings):
 			self._open(self._path), selector = k.__eq__
 		).get(k, alt)
 
-	def iterkeys(self):
-		return read_config(self._open(self._path)).iterkeys()
 	def keys(self):
 		return read_config(self._open(self._path)).keys()
 
-	def itervalues(self):
-		return read_config(self._open(self._path)).itervalues()
 	def values(self):
 		return read_config(self._open(self._path)).values()
 
-	def iteritems(self):
-		return read_config(self._open(self._path)).iteritems()
 	def items(self):
 		return read_config(self._open(self._path)).items()
 
@@ -296,10 +314,7 @@ class ConfigFile(pg_api.Settings):
 		"""
 		with self._open(self._path) as cf:
 			lines = alter_config(keyvals, cf)
-
-		with self._open(self._path, 'w') as cf:
-			for l in lines:
-				cf.write(l)
+		self._save(lines)
 
 	def getset(self, keys):
 		"""
@@ -313,7 +328,13 @@ class ConfigFile(pg_api.Settings):
 		)
 		for x in (keys - set(cfg.keys())):
 			cfg[x] = None
-		return None
+		return cfg
+
+	def subscribe(self):
+		pass
+
+	def unsubscribe(self):
+		pass
 
 def pg_dotconf(args):
 	"""

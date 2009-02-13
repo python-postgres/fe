@@ -355,7 +355,11 @@ class StreamingCursor(CursorStrategy):
 		# Reduce set size if need be.
 		if len(self._state[1]) > (2 * self.fetchcount):
 			self._contract()
-		if self._state[2] != None:
+		if self._state[2] != None and \
+		(len(self._state[1]) - self._state[0]) > (self.fetchcount // 8):
+			# Transaction ready, but only attempt expanding if it
+			# will be needed soon.
+			##
 			self._expand()
 
 		offset, buffer = self._state[:2]
@@ -373,7 +377,11 @@ class StreamingCursor(CursorStrategy):
 		# reduce set size if need be
 		if len(self._state[1]) > (2 * self.fetchcount):
 			self._contract()
-		if self._state[2] != None:
+		if self._state[2] != None and \
+		(len(self._state[1]) - self._state[0]) > (self.fetchcount // 8):
+			# Transaction ready, but only attempt expanding if it
+			# will be needed soon.
+			##
 			self._expand()
 
 		offset = self._state[0]
@@ -490,7 +498,10 @@ class TupleCursor(StreamingCursor):
 		increased_by = newbufsize - bufsize
 
 		if self.fetchcount > 0 and not self.with_scroll is True \
-		and increased_by == self.fetchcount:
+		and increased_by == self.fetchcount \
+		and (newbufsize - offset) >= (self.fetchcount // 4):
+			# If a quarter of the fetchcount remain, dispatch for another.
+			##
 			self._dispatch_for_more()
 
 		return newbufsize - bufsize
@@ -1844,6 +1855,9 @@ class Connection(pg_api.Connection):
 				next(pair[x]) for x in cycle(range(2))
 			))
 		elif sslmode in ('prefer', 'require'):
+			# the above insanity is not required here
+			# as if the ssl handshake fails on prefer
+			# it's not a pqv3 server.
 			socket_makers = with_ssl
 		else:
 			socket_makers = without_ssl
@@ -1880,7 +1894,9 @@ class Connection(pg_api.Connection):
 				self.ssl = supported is True
 				# success!
 				break
-			except self.connector.fatal_exception as e:
+			except (self.connector.fatal_exception, pg_exc.Error) as e:
+				# Just treat *any* PostgreSQL error as FATAL.
+				##
 				self.ssl = None
 				self._pq_killinfo = None
 				self._pq_xact = None
@@ -2418,6 +2434,7 @@ class SocketConnector(Connector):
 	fatal_exception_messages = {
 		errno.ECONNRESET : 'server explicitly closed the connection',
 		errno.EPIPE : 'broken connection detected on send',
+		errno.ECONNREFUSED : 'server refused connection',
 	}
 	timeout_exception = socket.timeout
 	fatal_exception = socket.error
@@ -2426,6 +2443,9 @@ class SocketConnector(Connector):
 	def tryagain(self, err) -> bool:
 		# pretty easy; should the user try the operation again?
 		return getattr(err, 'errno', 0) == errno.EINTR
+
+	def connection_refused(self, err) -> bool:
+		return getattr(err, 'errno', 0) == errno.ECONNREFUSED
 
 	def fatal_exception_message(self, err) -> (str, None):
 		# None indicates that it was not fatal.
@@ -2629,12 +2649,7 @@ class Driver(pg_api.Driver):
 		# Everything else uses host and port.
 		return c(host = host, port = port, **kw)
 
-	def connect(self,
-		unix = None,
-		host = None,
-		port = None,
-		**kw
-	) -> Connection:
+	def connect(self, **kw) -> Connection:
 		"""
 		For more information on acceptable keywords, see help on:
 
@@ -2649,7 +2664,9 @@ class Driver(pg_api.Driver):
 			`postgresql.driver.pq3.Host`
 			 Keywords that apply to host-based connections(resolving connector).
 		"""
-		cid = set(kw.items())
+		cid = list(kw.items())
+		cid.sort()
+		cid = tuple(cid)
 		if cid in self._connectors:
 			c = self._connectors[cid]
 		else:
@@ -2660,7 +2677,7 @@ class Driver(pg_api.Driver):
 	def ife_snapshot_text(self):
 		return 'postgresql.driver.pq3'
 
-	def __init__(self):
+	def __init__(self, typio = TypeIO):
 		self._connectors = dict()
 		self.ife_descend(
 			self.Unix,
@@ -2668,7 +2685,5 @@ class Driver(pg_api.Driver):
 			self.IP6,
 			self.Host,
 		)
-
-	def __init__(self, typio = TypeIO):
 		self.typio = typio
 default = Driver()

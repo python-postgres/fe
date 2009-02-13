@@ -5,6 +5,7 @@
 ##
 import sys
 import os
+import glob
 from distutils.core import Extension
 
 if sys.version_info[:2] < (3,0):
@@ -36,7 +37,7 @@ Sample PG-API Code
 	>>> import postresql.driver as pg_driver
 	>>> db = pg_driver.connect(user = 'mydbuser', host = 'localhost', port = 5432, database = 'mydbname')
 	>>> db.execute("CREATE TABLE emp (emp_first_name text, emp_last_name text, emp_salary numeric)")
-	>>> make_emp = db.query("INSERT INTO emp VALUES ($1, $2, $3)")
+	>>> make_emp = db.prepare("INSERT INTO emp VALUES ($1, $2, $3)")
 	>>> make_emp("John", "Doe", "75,322")
 	1
 	>>> with db.xact:
@@ -103,12 +104,14 @@ defaults = {
 
 	'packages' : [
 		'postgresql',
+		'postgresql.bin',
 		'postgresql.encodings',
 		'postgresql.protocol',
 		'postgresql.driver',
 		'postgresql.test',
 		# Modules imported from other packages.
 		'postgresql.resolved',
+		'postgresql.documentation',
 	],
 
 	# Only build extension modules on win32 if PY_BUILD_EXTENSIONS is enabled.
@@ -125,6 +128,11 @@ defaults = {
 		'postgresql/bin/pg_python',
 		'postgresql/bin/pg_tin',
 		'postgresql/bin/pg_withcluster'
+	],
+
+	'data_files' : [
+		('postgresql/documentation', glob.glob('postgresql/documentation/*.txt')),
+		('postgresql/release', ['MANIFEST','AUTHORS','README']),
 	]
 }
 
