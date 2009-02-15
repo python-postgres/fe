@@ -79,12 +79,16 @@ def command(args = sys.argv):
 		'proc' : connection.proc,
 		'xact' : connection.xact,
 	}
-	restore = {k : __builtins__.get(k) for k in builtin_overload}
+	if not isinstance(__builtins__, dict):
+		builtins_d = __builtins__.__dict__
+	else:
+		builtins_d = __builtins__
+	restore = {k : builtins_d.get(k) for k in builtin_overload}
 
 	trace_file = None
 	if co.pq_trace is not None:
 		trace_file = open(co.pq_trace, 'a')
-	__builtins__.update(builtin_overload)
+	builtins_d.update(builtin_overload)
 	try:
 		if trace_file is not None:
 			connection.tracer = trace_file.write
@@ -97,10 +101,10 @@ def command(args = sys.argv):
 			)
 	finally:
 		# restore __builtins__
-		__builtins__.update(restore)
+		builtins_d.update(restore)
 		for k, v in builtin_overload.items():
 			if v is None:
-				del __builtins__[x]
+				del builtins_d[x]
 		if trace_file is not None:
 			trace_file.close()
 	return rv
