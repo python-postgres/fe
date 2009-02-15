@@ -205,7 +205,7 @@ def timetz_unpack(tstz):
 	tuple.
 	"""
 	t = time_unpack(tstz[0])
-	t.tzinfo = FixedOffset(tstz[1])
+	return t.replace(tzinfo = FixedOffset(tstz[1]))
 
 datetimemap = {
 	pg_types.INTERVALOID : (interval_pack, interval_unpack),
@@ -575,7 +575,7 @@ class TypeIO(object, metaclass = ABCMeta):
 	def _unpack_timestamptz(self, data):
 		dt = self._ts_unpack(data)
 		dt = dt.replace(tzinfo = UTC)
-		return dt.astimezone(self.tzinfo)
+		return dt
 
 	def set_timezone(self, offset, tzname):
 		self.tzinfo = FixedOffset(offset, tzname = tzname)
