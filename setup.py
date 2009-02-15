@@ -112,6 +112,7 @@ defaults = {
 		# Modules imported from other packages.
 		'postgresql.resolved',
 		'postgresql.documentation',
+		'postgresql.python',
 	],
 
 	# Only build extension modules on win32 if PY_BUILD_EXTENSIONS is enabled.
