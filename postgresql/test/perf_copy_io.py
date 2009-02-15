@@ -4,12 +4,13 @@
 ##
 # Copy I/O: To and From performance
 ##
-import os, sys, gc, random, time
+import os, sys, random, time
 
 if __name__ == '__main__':
-	Words = open('/usr/share/dict/words').readlines()
+	with open('/usr/share/dict/words', mode='brU') as wordfile:
+		Words = wordfile.readlines()
 else:
-	Words = ['/usr/share/dict/words', 'is', 'read', 'in', '__main__']
+	Words = [b'/usr/share/dict/words', b'is', b'read', b'in', b'__main__']
 wordcount = len(Words)
 random.seed()
 
@@ -21,22 +22,23 @@ def testSpeed(tuples = 50000 * 3):
 	execute("CREATE TEMP TABLE _copy "
 	"(i int, t text, mt text, ts text, ty text, tx text);")
 	try:
-		Q = query("COPY _copy FROM STDIN")
+		Q = prepare("COPY _copy FROM STDIN")
 		size = [0]
 		def incsize(data):
+			'count of bytes'
 			size[0] += len(data)
 			return data
 		sys.stderr.write("preparing data(%d tuples)...\n" %(tuples,))
 
 		# Use an LC to avoid the Python overhead involved with a GE
-		data = [incsize('\t'.join((
-			str(x), getWord(), getWord(),
+		data = [incsize(b'\t'.join((
+			str(x).encode('ascii'), getWord(), getWord(),
 			getWord(), getWord(), getWord()
-		)))+'\n' for x in range(tuples)]
+		)))+b'\n' for x in range(tuples)]
 
 		sys.stderr.write("starting copy...\n")
 		start = time.time()
-		copied_in = Q(data)
+		copied_in = Q.load(data)
 		duration = time.time() - start
 		sys.stderr.write(
 			"COPY FROM STDIN Summary,\n " \
@@ -52,7 +54,7 @@ def testSpeed(tuples = 50000 * 3):
 				tuples / duration, 
 			)
 		)
-		Q = query("COPY _copy TO STDOUT")
+		Q = prepare("COPY _copy TO STDOUT")
 		start = time.time()
 		c = 0
 		for x in Q():
