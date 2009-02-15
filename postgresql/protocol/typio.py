@@ -329,12 +329,12 @@ def anyarray_unpack_elements(elements, unpack):
 			yield unpack(x)
 
 def anyarray_unpack(unpack, data):
-	'unpack the array, normalize the lower bounds and return a pg_types.array'
+	'unpack the array, normalize the lower bounds and return a pg_types.Array'
 	flags, typoid, dlb, elements = ts.array_unpack(data)
 	dim = []
 	for x in range(0, len(dlb), 2):
 		dim.append(dlb[x] - (dlb[x+1] or 1) + 1)
-	return pg_types.array(
+	return pg_types.Array(
 		tuple(anyarray_unpack_elements(elements, unpack(typoid))),
 		dimensions = dim
 	)
@@ -356,8 +356,8 @@ def array_typio(
 					yield pack_element(x)
 
 		def pack_an_array(data):
-			if not type(data) is pg_types.array:
-				data = pg_types.array(data, seqtypes = (list, tuple))
+			if not type(data) is pg_types.Array:
+				data = pg_types.Array(data, seqtypes = (list,))
 			dlb = []
 			for x in data.dimensions:
 				dlb.append(x)
@@ -382,7 +382,7 @@ def array_typio(
 			dim = []
 			for x in range(0, len(dlb), 2):
 				dim.append(dlb[x] - (dlb[x+1] or 1) + 1)
-			return pg_types.array(
+			return pg_types.Array(
 				tuple(unpack_array_elements(elements)),
 				dimensions = dim
 			)
@@ -425,7 +425,7 @@ def composite_typio(
 
 	return (pack_a_record, unpack_a_record)
 
-# Postgres always sends object data in row form, so
+# PostgreSQL always sends object data in row form, so
 # make the fundamental tranformation routines work on a sequence.
 def row_unpack(seq, typio, decode):
 	'Transform object data into an object using the associated IO routines'
@@ -557,7 +557,7 @@ class TypeIO(object, metaclass = ABCMeta):
 		}
 
 	def set_encoding(self, value):
-		self.encoding = value
+		self.encoding = value.lower()
 		enc = pg_enc_aliases.postgres_to_python.get(value, value)
 		ci = codecs.lookup(enc)
 		self._encode = ci[0]
@@ -590,7 +590,7 @@ class TypeIO(object, metaclass = ABCMeta):
 		self,
 		typid : "The Oid of the type to resolve pack and unpack routines for.",
 		from_resolution_of : \
-		"Sequence of typid stack used to identify infinite recursion" = ()
+		"Sequence of typid's used to identify infinite recursion" = ()
 	):
 		"lookup a type's IO routines from a given typid"
 		if from_resolution_of and typid in from_resolution_of:
@@ -639,10 +639,13 @@ class TypeIO(object, metaclass = ABCMeta):
 					te = self.resolve(
 						int(typelem),
 						from_resolution_of = list(from_resolution_of) + [typid]
-					) or \
-						(None, None)
+					) or (None, None)
 					typio = array_typio(
-						te[0], te[1], typelem, ae_hasbin_input, ae_hasbin_output
+						te[0] or self.encode,
+						te[1] or self.decode,
+						typelem,
+						ae_hasbin_input,
+						ae_hasbin_output
 					)
 					self._cache[typid] = typio
 				else:

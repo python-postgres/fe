@@ -112,7 +112,7 @@ def unsplit(splitted_iter):
 	for x in i:
 		s += endq + x
 		try:
-			q, qtext = i.next()
+			q, qtext = next(i)
 			s += q + qtext
 			if q == "E'":
 				endq = "'"
@@ -235,7 +235,7 @@ def split_sql(sql, sep = ';'):
 				yield (x,)
 			cur = [sections[-1]]
 		try:
-			cur.append(i.next())
+			cur.append(next(i))
 		except StopIteration:
 			break
 	if cur:

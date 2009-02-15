@@ -47,8 +47,12 @@ class Cluster(pg_api.Cluster):
 	"""
 	Interface to a PostgreSQL cluster.
 
-	Provides mechanisms to start, stop, restart, kill, drop, and configure a
+	Provides mechanisms to start, stop, restart, kill, drop, and initalize a
 	cluster(data directory).
+
+	Cluster does not strive to be consistent with ``pg_ctl``. This is considered
+	to be a base class for managing a cluster, and is intended to be extended to
+	accommodate for a particular purpose.
 	"""
 	installation = None
 	DEFAULT_CLUSTER_ENCODING = DEFAULT_CLUSTER_ENCODING
@@ -122,6 +126,7 @@ class Cluster(pg_api.Cluster):
 			self.DEFAULT_CONFIG_FILENAME
 		)
 		self.daemon_process = None
+		self.daemon_command = None
 
 	def __repr__(self):
 		return "%s.%s(%r, %r)" %(
@@ -130,6 +135,18 @@ class Cluster(pg_api.Cluster):
 			self.data_directory,
 			self.installation,
 		)
+
+	def __context__(self):
+		return self
+
+	def __enter__(self):
+		self.start()
+		self.wait_until_started()
+
+	def __exit__(self, typ, val, tb):
+		self.stop()
+		self.wait_until_stopped()
+		return typ is None
 
 	def init(self,
 		password : \
@@ -193,7 +210,13 @@ class Cluster(pg_api.Cluster):
 		)
 		p.stdin.close()
 
-		rc = p.wait()
+		while True:
+			try:
+				rc = p.wait()
+				break
+			except OSError as e:
+				if e.errno != errno.EINTR:
+					raise
 		if password is not None:
 			supw_tmp.close()
 
@@ -221,8 +244,22 @@ class Cluster(pg_api.Cluster):
 		Stop the cluster and remove it from the filesystem
 		"""
 		if self.running():
-			self.kill()
-			self.wait_until_stopped()
+			self.stop()
+			try:
+				self.wait_until_stopped()
+			except pg_exc.ClusterTimeoutError:
+				self.kill()
+				try:
+					self.wait_until_stopped()
+				except pg_exc.ClusterTimeoutError:
+					w = pg_exc.ClusterWarning(
+						'cluster failed to shutdown after kill',
+						details = {
+							'HINT' : 'Shared memory may be leaked.'
+						}
+					)
+					self.ife_descend(w)
+					w.emit()
 		# Really, using rm -rf would be the best, but use this for portability.
 		for root, dirs, files in os.walk(self.data_directory, topdown = False):
 			for name in files:
@@ -240,7 +277,7 @@ class Cluster(pg_api.Cluster):
 		"""
 		if self.running():
 			return
-		cmd = [self.daemon_path, '-D', self.data_directory]
+		cmd = (self.daemon_path, '-D', self.data_directory)
 		if settings is not None:
 			for k,v in dict(settings).items():
 				cmd.append('--{k}={v}'.format(k=k,v=v))
@@ -256,6 +293,7 @@ class Cluster(pg_api.Cluster):
 			p.stdout.close()
 		p.stdin.close()
 		self.daemon_process = p
+		self.daemon_command = cmd
 
 	def restart(self, logfile = None, settings = None, timeout = 10):
 		"""
@@ -319,16 +357,20 @@ class Cluster(pg_api.Cluster):
 
 		This does *not* mean the cluster is accepting connections.
 		"""
-		pid = self.pid
-		if pid is None:
-			return False
-		try:
-			os.kill(pid, signal.SIG_DFL)
-		except OSError as e:
-			if e.errno != errno.ESRCH:
-				raise
-			return False
-		return True
+		if self.daemon_process is not None:
+			r = self.daemon_process.poll()
+			return r is None
+		else:
+			pid = self.get_pid_from_file()
+			if pid is None:
+				return False
+			try:
+				os.kill(pid, signal.SIG_DFL)
+			except OSError as e:
+				if e.errno != errno.ESRCH:
+					raise
+				return False
+			return True
 
 	def connector(self, **kw):
 		"""
@@ -394,25 +436,37 @@ class Cluster(pg_api.Cluster):
 		"""
 		if not self.running():
 			return False
+		e = None
 		host, port = self.address()
 		try:
 			pg_driver.connect(
-				user = '-*-ping-*-',
+				user = ' -*- ping -*- ',
 				host = host or 'localhost',
 				port = port or 5432,
 				database = 'template1',
 			).close()
-		except pg_exc.ClientCannotConnectError as e:
-			for (ssltried, sockc, x) in e.connection_failures:
-				if isinstance(x, pg_exc.AuthenticationSpecificationError):
-					# Finally. ;)
-					return True
-		return False
+		except pg_exc.ClientCannotConnectError as err:
+			for (ssltried, sockc, x) in err.connection_failures:
+				if self.installation.version_info[:2] < (8,1):
+					if isinstance(x, pg_exc.UndefinedObjectError):
+						# undefined user.. whatever...
+						return True
+				else:
+					if isinstance(x, pg_exc.AuthenticationSpecificationError):
+						return True
+				if isinstance(x, pg_exc.ServerNotReadyError):
+					e = x
+					break
+			else:
+				e = err
+		# the else true means we successfully connected with those
+		# credentials... strange, but true..
+		return e if e is not None else True
 
 	def wait_until_started(self,
 		timeout : "how long to wait before throwing a timeout exception" = 10,
 		delay : "how long to sleep before re-testing" = 0.05,
-		least : "minimum wait time" = 0.5,
+		least : "minimum wait time" = 0.25,
 	):
 		"""
 		After the `start` method is used, this can be ran in order to block
@@ -425,20 +479,42 @@ class Cluster(pg_api.Cluster):
 		checkpoint = start
 		while True:
 			if not self.running():
-				if checkpoint - start > least:
-					e = pg_exc.ClusterNotRunningError(
-						"postgresql daemon has not been started"
-					)
-					self.ife_descend(e)
-					e.raise_exception()
-			if self.ready_for_connections() is True:
-				break
+				if self.daemon_process is not None:
+					r = self.daemon_process.returncode
+					if r is not None and r != 0:
+						e = pg_exc.ClusterStartupError(
+							"postgresql daemon exited with non-zero status",
+							details = {
+								'RESULT' : r,
+								'COMMAND' : self.daemon_command,
+							}
+						)
+						self.ife_descend(e)
+						e.raise_exception()
+				else:
+					if checkpoint - start > least:
+						e = pg_exc.ClusterNotRunningError(
+							"postgresql daemon has not been started"
+						)
+						self.ife_descend(e)
+						return e.raise_exception()
+			r = self.ready_for_connections()
 
 			checkpoint = time.time()
+			if r is True and checkpoint - start > least:
+				break
+
 			if checkpoint - start >= timeout:
+				# timeout was reached, but raise ServerNotReadyError
+				# to signal to the user that it was *not* due to some unknown
+				# condition, rather it's *still* starting up.
+				if r is not None and isinstance(r, pg_exc.ServerNotReadyError):
+					raise r
 				e = pg_exc.ClusterTimeoutError('timeout on startup')
 				self.ife_descend(e)
-				e.raise_exception()
+				return e.raise_exception(
+					raise_from = r if r not in (True,False) else None
+				)
 			time.sleep(delay)
 
 	def wait_until_stopped(self,

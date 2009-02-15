@@ -7,12 +7,6 @@ PostgreSQL version parsing.
 
 >>> postgresql.version.split('8.0.1')
 (8, 0, 1, None, None)
-
->>> postgresql.version.compare(
-...  postgresql.version.split('8.0.1'),
-...  postgresql.version.split('8.0.1'),
-... )
-0
 """
 
 def split(vstr : str) -> (
@@ -74,30 +68,6 @@ default_state_class_priority = [
 	'final',
 	None,
 ]
-
-def compare(
-	v1, v2,
-	state_class_priority = default_state_class_priority,
-	cmp = cmp
-):
-	"""
-	Compare the given versions using the given `cmp` function after translating
-	the state class of each version into a numeric value derived by the class's
-	position in the given `state_class_priority`.
-
-	`cmp` and `state_class_priority` have default values.
-	"""
-	v1l = list(v1)
-	v2l = list(v2)
-	try:
-		v1l[-2] = state_class_priority.index(v1[-2])
-	except ValueError:
-		raise ValueError("first argument has unknown state class %r" %(v1[-2],))
-	try:
-		v2l[-2] = state_class_priority.index(v2[-2])
-	except ValueError:
-		raise ValueError("second argument has unknown state class %r" %(v2[-2],))
-	return cmp(v1l, v2l)
 
 python = repr
 

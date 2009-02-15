@@ -59,9 +59,9 @@ def dbapi_type(typid):
 
 def convert_keyword_parameters(nseq, seq):
 	"""
-	Given a sequence of keywords, `nseq`, yield each mapping object in `seq` as a
-	tuple whose objects are the values of the keys specified in `nseq` in an
-	order consistent with that in `nseq`
+	Given a sequence of keywords, `nseq`, yield each mapping object in `seq`
+	as a tuple whose objects are the values of the keys specified in `nseq` in
+	an order consistent with that in `nseq`
 	"""
 	for x in seq:
 		yield [x[y] for y in nseq]
@@ -72,7 +72,8 @@ class Cursor(object):
 	description = None
 
 	def __init__(self, C):
-		self.pg_api_c = C
+		self.connection = C
+		self.database = C.database
 		self.description = ()
 		self.__portals = []
 
@@ -81,9 +82,9 @@ class Cursor(object):
 
 	def setoutputsize(self, sizes, columns = None):
 		pass
-	
+
 	def callproc(self, proname, args):
-		p = self.pg_api_c.query("SELECT %s(%s)" %(
+		p = self.database.prepare("SELECT %s(%s)" %(
 			proname, ','.join([
 				'$%d' %(x,) for x in range(1, len(args) + 1)
 			])
@@ -93,12 +94,12 @@ class Cursor(object):
 
 	def fetchone(self):
 		try:
-			return self._portal.next()
+			return next(self._portal)
 		except StopIteration:
 			return None
 
-	def next(self):
-		return self._portal.next()
+	def __next__(self):
+		return next(self._portal)
 	def __iter__(self):
 		return self
 
@@ -128,7 +129,7 @@ class Cursor(object):
 				rqparts.append(qpart)
 			else:
 				rqparts.append(qpart % pnmap)
-		q = self.pg_api_c.query(pg_str.unsplit(rqparts))
+		q = self.database.prepare(pg_str.unsplit(rqparts))
 		return q, nseq, plist
 
 	def execute(self, query, parameters = None):
@@ -136,13 +137,13 @@ class Cursor(object):
 			q, nseq, plist = self._mkquery(query, parameters)
 			r = q(*plist)
 		else:
-			q = self.pg_api_c.query(query)
+			q = self.database.prepare(query)
 			r = q()
 		if q._output is not None and len(q._output) > 0:
 			# name, relationId, columnNumber, typeId, typlen, typmod, format
 			self.description = tuple([
-				(x[0], dbapi_type(x[3]),
-					None, None, None, None, None)
+				(self.database.typio.decode(x[0]), dbapi_type(x[3]),
+				None, None, None, None, None)
 				for x in q._output
 			])
 			self.__portals.insert(0, r)
@@ -197,27 +198,29 @@ class Connection(object):
 	NotSupportedError = NotSupportedError
 
 	def __init__(self, connection):
-		self.pg_api = connection
-		self.pg_api.xact.start()
+		self.database = connection
+		self.database.xact.start()
 
 	def close(self):
-		if self.pg_api.closed:
+		if self.database.closed:
 			raise Error("connection already closed")
-		self.pg_api.close()
+		self.database.close()
 
 	def cursor(self):
-		return Cursor(self.pg_api)
+		return Cursor(self)
 
 	def commit(self):
-		self.pg_api.xact.checkpoint()
+		self.database.xact.commit()
+		self.database.xact.start()
 
 	def rollback(self):
-		self.pg_api.xact.restart()
+		self.database.xact.abort()
+		self.database.xact.start()
 
 def connect(**kw):
 	"""
 	Create a DB-API connection using the given parameters.
 	"""
-	pgapi = pg_driver.connect(**kw)
-	dbapi = Connection(pgapi)
+	db = pg_driver.connect(**kw)
+	dbapi = Connection(db)
 	return dbapi

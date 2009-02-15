@@ -462,7 +462,7 @@ class KillInformation(Message):
 	def parse(typ, data):
 		return typ(*typ.struct.unpack(data))
 
-class CancelQuery(KillInformation):
+class CancelRequest(KillInformation):
 	'Abort the query in the specified backend'
 	type = b''
 	from .version import CancelRequestCode as version
@@ -470,20 +470,19 @@ class CancelQuery(KillInformation):
 	__slots__ = ('pid', 'key')
 
 	def serialize(self):
-		return pack("!HHLL",
-			self.version[0], self.version[1],
+		return self.packed_version + self.struct.pack(
 			self.pid, self.key
 		)
 
 	def bytes(self):
 		data = self.serialize()
-		return ulong.pack(len(data)) + data
+		return ulong.pack(len(data) + 4) + self.serialize()
 
 	@classmethod
 	def parse(typ, data):
 		if data[0:4] != typ.packed_version:
 			raise ValueError("invalid cancel query code")
-		return typ(*unpack("!xxxxLL", data))
+		return typ(*self.struct.unpack(data[4:]))
 
 class NegotiateSSL(Message):
 	"Discover backend's SSL support"

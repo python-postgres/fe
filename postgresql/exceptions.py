@@ -38,18 +38,9 @@ class Exception(Exception):
 	'Base PostgreSQL exception class'
 	pass
 
-##
-# Miscellaneous exceptions not tied to an SQL state code.
-##
-class AbortTransaction(Exception):
-	"""
-	Abort the current transaction and continue and after the edge of the trapped
-	exception.
-	"""
-
 class PythonMessage(pg_api.Message):
 	"""
-	It's a message, but with __str__ returning the element's entire lineage.
+	It's a message, but with __str__ returning the element's entire ancestry.
 	"""
 	ife_ancestor = None
 
@@ -78,6 +69,10 @@ class DriverWarning(Warning):
 class IgnoredClientParameterWarning(DriverWarning):
 	'Warn the user of a valid, but ignored parameter.'
 
+class ClusterWarning(Warning):
+	code = ''
+	source = 'CLUSTER'
+
 class DeprecationWarning(Warning):
 	code = '01P01'
 class DynamicResultSetsReturnedWarning(Warning):
@@ -93,7 +88,6 @@ class PrivilegeNotRevokedWarning(Warning):
 class StringDataRightTruncationWarning(Warning):
 	code = '01004'
 
-
 class NoDataWarning(Warning):
 	code = '02000'
 class NoMoreSetsReturned(NoDataWarning):
@@ -107,7 +101,7 @@ class Error(PythonMessage, Exception):
 
 	def raise_exception(self, raise_from = None):
 		"""
-		Raise the `Error`, `self`, after gettings a snapshot of the ancestry.
+		Raise the `Error`, `self`, *after* gettings a snapshot of the ancestry.
 		"""
 		self.snapshot = self.ife_ancestry_snapshot_text()
 		if raise_from is None:
@@ -137,6 +131,8 @@ class ClusterInitializationError(ClusterError):
 	pass
 class InitDBError(ClusterInitializationError):
 	"A non-zero result was returned by the initdb command"
+class ClusterStartupError(ClusterError):
+	pass
 class ClusterNotRunningError(ClusterError):
 	pass
 class ClusterTimeoutError(ClusterError):
@@ -167,7 +163,7 @@ class ClientCannotConnectError(ConnectionError):
 	Client was unable to establish a connection to the server
 
 	This is the exception that drivers must raised when a connection could not be
-	established. 
+	established.
 	"""
 	code = '08001'
 	connection_failures = None

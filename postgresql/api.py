@@ -23,42 +23,8 @@ import warnings
 import collections
 from abc import ABCMeta, abstractproperty, abstractmethod
 from operator import methodcaller, itemgetter
-
-class docstr(object):
-	"""
-	Simple object that sets the __doc__ attribute to the first parameter and
-	initializes __annotations__ using keyword arguments.
-	"""
-	def __init__(self, doc, **annotations):
-		self.__doc__ = str(doc)
-		self.__annotations__ = annotations
-
-def apdoc(ap):
-	"""
-	Helper function for extracting an `abstractproperty`'s real documentation.
-	"""
-	doc = ""
-	rstr = ""
-	if ap.fget:
-		ret = ap.fget.__annotations__.get('return')
-		if ret is not None:
-			rstr = " -> " + repr(ret)
-		if ap.fget.__doc__:
-			doc += os.linesep*2 + "GET::" + (os.linesep + ' '*4) + (os.linesep + ' '*4).join(
-				[x.strip() for x in ap.fget.__doc__.strip().split(os.linesep)]
-			)
-	if ap.fset and ap.fset.__doc__:
-		doc += os.linesep*2 + "SET::" + (os.linesep + ' '*4) + (os.linesep + ' '*4).join(
-			[x.strip() for x in ap.fset.__doc__.strip().split(os.linesep)]
-		)
-	if ap.fdel and ap.fdel.__doc__:
-		doc += os.linesep*2 + "DELETE::" + (os.linesep + ' '*4) + (os.linesep + ' '*4).join(
-			[x.strip() for x in ap.fdel.__doc__.strip().split(os.linesep)]
-		)
-	ap.__doc__ = "<no documentation>" if not doc else (
-		"Abstract Property" + rstr + doc
-	)
-	return ap
+from .python.doc import Doc
+from .python.decorlib import propertydoc
 
 class Receptor(collections.Callable):
 	"""
@@ -136,7 +102,7 @@ class InterfaceElement(metaclass = ABCMeta):
 	"""
 	ife_object_title = "<untitled>"
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def ife_ancestor(self):
 		"""
@@ -148,7 +114,7 @@ class InterfaceElement(metaclass = ABCMeta):
 			. State acquisition on error for lineage reporting.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def ife_label(self) -> str:
 		"""
@@ -265,7 +231,7 @@ class InterfaceElement(metaclass = ABCMeta):
 		"""
 		# Don't include ancestors without receptors.
 		a = [
-			x for x in self.ifa_ancestry()
+			x for x in self.ife_ancestry()
 			if getattr(x, '_ife_receptors', None) is not None
 		]
 		if getattr(self, '_ife_receptors', None) is not None:
@@ -386,7 +352,7 @@ class Message(InterfaceElement):
 		code = (os.linesep + "CODE: " + self.code) if self.code else ""
 
 		sev = details.get('severity')
-		sevmsg = os.linesep
+		sevmsg = ""
 		if sev:
 			sevmsg = os.linesep + "SEVERITY: " + sev.upper()
 		detailstr = os.linesep.join((
@@ -399,7 +365,7 @@ class Message(InterfaceElement):
 		return self.message + code + sevmsg + detailstr + locstr
 
 	def emit(self):
-		self.snapshot = self.ife_lineage_snapshot_text()
+		self.snapshot = self.ife_ancestry_snapshot_text()
 		self.ife_emit(self)
 
 class Cursor(
@@ -423,28 +389,28 @@ class Cursor(
 		2 : 'LAST',
 	}
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def cursor_id(self) -> str:
 		"""
 		The cursor's identifier.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def parameters(self) -> (tuple, None):
 		"""
 		The parameters bound to the cursor. `None`, if unknown.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def statement(self) -> ("PreparedStatement", None):
 		"""
 		The query object used to create the cursor. `None`, if unknown.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def insensitive(self) -> bool:
 		"""
@@ -452,14 +418,14 @@ class Cursor(
 		only support insensitive cursors.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def with_scroll(self) -> bool:
 		"""
 		Whether or not the cursor is scrollable.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def with_hold(self) -> bool:
 		"""
@@ -523,14 +489,14 @@ class PreparedStatement(
 	"""
 	ife_label = 'STATEMENT'
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def statement_id(self) -> str:
 		"""
 		The statment's identifier.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def string(self) -> str:
 		"""
@@ -664,7 +630,7 @@ class TransactionManager(
 	"""
 	ife_label = 'XACT'
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def failed(self) -> (bool, None):
 		"""
@@ -672,7 +638,7 @@ class TransactionManager(
 		`None` if not in a transaction block.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def depth(self) -> int:
 		"""
@@ -777,7 +743,7 @@ class TransactionManager(
 		Rollback the prepared transactions with the given `gid`.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def prepared(self) -> "sequence of prepared transaction identifiers":
 		"""
@@ -809,7 +775,7 @@ class Settings(
 		Set the "search_path" setting to the given a sequence of schema names, 
 		[Implementations must properly escape and join the strings]
 		"""
-	path = apdoc(abstractproperty(
+	path = propertydoc(abstractproperty(
 		getpath, setpath,
 		doc = """
 		An interface to a structured ``search_path`` setting:
@@ -945,14 +911,14 @@ class Database(InterfaceElement):
 	"""
 	ife_label = 'DATABASE'
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def backend_id(self) -> (int, None):
 		"""
 		The backend's process identifier.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def version_info(self) -> tuple:
 		"""
@@ -962,7 +928,7 @@ class Database(InterfaceElement):
 		(8, 1, 3, '', 0)
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def client_address(self) -> (str, None):
 		"""
@@ -972,7 +938,7 @@ class Database(InterfaceElement):
 		`None` if unavailable.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def client_port(self) -> (int, None):
 		"""
@@ -982,23 +948,23 @@ class Database(InterfaceElement):
 		`None` if unavailable.
 		"""
 
-	user = apdoc(abstractproperty(
-		fget = docstr(
+	user = propertydoc(abstractproperty(
+		fget = Doc(
 			"Give the string returned by ``SELECT current_user``",
 			**{'return':str}
 		),
-		fset = docstr("Pass the given string as a parameter to ``SET ROLE``"),
-		fdel = docstr("Issue ``RESET ROLE`` to the server"),
+		fset = Doc("Pass the given string as a parameter to ``SET ROLE``"),
+		fdel = Doc("Issue ``RESET ROLE`` to the server"),
 	))
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def xact(self) -> TransactionManager:
 		"""
 		A `TransactionManager` instance bound to the `Database`.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def settings(self) -> Settings:
 		"""
@@ -1114,7 +1080,7 @@ class Connector(InterfaceElement):
 	"""
 	ife_label = 'CONNECTOR'
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def Connection(self) -> "`Connection`":
 		"""
@@ -1122,7 +1088,7 @@ class Connector(InterfaceElement):
 		This *should* be available on the type object.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def fatal_exception(self) -> Exception:
 		"""
@@ -1132,7 +1098,7 @@ class Connector(InterfaceElement):
 		indicate if that particular exception is actually fatal.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def timeout_exception(self) -> Exception:
 		"""
@@ -1140,7 +1106,7 @@ class Connector(InterfaceElement):
 		completed due to a configured time constraint.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def tryagain_exception(self) -> Exception:
 		"""
@@ -1148,7 +1114,7 @@ class Connector(InterfaceElement):
 		should be tried again.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def tryagain(self, err : Exception) -> bool:
 		"""
@@ -1224,7 +1190,7 @@ class Connection(Database):
 	"""
 	ife_label = 'CONNECTION'
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def connector(self) -> Connector:
 		"""
@@ -1232,7 +1198,7 @@ class Connection(Database):
 		communication and initialization.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def closed(self) -> bool:
 		"""
@@ -1271,11 +1237,11 @@ class Connection(Database):
 	__enter__ = methodcaller('connect')
 	def __exit__(self, typ, obj, tb):
 		"""
-		Closes the connection and returns `True` when an exception is passed in,
-		`False` when `None`.
+		Closes the connection and returns `False` when an exception is passed in,
+		`True` when `None`.
 		"""
 		self.close()
-		return typ is not None
+		return typ is None
 
 	def __context__(self):
 		"""
@@ -1333,14 +1299,14 @@ class Installation(InterfaceElement):
 	"""
 	ife_label = "INSTALLATION"
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def version(self):
 		"""
 		A version string consistent with what `SELECT version()` would output.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def version_info(self):
 		"""
@@ -1350,7 +1316,7 @@ class Installation(InterfaceElement):
 		See `postgresql.versionstring`.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def type(self):
 		"""
@@ -1366,7 +1332,7 @@ class Cluster(InterfaceElement):
 	ife_label = 'CLUSTER'
 	ife_ancestor = None
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def installation(self) -> Installation:
 		"""
@@ -1449,7 +1415,7 @@ class Cluster(InterfaceElement):
 		`postgresql.exceptions.ClusterTimeoutError`.
 		"""
 
-	@apdoc
+	@propertydoc
 	@abstractproperty
 	def settings(self):
 		"""

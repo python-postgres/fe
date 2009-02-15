@@ -496,7 +496,7 @@ class circle(tuple):
 	def __str__(self):
 		return '<%s,%s>' %(self[0], self[1])
 
-class array(object):
+class Array(object):
 	def unroll_nest(hier, dimensions):
 		"return an iterator over the absolute elements of a nested sequence"
 		weight = []
@@ -519,8 +519,8 @@ class array(object):
 
 	def detect_dimensions(hier, seqtypes = (tuple, list)):
 		'Detect the dimensions of a nested sequence'
-		while type(hier) in seqtypes or type(hier) is array:
-			if type(hier) is array:
+		while type(hier) in seqtypes or type(hier) is Array:
+			if type(hier) is Array:
 				for x in hier.dimensions:
 					yield x
 				break

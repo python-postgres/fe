@@ -106,7 +106,7 @@ message_samples = [
 	e3.Authentication(4, b'salt'),
 	e3.Complete(b'SELECT'),
 	e3.Ready(b'I'),
-	e3.CancelQuery(4123, 14252),
+	e3.CancelRequest(4123, 14252),
 	e3.NegotiateSSL(),
 	e3.Password(b'ckr4t'),
 	e3.AttributeTypes(()),

@@ -9,154 +9,165 @@ import threading
 import time
 import datetime
 
+import postgresql.types as pg_types
 import postgresql.exceptions as pg_exc
 import postgresql.protocol.client3 as c3
 
+import postgresql.unittest as pg_unittest
+
 type_samples = (
 	('smallint', (
-			((1 << 16) / 2) - 1, - ((1 << 16) / 2),
+			((1 << 16) // 2) - 1, - ((1 << 16) // 2),
 			-1, 0, 1,
 		),
 	),
 	('int', (
-			((1 << 32) / 2) - 1, - ((1 << 32) / 2),
+			((1 << 32) // 2) - 1, - ((1 << 32) // 2),
 			-1, 0, 1,
 		),
 	),
 	('bigint', (
-			((1 << 64) / 2) - 1, - ((1 << 64) / 2),
+			((1 << 64) // 2) - 1, - ((1 << 64) // 2),
 			-1, 0, 1,
 		),
 	),
 	('bytea', (
-			''.join([chr(x) for x in range(256)]),
-			''.join([chr(x) for x in range(255, -1, -1)]),
+			bytes(range(256)),
+			bytes(range(255, -1, -1)),
 		),
 	),
 	('smallint[]', (
-			(123,321,-123,-321),
+			[123,321,-123,-321],
 		),
 	),
-	('int[]', (
-			(123,321,-123,-321),
-		),
+	('int[]', [
+			[123,321,-123,-321],
+			[[1],[2]],
+		],
 	),
-	('bigint[]', (
-			(0xFFFFFFFFFFFF, -0xFFFFFFFFFFFF),
-		),
+	('bigint[]', [
+			[
+				0,
+				1,
+				-1,
+				0xFFFFFFFFFFFF,
+				-0xFFFFFFFFFFFF,
+				((1 << 64) // 2) - 1,
+				- ((1 << 64) // 2),
+			],
+		],
 	),
-	('varchar[]', (
-			("foo", "bar",),
-			("foo", "bar",),
-		),
+	('varchar[]', [
+			["foo", "bar",],
+			["foo", "bar",],
+		],
 	),
-	('timestamp', (
+	('timestamp', [
 			datetime.datetime(2000,1,1,5,25,10),
 			datetime.datetime(500,1,1,5,25,10),
-		),
+		],
 	)
 )
 
-
-class test_pgapi(unittest.TestCase):
-	"test features intended to be specific to tracenull"
+class test_driver(pg_unittest.TestCaseWithCluster):
+	"""
+	postgresql.driver *interface* tests.
+	"""
 	def testInterrupt(self):
-		# The point is to test that pg.interrupt() works.
-		#
-		# To do this, we start a thread that waits for a protocol transaction
-		# to be started. Using pg_sleep() we can block and hold the transaction
-		# object until the thread identifies it as existing. Once this happens,
-		# a pg.interrupt() is called from the thread, and the main part of the
-		# program is notified of the completion by the appendage of `None` or
-		# `sys.exc_info()` to `rl`.
-		def sendint(l):
+		def pg_sleep(l):
 			try:
-				while pg._xact is None:
-					time.sleep(0.05)
-					if time.time() - b > 5:
-						self.fail("times up(5s), and it doesn't look like the thread even ran")
-				while pg._xact.state[0] is c3.Sending:
-					time.sleep(0.05)
-				pg.interrupt()
-			except:
+				self.db.execute("SELECT pg_sleep(5)")
+			except Exception:
 				l.append(sys.exc_info())
 			else:
 				l.append(None)
+				return
 		rl = []
-		threading.start_new_thread(sendint, (rl,))
-		self.failUnlessRaises(pg_exc.QueryCanceledError,
-			execute, "SELECT pg_sleep(5)")
-		b = time.time()
-		while not rl:
+		t = threading.Thread(target = pg_sleep, args = (rl,))
+		t.start()
+		time.sleep(0.2)
+		while t.is_alive():
+			self.db.interrupt()
 			time.sleep(0.1)
-			if time.time() - b > 5:
-				self.fail("times up(5s), and it looks like the thread never finished")
-		if rl[0] is not None:
-			e, v, tb = rl[0]
-			raise v
+
+		def raise_exc(l):
+			if l[0] is not None:
+				e, v, tb = rl[0]
+				raise v
+		self.failUnlessRaises(pg_exc.QueryCanceledError, raise_exc, rl)
 
 	def testLookupProcByName(self):
-		execute(
+		self.db.execute(
 			"CREATE OR REPLACE FUNCTION public.foo() RETURNS INT LANGUAGE SQL AS 'SELECT 1'"
 		)
-		settings['search_path'] = 'public'
-		f = proc('foo()')
-		f2 = proc('public.foo()')
+		self.db.settings['search_path'] = 'public'
+		f = self.db.proc('foo()')
+		f2 = self.db.proc('public.foo()')
 		self.failUnless(f.oid == f2.oid,
 			"function lookup incongruence(%r != %r)" %(f, f2)
 		)
 
 	def testLookupProcById(self):
-		pass
+		gsoid = self.db.prepare(
+			"select oid from pg_proc where proname = 'generate_series' limit 1"
+		).first()
+		gs = self.db.proc(gsoid)
+		self.failUnlessEqual(
+			list(gs(1, 100)), list(range(1, 101))
+		)
 
 	def testProcExecution(self):
-		ver = proc("version()")
+		ver = self.db.proc("version()")
 		ver()
-		execute(
+		self.db.execute(
 			"CREATE OR REPLACE FUNCTION ifoo(int) RETURNS int LANGUAGE SQL AS 'select $1'"
 		)
-		ifoo = proc('ifoo(int)')
+		ifoo = self.db.proc('ifoo(int)')
 		self.failUnless(ifoo(1) == 1)
 		self.failUnless(ifoo(None) is None)
 
 	def testNULL(self):
 		# Directly commpare (SELECT NULL) is None
 		self.failUnless(
-			query("SELECT NULL")().next()[0] is None,
+			next(self.db.prepare("SELECT NULL")())[0] is None,
 			"SELECT NULL did not return None"
 		)
 		# Indirectly compare (select NULL) is None
 		self.failUnless(
-			query("SELECT $1::text")(None).next()[0] is None,
+			next(self.db.prepare("SELECT $1::text")(None))[0] is None,
 			"[SELECT $1::text](None) did not return None "
 		)
 
 	def testBool(self):
-		fst, snd = query("SELECT true, false")().next()
+		fst, snd = self.db.prepare("SELECT true, false").first()
 		self.failUnless(fst is True)
 		self.failUnless(snd is False)
 
 	def testSelect(self):
-		self.failUnless(
-			query('')() == None,
-			'Empty query did not return None'
-		)
+		#self.failUnlessEqual(
+		#	self.db.prepare('')().command(),
+		#	None,
+		#	'Empty statement has command?'
+		#)
 		# Test SELECT 1.
-		s1 = query("SELECT 1")
+		s1 = self.db.prepare("SELECT 1 as name")
 		p = s1()
-		tup = p.next()
+		tup = next(p)
 		self.failUnless(tup[0] == 1)
 
 		for tup in s1:
-			self.failUnless(tup[0] == 1)
+			self.failUnlessEqual(tup[0], 1)
+
+		for tup in s1:
+			self.failUnlessEqual(tup["name"], 1)
 
 	def testDDL(self):
-		execute("CREATE TEMP TABLE t(i int)")
+		self.db.execute("CREATE TEMP TABLE t(i int)")
 		try:
-			insert_t = query("INSERT INTO t VALUES ($1)")
-			delete_t = query("DELETE FROM t WHERE i = $1")
-			delete_all_t = query("DELETE FROM t")
-			update_t = query("UPDATE t SET i = $2 WHERE i = $1")
+			insert_t = self.db.prepare("INSERT INTO t VALUES ($1)")
+			delete_t = self.db.prepare("DELETE FROM t WHERE i = $1")
+			delete_all_t = self.db.prepare("DELETE FROM t")
+			update_t = self.db.prepare("UPDATE t SET i = $2 WHERE i = $1")
 			self.failUnlessEqual(insert_t(1).count(), 1)
 			self.failUnlessEqual(delete_t(1).count(), 1)
 			self.failUnlessEqual(insert_t(2).count(), 1)
@@ -174,33 +185,35 @@ class test_pgapi(unittest.TestCase):
 			self.failUnlessEqual(delete_t(1).count(), 0)
 			self.failUnlessEqual(delete_t(2).count(), 1)
 		finally:
-			execute("DROP TABLE t")
+			self.db.execute("DROP TABLE t")
 
 	def testBatchDDL(self):
-		execute("CREATE TEMP TABLE t(i int)")
+		self.db.execute("CREATE TEMP TABLE t(i int)")
 		try:
-			insert_t = query("INSERT INTO t VALUES ($1)")
-			delete_t = query("DELETE FROM t WHERE i = $1")
-			delete_all_t = query("DELETE FROM t")
-			update_t = query("UPDATE t SET i = $2 WHERE i = $1")
+			insert_t = self.db.prepare("INSERT INTO t VALUES ($1)")
+			delete_t = self.db.prepare("DELETE FROM t WHERE i = $1")
+			delete_all_t = self.db.prepare("DELETE FROM t")
+			update_t = self.db.prepare("UPDATE t SET i = $2 WHERE i = $1")
 			mset = (
 				(2,), (2,), (3,), (4,), (5,),
 			)
-			insert_t << mset
+			insert_t.load(mset)
 			self.failUnlessEqual(mset, tuple([
-				tuple(x) for x in query(
+				tuple(x) for x in self.db.prepare(
 					"SELECT * FROM t ORDER BY 1 ASC"
 				)
 			]))
 		finally:
-			execute("DROP TABLE t")
+			self.db.execute("DROP TABLE t")
 
 	def testTypes(self):
 		'test basic object I/O--input must equal output'
 		for (typname, sample_data) in type_samples:
-			pb = query("SELECT $1::" + typname)
+			pb = self.db.prepare("SELECT $1::" + typname)
 			for sample in sample_data:
 				rsample = pb.first(sample)
+				if isinstance(rsample, pg_types.Array):
+					rsample = rsample.nest()
 				self.failUnless(
 					rsample == sample,
 					"failed to return %s object data as-is; gave %r, received %r" %(
@@ -211,99 +224,96 @@ class test_pgapi(unittest.TestCase):
 	def testSyntaxError(self):
 		self.failUnlessRaises(
 			pg_exc.SyntaxError,
-			query("SELEKT 1")
+			self.db.prepare("SELEKT 1")
 		)
 
-	def testInvalidSchemaError(self):
+	def testSchemaNameError(self):
 		self.failUnlessRaises(
-			pg_exc.InvalidSchemaName,
-			query("SELECT * FROM sdkfldasjfdskljZknvson.foo")
+			pg_exc.SchemaNameError,
+			self.db.prepare("SELECT * FROM sdkfldasjfdskljZknvson.foo")
 		)
 
 	def testUndefinedTableError(self):
 		self.failUnlessRaises(
 			pg_exc.UndefinedTableError,
-			query("SELECT * FROM public.lkansdkvsndlvksdvnlsdkvnsdlvk")
+			self.db.prepare("SELECT * FROM public.lkansdkvsndlvksdvnlsdkvnsdlvk")
 		)
 
 	def testUndefinedColumnError(self):
 		self.failUnlessRaises(
 			pg_exc.UndefinedColumnError,
-			query("SELECT x____ysldvndsnkv FROM information_schema.tables")
+			self.db.prepare("SELECT x____ysldvndsnkv FROM information_schema.tables")
 		)
 
 	def testSEARVError_avgInWhere(self):
 		self.failUnlessRaises(
 			pg_exc.SEARVError,
-			query("SELECT 1 WHERE avg(1) = 1")
+			self.db.prepare("SELECT 1 WHERE avg(1) = 1")
 		)
 
 	def testSEARVError_groupByAgg(self):
 		self.failUnlessRaises(
 			pg_exc.SEARVError,
-			query("SELECT 1 GROUP BY avg(1)")
+			self.db.prepare("SELECT 1 GROUP BY avg(1)")
 		)
 
-	def testDatatypeMismatchError(self):
+	def testTypeMismatchError(self):
 		self.failUnlessRaises(
-			pg_exc.DatatypeMismatchError,
-			query("SELECT 1 WHERE 1")
+			pg_exc.TypeMismatchError,
+			self.db.prepare("SELECT 1 WHERE 1")
 		)
 
 	def testUndefinedObjectError(self):
 		try:
 			self.failUnlessRaises(
 				pg_exc.UndefinedObjectError,
-				query("CREATE TABLE lksvdnvsdlksnv(i intt___t)")
+				self.db.prepare("CREATE TABLE lksvdnvsdlksnv(i intt___t)")
 			)
 		except:
 			# newer versions throw the exception on execution
 			self.failUnlessRaises(
 				pg_exc.UndefinedObjectError,
-				query("CREATE TABLE lksvdnvsdlksnv(i intt___t)")
+				self.db.prepare("CREATE TABLE lksvdnvsdlksnv(i intt___t)")
 			)
 
 	def testZeroDivisionError(self):
 		self.failUnlessRaises(
 			pg_exc.ZeroDivisionError,
-			query("SELECT 1/i FROM (select 0 as i) AS g(i)").first,
+			self.db.prepare("SELECT 1/i FROM (select 0 as i) AS g(i)").first,
 		)
 
 	def testTransaction(self):
-		with xact:
-			execute("CREATE TEMP TABLE withfoo(i int)")
-		query("SELECT * FROM withfoo")
+		with self.db.xact:
+			self.db.execute("CREATE TEMP TABLE withfoo(i int)")
+		self.db.prepare("SELECT * FROM withfoo")
 
-		execute("DROP TABLE withfoo")
-		with xact:
-			execute("CREATE TEMP TABLE withfoo(i int)")
-			raise pg_exc.AbortTransaction
+		self.db.execute("DROP TABLE withfoo")
 		self.failUnlessRaises(
 			pg_exc.UndefinedTableError,
-			query, "SELECT * FROM withfoo"
+			self.db.prepare("SELECT * FROM withfoo")
 		)
 
-		class SomeError(StandardError):
+		class SomeError(Exception):
 			pass
 		try:
-			with xact:
-				execute("CREATE TABLE withfoo (i int)")
+			with self.db.xact:
+				self.db.execute("CREATE TABLE withfoo (i int)")
 				raise SomeError
 		except SomeError:
 			pass
 		self.failUnlessRaises(
 			pg_exc.UndefinedTableError,
-			query, "SELECT * FROM withfoo"
+			self.db.prepare("SELECT * FROM withfoo")
 		)
 
 	def testConfiguredTransaction(self):
-		if 'gid' in xact.prepared:
-			xact.rollback_prepared('gid')
-		with xact('gid'):
+		if 'gid' in self.db.xact.prepared:
+			self.db.xact.rollback_prepared('gid')
+		with self.db.xact('gid'):
 			pass
-		with xact:
+		with self.db.xact:
 			pass
-		xact.rollback_prepared('gid')
+		self.db.xact.rollback_prepared('gid')
 
 # Log: dbapi20.py
 # Revision 1.10  2003/10/09 03:14:14  zenzen
@@ -347,7 +357,7 @@ class test_pgapi(unittest.TestCase):
 #   nothing
 # - Fix bugs in test_setoutputsize_basic and test_setinputsizes
 #
-class test_dbapi20(unittest.TestCase):
+class test_dbapi20(pg_unittest.TestCaseWithCluster):
 	"""
 	Test a database self.driver for DB API 2.0 compatibility.
 	This implementation tests Gadfly, but the TestCase
@@ -394,7 +404,7 @@ class test_dbapi20(unittest.TestCase):
 		con = self._connect()
 		try:
 			cur = con.cursor()
-			for ddl in (self.xddl1,self.xddl2):
+			for ddl in (self.xddl1, self.xddl2):
 				try: 
 					cur.execute(ddl)
 					con.commit()
@@ -406,7 +416,9 @@ class test_dbapi20(unittest.TestCase):
 			con.close()
 
 	def _connect(self):
-		return self.driver.Connection(pg.connector())
+		self.db.connect()
+		c = self.driver.Connection(self.db)
+		return c
 
 	def test_connect(self):
 		con = self._connect()
@@ -444,27 +456,13 @@ class test_dbapi20(unittest.TestCase):
 	def test_Exceptions(self):
 		# Make sure required exceptions exist, and are in the
 		# defined heirarchy.
-		self.failUnless(
-			issubclass(self.driver.InterfaceError,self.driver.Error)
-			)
-		self.failUnless(
-			issubclass(self.driver.DatabaseError,self.driver.Error)
-			)
-		self.failUnless(
-			issubclass(self.driver.OperationalError,self.driver.Error)
-			)
-		self.failUnless(
-			issubclass(self.driver.IntegrityError,self.driver.Error)
-			)
-		self.failUnless(
-			issubclass(self.driver.InternalError,self.driver.Error)
-			)
-		self.failUnless(
-			issubclass(self.driver.ProgrammingError,self.driver.Error)
-			)
-		self.failUnless(
-			issubclass(self.driver.NotSupportedError,self.driver.Error)
-			)
+		self.failUnless(issubclass(self.driver.InterfaceError,self.driver.Error))
+		self.failUnless(issubclass(self.driver.DatabaseError,self.driver.Error))
+		self.failUnless(issubclass(self.driver.OperationalError,self.driver.Error))
+		self.failUnless(issubclass(self.driver.IntegrityError,self.driver.Error))
+		self.failUnless(issubclass(self.driver.InternalError,self.driver.Error))
+		self.failUnless(issubclass(self.driver.ProgrammingError,self.driver.Error))
+		self.failUnless(issubclass(self.driver.NotSupportedError,self.driver.Error))
 
 	def test_ExceptionsAsConnectionAttributes(self):
 		# OPTIONAL EXTENSION
@@ -537,28 +535,28 @@ class test_dbapi20(unittest.TestCase):
 			self.assertEqual(cur.description,None,
 				'cursor.description should be none after executing a '
 				'statement that can return no rows (such as DDL)'
-				)
+			)
 			cur.execute('select name from %sbooze' % self.table_prefix)
 			self.assertEqual(len(cur.description),1,
 				'cursor.description describes too many columns'
-				)
+			)
 			self.assertEqual(len(cur.description[0]),7,
 				'cursor.description[x] tuples must have 7 elements'
-				)
+			)
 			self.assertEqual(cur.description[0][0].lower(),'name',
 				'cursor.description[x][0] must return column name'
-				)
+			)
 			self.assertEqual(cur.description[0][1],self.driver.STRING,
 				'cursor.description[x][1] must return column type. Got %r'
 					% cur.description[0][1]
-				)
+			)
 
 			# Make sure self.description gets reset
 			self.executeDDL2(cur)
 			self.assertEqual(cur.description,None,
 				'cursor.description not being set to None when executing '
 				'no-result statements (eg. DDL)'
-				)
+			)
 		finally:
 			con.close()
 
@@ -570,24 +568,24 @@ class test_dbapi20(unittest.TestCase):
 			self.assertEqual(cur.rowcount,-1,
 				'cursor.rowcount should be -1 after executing no-result '
 				'statements'
-				)
+			)
 			cur.execute("insert into %sbooze values ('Victoria Bitter')" % (
 				self.table_prefix
-				))
+			))
 			self.failUnless(cur.rowcount in (-1,1),
 				'cursor.rowcount should == number or rows inserted, or '
 				'set to -1 after executing an insert statement'
-				)
+			)
 			cur.execute("select name from %sbooze" % self.table_prefix)
 			self.failUnless(cur.rowcount in (-1,1),
 				'cursor.rowcount should == number of rows returned, or '
 				'set to -1 after executing a select statement'
-				)
+			)
 			self.executeDDL2(cur)
 			self.assertEqual(cur.rowcount,-1,
 				'cursor.rowcount not being reset to -1 after executing '
 				'no-result statements'
-				)
+			)
 		finally:
 			con.close()
 
@@ -604,10 +602,10 @@ class test_dbapi20(unittest.TestCase):
 				self.assertEqual(len(r),1,'callproc produced no result set')
 				self.assertEqual(len(r[0]),1,
 					'callproc produced invalid result set'
-					)
+				)
 				self.assertEqual(r[0][0],'foo',
 					'callproc produced invalid results'
-					)
+				)
 		finally:
 			con.close()
 
@@ -641,34 +639,34 @@ class test_dbapi20(unittest.TestCase):
 		self.executeDDL1(cur)
 		cur.execute("insert into %sbooze values ('Victoria Bitter')" % (
 			self.table_prefix
-			))
+		))
 		self.failUnless(cur.rowcount in (-1,1))
 
 		if self.driver.paramstyle == 'qmark':
 			cur.execute(
 				'insert into %sbooze values (?)' % self.table_prefix,
 				("Cooper's",)
-				)
+			)
 		elif self.driver.paramstyle == 'numeric':
 			cur.execute(
 				'insert into %sbooze values (:1)' % self.table_prefix,
 				("Cooper's",)
-				)
+			)
 		elif self.driver.paramstyle == 'named':
 			cur.execute(
 				'insert into %sbooze values (:beer)' % self.table_prefix, 
 				{'beer':"Cooper's"}
-				)
+			)
 		elif self.driver.paramstyle == 'format':
 			cur.execute(
 				'insert into %sbooze values (%%s)' % self.table_prefix,
 				("Cooper's",)
-				)
+			)
 		elif self.driver.paramstyle == 'pyformat':
 			cur.execute(
 				'insert into %sbooze values (%%(beer)s)' % self.table_prefix,
 				{'beer':"Cooper's"}
-				)
+			)
 		else:
 			self.fail('Invalid paramstyle')
 		self.failUnless(cur.rowcount in (-1,1))
@@ -681,11 +679,11 @@ class test_dbapi20(unittest.TestCase):
 		self.assertEqual(beers[0],"Cooper's",
 			'cursor.fetchall retrieved incorrect data, or data inserted '
 			'incorrectly'
-			)
+		)
 		self.assertEqual(beers[1],"Victoria Bitter",
 			'cursor.fetchall retrieved incorrect data, or data inserted '
 			'incorrectly'
-			)
+		)
 
 	def test_executemany(self):
 		con = self._connect()
@@ -698,40 +696,40 @@ class test_dbapi20(unittest.TestCase):
 				cur.executemany(
 					'insert into %sbooze values (?)' % self.table_prefix,
 					largs
-					)
+				)
 			elif self.driver.paramstyle == 'numeric':
 				cur.executemany(
 					'insert into %sbooze values (:1)' % self.table_prefix,
 					largs
-					)
+				)
 			elif self.driver.paramstyle == 'named':
 				cur.executemany(
 					'insert into %sbooze values (:beer)' % self.table_prefix,
 					margs
-					)
+				)
 			elif self.driver.paramstyle == 'format':
 				cur.executemany(
 					'insert into %sbooze values (%%s)' % self.table_prefix,
 					largs
-					)
+				)
 			elif self.driver.paramstyle == 'pyformat':
 				cur.executemany(
 					'insert into %sbooze values (%%(beer)s)' % (
 						self.table_prefix
-						),
+					),
 					margs
-					)
+				)
 			else:
 				self.fail('Unknown paramstyle')
 			self.failUnless(cur.rowcount in (-1,2),
 				'insert using cursor.executemany set cursor.rowcount to '
 				'incorrect value %r' % cur.rowcount
-				)
+			)
 			cur.execute('select name from %sbooze' % self.table_prefix)
 			res = cur.fetchall()
 			self.assertEqual(len(res),2,
 				'cursor.fetchall retrieved incorrect number of rows'
-				)
+			)
 			beers = [res[0][0],res[1][0]]
 			beers.sort()
 			self.assertEqual(beers[0],"Boag's",'incorrect data retrieved')
@@ -757,27 +755,27 @@ class test_dbapi20(unittest.TestCase):
 			self.assertEqual(cur.fetchone(),None,
 				'cursor.fetchone should return None if a query retrieves '
 				'no rows'
-				)
+			)
 			self.failUnless(cur.rowcount in (-1,0))
 
 			# cursor.fetchone should raise an Error if called after
 			# executing a query that cannnot return rows
 			cur.execute("insert into %sbooze values ('Victoria Bitter')" % (
 				self.table_prefix
-				))
+			))
 			self.assertRaises(self.driver.Error,cur.fetchone)
 
 			cur.execute('select name from %sbooze' % self.table_prefix)
 			r = cur.fetchone()
 			self.assertEqual(len(r),1,
 				'cursor.fetchone should have retrieved a single row'
-				)
+			)
 			self.assertEqual(r[0],'Victoria Bitter',
 				'cursor.fetchone retrieved incorrect data'
-				)
+			)
 			self.assertEqual(cur.fetchone(),None,
 				'cursor.fetchone should return None if no more rows available'
-				)
+			)
 			self.failUnless(cur.rowcount in (-1,1))
 		finally:
 			con.close()
@@ -789,16 +787,16 @@ class test_dbapi20(unittest.TestCase):
 		'Redback',
 		'Victoria Bitter',
 		'XXXX'
-		]
+	]
 
 	def _populate(self):
-		''' Return a list of sql commands to setup the DB for the fetch
-			tests.
+		'''
+		Return a list of sql commands to setup the DB for the fetch tests.
 		'''
 		populate = [
 			"insert into %sbooze values ('%s')" % (self.table_prefix,s) 
 				for s in self.samples
-			]
+		]
 		return populate
 
 	def test_fetchmany(self):
@@ -819,16 +817,16 @@ class test_dbapi20(unittest.TestCase):
 			self.assertEqual(len(r),1,
 				'cursor.fetchmany retrieved incorrect number of rows, '
 				'default of arraysize is one.'
-				)
+			)
 			cur.arraysize=10
 			r = cur.fetchmany(3) # Should get 3 rows
 			self.assertEqual(len(r),3,
 				'cursor.fetchmany retrieved incorrect number of rows'
-				)
+			)
 			r = cur.fetchmany(4) # Should get 2 more
 			self.assertEqual(len(r),2,
 				'cursor.fetchmany retrieved incorrect number of rows'
-				)
+			)
 			r = cur.fetchmany(4) # Should be an empty sequence
 			self.assertEqual(len(r),0,
 				'cursor.fetchmany should return an empty sequence after '
@@ -842,7 +840,7 @@ class test_dbapi20(unittest.TestCase):
 			r = cur.fetchmany() # Should get 4 rows
 			self.assertEqual(len(r),4,
 				'cursor.arraysize not being honoured by fetchmany'
-				)
+			)
 			r = cur.fetchmany() # Should get 2 more
 			self.assertEqual(len(r),2)
 			r = cur.fetchmany() # Should be an empty sequence
@@ -862,13 +860,13 @@ class test_dbapi20(unittest.TestCase):
 			for i in range(0,6):
 				self.assertEqual(rows[i],self.samples[i],
 					'incorrect data retrieved by cursor.fetchmany'
-					)
+				)
 
 			rows = cur.fetchmany() # Should return an empty list
 			self.assertEqual(len(rows),0,
 				'cursor.fetchmany should return an empty sequence if '
 				'called after the whole result set has been fetched'
-				)
+			)
 			self.failUnless(cur.rowcount in (-1,6))
 
 			self.executeDDL2(cur)
@@ -877,7 +875,7 @@ class test_dbapi20(unittest.TestCase):
 			self.assertEqual(len(r),0,
 				'cursor.fetchmany should return an empty sequence if '
 				'query retrieved no rows'
-				)
+			)
 			self.failUnless(cur.rowcount in (-1,0))
 
 		finally:
@@ -905,19 +903,19 @@ class test_dbapi20(unittest.TestCase):
 			self.failUnless(cur.rowcount in (-1,len(self.samples)))
 			self.assertEqual(len(rows),len(self.samples),
 				'cursor.fetchall did not retrieve all rows'
-				)
+			)
 			rows = [r[0] for r in rows]
 			rows.sort()
 			for i in range(0,len(self.samples)):
 				self.assertEqual(rows[i],self.samples[i],
 				'cursor.fetchall retrieved incorrect rows'
-				)
+			)
 			rows = cur.fetchall()
 			self.assertEqual(
 				len(rows),0,
 				'cursor.fetchall should return an empty list if called '
 				'after the whole result set has been fetched'
-				)
+			)
 			self.failUnless(cur.rowcount in (-1,len(self.samples)))
 
 			self.executeDDL2(cur)
@@ -927,11 +925,10 @@ class test_dbapi20(unittest.TestCase):
 			self.assertEqual(len(rows),0,
 				'cursor.fetchall should return an empty list if '
 				'a select query returns no rows'
-				)
-			
+			)
 		finally:
 			con.close()
-	
+
 	def test_mixedfetch(self):
 		con = self._connect()
 		try:
@@ -948,10 +945,10 @@ class test_dbapi20(unittest.TestCase):
 			self.failUnless(cur.rowcount in (-1,6))
 			self.assertEqual(len(rows23),2,
 				'fetchmany returned incorrect number of rows'
-				)
+			)
 			self.assertEqual(len(rows56),2,
 				'fetchall returned incorrect number of rows'
-				)
+			)
 
 			rows = [rows1[0]]
 			rows.extend([rows23[0][0],rows23[1][0]])
@@ -961,7 +958,7 @@ class test_dbapi20(unittest.TestCase):
 			for i in range(0,len(self.samples)):
 				self.assertEqual(rows[i],self.samples[i],
 					'incorrect data retrieved or inserted'
-					)
+				)
 		finally:
 			con.close()
 
@@ -1002,7 +999,6 @@ class test_dbapi20(unittest.TestCase):
 				assert s == None,'No more return sets, should return None'
 			finally:
 				self.help_nextset_tearDown(cur)
-
 		finally:
 			con.close()
 
@@ -1071,41 +1067,38 @@ class test_dbapi20(unittest.TestCase):
 		t1 = self.driver.Timestamp(2002,12,25,13,45,30)
 		t2 = self.driver.TimestampFromTicks(
 			time.mktime((2002,12,25,13,45,30,0,0,0))
-			)
+		)
 		# Can we assume this? API doesn't specify, but it seems implied
 		# self.assertEqual(str(t1),str(t2))
 
 	def test_Binary(self):
-		b = self.driver.Binary('Something')
-		b = self.driver.Binary('')
+		b = self.driver.Binary(b'Something')
+		b = self.driver.Binary(b'')
 
 	def test_STRING(self):
 		self.failUnless(hasattr(self.driver,'STRING'),
 			'module.STRING must be defined'
-			)
+		)
 
 	def test_BINARY(self):
 		self.failUnless(hasattr(self.driver,'BINARY'),
 			'module.BINARY must be defined.'
-			)
+		)
 
 	def test_NUMBER(self):
 		self.failUnless(hasattr(self.driver,'NUMBER'),
 			'module.NUMBER must be defined.'
-			)
+		)
 
 	def test_DATETIME(self):
 		self.failUnless(hasattr(self.driver,'DATETIME'),
 			'module.DATETIME must be defined.'
-			)
+		)
 
 	def test_ROWID(self):
 		self.failUnless(hasattr(self.driver,'ROWID'),
 			'module.ROWID must be defined.'
-			)
+		)
 
 if __name__ == '__main__':
-	from types import ModuleType
-	this = ModuleType("this")
-	this.__dict__.update(globals())
-	unittest.main(this)
+	unittest.main()

@@ -9,6 +9,7 @@ import os.path
 import subprocess
 import io
 import pprint
+import errno
 from itertools import chain
 from operator import itemgetter
 from . import versionstring
@@ -30,7 +31,15 @@ def get_command_output(exe, *args):
 		shell = False
 	)
 	p.stdin.close()
-	rv = p.wait()
+	##
+	# Sigh. Fucking gdb.
+	while True:
+		try:
+			rv = p.wait()
+			break
+		except OSError as e:
+			if e.errno != errno.EINTR:
+				raise
 	if rv != 0:
 		return None
 	return io.TextIOWrapper(p.stdout).read()

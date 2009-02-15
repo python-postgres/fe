@@ -8,6 +8,7 @@ Aliases for Python encodings that Postgres uses.
 
 # dictionary of Postgres encoding names to Python encoding names
 postgres_to_python = {
+	'UNICODE' : 'utf_8',
 	'unicode' : 'utf_8',
 	'sql_ascii' : 'ascii',
 	'euc_jp' : 'eucjp',
