@@ -1075,9 +1075,9 @@ class PreparedStatement(pg_api.PreparedStatement):
 				return None
 			return cm.extract_count() or cm.extract_command()
 
-	def copy(self,
+	def _copy_data_in(self,
 		iterable,
-		tps : "tuples per *set*" = 1000,
+		tps : "tuples per *set*" = None,
 	):
 		"""
 		Given an iterable, execute the COPY ... FROM STDIN statement and
@@ -1086,39 +1086,45 @@ class PreparedStatement(pg_api.PreparedStatement):
 		`tps` is the number of tuples to buffer prior to giving the data
 		to the socket's send.
 		"""
+		tps = tps or 500
 		iterable = iter(iterable)
 		x = pq.Transaction((
 			pq.element.Bind(
 				b'',
 				self._pq_statement_id,
-				(), () (),
+				(), (), (),
 			),
 			pq.element.Execute(b'', 1),
-
+			pq.element.SynchronizeMessage,
 		))
 		self.ife_descend(x)
 		self.database._pq_push(x)
+
+		# Get the COPY started.
 		while x.state is not pq.Complete:
+			self.database._pq_step()
+			if hasattr(x, 'CopyFailSequence') and x.messages is x.CopyFailSequence:
+				break
+		else:
+			# Oh, it's not a COPY at all.
+			e = pg_exc.OperationError(
+				"load() used on a non-COPY FROM STDIN query",
+			)
+			x.ife_descend(e)
+			e.raise_exception()
+
+		while x.messages:
 			# Process any messages setup for sending.
 			while x.messages is not x.CopyFailSequence:
 				self.database._pq_step()
-				if x.state is pq.Complete:
-					e = pg_exc.OperationError(
-						"load() used on a non-COPY FROM STDIN query"
-					)
-					x.ife_descend(e)
-					e.raise_exception()
-
-				copyseq = [
-					pq.element.CopyData(l) for l in islice(iterable, tps)
-				]
-			x.messages = copyseq
-		x.messages = self._pq_xact.CopyDoneSequence
+			x.messages = [
+				pq.element.CopyData(l) for l in islice(iterable, tps)
+			]
+		x.messages = x.CopyDoneSequence
 		self.database._pq_complete()
 
-	def load(self, tupleseq, tps = 40):
-		if self.closed:
-			self.prepare()
+	def _load_bulk_tuples(self, tupleseq, tps = None):
+		tps = tps or 64
 		last = pq.element.FlushMessage
 		tupleseqiter = iter(tupleseq)
 		try:
@@ -1163,6 +1169,19 @@ class PreparedStatement(pg_api.PreparedStatement):
 			##
 			self.database.synchronize()
 			raise
+
+	def load(self, iterable, tps = None):
+		"""
+		Execute the query for each parameter set in `iterable`.
+
+		In cases of ``COPY ... FROM STDIN``, iterable must be an iterable `bytes`.
+		"""
+		if self.closed:
+			self.prepare()
+		if not self._input:
+			return self._copy_data_in(iterable, tps = tps)
+		else:
+			return self._load_bulk_tuples(iterable, tps = tps)
 
 class StoredProcedure(pg_api.StoredProcedure):
 	ife_ancestor = None

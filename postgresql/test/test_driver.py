@@ -95,6 +95,29 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				e, v, tb = rl[0]
 				raise v
 		self.failUnlessRaises(pg_exc.QueryCanceledError, raise_exc, rl)
+	
+	def testCopyToSTDOUT(self):
+		with self.db.xact:
+			self.db.execute("CREATE TABLE foo (i int)")
+			foo = self.db.prepare('insert into foo values ($1)')
+			foo.load(((x,) for x in range(500)))
+
+			copy_foo = self.db.prepare('copy foo to stdout')
+			foo_content = set(copy_foo)
+			expected = set((str(i).encode('ascii') + b'\n' for i in range(500)))
+			self.failUnlessEqual(expected, foo_content)
+			self.db.execute("DROP TABLE foo")
+
+	def testCopyFromSTDIN(self):
+		with self.db.xact:
+			self.db.execute("CREATE TABLE foo (i int)")
+			foo = self.db.prepare('copy foo from stdin')
+			foo.load((str(i).encode('ascii') + b'\n' for i in range(1000)))
+			foo_content = list((
+				x for (x,) in self.db.prepare('select * from foo order by 1 ASC')
+			))
+			self.failUnlessEqual(foo_content, list(range(1000)))
+			self.db.execute("DROP TABLE foo")
 
 	def testLookupProcByName(self):
 		self.db.execute(
