@@ -482,7 +482,7 @@ class CancelRequest(KillInformation):
 	def parse(typ, data):
 		if data[0:4] != typ.packed_version:
 			raise ValueError("invalid cancel query code")
-		return typ(*self.struct.unpack(data[4:]))
+		return typ(*typ.struct.unpack(data[4:]))
 
 class NegotiateSSL(Message):
 	"Discover backend's SSL support"
