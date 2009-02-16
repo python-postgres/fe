@@ -37,6 +37,7 @@ Map PostgreSQL type Oids to routines that pack and unpack raw data.
   long-long based time I/O with noday-intervals.
 """
 import codecs
+from operator import itemgetter
 from abc import ABCMeta, abstractmethod
 
 from decimal import Decimal
@@ -89,6 +90,10 @@ UTC = FixedOffset(0, tzname = 'UTC')
 class Row(tuple):
 	"Name addressable items tuple; mapping and sequence"
 	def __new__(subtype, iter, attmap = {}):
+		if isinstance(iter, dict):
+			iter = [
+				iter.get(k) for k,_ in sorted(attmap.items(), key = itemgetter(1))
+			]
 		rob = tuple.__new__(subtype, iter)
 		rob.attmap = attmap
 		return rob
@@ -419,8 +424,12 @@ def composite_typio(
 		)
 
 	def pack_a_record(data):
+		if isinstance(data, dict):
+			data = [
+				data.get(k) for k,_ in sorted(attmap.items(), key = itemgetter(1))
+			]
 		return ts.record_pack(
-			zip(typids, transform_record(cio, data, 0))
+			tuple(zip(typids, transform_record(cio, data, 0)))
 		)
 
 	return (pack_a_record, unpack_a_record)
