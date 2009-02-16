@@ -398,12 +398,12 @@ def transform_record(obj_xf, raw_columns, io):
 		if x is None:
 			yield None
 		else:
-			yield obj_xf[io][i](x)
+			yield obj_xf[i][io](x)
 
 def composite_typio(
 	cio : "sequence (pack,unpack) tuples corresponding to the",
+	typids : "sequence of type Oids; index must correspond to the composite's",
 	attmap : "mapping of column name to index number",
-	typids : "sequence of type Oids; index must correspond to the composite's"
 ):
 	"""
 	create the typio pair for the composite type metadata passed in.
@@ -625,15 +625,12 @@ class TypeIO(object, metaclass = ABCMeta):
 					for x in self.lookup_composite_type_info(typrelid):
 						attmap[x[1]] = i
 						typids.append(x[0])
-						cio.append(self.resolve(
-							x[0],
-							list(from_resolution_of) + [typid]
-						))
+						pack, unpack = self.resolve(
+							x[0], list(from_resolution_of) + [typid]
+						)
+						cio.append((pack or self.encode, unpack or self.decode))
 						i += 1
-
-					self._cache[typid] = typio = composite_typio(
-						cio, typids, attmap
-					)
+					self._cache[typid] = typio = composite_typio(cio, typids, attmap)
 				elif ae_typid is not None:
 					# Array Type
 					te = self.resolve(
