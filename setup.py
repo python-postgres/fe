@@ -19,11 +19,10 @@ if sys.version_info[:2] < (3,0):
 	)
 	sys.exit(1)
 
-NAME = 'py-postgresql'
-
 sys.path.insert(0, '')
 import postgresql
 VERSION = postgresql.__version__
+NAME = postgresql.__project__
 del postgresql
 del sys.path[0]
 
@@ -39,13 +38,10 @@ Sample PG-API Code
 	>>> db.execute("CREATE TABLE emp (emp_first_name text, emp_last_name text, emp_salary numeric)")
 	>>> make_emp = db.prepare("INSERT INTO emp VALUES ($1, $2, $3)")
 	>>> make_emp("John", "Doe", "75,322")
-	1
 	>>> with db.xact:
 	...  make_emp("Jane", "Doe", "75,322")
 	...  make_emp("Edward", "Johnson", "82,744")
 	...
-	1
-	1
 
 There is a DB-API 2.0 module as well::
 
@@ -130,11 +126,6 @@ defaults = {
 		'postgresql/bin/pg_tin',
 		'postgresql/bin/pg_withcluster'
 	],
-
-	'data_files' : [
-		('postgresql/documentation', glob.glob('postgresql/documentation/*.txt')),
-		('postgresql/release', ['MANIFEST','AUTHORS','README']),
-	]
 }
 
 if __name__ == '__main__':
