@@ -45,7 +45,7 @@ class StringMessage(Message):
 	A message based on a single string component.
 	"""
 	type = b''
-	__slots__ = ('data')
+	__slots__ = ('data',)
 
 	def __repr__(self):
 		return '%s.%s(%s)' %(
@@ -592,7 +592,7 @@ class Authentication(Message):
 class Password(StringMessage):
 	'Password supplement'
 	type = b'p'
-	__slots__ = ('data')
+	__slots__ = ('data',)
 
 class Disconnect(EmptyMessage):
 	'Close the connection'
