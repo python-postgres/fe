@@ -553,6 +553,7 @@ class TypeIO(object, metaclass = ABCMeta):
 				self.anyarray_unpack,
 			),
 			# Encoded character strings
+			pg_types.ACLITEMOID : (None, None), # No binary functions.
 			pg_types.NAMEOID : (None, None),
 			pg_types.VARCHAROID : (None, None),
 			pg_types.TEXTOID : (None, None),

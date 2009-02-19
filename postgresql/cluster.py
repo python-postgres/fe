@@ -255,7 +255,7 @@ class Cluster(pg_api.Cluster):
 					w = pg_exc.ClusterWarning(
 						'cluster failed to shutdown after kill',
 						details = {
-							'HINT' : 'Shared memory may be leaked.'
+							'hint' : 'Shared memory may be leaked.'
 						}
 					)
 					self.ife_descend(w)
@@ -444,16 +444,23 @@ class Cluster(pg_api.Cluster):
 				host = host or 'localhost',
 				port = port or 5432,
 				database = 'template1',
+				sslmode = 'disable',
 			).close()
 		except pg_exc.ClientCannotConnectError as err:
 			for (ssltried, sockc, x) in err.connection_failures:
 				if self.installation.version_info[:2] < (8,1):
-					if isinstance(x, pg_exc.UndefinedObjectError):
+					if isinstance(x, (
+						pg_exc.UndefinedObjectError,
+						pg_exc.AuthenticationSpecificationError,
+					)):
 						# undefined user.. whatever...
 						return True
 				else:
 					if isinstance(x, pg_exc.AuthenticationSpecificationError):
 						return True
+				# configuration file error. ya, that's probably not going to change.
+				if isinstance(x, pg_exc.CFError):
+					raise x
 				if isinstance(x, pg_exc.ServerNotReadyError):
 					e = x
 					break
@@ -466,7 +473,6 @@ class Cluster(pg_api.Cluster):
 	def wait_until_started(self,
 		timeout : "how long to wait before throwing a timeout exception" = 10,
 		delay : "how long to sleep before re-testing" = 0.05,
-		least : "minimum wait time" = 0.25,
 	):
 		"""
 		After the `start` method is used, this can be ran in order to block
@@ -492,16 +498,15 @@ class Cluster(pg_api.Cluster):
 						self.ife_descend(e)
 						e.raise_exception()
 				else:
-					if checkpoint - start > least:
-						e = pg_exc.ClusterNotRunningError(
-							"postgresql daemon has not been started"
-						)
-						self.ife_descend(e)
-						return e.raise_exception()
+					e = pg_exc.ClusterNotRunningError(
+						"postgresql daemon has not been started"
+					)
+					self.ife_descend(e)
+					return e.raise_exception()
 			r = self.ready_for_connections()
 
 			checkpoint = time.time()
-			if r is True and checkpoint - start > least:
+			if r is True:
 				break
 
 			if checkpoint - start >= timeout:

@@ -23,6 +23,7 @@ import warnings
 import collections
 from abc import ABCMeta, abstractproperty, abstractmethod
 from operator import methodcaller, itemgetter
+
 from .python.doc import Doc
 from .python.decorlib import propertydoc
 
@@ -180,6 +181,7 @@ class InterfaceElement(metaclass = ABCMeta):
 				x, getattr(x, 'ife_label', type(x).__name__),
 				(x.ife_snapshot_text() if hasattr(x, 'ife_snapshot_text') else str(x))
 			) for x in a
+			if getattr(x, '_ife_exclude_snapshot', False) is not True
 		]
 		return l
 
@@ -224,10 +226,10 @@ class InterfaceElement(metaclass = ABCMeta):
 		property get, etc).
 
 		To handle these additional results, the object is passed up through the
-		ancestry. Any ancestor that has receptors will see the object
+		ancestry. Any ancestor that has receptors will see the object.
 
 		If `obj` was consumed by a receptor, the receptor that consumed it will be
-		returned
+		returned.
 		"""
 		# Don't include ancestors without receptors.
 		a = [
@@ -244,6 +246,7 @@ class InterfaceElement(metaclass = ABCMeta):
 				if r is True and allow_consumption:
 					# receptor indicated halt
 					return (recep, ife)
+		# if went unstopped
 		return False
 
 	def ife_connect(self,
@@ -263,8 +266,9 @@ class InterfaceElement(metaclass = ABCMeta):
 			self._ife_receptors = list(args)
 			return
 		# Prepend the list. Newer receptors are given priority.
-		new = list(recept)
-		self._ife_receptors = new.extend(self._ife_receptors)
+		new = list(args)
+		new.extend(self._ife_receptors)
+		self._ife_receptors = new
 
 	def ife_sever(self,
 		*args : (Receptor,)
@@ -337,31 +341,57 @@ class Message(InterfaceElement):
 			)
 		)
 
-	def ife_snapshot_text(self):
+	def __str__(self):
+		ss = getattr(self, 'snapshot', None)
+		if ss is None:
+			ss = obj.ife_ancestry_snapshot_text()
+		sev = self.details.get('severity', self.ife_label).upper()
+		detailstr = self.details_string
+		if detailstr:
+			detailstr = os.linesep + detailstr
+		locstr = self.location_string
+		if locstr:
+			locstr = os.linesep + locstr
+
+		code = "" if not self.code or self.code == "00000" else '(' + self.code + ')'
+		return sev + code + ': ' + self.message + locstr + detailstr + \
+			os.linesep + \
+			os.linesep.join([': '.join(x[1:]) for x in ss]) + \
+			os.linesep
+
+	@property
+	def location_string(self):
 		details = self.details
 		loc = [
 			details.get(k, '?') for k in ('file', 'line', 'function')
 		]
-		locstr = (
-			"" if tuple(loc) == ('?', '?', '?')
-			else os.linesep + \
-				"LOCATION: File {0!r}, "\
-				"line {1!s}, in {2!s}".format(*loc)
+		return (
+			"" if loc == ['?', '?', '?']
+			else "LOCATION: File {0!r}, "\
+			"line {1!s}, in {2!s}".format(*loc)
 		)
 
-		code = (os.linesep + "CODE: " + self.code) if self.code else ""
+	@property
+	def details_string(self):
+		return os.linesep.join((
+			': '.join((k.upper(), str(v)))
+			for k, v in sorted(self.details.items(), key = itemgetter(0))
+			if k not in ('message', 'severity', 'file', 'function', 'line')
+		))
 
+	def ife_snapshot_text(self):
+		details = self.details
+		code = (os.linesep + "CODE: " + self.code) if self.code else ""
 		sev = details.get('severity')
 		sevmsg = ""
 		if sev:
 			sevmsg = os.linesep + "SEVERITY: " + sev.upper()
-		detailstr = os.linesep.join((
-			': '.join((k.upper(), str(v)))
-			for k, v in sorted(details.items(), key = itemgetter(0))
-			if k not in ('message', 'severity', 'file', 'function', 'line')
-		))
+		detailstr = self.details_string
 		if detailstr:
 			detailstr = os.linesep + detailstr
+		locstr = self.location_string
+		if locstr:
+			locstr = os.linesep + locstr
 		return self.message + code + sevmsg + detailstr + locstr
 
 	def emit(self):

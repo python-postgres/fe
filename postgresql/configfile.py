@@ -5,8 +5,8 @@
 'PostgreSQL configuration file parser and editor functions.'
 import sys
 import os
-import postgresql.string as pg_str
-import postgresql.api as pg_api
+from . import string as pg_str
+from . import api as pg_api
 
 quote = "'"
 comment = '#'

@@ -19,5 +19,5 @@ def interlace(*iters) -> collections.Iterable:
 		i1-n, i2-n, ..., in-n,
 	)
 	"""
-	for i in cycle(len(iters)):
+	for i in cycle(range(len(iters))):
 		yield next(iters[i])

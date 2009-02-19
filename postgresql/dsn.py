@@ -5,7 +5,7 @@
 """
 Parse and construct DSN strings.
 """
-import postgresql.string as pg_str
+from . import string as pg_str
 import re
 
 def split(dsn):

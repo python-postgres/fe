@@ -3,10 +3,7 @@
 # http://python.projects.postgresql.org
 ##
 """
-py-postgresql
-=============
-
-py-postgresql is a Python library for using PostgreSQL. This includes low-level
+py-postgresql is a Python package for using PostgreSQL. This includes low-level
 protocol tools, a driver(PG-API and DB-API), and cluster management tools.
 """
 __author__ = "James William Pye <x@jwp.name>"
@@ -26,3 +23,5 @@ __pkg_documentation__ = __project_id__ + '/v' + '.'.join([
 
 #'PGGSSLIB' : 'gsslib',
 #'PGLOCALEDIR' : 'localedir',
+
+__docformat__ = 'reStructured Text'

@@ -7,6 +7,7 @@ import sys
 import os
 from abc import abstractmethod
 from pprint import pformat
+
 from .. import api as pg_api
 from .. import exceptions as pg_exc
 from . import element3 as element
@@ -30,6 +31,7 @@ def return_arg(x):
 class ProtocolState(pg_api.InterfaceElement):
 	ife_label = 'PROTOCOL'
 	ife_ancestor = None
+	_ife_exclude_snapshot = True
 
 	@abstractmethod
 	def messages_received(self):
@@ -78,7 +80,7 @@ class Negotiation(ProtocolState):
 		self.machine = self.state_machine()
 		self.messages = next(self.machine)
 		self.state = (Sending, self.sent)
-	
+
 	def __repr__(self):
 		s = type(self).__module__ + "." + type(self).__name__
 		s += pformat((self.startup_message, self.password)).lstrip()
@@ -193,10 +195,15 @@ class Negotiation(ProtocolState):
 				# to implement, especially when implementations for the type don't exist
 				# for Python.
 				# Worse yet, some of them may want control of the wire..
-				raise pg_exc.ClientCannotConnectError(
-					"unsupported authentication request %r(%d)" %(
-					element.AuthNameMap.get(req, '<unknown>'), req,
-				))
+				raise pg_exc.AuthenticationMethodError(
+						"unsupported authentication request %r(%d)" %(
+						element.AuthNameMap.get(req, '<unknown>'), req,
+					),
+					details = {
+						'hint' : \
+							"'postgresql.protocol' supports: MD5, crypt, plaintext, and trust."
+					}
+				)
 			x = (yield (element.Password(pw),))
 			if x[0] != element.Authentication.type:
 				raise pg_exc.ProtocolError(
@@ -465,9 +472,7 @@ class Transaction(ProtocolState):
 				# No path for message type, could be a protocol error.
 				if x[0] == element.Error.type:
 					em = element.Error.parse(x[1])
-					fatal = em['severity'].upper() in (
-						b'FATAL', b'PANIC'
-					)
+					fatal = em['severity'].upper() in (b'FATAL', b'PANIC')
 					if fatal or not hasattr(self, 'error_message'):
 						self.error_message = em
 						self.fatal = fatal
@@ -505,11 +510,10 @@ class Transaction(ProtocolState):
 						),
 						source = 'DRIVER',
 						details = {
-							'SEVERITY': 'FATAL',
+							'severity': 'FATAL',
 						}
 					)
 					self.ife_descend(err)
-					err.fatal = True
 					err.raise_exception()
 			else:
 				# Valid message

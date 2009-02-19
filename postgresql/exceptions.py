@@ -93,11 +93,15 @@ class NoDataWarning(Warning):
 class NoMoreSetsReturned(NoDataWarning):
 	code = '02001'
 
-
 class Error(PythonMessage, Exception):
 	'A PostgreSQL Error'
 	ife_label = 'ERROR'
 	code = ""
+
+	@property
+	def fatal(self):
+		f = self.details.get('severity')
+		return None if f is None else f in ('PANIC', 'FATAL')
 
 	def raise_exception(self, raise_from = None):
 		"""
@@ -112,12 +116,17 @@ class Error(PythonMessage, Exception):
 class DriverError(Error):
 	"Errors originating in the driver's implementation."
 	source = 'DRIVER'
+class AuthenticationMethodError(DriverError):
+	"""
+	Server requested an authentication method that is not supported by the
+	driver.
+	"""
 class OperationError(DriverError):
 	"""
 	An invalid operation on an interface element.
 
 	Usually this occurs in dynamically configured instances where the action is
-	not actually valid for the, actual, finalized type.
+	not valid for the finalized type.
 
 	For instance, calling the seek() method on a cursor who's query is a COPY.
 	"""
@@ -153,6 +162,9 @@ class SQLNotYetCompleteError(Error):
 class ConnectionError(Error):
 	code = '08000'
 class ConnectionDoesNotExistError(ConnectionError):
+	"""
+	The connection is closed or was never connected.
+	"""
 	code = '08003'
 class ConnectionFailureError(ConnectionError):
 	'Raised when a connection is dropped'
@@ -178,7 +190,7 @@ class ClientCannotConnectError(ConnectionError):
 			for x in self.connection_failures:
 				count += 1
 				ssl = (
-					'SSL' if x[0] is True else 'NOSSL' if x[0] is False else "SSL,NOSSL"
+					'SSL' if x[0] is True else 'NOSSL' if x[0] is False else "SSL->NOSSL"
 				)
 				bottom += os.linesep + ' ' + str(count) + ': '
 				bottom += str(x[1]) + ' -> (' + ssl + ') resulted in:' + os.linesep + ' '*2

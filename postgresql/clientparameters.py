@@ -12,7 +12,6 @@ import optparse
 from itertools import chain
 from functools import partial
 
-
 from . import iri as pg_iri
 from . import dsn as pg_dsn
 from . import pgpassfile as pg_pass

@@ -6,8 +6,8 @@ import sys
 import time
 import unittest
 import tempfile
-from postgresql.installation import Installation
-from postgresql.cluster import Cluster
+from ..installation import Installation
+from ..cluster import Cluster
 
 default_install = Installation.default()
 if default_install is None:

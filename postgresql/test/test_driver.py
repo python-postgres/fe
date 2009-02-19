@@ -878,7 +878,7 @@ class test_dbapi20(pg_unittest.TestCaseWithCluster):
 			self.assertEqual(len(rows),6)
 			rows = [r[0] for r in rows]
 			rows.sort()
-		  
+
 			# Make sure we get the right data back out
 			for i in range(0,6):
 				self.assertEqual(rows[i],self.samples[i],

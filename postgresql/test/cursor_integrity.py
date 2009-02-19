@@ -10,8 +10,8 @@ import itertools
 iot = '_dst'
 if __name__ == '__main__':
 	execute("CREATE TEMP TABLE _dst (i bigint)")
-	copyin = query("COPY _dst FROM STDIN")
-	loadin = query("INSERT INTO _dst VALUES ($1)")
+	copyin = prepare("COPY _dst FROM STDIN")
+	loadin = prepare("INSERT INTO _dst VALUES ($1)")
 
 getq = "SELECT i FROM generate_series(0, %d) AS g(i)"
 copy = "COPY (%s) TO STDOUT"
@@ -35,10 +35,10 @@ def random_read(curs, remaining_rows):
 			return [], 1
 
 def random_select_get(limit):
-	return query(getq %(limit - 1,))
+	return prepare(getq %(limit - 1,))
 
 def random_copy_get(limit):
-	return query(copy %(getq %(limit - 1,),))
+	return prepare(copy %(getq %(limit - 1,),))
 
 class test_integrity(unittest.TestCase):
 	"""
@@ -72,11 +72,11 @@ class test_integrity(unittest.TestCase):
 			self.failUnlessEqual(list(range(-1, limit)), [
 				x[0] for x in itertools.chain(*completed)
 			])
-	
+
 	def test_insert(self):
 		pass
 
-	if 'pg' in dir(__builtins__) and pg.version_info >= (8,2,0):
+	if 'db' in dir(__builtins__) and pg.version_info >= (8,2,0):
 		def test_copy_out(self):
 			total = 0
 			while total < 10000000:
@@ -111,7 +111,4 @@ class test_integrity(unittest.TestCase):
 		pass
 
 if __name__ == '__main__':
-	from types import ModuleType
-	this = ModuleType("this")
-	this.__dict__.update(globals())
-	unittest.main(this)
+	unittest.main()

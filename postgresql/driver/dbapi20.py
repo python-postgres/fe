@@ -9,10 +9,14 @@ threadsafety = 1
 paramstyle = 'pyformat'
 apilevel = '2.0'
 
+from operator import itemgetter
+import re
 import postgresql.driver as pg_driver
 import postgresql.types as pg_type
 import postgresql.string as pg_str
 import datetime, time
+
+find_parameters = re.compile(r'%\(([^)]+)\)s')
 
 from postgresql.exceptions import \
 	Error, DataError, InternalError, \
@@ -113,32 +117,28 @@ class Cursor(object):
 		del self._portal
 		return len(self.__portals) or None
 
-	def _mkquery(self, query, parameters):
-		parameters = list(dict(parameters).items())
-		pnmap = {}
-		plist = []
-		nseq = []
-		for x in range(len(parameters)):
-			pnmap[parameters[x][0]] = '$' + str(x + 1)
-			plist.append(parameters[x][1])
-			nseq.append(parameters[x][0])
-		# Substitute %(key)s with the $x positional parameter number
-		rqparts = []
-		for qpart in pg_str.split(query):
-			if type(qpart) is type(()):
-				rqparts.append(qpart)
-			else:
-				rqparts.append(qpart % pnmap)
-		q = self.database.prepare(pg_str.unsplit(rqparts))
-		return q, nseq, plist
-
 	def execute(self, query, parameters = None):
 		if parameters:
-			q, nseq, plist = self._mkquery(query, parameters)
+			parameters = list(parameters.items())
+			pnmap = {}
+			plist = []
+			for x in range(len(parameters)):
+				pnmap[parameters[x][0]] = '$' + str(x + 1)
+				plist.append(parameters[x][1])
+			# Substitute %(key)s with the $x positional parameter number
+			rqparts = []
+			for qpart in pg_str.split(query):
+				if type(qpart) is type(()):
+					# quoted section
+					rqparts.append(qpart)
+				else:
+					rqparts.append(qpart % pnmap)
+			q = self.database.prepare(pg_str.unsplit(rqparts))
 			r = q(*plist)
 		else:
 			q = self.database.prepare(query)
 			r = q()
+
 		if q._output is not None and len(q._output) > 0:
 			# name, relationId, columnNumber, typeId, typlen, typmod, format
 			self.description = tuple([
@@ -151,11 +151,43 @@ class Cursor(object):
 			self.description = None
 			if self.__portals:
 				del self._portal
+		return self
 
-	def executemany(self, query, pseq):
-		if pseq:
-			q, nseq, _ = self._mkquery(query, pseq[0])
-			q.load(convert_keyword_parameters(nseq, pseq))
+	def _convert_query(self, string, map):
+		rqparts = []
+		for qpart in pg_str.split(string):
+			if type(qpart) is type(()):
+				rqparts.append(qpart)
+			else:
+				rqparts.append(qpart % map)
+		return pg_str.unsplit(rqparts)
+
+	def _statement_params(self, string):
+		map = {}
+		param_num = 1
+		for qpart in pg_str.split(string):
+			if type(qpart) is not type(()):
+				for x in find_parameters.finditer(qpart):
+					pname = x.group(1)
+					if pname not in map:
+						map[pname] = param_num
+						param_num += 1
+		return map
+
+	def executemany(self, query, param_iter):
+		mapseq = list(self._statement_params(query).items())
+		realquery = self._convert_query(query, {
+			k : '$' + str(v) for k,v in mapseq
+		})
+		mapseq.sort(key = itemgetter(1))
+		nseq = [x[0] for x in mapseq]
+		q = self.database.prepare(realquery)
+		q.prepare()
+		if q._input is not None:
+			q.load(convert_keyword_parameters(nseq, param_iter))
+		else:
+			q.load(param_iter)
+		return self
 
 	def close(self):
 		self.description = None

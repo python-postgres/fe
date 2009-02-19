@@ -36,9 +36,6 @@ class Message(object):
 		data = self.serialize()
 		return self.bytes_struct.pack(self.type, len(data) + 4) + data
 
-	def serialization(self, writer):
-		writer(self.serialize())
-
 	@classmethod
 	def parse(typ, data):
 		return typ(data)
@@ -65,6 +62,12 @@ class StringMessage(Message):
 
 	def serialize(self):
 		return bytes(self.data) + b'\x00'
+
+	@classmethod
+	def parse(typ, data):
+		if data[-1] != b'\x00':
+			raise ValueError("string message not NUL-terminated")
+		return typ(data[:-1])
 
 class TupleMessage(Message):
 	"""
@@ -589,10 +592,7 @@ class Authentication(Message):
 class Password(StringMessage):
 	'Password supplement'
 	type = b'p'
-	__slots__ = ()
-
-	def serialize(self):
-		return self.data
+	__slots__ = ('data')
 
 class Disconnect(EmptyMessage):
 	'Close the connection'

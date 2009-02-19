@@ -3,7 +3,7 @@
 # http://python.projects.postgresql.org
 ##
 import unittest
-import postgresql.encodings.bytea
+from ..encodings import bytea
 
 class test_bytea_codec(unittest.TestCase):
 	def testEncoding(self):

@@ -7,6 +7,7 @@ PG-API interface for PostgreSQL that support the PQ version 3.0 protocol.
 """
 import sys
 import os
+import warnings
 
 import errno
 import socket
@@ -24,6 +25,7 @@ from .. import exceptions as pg_exc
 from .. import string as pg_str
 from ..encodings import aliases as pg_enc_aliases
 from .. import api as pg_api
+from ..python.itertools import interlace
 
 from ..protocol.buffer import pq_message_stream
 from ..protocol import client3 as pq
@@ -304,9 +306,9 @@ class Cursor(pg_api.Cursor):
 		self._cid = self.database._cid
 
 	def ife_snapshot_text(self):
-		return self.cursor_id + '' if self.parameters is None else (
+		return self.cursor_id + ('' if self.parameters is None else (
 			os.linesep + ' PARAMETERS: ' + repr(self.parameters)
-		)
+		))
 
 	def _operation_error_(self, *args, **kw):
 		e = pg_exc.OperationError(
@@ -360,8 +362,9 @@ class StreamingCursor(CursorStrategy):
 	def _contract(self):
 		"[internal] reduce the number of items in the buffer"
 		offset, buffer, *x = self._state
-		trim = offset - self.fetchcount
-		if trim > self.fetchcount:
+		maxtrim = offset - self.fetchcount
+		trim = self.fetchcount or maxtrim
+		if trim >= self.fetchcount:
 			self._state = (
 				offset - trim,
 				buffer[trim:],
@@ -369,16 +372,18 @@ class StreamingCursor(CursorStrategy):
 
 	def __next__(self):
 		# Reduce set size if need be.
-		if len(self._state[1]) > (2 * self.fetchcount):
+		offset, buffer = self._state[:2]
+		if offset >= self.fetchcount and len(buffer) >= (3 * self.fetchcount):
 			self._contract()
+			offset, buffer = self._state[:2]
 		if self._state[2] != None and \
-		(len(self._state[1]) - self._state[0]) > (self.fetchcount // 8):
+		(len(buffer) - offset) > (self.fetchcount // 8):
 			# Transaction ready, but only attempt expanding if it
 			# will be needed soon.
 			##
 			self._expand()
+			offset, buffer = self._state[:2]
 
-		offset, buffer = self._state[:2]
 		while offset >= len(buffer):
 			if self._buffer_more(1) == 0:
 				# End of cursor.
@@ -391,16 +396,18 @@ class StreamingCursor(CursorStrategy):
 
 	def read(self, quantity = None):
 		# reduce set size if need be
-		if len(self._state[1]) > (2 * self.fetchcount):
+		offset, buffer = self._state[:2]
+		if offset >= self.fetchcount and len(buffer) > (3 * self.fetchcount):
 			self._contract()
+			offset, buffer = self._state[:2]
 		if self._state[2] != None and \
-		(len(self._state[1]) - self._state[0]) > (self.fetchcount // 8):
+		(len(buffer) - offset) > (self.fetchcount // 8):
 			# Transaction ready, but only attempt expanding if it
 			# will be needed soon.
 			##
 			self._expand()
+			offset, buffer = self._state[:2]
 
-		offset = self._state[0]
 		if quantity is None:
 			# Read all.
 			##
@@ -408,19 +415,23 @@ class StreamingCursor(CursorStrategy):
 				pass
 			##
 			# Reading all, so the quantity becomes the difference
-			# in the buffer length(len(1)) and the offset(0).
+			# in the buffer length[len(1)] and the offset(0).
 			quantity = len(self._state[1]) - offset
 		else:
 			if quantity < 0:
+				# watch me go backwards
 				quantity = -quantity
 				dir = -1
 			else:
 				dir = 1
 			# Read some.
 			##
-			left_to_read = (quantity - (len(self._state[1]) - offset))
+			left_to_read = (quantity - (len(buffer) - offset))
 			expanded = -1 
 			while left_to_read > 0 and expanded != 0:
+				# In scroll situations, there's no concern
+				# about reading already requested data as
+				# there is no pre-fetching going on.
 				expanded = self._buffer_more(dir*left_to_read)
 				left_to_read -= expanded
 
@@ -459,7 +470,7 @@ class TupleCursor(StreamingCursor):
 		)
 		self._state = (
 			# offset, buffer, next_xact (pq_xact)
-			0, (), x
+			0, [], x
 		)
 		self.database._pq_push(x)
 
@@ -489,7 +500,7 @@ class TupleCursor(StreamingCursor):
 				if x.state is not pq.Complete:
 					self.database._pq_complete()
 			expansion = self._expansion()
-			newbuffer = tuple(chain(self._state[1], expansion))
+			newbuffer = self._state[1] + expansion
 			self._state = (self._state[0], newbuffer, None) + self._state[3:]
 
 	def _buffer_more(self, count):
@@ -576,7 +587,7 @@ class TupleCursor(StreamingCursor):
 
 		x = pq.Transaction(cmd + (pq.element.SynchronizeMessage,))
 		self.ife_descend(x)
-		self._state = (0, (), x)
+		self._state = (0, [], x)
 		self.database._pq_push(x)
 
 class ProtocolCursor(TupleCursor):
@@ -711,7 +722,7 @@ class ServerDeclaredCursor(DeclaredCursor):
 			pq.element.DescribePortal(self._pq_cursor_id),
 			pq.element.FlushMessage,
 		)
-		self._state = (0, (), pq.Transaction(setup))
+		self._state = (0, [], pq.Transaction(setup))
 		self.database._pq_push(self._state[2])
 
 	def _fini(self):
@@ -782,13 +793,16 @@ class CopyCursor(StreamingCursor):
 	fetchcount = 1
 
 	def _init(self):
-		self._state = (0, (), self._pq_xact, None)
+		self._state = (0, [], self._pq_xact, None)
 		self._fini()
 
 	def _expansion(self):
+		x = self._state[2]
+		if type(x.completed[0][1][0]) is bytes and \
+		type(x.completed[0][1][-1]) is bytes:
+			return x.completed[0][1]
 		return [
-			y for y in self._state[2].completed[0][1]
-			if type(y) is bytes
+			y for y in x.completed[0][1] if type(y) is bytes
 		]
 
 	def _expand(self):
@@ -796,7 +810,7 @@ class CopyCursor(StreamingCursor):
 			expansions = self._expansion()
 			self._state = (
 				self._state[0],
-				tuple(chain(self._state[1],expansions)),
+				self._state[1] + expansions,
 				self._state[2],
 				self._state[2].completed[0],
 			)
@@ -846,6 +860,11 @@ class PreparedStatement(pg_api.PreparedStatement):
 	string = None
 	database = None
 	statement_id = None
+	_input = None
+	_output = None
+	_output_io = None
+	_output_formats = None
+	_output_attmap = None
 
 	@classmethod
 	def from_string(
@@ -1647,6 +1666,7 @@ class Connection(pg_api.Connection):
 	version_info = None
 	version = None
 
+	security = None
 	backend_id = None
 	client_address = None
 	client_port = None
@@ -1654,6 +1674,8 @@ class Connection(pg_api.Connection):
 	# Replaced with instances on connection instantiation.
 	settings = Settings
 	xact = TransactionManager
+
+	_socketfactory = None
 
 	def user():
 		def fget(self):
@@ -1706,7 +1728,7 @@ class Connection(pg_api.Connection):
 		dmsg = self._decode_pq_message(msg)
 		m = dmsg.pop('message')
 		c = dmsg.pop('code')
-		if decoded['severity'].upper() == 'WARNING':
+		if dmsg['severity'].upper() == 'WARNING':
 			mo = pg_exc.WarningLookup(c)(m, code = c, details = dmsg)
 		else:
 			mo = pg_api.Message(m, code = c, details = dmsg)
@@ -1761,8 +1783,10 @@ class Connection(pg_api.Connection):
 			('client_address', str(self.client_address)),
 			('client_port', str(self.client_port)),
 		]
-		# settings state.
-		return "closed" if self.closed else (
+		# settings state
+		return "[" + self.state + "] " + (
+			str(self._socketfactory)
+		) + (
 			"" + os.linesep + '  ' + (
 				(os.linesep + '  ').join([x[0] + ': ' + x[1] for x in lines])
 			)
@@ -1801,7 +1825,7 @@ class Connection(pg_api.Connection):
 
 	def execute(self, query : str) -> None:
 		q = pq.Transaction((
-			pq.element.Query(self.typio.encode(query)),
+			pq.element.Query(self.typio._encode(query)[0]),
 		))
 		self.ife_descend(q)
 		self._pq_push(q)
@@ -1855,6 +1879,19 @@ class Connection(pg_api.Connection):
 		return isinstance(self._pq_xact, ClosedConnection) \
 		or self._pq_state in ('LOST', None)
 
+	@property
+	def state(self) -> str:
+		if isinstance(self._pq_xact, pq.Negotiation):
+			return 'negotiating'
+		if self.version is None:
+			if self.socket is not None:
+				return 'ready'
+			else:
+				return 'disconnected'
+		if self.closed:
+			return 'closed'
+		return 'connected'
+
 	def reset(self):
 		"""
 		restore original settings, reset the transaction, drop temporary
@@ -1883,24 +1920,38 @@ class Connection(pg_api.Connection):
 		without_ssl = zip(repeat(False, len(socket_makers)), socket_makers)
 		if sslmode == 'allow':
 			# first, without ssl, then with. :)
-			pair = (iter(with_ssl), iter(without_ssl))
-			socket_makers = list((
-				next(pair[x]) for x in cycle(range(2))
+			socket_makers = list(interlace(
+				iter(without_ssl), iter(with_ssl)
 			))
-		elif sslmode in ('prefer', 'require'):
+		elif sslmode == 'prefer':
+			# first, with ssl, then without. :)
+			socket_makers = list(interlace(
+				iter(with_ssl), iter(without_ssl)
+			))
+			# prefer is special, because it *may* be possible to
+			# skip the subsequent "without" in situations SSL is off.
+		elif sslmode == 'require':
 			# the above insanity is not required here
 			# as if the ssl handshake fails on prefer
 			# it's not a pqv3 server.
-			socket_makers = with_ssl
+			socket_makers = list(with_ssl)
+		elif sslmode == 'disable':
+			socket_makers = list(without_ssl)
 		else:
-			socket_makers = without_ssl
+			raise ValueError("invalid sslmode {0!r}".format(sslmode))
 
-		# for each potential socket
+		# for each potential socket connection
+		can_skip = False
 		for (dossl, socket_maker) in socket_makers:
 			supported = None
+			if can_skip is True:
+				# the last attempt tried without
+				# SSL because the SSL handshake "failed"(N).
+				can_skip = False
+				continue
 			try:
 				self.socket = socket_maker(timeout = timeout)
-				if dossl:
+				if dossl is True:
 					supported = self._negotiate_ssl()
 					if supported is None:
 						# probably not PQv3..
@@ -1921,25 +1972,32 @@ class Connection(pg_api.Connection):
 						)
 					if supported:
 						self.socket = self.connector.socket_secure(self.socket)
+					else:
+						dossl = None
 				# time to negotiate
 				negxact = self._negotiation()
 				self._pq_xact = negxact
 				self._pq_complete()
 				self._pq_killinfo = negxact.killinfo
-				# Use this for `interrupt`.
+				# Use this for `interrupt` and state snapshots.
 				self._socketfactory = socket_maker
-				self.ssl = supported is True
+				self.security = 'ssl' if supported is True else None
 				# success!
 				break
 			except (self.connector.fatal_exception, pg_exc.Error) as e:
 				# Just treat *any* PostgreSQL error as FATAL.
 				##
-				self.ssl = None
-				self._pq_killinfo = None
-				self._pq_xact = None
+				if sslmode == 'prefer' and dossl is None:
+					# In this case, the server doesn't support SSL or it's
+					# turned off. Therefore, the "without_ssl" attempt need
+					# *not* be ran because it has already been noted to be
+					# a failure.
+					can_skip = True
 				if self.socket is not None:
 					self.socket.close()
 					self.socket = None
+				self._reset()
+				self._clear()
 				connection_failures.append(
 					(dossl, socket_maker, e)
 				)
@@ -1954,12 +2012,14 @@ class Connection(pg_api.Connection):
 				source = 'DRIVER'
 			)
 			self.ife_descend(err)
-			err.fatal = True
 			err.database = self
 			err.set_connection_failures(connection_failures)
 			err.raise_exception()
 		self._init()
-	__enter__ = connect
+
+	def __enter__(self):
+		self.connect()
+		return self
 
 	def _negotiate_ssl(self) -> (bool, None):
 		"""
@@ -1969,7 +2029,9 @@ class Connection(pg_api.Connection):
 		If SSL is unavailable--received b'N'--return False.
 		Otherwise, return None. Indicates non-PQv3 endpoint.
 		"""
-		self._write_messages((pq.element.NegotiateSSLMessage,))
+		r = pq.element.NegotiateSSLMessage.bytes()
+		while r:
+			r = r[self.socket.send(r):]
 		status = self.socket.recv(1)
 		if status == b'S':
 			return True
@@ -2034,14 +2096,14 @@ class Connection(pg_api.Connection):
 		try:
 			scstr = self.settings.cache.get('standard_conforming_strings')
 			if scstr is None or scstr.lower() not in ('on','true','yes'):
-				self.execute('set standard_conforming_strings = true;')
+				self.settings['standard_conforming_strings'] = str(True)
 		except (
 			pg_exc.UndefinedObjectError,
 			pg_exc.ImmutableRuntimeParameterError
 		):
 			# warn about non-standard strings.
 			w = pg_exc.DriverWarning(
-				'standard-conforming strings are unavailable',
+				'standard conforming strings are unavailable',
 			)
 			self.ife_descend(w)
 			w.emit()
@@ -2069,7 +2131,6 @@ class Connection(pg_api.Connection):
 						source = 'DRIVER'
 					)
 					lost_connection_error.connection = self
-					lost_connection_error.fatal = True
 					# descend LCE from whatever we have :)
 					(self._pq_xact or self).ife_descend(
 						lost_connection_error
@@ -2095,7 +2156,6 @@ class Connection(pg_api.Connection):
 					source = 'DRIVER'
 				)
 				lost_connection_error.connection = self
-				lost_connection_error.fatal = True
 				self._pq_state = b'LOST'
 				(self._pq_xact or self).ife_descend(lost_connection_error)
 				lost_connection_error.raise_exception()
@@ -2129,7 +2189,6 @@ class Connection(pg_api.Connection):
 					source = 'DRIVER',
 				)
 				lost_connection_error.connection = self
-				lost_connection_error.fatal = True
 				self._pq_state = b'LOST'
 				lost_connection_error.raise_exception(e)
 			# It wasn't fatal, so just raise:
@@ -2226,12 +2285,13 @@ class Connection(pg_api.Connection):
 	def _procasyncs(self):
 		'[internal] process the async messages in self._asyncs'
 		if self._n_procasyncs:
+			# recursion protection.
 			return
 		try:
 			self._n_procasyncs = True
 			while self._asyncs:
 				for x in self._asyncs[0][1]:
-					getattr(self, '_' + x.type.decode('ascii'))(x, self._asyncs[0])
+					getattr(self, '_' + x.type.decode('ascii'))(x, self._asyncs[0][0])
 				del self._asyncs[0]
 		finally:
 			self._n_procasyncs = False
@@ -2302,10 +2362,7 @@ class Connection(pg_api.Connection):
 			self._pq_xact.ife_descend(xact_error)
 			if self._pq_xact.fatal is not True:
 				# only remove the transaction if it's *not* fatal
-				xact_error.fatal = False
 				self._pq_xact = None
-			else:
-				xact_error.fatal = True
 			xact_error.raise_exception()
 		# state is Complete, so remove it as the working transaction
 		self._pq_xact = None
@@ -2335,8 +2392,12 @@ class Connection(pg_api.Connection):
 		self._n_procasyncs = None
 
 		self._pq_killinfo = None
-		self.backend_id = None
 		self._pq_state = None
+		self.backend_id = None
+		self.backend_start = None
+		self.client_address = None
+		self.client_port = None
+		self.security = None
 
 		self._pq_xact = self._pq_closed_xact
 
@@ -2446,6 +2507,7 @@ class Connector(pg_api.Connector):
 				"Certificate Revocation Lists are *not* checked."
 			)
 			self.ife_descend(w)
+			w.emit()
 
 		# Startup message parameters.
 		tnkw = {}
@@ -2461,6 +2523,7 @@ class Connector(pg_api.Connector):
 		tnkw['user'] = self.user
 		if self.database is not None:
 			tnkw['database'] = self.database
+		## PostgreSQLs that don't recognize this will barf.
 		#tnkw['standard_conforming_strings'] = True
 
 		self._startup_parameters = tnkw
@@ -2487,7 +2550,7 @@ class SocketCreator(object):
 class SocketConnector(Connector):
 	'abstract connector for using `socket` and `ssl`'
 	def ife_snapshot_text(self):
-		return self._pq_iri
+		return '[' + type(self).__name__ + '] ' + self._pq_iri
 
 	fatal_exception_messages = {
 		errno.ECONNRESET : 'server explicitly closed the connection',
@@ -2521,8 +2584,8 @@ class SocketConnector(Connector):
 		return ssl.wrap_socket(
 			socket,
 			keyfile = self.sslkeyfile,
-			certfile = self.sslcertfile,
-			ca_certs = self.sslrootcertfile,
+			certfile = self.sslcrtfile,
+			ca_certs = self.sslrootcrtfile,
 		)
 
 class IP4(SocketConnector):
@@ -2701,11 +2764,13 @@ class Driver(pg_api.Driver):
 		port = None,
 		**kw
 	) -> Connector:
-		c = self.select(unix = unix, host = host, port = port)
-		if c is self.Unix:
-			return c(unix = unix, **kw)
+		C = self.select(unix = unix, host = host, port = port)
+		if C is self.Unix:
+			c = C(unix = unix, **kw)
 		# Everything else uses host and port.
-		return c(host = host, port = port, **kw)
+		c = C(host = host, port = port, **kw)
+		self.ife_descend(c)
+		return c
 
 	def connect(self, **kw) -> Connection:
 		"""
@@ -2729,19 +2794,23 @@ class Driver(pg_api.Driver):
 			c = self._connectors[cid]
 		else:
 			c = self._connectors[cid] = self.create(**kw)
-			self.ife_descend(c)
 		return c()
 
 	def ife_snapshot_text(self):
 		return 'postgresql.driver.pq3'
 
+	def throw_warnings(self, src, first, obj):
+		"use ife_sever() to stop this"
+		if isinstance(obj, pg_exc.Warning):
+			warnings.warn(obj)
+
+	def print_messages(self, src, first, obj):
+		"use ife_sever() to stop this"
+		if isinstance(obj, pg_api.Message) and not isinstance(obj, pg_exc.Warning):
+			sys.stderr.write(str(obj))
+
 	def __init__(self, typio = TypeIO):
 		self._connectors = dict()
-		self.ife_descend(
-			self.Unix,
-			self.IP4,
-			self.IP6,
-			self.Host,
-		)
+		self.ife_connect(self.throw_warnings, self.print_messages)
 		self.typio = typio
 default = Driver()
