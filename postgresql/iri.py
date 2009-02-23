@@ -110,7 +110,7 @@ def construct(x, obscure_password = False):
 
 	# It could be a string search_path, split if it is.
 	if search_path is not None and isinstance(search_path, str):
-		search_path = pg_str.split_ident(search_path, ',')
+		search_path = pg_str.split_ident(search_path, sep = ',')
 
 	port = None
 	if 'unix' in x:
