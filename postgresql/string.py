@@ -178,7 +178,7 @@ def split_using(text, quote, sep = '.', maxsplit = -1):
 	l.append(text[offset:])
 	return l
 
-def split_ident(text, maxsplit = -1, sep = ',', quote = '"'):
+def split_ident(text, sep = ',', quote = '"', maxsplit = -1):
 	"""
 	Split a series of identifiers using the specified separator.
 	"""
