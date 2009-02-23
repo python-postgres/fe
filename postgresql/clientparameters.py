@@ -4,6 +4,10 @@
 ##
 """
 Collect client connection parameters from various sources.
+
+This module provides functions for collecting client parameters from various
+sources such as user relative defaults, environment variables, and even command
+line options.
 """
 import sys
 import os
@@ -126,6 +130,10 @@ def envvars(environ = os.environ, modifier : "environment variable key modifier"
 		PGDATESTYLE -> settings['datestyle']
 		PGCLIENTENCODING -> settings['client_encoding']
 		PGGEQO -> settings['geqo']
+
+	The 'PG' prefix can be customized via the `modifier` argument. However,
+	PGSYSCONFDIR will not respect any such change as it's not a client parameter
+	itself.
 	"""
 	hostaddr = modifier('HOSTADDR')
 	reqssl = modifier('REQUIRESSL')
@@ -305,7 +313,7 @@ class DefaultParser(StandardParser):
 	standard_option_list = default_optparse_options
 
 def resolve_password(
-	d : "a fully normalized set of client parameters(dict)",
+	parameters : "a fully normalized set of client parameters(dict)",
 	getpass = getpass,
 	prompt_title = '',
 ):
@@ -324,12 +332,12 @@ def resolve_password(
 	Finally, remove the pgpassfile key as the password has been resolved for the
 	given parameters.
 	"""
-	if 'prompt_password' in d:
-		if d['prompt_password'] is True:
+	if 'prompt_password' in parameters:
+		if parameters['prompt_password'] is True:
 			if sys.stdin.isatty():
-				prompt = d.pop('prompt_title', prompt_title)
-				prompt += '[' + pg_iri.serialize(d, obscure_password = True) + ']'
-				d['password'] = getpass("Password for " + prompt +": ")
+				prompt = prompt_title or parameters.pop('prompt_title', '')
+				prompt += '[' + pg_iri.serialize(parameters, obscure_password = True) + ']'
+				parameters['password'] = getpass("Password for " + prompt +": ")
 			else:
 				# getpass will throw an exception if it's not a tty,
 				# so just take the next line.
@@ -337,17 +345,18 @@ def resolve_password(
 				# try to clean it up..
 				if pw.endswith(os.linesep):
 					pw = pw[:len(pw)-len(os.linesep)]
-				d['password'] = pw
-		del d['prompt_password']
+				parameters['password'] = pw
+		del parameters['prompt_password']
 	else:
-		if d.get('password') is None:
+		if parameters.get('password') is None:
 			# No password? Look in the pgpassfile.
-			passfile = d.get('pgpassfile')
+			passfile = parameters.get('pgpassfile')
 			if passfile is not None:
-				d['password'] = pg_pass.lookup_pgpass(d, passfile)
+				parameters['password'] = pg_pass.lookup_pgpass(parameters, passfile)
 	# Don't need the pgpassfile parameter anymore as the password
 	# has been resolved.
-	d.pop('pgpassfile', None)
+	parameters.pop('pgpassfile', None)
+	parameters.pop('prompt_title', None)
 
 def x_settings(sdict, config):
 	d=dict(sdict)
@@ -482,41 +491,45 @@ def resolve_pg_service_file(
 	return None
 
 def standard(
-	*args,
-	co = None,
-	no_defaults = False,
-	no_environ = False,
-	environ_prefix = 'PG',
-	environ = os.environ,
-	default_pg_sysconfdir = None,
-	pg_service_file = None,
-	prompt_title = ''
+	co : "options parsed using the `DefaultParser`" = None,
+	no_defaults : "Don't build-out defaults like 'user' from getpass.getuser()" = False,
+	environ : "environment variables to use, `None` to disable" = os.environ,
+	environ_prefix : "prefix to use for collecting environment variables" = 'PG',
+	default_pg_sysconfdir : "default 'PGSYSCONFDIR' to use" = None,
+	pg_service_file : "the pg-service file to actually use" = None,
+	prompt_title : "additional title to use if a prompt request is made" = '',
+	parameters : "base-client parameters to use(layers on top of defaults)" = (),
 ):
 	"""
+	Build a normalized client parameters dictionary for use with a connection
+	construction interface.
 	"""
-	parameters = []
-	parameters.append([('config-environ', environ)])
+	d_parameters = []
+	d_parameters.append([('config-environ', environ)])
 	if default_pg_sysconfdir is not None:
-		parameters.append([
+		d_parameters.append([
 			('config-pg_sysconfdir', default_pg_sysconfdir)
 		])
 	if pg_service_file is not None:
-		parameters.append([
+		d_parameters.append([
 			('config-pg_service_file', pg_service_file)
 		])
 
 	if not no_defaults:
-		parameters.append(defaults(environ = environ))
-	if not no_environ:
-		parameters.append(envvars(
+		d_parameters.append(defaults(environ = environ))
+	d_parameters.extend(denormalize_parameters(dict(parameters)))
+
+	if environ is not None:
+		d_parameters.append(envvars(
 			environ = environ,
 			modifier = environ_prefix.__add__
 		))
 	cop = getattr(co, 'db_client_parameters', None)
 	if cop:
-		parameters.append(cop)
-	cpd = normalize(extrapolate(chain(*parameters)))
-	resolve_password(cpd)
+		d_parameters.append(cop)
+	cpd = normalize(extrapolate(chain(*d_parameters)))
+	if prompt_title is not None:
+		resolve_password(cpd, prompt_title = prompt_title)
 	return cpd
 
 if __name__ == '__main__':
@@ -525,5 +538,5 @@ if __name__ == '__main__':
 		description = "print the clientparams dictionary for the environment"
 	)
 	(co, ca) = p.parse_args()
-	r = standard(co = co, prompt_title = 'foobar')
+	r = standard(co = co, prompt_title = 'custom_prompt_title')
 	pprint.pprint(r)
