@@ -48,20 +48,14 @@ Python Environment
 ------------------
 
 ``pg_python`` creates a Python environment with an already established
-connection based on the given arguments. It uses the `pkg:jwp_python_command`
-package to aid in harnessing the basic Python command features and then
-`pkg:pg_foundation` to fill in the connectivity options. In order to provide
-global access to these additional object, it assigns them in ``__builtins__`` to
-the following names:
+connection based on the given arguments. It provides the following additional
+builtins:
 
  - ``db`` (the connection object)
  - ``xact`` (db.xact)
  - ``settings`` (db.settings)
- - ``query`` (db.query)
- - ``cquery`` (db.cquery)
+ - ``prepare`` (db.prepare)
  - ``proc`` (db.proc)
- - ``cursor`` (db.cursor)
- - ``statement`` (db.statement)
 
 All of these are provided for convenience. With a single target being the
 primary use-case, ambiguity is not an issue. Surely, saving four characters for
