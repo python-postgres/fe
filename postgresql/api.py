@@ -13,7 +13,8 @@ full advantage of PostgreSQL's features to provide the Python programmer with
 substantial convenience.
 
 This module is used to define the PG-API. It creates a set of ABCs
-that makes up the basic interfaces used to work with a PostgreSQL.
+that makes up the basic interfaces used to work with a PostgreSQL. PG-API is an
+extension of the ``py-sqlapi`` ABCs.
 
 The `InterfaceElement` is the common ABC, the methods and attributes defined
 within that class can, should, be mostly ignored while extracting information.
@@ -89,9 +90,9 @@ class InterfaceElement(metaclass = ABCMeta):
 
 	Reception is a faculty created to support PostgreSQL message and warning
 	propagation in a context specific way. For instance, the NOTICE emitted by
-	PostgreSQL when creating a table with a PRIMARY KEY might unnecessary in an
-	program automating the creation of tables as it's expected. So, providing a
-	filter for these messages is useful to reducing noise.
+	PostgreSQL when creating a table with a PRIMARY KEY might be unnecessary in
+	an program automating the creation of tables as it's expected. So,
+	providing a filter for these messages is useful to reducing noise.
 
 
 	WARNING
@@ -416,7 +417,7 @@ class Cursor(
 	_seek_whence_map = {
 		0 : 'ABSOLUTE',
 		1 : 'RELATIVE',
-		2 : 'LAST',
+		2 : 'FROM_END',
 	}
 
 	@propertydoc
@@ -465,7 +466,7 @@ class Cursor(
 	@abstractmethod
 	def read(self,
 		quantity : "Number of rows to read" = None
-	) -> [()]:
+	) -> ["Row"]:
 		"""
 		Read the specified number of rows and return them in a list.
 		This alters the cursor's position.
@@ -655,7 +656,7 @@ class TransactionManager(
 	
 	Or, in cases where two-phase commit is desired::
 
-		with db.xact('gid'):
+		with db.xact(gid = 'gid'):
 		...
 	"""
 	ife_label = 'XACT'
@@ -977,15 +978,6 @@ class Database(InterfaceElement):
 
 		`None` if unavailable.
 		"""
-
-	user = propertydoc(abstractproperty(
-		fget = Doc(
-			"Give the string returned by ``SELECT current_user``",
-			**{'return':str}
-		),
-		fset = Doc("Pass the given string as a parameter to ``SET ROLE``"),
-		fdel = Doc("Issue ``RESET ROLE`` to the server"),
-	))
 
 	@propertydoc
 	@abstractproperty
@@ -1372,8 +1364,8 @@ class Cluster(InterfaceElement):
 	@abstractmethod
 	def init(self,
 		initdb : "path to the initdb to use" = None,
-		superusername : "name of the cluster's superuser" = None,
-		superuserpass : "superuser's password" = None,
+		user : "name of the cluster's superuser" = None,
+		password : "superuser's password" = None,
 		encoding : "the encoding to use for the cluster" = None,
 		locale : "the locale to use for the cluster" = None,
 		collate : "the collation to use for the cluster" = None,
@@ -1453,17 +1445,22 @@ class Cluster(InterfaceElement):
 		cluster.
 		"""
 
+	@abstractmethod
 	def __enter__(self):
-		if not self.running():
-			self.start()
-		self.wait
+		"""
+		Start the cluster if it's not already running, and wait for it to be
+		readied.
+		"""
 
 	def __context__(self):
 		return self
 
+	@abstractmethod
 	def __exit__(self, exc, val, tb):
-		self.stop()
-		return exc is None
+		"""
+		Stop the cluster and wait for it to shutdown *iff* it was started by the
+		corresponding enter.
+		"""
 
 __docformat__ = 'reStructuredText'
 if __name__ == '__main__':
