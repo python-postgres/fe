@@ -65,7 +65,7 @@ class StringMessage(Message):
 
 	@classmethod
 	def parse(typ, data):
-		if data[-1] != b'\x00':
+		if not data.endswith(b'\x00'):
 			raise ValueError("string message not NUL-terminated")
 		return typ(data[:-1])
 
@@ -618,11 +618,7 @@ Synchronize.SingleInstance = SynchronizeMessage
 class Query(StringMessage):
 	"""Execute the query with the given arguments"""
 	type = b'Q'
-	__slots__ = ()
-
-	@classmethod
-	def parse(typ, data):
-		return typ(data[0:-1])
+	__slots__ = ('data',)
 
 class Parse(Message):
 	"""Parse a query with the specified argument types"""
@@ -739,7 +735,7 @@ class Execute(Message):
 class Describe(StringMessage):
 	"""Describe a Portal or Prepared Statement"""
 	type = b'D'
-	__slots__ = ()
+	__slots__ = ('data',)
 
 	def serialize(self):
 		return self.subtype + self.data + b'\x00'
@@ -752,15 +748,15 @@ class Describe(StringMessage):
 					typ.subtype, data[0:1]
 				)
 			)
-		return typ(data[1:-1])
+		return super().parse(data[1:])
 
 class DescribeStatement(Describe):
 	subtype = b'S'
-	__slots__ = ()
+	__slots__ = ('data',)
 
 class DescribePortal(Describe):
 	subtype = b'P'
-	__slots__ = ()
+	__slots__ = ('data',)
 
 class Close(StringMessage):
 	"""Generic Close"""
@@ -778,7 +774,7 @@ class Close(StringMessage):
 					typ.subtype, data[0:1]
 				)
 			)
-		return typ(data[1:-1])
+		return super().parse(data[1:])
 
 class CloseStatement(Close):
 	"""Close the specified Statement"""
@@ -888,14 +884,10 @@ class CopyData(Message):
 
 class CopyFail(StringMessage):
 	type = b'f'
-	__slots__ = ()
-
-	@classmethod
-	def parse(typ, data):
-		return typ(data[:-1])
+	__slots__ = ('data',)
 
 class CopyDone(EmptyMessage):
 	type = b'c'
-	__slots__ = ()
+	__slots__ = ('data',)
 CopyDoneMessage = Message.__new__(CopyDone)
 CopyDone.SingleInstance = CopyDoneMessage

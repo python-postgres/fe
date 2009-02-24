@@ -100,7 +100,7 @@ message_samples = [
 		detail = b'bleh',
 		hint = b'dont spit into the fan',
 	),
-	e3.Notify(123, b"wood_table"),
+	e3.Notify(123, b'wood_table'),
 	e3.KillInformation(19320, 589483),
 	e3.ShowOption(b'foo', b'bar'),
 	e3.Authentication(4, b'salt'),
