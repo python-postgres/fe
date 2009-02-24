@@ -1,3 +1,4 @@
 #!/usr/bin/env python
-from postgresql.driver.pythoncommand import command
-command()
+import sys
+import postgresql.bin.pg_python as cmd
+sys.exit(cmd.command(sys.argv))

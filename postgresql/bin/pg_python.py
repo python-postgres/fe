@@ -3,7 +3,7 @@
 # http://python.projects.postgresql.org
 ##
 """
-Python command with a postgresql.driver.pgapi connection.
+Python command with a postgresql.driver.pq3 connection.
 """
 import os
 import sys
@@ -14,7 +14,7 @@ import contextlib
 from .. import clientparameters
 from ..resolved import pythoncommand as pycmd
 
-from . import default as pg_driver
+from ..driver import default as pg_driver
 
 pq_trace = optparse.make_option(
 	'--pq-trace',
@@ -110,6 +110,6 @@ def command(args = sys.argv):
 	return rv
 
 if __name__ == '__main__':
-	sys.exit(command())
+	sys.exit(command(sys.argv))
 ##
 # vim: ts=3:sw=3:noet:

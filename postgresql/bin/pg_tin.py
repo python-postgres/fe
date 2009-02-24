@@ -3,7 +3,11 @@
 # http://python.projects.postgresql.org
 ##
 """
-tin provides a means to manage a set of test clusters.
+pg_tin provides a means to manage a set of test clusters.
+
+This script is used to manage the set of test clusters normally managed in
+"~/.pg_tin". It's purpose is to provide simple and quick access to a PostgreSQL
+database of a given version or configuration.
 """
 import sys
 import os
@@ -13,9 +17,8 @@ import subprocess
 import warnings
 from random import random
 
-from . import versionstring as pg_version
-from . import pg_config
-from .cluster import Cluster
+from .. import versionstring as pg_version
+from ..cluster import Cluster
 
 from gettext import gettext as _
 
@@ -216,7 +219,7 @@ else:
 	def exit_message(c, r):
 		pass
 
-def tin(args):
+def command(args):
 	if os.environ.has_key('PGTINCUP'):
 		DEFAULT_TINCUP = os.environ['PGTINCUP']
 	elif os.environ.has_key('HOME'):
@@ -459,7 +462,7 @@ def tin(args):
 				for k in p:
 					sys.stdout.write('%s=%s\n' %(k, p[k]))
 			ca = ()
-		elif com in (_('readlogs'),):
+		elif com in ('readlogs',):
 			pager = os.environ.get('PAGER', 'less')
 			if pager is None:
 				sys.stderr.write(
@@ -489,4 +492,4 @@ def tin(args):
 			sys.exit(1)
 
 if __name__ == '__main__':
-	tin(sys.argv)
+	command(sys.argv)
