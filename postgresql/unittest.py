@@ -7,15 +7,14 @@ TestCase subclasses used by postgresql.test.
 """
 import sys
 import os
-import random
-import socket
-import math
 import atexit
 import unittest
 
 from . import exceptions as pg_exc
 from . import cluster as pg_cluster
 from . import installation as pg_inn
+
+from .python.socket import find_available_port
 
 class TestCaseWithCluster(unittest.TestCase):
 	"""
@@ -42,30 +41,11 @@ class TestCaseWithCluster(unittest.TestCase):
 		if self.cluster.initialized():
 			self.cluster.drop()
 
-	def _gen_cluster_port(self):
-		i = 0
-		limit = 1024
-		while i < limit:
-			i += 1
-			port = (math.floor(random.random() * 50000) + 1024)
-			s = socket.socket(socket.AF_INET, socket.SOCK_STREAM,)
-			try:
-				s.bind(('localhost', port))
-			except socket.error as e:
-				if e.errno in (errno.EACCES, errno.EADDRINUSE, errno.EINTR):
-					# try again
-					continue
-			s.close()
-			break
-		else:
-			port = None
-		return port
-
 	def configure_cluster(self):
-		self.cluster_port = self._gen_cluster_port()
+		self.cluster_port = find_available_port()
 		if self.cluster_port is None:
 			e = pg_exc.ClusterError(
-				'failed to find a port for the test cluster'
+				'failed to find a port for the test cluster on localhost'
 			)
 			self.cluster.ife_descend(e)
 			e.raise_exception()
