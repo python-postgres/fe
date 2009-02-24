@@ -39,7 +39,7 @@ recommended as it provides greater utility::
 Of course, if DB-API 2.0 is desired, the module is located at
 `postgresql.driver.dbapi20`
 """
-__docformat__ = 'reStructured Text'
+__docformat__ = 'reStructuredText'
 if __name__ == '__main__':
 	import sys
 	if (sys.argv + [None])[1] == 'dump':

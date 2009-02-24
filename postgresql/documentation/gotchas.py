@@ -59,7 +59,7 @@ The driver enables standard compliant strings. Stop using non-standard features.
 ;)
 """
 
-__docformat__ = 'reStructured Text'
+__docformat__ = 'reStructuredText'
 if __name__ == '__main__':
 	import sys
 	if (sys.argv + [None])[1] == 'dump':

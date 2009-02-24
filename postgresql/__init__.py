@@ -24,4 +24,4 @@ __pkg_documentation__ = __project_id__ + '/v' + '.'.join([
 #'PGGSSLIB' : 'gsslib',
 #'PGLOCALEDIR' : 'localedir',
 
-__docformat__ = 'reStructured Text'
+__docformat__ = 'reStructuredText'

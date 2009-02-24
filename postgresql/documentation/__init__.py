@@ -3,18 +3,9 @@
 # http://python.projects.postgresql.org
 ##
 r"""
-Contents:
-
- Index
-  `postgresql.documentation.index`
-
- Driver Basics
-  `postgresql.documentation.driver_basics`
-
- Gotchas
-  `postgresql.documentation.gotchas`
+See: `postgresql.documentation.index`
 """
-__docformat__ = 'reStructured Text'
+__docformat__ = 'reStructuredText'
 
 # -m rejects this, so make the .index module the, well, index.
 if __name__ == '__main__':

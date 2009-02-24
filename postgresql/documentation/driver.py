@@ -611,7 +611,7 @@ And ``update(...)`` is better performing:
 
 """
 
-__docformat__ = 'reStructured Text'
+__docformat__ = 'reStructuredText'
 if __name__ == '__main__':
 	import sys
 	if (sys.argv + [None])[1] == 'dump':

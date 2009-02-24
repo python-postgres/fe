@@ -28,7 +28,7 @@ Options:
   --unix=FILE_SYSTEM_PATH
                         path to filesystem socket
   --ssl-mode=SSLMODE    SSL rules for connectivity
-  --require-ssl         require an SSL connection (equivalent to --ssl-mode=require)
+   disable, allow, require, or prefer. prefer is the default.
   --role=ROLE           run operation as the role
   -s NAME=VALUE, --setting=NAME=VALUE
                         run-time parameters to set upon connecting
@@ -77,8 +77,8 @@ Inspired by ``psql``::
 	  \set    Configure environment variables. \set without arguments to show all
 	  \x      Execute the Python command within this process.
 """
-__docformat__ = 'reStructured Text'
 
+__docformat__ = 'reStructuredText'
 if __name__ == '__main__':
 	import sys
 	if (sys.argv + [None])[1] == 'dump':
