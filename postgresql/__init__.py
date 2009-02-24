@@ -5,6 +5,9 @@
 """
 py-postgresql is a Python package for using PostgreSQL. This includes low-level
 protocol tools, a driver(PG-API and DB-API), and cluster management tools.
+
+If it's not documented in the narratives, `postgresql.documentation.index`, then
+the stability of the APIs should *not* be trusted.
 """
 __author__ = "James William Pye <x@jwp.name>"
 __date__ = "2009-01-19 21:15:00-07"
