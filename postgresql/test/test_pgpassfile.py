@@ -3,7 +3,7 @@
 # http://python.projects.postgresql.org
 ##
 import unittest
-from .. import pgpass as client_pgpass
+from .. import pgpassfile as client_pgpass
 from io import StringIO
 
 passfile_sample = """
