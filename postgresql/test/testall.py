@@ -5,13 +5,24 @@
 import sys
 import os
 import unittest
+import warnings
+from ..installation import Installation
 
-from postgresql.test.test_iri import *
-from postgresql.test.test_protocol import *
-from postgresql.test.test_exceptions import *
+
+from .test_exceptions import *
+from .test_bytea_codec import *
+from .test_iri import *
+from .test_protocol import *
+from .test_configfile import *
+from .test_pgpassfile import *
+from .test_cluster import *
+from .test_connect import *
+# No SSL? cluster initialization will fail.
+if Installation.default().ssl:
+	from .test_ssl_connect import *
+else:
+	warnings.warn("installation doesn't not support SSL")
+from .test_driver import *
 
 if __name__ == '__main__':
-	from types import ModuleType
-	this = ModuleType("this")
-	this.__dict__.update(globals())
-	unittest.main(this)
+	unittest.main()
