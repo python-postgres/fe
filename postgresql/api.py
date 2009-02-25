@@ -1384,6 +1384,13 @@ class Installation(InterfaceElement):
 		returned by pg_config.
 		"""
 
+	@propertydoc
+	@abstractproperty
+	def ssl(self) -> bool:
+		"""
+		Whether the installation supports SSL.
+		"""
+
 class Cluster(InterfaceElement):
 	"""
 	Interface to a PostgreSQL cluster--a data directory. An implementation of

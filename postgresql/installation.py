@@ -240,6 +240,10 @@ class Installation(pg_api.Installation):
 			dir(super()),
 		)))
 
+	@property
+	def ssl(self):
+		return 'with_openssl' in self.configure_options
+
 	def __getattr__(self, attname):
 		try:
 			return getattr(super(), attname)
