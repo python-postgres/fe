@@ -57,11 +57,8 @@ def testSpeed(tuples = 50000 * 3):
 		Q = prepare("COPY _copy TO STDOUT")
 		start = time.time()
 		c = 0
-		copy_curs = Q()
-		rows = copy_curs.read(500)
-		while rows:
+		for rows in Q().chunks:
 			c += len(rows)
-			rows = copy_curs.read(500)
 		duration = time.time() - start
 		sys.stderr.write(
 			"COPY TO STDOUT Summary,\n " \

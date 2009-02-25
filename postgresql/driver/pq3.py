@@ -150,6 +150,40 @@ class TypeIO(pg_typio.TypeIO):
 	def lookup_composite_type_info(self, typid):
 		return self.connection.prepare(CompositeLookup)(typid)
 
+class CursorChunks(pg_api.CursorChunks):
+	cursor = None
+
+	def ife_snapshot_text(self):
+		return ''
+
+	def __init__(self, cursor):
+		self.cursor = cursor
+		if not isinstance(cursor, CursorStrategy):
+			cursor._fini()
+
+	def __iter__(self):
+		return self
+
+	def __next__(self):
+		offset, buffer = self.cursor._state[:2]
+		if offset == 0:
+			chunk = buffer
+		else:
+			chunk = buffer[offset:]
+		if not chunk:
+			self.cursor._state = (0, [],) + tuple(self.cursor._state[2:])
+			self.cursor._buffer_more(self.cursor.chunksize or self.cursor.default_chunksize)
+			offset, buffer = self.cursor._state[:2]
+			if not buffer:
+				raise StopIteration
+			# offset is expected to be zero.
+			chunk = buffer
+
+		self.cursor._state = (0, [],) + tuple(self.cursor._state[2:])
+		if not self.cursor.with_scroll:
+			self.cursor._dispatch_for_more()
+
+		return chunk
 ##
 # Base Cursor class and cursor creation entry point.
 class Cursor(pg_api.Cursor):
@@ -168,6 +202,8 @@ class Cursor(pg_api.Cursor):
 	with_hold = None
 	with_scroll = None
 	insensitive = None
+
+	chunksize = 1
 
 	_output = None
 	_output_io = None
@@ -223,6 +259,10 @@ class Cursor(pg_api.Cursor):
 	@property
 	def closed(self):
 		return self._cid != self.database._cid
+
+	@property
+	def chunks(self):
+		return CursorChunks(self)
 
 	def close(self):
 		if self.closed is False:
@@ -339,7 +379,7 @@ class CursorStrategy(Cursor):
 		raise TypeError("cannot instantiate CursorStrategy-types directly")
 
 class StreamingCursor(CursorStrategy):
-	fetchcount = None
+	chunksize = None
 
 	def close(self):
 		super().close()
@@ -362,9 +402,9 @@ class StreamingCursor(CursorStrategy):
 	def _contract(self):
 		"[internal] reduce the number of items in the buffer"
 		offset, buffer, *x = self._state
-		maxtrim = offset - self.fetchcount
-		trim = self.fetchcount or maxtrim
-		if trim >= self.fetchcount:
+		maxtrim = offset - self.chunksize
+		trim = self.chunksize or maxtrim
+		if trim >= self.chunksize:
 			self._state = (
 				offset - trim,
 				buffer[trim:],
@@ -373,11 +413,11 @@ class StreamingCursor(CursorStrategy):
 	def __next__(self):
 		# Reduce set size if need be.
 		offset, buffer = self._state[:2]
-		if offset >= self.fetchcount and len(buffer) >= (3 * self.fetchcount):
+		if offset >= self.chunksize and len(buffer) >= (3 * self.chunksize):
 			self._contract()
 			offset, buffer = self._state[:2]
 		if self._state[2] != None and \
-		(len(buffer) - offset) > (self.fetchcount // 8):
+		(len(buffer) - offset) > (self.chunksize // 8):
 			# Transaction ready, but only attempt expanding if it
 			# will be needed soon.
 			##
@@ -397,11 +437,11 @@ class StreamingCursor(CursorStrategy):
 	def read(self, quantity = None):
 		# reduce set size if need be
 		offset, buffer = self._state[:2]
-		if offset >= self.fetchcount and len(buffer) > (3 * self.fetchcount):
+		if offset >= self.chunksize and len(buffer) > (3 * self.chunksize):
 			self._contract()
 			offset, buffer = self._state[:2]
 		if self._state[2] != None and \
-		(len(buffer) - offset) > (self.fetchcount // 8):
+		(len(buffer) - offset) > (self.chunksize // 8):
 			# Transaction ready, but only attempt expanding if it
 			# will be needed soon.
 			##
@@ -442,7 +482,7 @@ class StreamingCursor(CursorStrategy):
 
 class TupleCursor(StreamingCursor):
 	_state = None
-	default_fetchcount = 64
+	default_chunksize = 64
 
 	def close(self):
 		super().close()
@@ -453,18 +493,18 @@ class TupleCursor(StreamingCursor):
 
 	def _init(self, setup):
 		##
-		# fetchcount determines whether or not to pre-fetch.
+		# chunksize determines whether or not to pre-fetch.
 		# If the cursor is not scrollable, use the default.
-		if not self.with_scroll and self.fetchcount is None:
+		if not self.with_scroll and self.chunksize is None:
 			# This restriction on scroll was set to insure
 			# any possible needed consistency with the cursor position
 			# on the backend.
 			##
-			self.fetchcount = self.default_fetchcount
+			self.chunksize = self.default_chunksize
 		else:
-			self.fetchcount = 0
+			self.chunksize = 0
 
-		more = self._pq_xp_fetchmore(self.fetchcount)
+		more = self._pq_xp_fetchmore(self.chunksize)
 		x = pq.Transaction(
 			setup + more + (pq.element.SynchronizeMessage,)
 		)
@@ -476,9 +516,9 @@ class TupleCursor(StreamingCursor):
 
 	def _dispatch_for_more(self):
 		##
-		# There's a fetchcount, so if the new extension matches
-		# fetchcount, make a read-ahead transaction.
-		more = self._pq_xp_fetchmore(self.fetchcount)
+		# There's a chunksize, so if the new extension matches
+		# chunksize, make a read-ahead transaction.
+		more = self._pq_xp_fetchmore(self.chunksize)
 		if more:
 			new_x = more + (pq.element.SynchronizeMessage,)
 			new_x = pq.Transaction(new_x)
@@ -524,10 +564,10 @@ class TupleCursor(StreamingCursor):
 		newbufsize = len(self._state[1])
 		increased_by = newbufsize - bufsize
 
-		if self.fetchcount > 0 and not self.with_scroll is True \
-		and increased_by == self.fetchcount \
-		and (newbufsize - offset) >= (self.fetchcount // 4):
-			# If a quarter of the fetchcount remain, dispatch for another.
+		if self.chunksize > 0 and not self.with_scroll is True \
+		and increased_by == self.chunksize \
+		and (newbufsize - offset) >= (self.chunksize // 4):
+			# If a quarter of the chunksize remains, dispatch for another.
 			##
 			self._dispatch_for_more()
 
@@ -624,9 +664,9 @@ class ProtocolCursor(TupleCursor):
 
 	def _pq_xp_fetchmore(self, count):
 		'[internal] make and return a transaction to get more rows'
-		if self.fetchcount:
-			# ignore the count if fetchcount is non-zero
-			count = self.fetchcount
+		if self.chunksize:
+			# ignore the count if chunksize is non-zero
+			count = self.chunksize
 		if count == 0:
 			return ()
 
@@ -668,11 +708,11 @@ class DeclaredCursor(TupleCursor):
 		self._fini()
 
 	def _pq_xp_fetchmore(self, count):
-		if self.fetchcount and not self.with_scroll:
+		if self.chunksize and not self.with_scroll:
 			##
-			# Ignore the `count` if fetchcount is non-zero, but
+			# Ignore the `count` if chunksize is non-zero, but
 			# only if it's not a scroll cursor.
-			count = self.fetchcount
+			count = self.chunksize
 		if count == 0:
 			return ()
 
@@ -789,8 +829,8 @@ class UtilityCursor(CursorStrategy):
 
 class CopyCursor(StreamingCursor):
 	cursor_type = 'copy'
-	default_fetchcount = 1000
-	fetchcount = 1
+	default_chunksize = 1000
+	chunksize = 1
 
 	def _init(self):
 		self._state = (0, [], self._pq_xact, None)
@@ -808,13 +848,20 @@ class CopyCursor(StreamingCursor):
 	def _expand(self):
 		if self._state[2].completed:
 			expansions = self._expansion()
+			if self._state[1]:
+				buffer = self._state[1] + expansions
+			else:
+				buffer = expansions
 			self._state = (
 				self._state[0],
-				self._state[1] + expansions,
+				buffer,
 				self._state[2],
 				self._state[2].completed[0],
 			)
 			del self._state[2].completed[0]
+
+	def _dispatch_for_more(self):
+		return self._buffer_more(0)
 
 	def _buffer_more(self, count : "ignored"):
 		"""
@@ -1106,7 +1153,6 @@ class PreparedStatement(pg_api.PreparedStatement):
 		to the socket's send.
 		"""
 		tps = tps or 500
-		iterable = iter(iterable)
 		x = pq.Transaction((
 			pq.element.Bind(
 				b'',
@@ -1127,18 +1173,34 @@ class PreparedStatement(pg_api.PreparedStatement):
 		else:
 			# Oh, it's not a COPY at all.
 			e = pg_exc.OperationError(
-				"load() used on a non-COPY FROM STDIN query",
+				"_copy_data_in() used on a non-COPY FROM STDIN query",
 			)
 			x.ife_descend(e)
 			e.raise_exception()
 
-		while x.messages:
-			# Process any messages setup for sending.
-			while x.messages is not x.CopyFailSequence:
-				self.database._pq_step()
-			x.messages = [
-				pq.element.CopyData(l) for l in islice(iterable, tps)
-			]
+		if not isinstance(iterable, Cursor):
+			# each iteration == one row
+			iterable = iter(iterable)
+			while x.messages:
+				# Process any messages setup for sending.
+				while x.messages is not x.CopyFailSequence:
+					self.database._pq_step()
+				x.messages = [
+					pq.element.CopyData(l) for l in islice(iterable, tps)
+				]
+		else:
+			# optimized, each iteration == row sequence
+			iterable = iterable.chunks
+			while x.messages:
+				while x.messages is not x.CopyFailSequence:
+					self.database._pq_step()
+				x.messages = []
+				for rows in iterable:
+					x.messages.extend([
+						pq.element.CopyData(l) for l in rows
+					])
+					if len(x.messages) > tps:
+						break
 		x.messages = x.CopyDoneSequence
 		self.database._pq_complete()
 

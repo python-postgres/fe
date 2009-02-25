@@ -8,6 +8,7 @@ import unittest
 import threading
 import time
 import datetime
+from itertools import chain
 
 import postgresql.types as pg_types
 import postgresql.exceptions as pg_exc
@@ -183,6 +184,40 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 
 		for tup in s1:
 			self.failUnlessEqual(tup["name"], 1)
+
+	def testChunking(self):
+		gs = self.db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
+		self.failUnlessEqual(
+			list((x[0] for x in chain(*list((gs().chunks))))),
+			list(range(1, 10001))
+		)
+		# exercise ``for x in chunks: dst.load(x)``
+		try:
+			with self.db.connector() as db2:
+				db2.prepare(
+					"""
+					CREATE TABLE chunking AS
+					SELECT i::text AS t, i::int AS i
+					FROM generate_series(1, 10000) g(i);
+					"""
+				)()
+				read_chunking = self.db.prepare('select * FROM chunking')
+				write_chunking = db2.prepare('insert into chunking values ($1, $2)')
+				for rows in read_chunking().chunks:
+					write_chunking.load(rows)
+				self.failUnlessEqual(
+					self.db.prepare('select count(*) FROM chunking').first(),
+					20000
+				)
+				self.failUnlessEqual(
+					self.db.prepare('select count(DISTINCT i) FROM chunking').first(),
+					10000
+				)
+		finally:
+			try:
+				self.db.execute('DROP TABLE chunking')
+			except:
+				pass
 
 	def testDDL(self):
 		self.db.execute("CREATE TEMP TABLE t(i int)")

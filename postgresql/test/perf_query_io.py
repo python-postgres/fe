@@ -23,24 +23,32 @@ def insertSamples(count, insert_records):
 		"INSERT Summary,\n " \
 		"inserted tuples: %d\n " \
 		"total time: %f\n " \
-		"average tuples per second: %f\n " %(
+		"average tuples per second: %f\n\n" %(
 			count, xacttime, ats, 
 		)
 	)
 
 def timeTupleRead(portal):
 	loops = 0
+	tuples = 0
 	genesis = time.time()
-	for x in portal:
+	for x in portal.chunks:
 		loops += 1
+		tuples += len(x)
 	finalis = time.time()
 	looptime = finalis - genesis
-	ats = loops / looptime
+	ats = tuples / looptime
 	sys.stderr.write(
 		"SELECT Summary,\n " \
-		"looped/tuples: %d\n " \
-		"looptime: %f\n " \
-		"average tuples per second: %f\n " %(loops, looptime, ats,)
+		"looped: {looped}\n " \
+		"looptime: {looptime}\n " \
+		"tuples: {ntuples}\n " \
+		"average tuples per second: {tps}\n ".format(
+			looped = loops,
+			looptime = looptime,
+			ntuples = tuples,
+			tps = ats
+		)
 	)
 
 def main(count):

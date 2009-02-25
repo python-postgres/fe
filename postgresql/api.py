@@ -399,6 +399,28 @@ class Message(InterfaceElement):
 		self.snapshot = self.ife_ancestry_snapshot_text()
 		self.ife_emit(self)
 
+class CursorChunks(
+	InterfaceElement,
+	collections.Iterator,
+	collections.Iterable,
+):
+	"""
+	A `CursorChunks` object is an interface to an iterator of row-sets produced
+	by a cursor. Normally, a chunks object is created by the user accessing the
+	`chunks` property on a given cursor.
+	"""
+	ife_label = 'CHUNKS'
+	ife_ancestor = None
+
+	@propertydoc
+	@abstractproperty
+	def cursor(self) -> "Cursor":
+		"""
+		The cursor the iterator is bound to.
+
+		This is the object where the chunks iterator gets its rows from.
+		"""
+
 class Cursor(
 	InterfaceElement,
 	collections.Iterator,
@@ -461,6 +483,21 @@ class Cursor(
 	def with_hold(self) -> bool:
 		"""
 		Whether or not the cursor will persist across transactions.
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def chunksize(self) -> int:
+		"""
+		Cursor runtime configuration for determining how many rows to fetch with
+		each request.
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def chunks(self) -> CursorChunks:
+		"""
+		Return a chunk iterator to the cursor.
 		"""
 
 	@abstractmethod
@@ -540,7 +577,8 @@ class PreparedStatement(
 		"""
 
 	@abstractmethod
-	def __call__(self, *args,
+	def __call__(self,
+		*args : "Positional Parameters",
 		with_hold : \
 			"Whether or not to request 'WITH HOLD'" = True,
 		with_scroll : \
