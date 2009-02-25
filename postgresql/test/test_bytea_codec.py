@@ -3,33 +3,39 @@
 # http://python.projects.postgresql.org
 ##
 import unittest
+import struct
 from ..encodings import bytea
 
+byte = struct.Struct('B')
+
 class test_bytea_codec(unittest.TestCase):
-	def testEncoding(self):
+	def testDecoding(self):
 		for x in range(255):
-			c = chr(x)
-			b = c.encode('bytea')
-			if c == '\\':
-				c = '\\\\'
-			if c != b and oct(x).lstrip('0').rjust(3, '0') != b[1:]:
+			c = byte.pack(x)
+			b = c.decode('bytea')
+			# normalize into octal escapes
+			if c == b'\\' and b == "\\\\":
+				b = "\\" + oct(b'\\'[0])[2:]
+			elif not b.startswith("\\"):
+				b = "\\" + oct(ord(b))[2:]
+			if int(b[1:], 8) != x:
 				self.fail(
 					"bytea encoding failed at %d; encoded %r to %r" %(x, c, b,)
 				)
 
-	def testDecoding(self):
-		self.failUnless('bytea'.decode('bytea') == 'bytea')
-		self.failUnless('\\\\'.decode('bytea') == '\\')
-		self.failUnlessRaises(ValueError, '\\'.decode, 'bytea')
-		self.failUnlessRaises(ValueError, 'foo\\'.decode, 'bytea')
-		self.failUnlessRaises(ValueError, r'foo\0'.decode, 'bytea')
-		self.failUnlessRaises(ValueError, r'foo\00'.decode, 'bytea')
-		self.failUnlessRaises(ValueError, r'\f'.decode, 'bytea')
-		self.failUnlessRaises(ValueError, r'\800'.decode, 'bytea')
-		self.failUnlessRaises(ValueError, r'\7f0'.decode, 'bytea')
+	def testEncoding(self):
+		self.failUnlessEqual('bytea'.encode('bytea'), b'bytea')
+		self.failUnlessEqual('\\\\'.encode('bytea'), b'\\')
+		self.failUnlessRaises(ValueError, '\\'.encode, 'bytea')
+		self.failUnlessRaises(ValueError, 'foo\\'.encode, 'bytea')
+		self.failUnlessRaises(ValueError, r'foo\0'.encode, 'bytea')
+		self.failUnlessRaises(ValueError, r'foo\00'.encode, 'bytea')
+		self.failUnlessRaises(ValueError, r'\f'.encode, 'bytea')
+		self.failUnlessRaises(ValueError, r'\800'.encode, 'bytea')
+		self.failUnlessRaises(ValueError, r'\7f0'.encode, 'bytea')
 		for x in range(255):
-			seq = ('\\' + oct(x).lstrip('0').rjust(3, '0'))
-			dx = ord(seq.decode('bytea'))
+			seq = ('\\' + oct(x)[2:].lstrip('0').rjust(3, '0'))
+			dx = ord(seq.encode('bytea'))
 			if dx != x:
 				self.fail(
 					"generated sequence failed to map back; current is %d, " \
