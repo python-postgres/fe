@@ -3,12 +3,8 @@
 # http://python.projects.postgresql.org
 ##
 import unittest
-import postgresql.configfile as configfile
-
-try:
-	from cStringIO import StringIO
-except ImportError:
-	from StringIO import StringIO
+from io import StringIO
+from .. import configfile
 
 sample_config_Aroma = \
 """
@@ -232,7 +228,7 @@ class test_configfile(unittest.TestCase):
 		# Test a simple selector
 		red = configfile.read_config(['foo = bar\n', 'bar = foo'],
 			selector = lambda x: x == 'bar')
-		rkeys = red.keys()
+		rkeys = list(red.keys())
 		self.failUnless(len(rkeys) == 1)
 		self.failUnless(rkeys[0] == 'bar')
 		self.failUnless(red['bar'] == 'foo')
