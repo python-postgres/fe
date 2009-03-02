@@ -8,6 +8,7 @@ import unittest
 import threading
 import time
 import datetime
+import decimal
 from itertools import chain
 
 import postgresql.types as pg_types
@@ -30,6 +31,98 @@ type_samples = (
 	('bigint', (
 			((1 << 64) // 2) - 1, - ((1 << 64) // 2),
 			-1, 0, 1,
+		),
+	),
+	('numeric', (
+			-(2**64),
+			2**64,
+			-(2**128),
+			2**128,
+			-1, 0, 1,
+			decimal.Decimal("0.00000000000000"),
+			decimal.Decimal("1.00000000000000"),
+			decimal.Decimal("-1.00000000000000"),
+			decimal.Decimal("-2.00000000000000"),
+			decimal.Decimal("1000000000000000.00000000000000"),
+			decimal.Decimal("-0.00000000000000"),
+			decimal.Decimal(1234),
+			decimal.Decimal(-1234),
+			decimal.Decimal("1234000000.00088883231"),
+			decimal.Decimal(str(1234.00088883231)),
+			decimal.Decimal("3123.23111"),
+			decimal.Decimal("-3123000000.23111"),
+			decimal.Decimal("3123.2311100000"),
+			decimal.Decimal("-03123.0023111"),
+			decimal.Decimal("3123.23111"),
+			decimal.Decimal("3123.23111"),
+			decimal.Decimal("10000.23111"),
+			decimal.Decimal("100000.23111"),
+			decimal.Decimal("1000000.23111"),
+			decimal.Decimal("10000000.23111"),
+			decimal.Decimal("100000000.23111"),
+			decimal.Decimal("1000000000.23111"),
+			decimal.Decimal("1000000000.3111"),
+			decimal.Decimal("1000000000.111"),
+			decimal.Decimal("1000000000.11"),
+			decimal.Decimal("100000000.0"),
+			decimal.Decimal("10000000.0"),
+			decimal.Decimal("1000000.0"),
+			decimal.Decimal("100000.0"),
+			decimal.Decimal("10000.0"),
+			decimal.Decimal("1000.0"),
+			decimal.Decimal("100.0"),
+			decimal.Decimal("100"),
+			decimal.Decimal("100.1"),
+			decimal.Decimal("100.12"),
+			decimal.Decimal("100.123"),
+			decimal.Decimal("100.1234"),
+			decimal.Decimal("100.12345"),
+			decimal.Decimal("100.123456"),
+			decimal.Decimal("100.1234567"),
+			decimal.Decimal("100.12345679"),
+			decimal.Decimal("100.123456790"),
+			decimal.Decimal("100.123456790000000000000000"),
+			decimal.Decimal("1.0"),
+			decimal.Decimal("0.0"),
+			decimal.Decimal("-1.0"),
+			decimal.Decimal("1.0E-1000"),
+			decimal.Decimal("1.0E1000"),
+			decimal.Decimal("1.0E10000"),
+			decimal.Decimal("1.0E-10000"),
+			decimal.Decimal("1.0E15000"),
+			decimal.Decimal("1.0E-15000"),
+			decimal.Decimal("1.0E-16382"),
+			decimal.Decimal("1.0E32767"),
+			decimal.Decimal("0.000000000000000000000000001"),
+			decimal.Decimal("0.000000000000010000000000001"),
+			decimal.Decimal("0.00000000000000000000000001"),
+			decimal.Decimal("0.00000000100000000000000001"),
+			decimal.Decimal("0.0000000000000000000000001"),
+			decimal.Decimal("0.000000000000000000000001"),
+			decimal.Decimal("0.00000000000000000000001"),
+			decimal.Decimal("0.0000000000000000000001"),
+			decimal.Decimal("0.000000000000000000001"),
+			decimal.Decimal("0.00000000000000000001"),
+			decimal.Decimal("0.0000000000000000001"),
+			decimal.Decimal("0.000000000000000001"),
+			decimal.Decimal("0.00000000000000001"),
+			decimal.Decimal("0.0000000000000001"),
+			decimal.Decimal("0.000000000000001"),
+			decimal.Decimal("0.00000000000001"),
+			decimal.Decimal("0.0000000000001"),
+			decimal.Decimal("0.000000000001"),
+			decimal.Decimal("0.00000000001"),
+			decimal.Decimal("0.0000000001"),
+			decimal.Decimal("0.000000001"),
+			decimal.Decimal("0.00000001"),
+			decimal.Decimal("0.0000001"),
+			decimal.Decimal("0.000001"),
+			decimal.Decimal("0.00001"),
+			decimal.Decimal("0.0001"),
+			decimal.Decimal("0.001"),
+			decimal.Decimal("0.01"),
+			decimal.Decimal("0.1"),
+			# these require some weight transfer
 		),
 	),
 	('bytea', (
@@ -96,7 +189,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				e, v, tb = rl[0]
 				raise v
 		self.failUnlessRaises(pg_exc.QueryCanceledError, raise_exc, rl)
-	
+
 	def testCopyToSTDOUT(self):
 		with self.db.xact:
 			self.db.execute("CREATE TABLE foo (i int)")
@@ -267,15 +360,17 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 	def testTypes(self):
 		'test basic object I/O--input must equal output'
 		for (typname, sample_data) in type_samples:
-			pb = self.db.prepare("SELECT $1::" + typname)
+			pb = self.db.prepare(
+				"SELECT $1::" + typname + ", $1::" + typname + "::text"
+			)
 			for sample in sample_data:
-				rsample = pb.first(sample)
+				rsample, tsample = pb.first(sample)
 				if isinstance(rsample, pg_types.Array):
 					rsample = rsample.nest()
 				self.failUnless(
 					rsample == sample,
-					"failed to return %s object data as-is; gave %r, received %r" %(
-						typname, sample, rsample
+					"failed to return %s object data as-is; gave %r, received %r(%r::text)" %(
+						typname, sample, rsample, tsample
 					)
 				)
 

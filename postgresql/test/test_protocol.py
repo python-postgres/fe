@@ -4,6 +4,7 @@
 ##
 import unittest
 import struct
+import decimal
 import postgresql.protocol.element3 as e3
 import postgresql.protocol.client3 as c3
 import postgresql.protocol.pbuffer as p_buffer_module
@@ -389,6 +390,15 @@ expectation_samples = {
 		(-1, b'\xff\xff\xff\xff\xff\xff\xff\xff'),
 		(-2, b'\xff\xff\xff\xff\xff\xff\xff\xfe'),
 		(-3, b'\xff\xff\xff\xff\xff\xff\xff\xfd'),
+	],
+
+	pg_types.NUMERICOID : [
+		(((0,0,0,0),[]), b'\x00'*2*4),
+		(((0,0,0,0),[1]), b'\x00'*2*4 + b'\x00\x01'),
+		(((1,0,0,0),[1]), b'\x00\x01' + b'\x00'*2*3 + b'\x00\x01'),
+		(((1,1,1,1),[1]), b'\x00\x01'*4 + b'\x00\x01'),
+		(((1,1,1,1),[1,2]), b'\x00\x01'*4 + b'\x00\x01\x00\x02'),
+		(((1,1,1,1),[1,2,3]), b'\x00\x01'*4 + b'\x00\x01\x00\x02\x00\x03'),
 	],
 
 	pg_types.BITOID : [

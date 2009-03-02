@@ -37,10 +37,16 @@ Map PostgreSQL type Oids to routines that pack and unpack raw data.
   long-long based time I/O with noday-intervals.
 """
 import codecs
-from operator import itemgetter
+from operator import itemgetter, __mul__
+get0 = itemgetter(0)
+get1 = itemgetter(1)
+
+from itertools import chain, starmap, repeat, groupby, cycle, islice
+from ..python.itertools import interlace
+
 from abc import ABCMeta, abstractmethod
 
-from decimal import Decimal
+from decimal import Decimal, DecimalTuple
 import datetime
 
 try:
@@ -92,7 +98,7 @@ class Row(tuple):
 	def __new__(subtype, iter, attmap = {}):
 		if isinstance(iter, dict):
 			iter = [
-				iter.get(k) for k,_ in sorted(attmap.items(), key = itemgetter(1))
+				iter.get(k) for k,_ in sorted(attmap.items(), key = get1)
 			]
 		rob = tuple.__new__(subtype, iter)
 		rob.attmap = attmap
@@ -310,9 +316,147 @@ def circle_pack(x):
 def circle_unpack(x):
 	lambda x: circle_unpack(ts.circle_unpack(x))
 
+##
+# numeric is represented using:
+#  ndigits, the number of *numeric* digits.
+#  weight, the *numeric* digits "left" of the decimal point
+#  sign, negativity. see `numeric_signs` below
+#  dscale, *display* precision. used to identify exponent.
+#
+# NOTE: A numeric digit is actually four digits in the representation.
+#
+# Python's Decimal consists of:
+#  sign, negativity.
+#  digits, sequence of int()'s
+#  exponent, digits that fall to the right of the decimal point
+numeric_negative = 16384
+
+def numeric_pack(x,
+	numeric_digit_length : "number of decimal digits in a numeric digit" = 4
+):
+	if not isinstance(x, Decimal):
+		x = Decimal(x)
+	x = x.as_tuple()
+
+	# normalize trailing zeros (truncate em')
+	# this is important in order to get the weight and padding correct
+	# and to avoid packing superfluous data which will make pg angry.
+	trailing_zeros = 0
+	weight = 0
+	if x.exponent < 0:
+		# only attempt to truncate if there are digits after the point,
+		##
+		for i in range(-1, max(-len(x.digits), x.exponent)-1, -1):
+			if x.digits[i] != 0:
+				break
+			trailing_zeros += 1
+		# truncate trailing zeros right of the decimal point
+		# this *is* the case as exponent < 0.
+		if trailing_zeros:
+			digits = x.digits[:-trailing_zeros]
+		else:
+			digits = x.digits
+			# the entire exponent is just trailing zeros(zero-weight).
+		rdigits = -(x.exponent + trailing_zeros)
+		ldigits = len(digits) - rdigits
+		rpad = rdigits % numeric_digit_length
+		if rpad:
+			rpad = numeric_digit_length - rpad
+	else:
+		# Need the weight to be divisible by four,
+		# so append zeros onto digits until it is.
+		r = (x.exponent % numeric_digit_length)
+		if x.exponent and r:
+			digits = x.digits + ((0,) * r)
+			weight = (x.exponent - r)
+		else:
+			digits = x.digits
+			weight = x.exponent
+		# The exponent is not evenly divisible by four, so
+		# the weight can't simple be x.exponent as it doesn't
+		# match the size of the numeric digit.
+		ldigits = len(digits)
+		# no fractional quantity.
+		rdigits = 0
+		rpad = 0
+
+	lpad = ldigits % numeric_digit_length
+	if lpad:
+		lpad = numeric_digit_length - lpad
+	weight += (ldigits + lpad)
+
+	digit_groups = map(
+		get1,
+		groupby(
+			zip(
+				# group by numeric digit size
+				# every four digits make up a numeric digit
+				cycle((0,) * numeric_digit_length + (1,) * numeric_digit_length),
+
+				# multiply each digit appropriately
+				# for the eventual sum() into a numeric digit
+				starmap(
+					__mul__,
+					zip(
+						# pad with leading zeros to make
+						# the cardinality of the digit sequence
+						# to be evenly divisible by four,
+						# the numeric digit size.
+						chain(
+							repeat(0, lpad),
+							digits,
+							repeat(0, rpad),
+						),
+						cycle([10**x for x in range(numeric_digit_length-1, -1, -1)]),
+					)
+				),
+			),
+			get0,
+		),
+	)
+	return ts.numeric_pack((
+		(
+			(ldigits + rdigits + lpad + rpad) // numeric_digit_length, # ndigits
+			(weight // numeric_digit_length) - 1, # numeric weight
+			numeric_negative if x.sign == 1 else x.sign, # sign
+			- x.exponent if x.exponent < 0 else 0, # dscale
+		),
+		list(map(sum, ([get1(y) for y in x] for x in digit_groups))),
+	))
+
+def numeric_convert_digits(d):
+	i = iter(d)
+	for x in str(next(i)):
+		# no leading zeros
+		yield int(x)
+	# leading digit should not include zeros
+	for y in i:
+		for x in str(y).rjust(4, '0'):
+			yield int(x)
+
+numeric_signs = {
+	16384 : 1,
+}
+
+def numeric_unpack(x):
+	header, digits = ts.numeric_unpack(x)
+	npad = (header[3] - ((header[0] - (header[1] + 1)) * 4))
+	return Decimal(
+		DecimalTuple(
+			sign = numeric_signs.get(header[2], header[2]),
+			digits = chain(
+				numeric_convert_digits(digits),
+				(0,) * npad
+			) if npad >= 0 else list(
+				numeric_convert_digits(digits)
+			)[:npad],
+			exponent = -header[3]
+		)
+	)
+
 # Map type oids to a (pack, unpack) pair.
 oid_to_io = {
-	pg_types.NUMERICOID : (None, Decimal),
+	pg_types.NUMERICOID : (numeric_pack, numeric_unpack),
 
 	pg_types.DATEOID : (date_pack, date_unpack),
 
@@ -426,7 +570,7 @@ def composite_typio(
 	def pack_a_record(data):
 		if isinstance(data, dict):
 			data = [
-				data.get(k) for k,_ in sorted(attmap.items(), key = itemgetter(1))
+				data.get(k) for k,_ in sorted(attmap.items(), key = get1)
 			]
 		return ts.record_pack(
 			tuple(zip(typids, transform_record(cio, data, 0)))

@@ -85,6 +85,7 @@ BBBB_pack, BBBB_unpack = mk_pack("BBBB")
 dl_pack, dl_unpack = mk_pack("dl")
 ql_pack, ql_unpack = mk_pack("ql")
 
+hhhh_pack, hhhh_unpack = mk_pack("hhhh")
 
 int2_pack, int2_unpack = short_pack, short_unpack
 int4_pack, int4_unpack = long_pack, long_unpack
@@ -100,6 +101,14 @@ point_pack, point_unpack = dd_pack, dd_unpack
 circle_pack, circle_unpack = ddd_pack, ddd_unpack
 lseg_pack = box_pack = dddd_pack
 lseg_unpack = box_unpack = dddd_unpack
+
+def numeric_pack(data):
+	(header, numbers) = data
+	return hhhh_pack(header) + struct.pack("!%dh"%(len(numbers),), *numbers)
+
+def numeric_unpack(data):
+	header = hhhh_unpack(data[:8])
+	return (header, struct.unpack("!8x%dh"%((len(data)-8) // 2,), data))
 
 def path_pack(data):
 	"""
@@ -493,7 +502,7 @@ oid_to_io = {
 	pg_types.INT2OID : (int2_pack, int2_unpack),
 	pg_types.INT4OID : (int4_pack, int4_unpack),
 	pg_types.INT8OID : (int8_pack, int8_unpack),
-	pg_types.NUMERICOID : literal,
+	pg_types.NUMERICOID : (numeric_pack, numeric_unpack),
 
 	pg_types.OIDOID : (oid_pack, oid_unpack),
 	pg_types.XIDOID : (xid_pack, xid_unpack),
