@@ -517,7 +517,7 @@ class Array(object):
 				yield i
 	unroll_nest = staticmethod(unroll_nest)
 
-	def detect_dimensions(hier, seqtypes = (tuple, list)):
+	def detect_dimensions(hier, seqtypes = (list,)):
 		'Detect the dimensions of a nested sequence'
 		while type(hier) in seqtypes or type(hier) is Array:
 			if type(hier) is Array:
