@@ -441,7 +441,7 @@ class StreamingCursor(CursorStrategy):
 			self._contract()
 			offset, buffer = self._state[:2]
 		if self._state[2] != None and \
-		(len(buffer) - offset) > (self.chunksize // 8):
+		((len(buffer) - offset) > (self.chunksize // 8) or not buffer):
 			# Transaction ready, but only attempt expanding if it
 			# will be needed soon.
 			##
