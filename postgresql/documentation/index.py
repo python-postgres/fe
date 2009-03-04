@@ -28,9 +28,9 @@ recommended as it provides greater utility::
 		make_emp("Andrew Doe", "55,000")
 		make_emp("Susan Doe", "60,000")
 
-	# Now print the overpaid employees
+	# Now print the employees with a healthy salary
 	with db.xact:
-		for row in get_emp_with_salaray_gt("125,000"):
+		for row in get_emp_with_salary_gt("125,000"):
 			print(row["emp_name"])
 			# And fire them. ;)
 			remove_emp(row["emp_name"])
