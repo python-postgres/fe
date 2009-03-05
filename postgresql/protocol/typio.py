@@ -42,7 +42,6 @@ get0 = itemgetter(0)
 get1 = itemgetter(1)
 
 from itertools import chain, starmap, repeat, groupby, cycle, islice
-from ..python.itertools import interlace
 
 from abc import ABCMeta, abstractmethod
 
@@ -337,6 +336,8 @@ def numeric_pack(x,
 	if not isinstance(x, Decimal):
 		x = Decimal(x)
 	x = x.as_tuple()
+	if x.exponent == 'F':
+		raise ValueError("numeric does not support infinite values")
 
 	# normalize trailing zeros (truncate em')
 	# this is important in order to get the weight and padding correct
