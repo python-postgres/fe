@@ -3,23 +3,40 @@
 # http://python.projects.postgresql.org
 ##
 r"""
+=============
 py-postgresql
 =============
 
-py-postgresql is a project dedicated to improving the Python interfaces to
+py-postgresql is a project dedicated to improving Python interfaces to
 PostgreSQL. At its core, py-postgresql provides a PG-API and DB-API 2.0
-modules for accessing a PostgreSQL database. The PG-API interface is
-recommended as it provides greater utility::
+interfaces for accessing a PostgreSQL database.
+
+--------
+Contents
+--------
+
+ Administration & Installation
+  `postgresql.documentation.admin`
+
+ Driver
+  `postgresql.documentation.driver`
+
+ Gotchas
+  `postgresql.documentation.gotchas`
+
+Sample PG-API code::
 
 	import postgresql.driver as pg_driver
-	db = pg_driver.connect(...)
+	db = pg_driver.connect(
+		user = 'usename', password = 'secret', host = 'localhost', port = 5432
+	)
 	db.execute("CREATE TABLE emp (emp_name text PRIMARY KEY, emp_salary numeric)")
 
-	# Create the queries.
-	make_emp = db.query("INSERT INTO emp VALUES ($1, $2)")
-	remove_emp = db.query("DELETE FROM emp WHERE emp_name = $1")
-	get_emp_salary = db.query("SELECT emp_salary FROM emp WHERE emp_name = $1")
-	get_emp_with_salary_gt = db.query("SELECT emp_name FROM emp WHERE emp_salay > $1")
+	# Create the statements.
+	make_emp = db.prepare("INSERT INTO emp VALUES ($1, $2)")
+	raise_emp = db.prepare("UPDATE emp SET emp_salary = emp_salary + $2 WHERE emp_name = $1")
+	get_emp_salary = db.prepare("SELECT emp_salary FROM emp WHERE emp_name = $1")
+	get_emp_with_salary_lt = db.prepare("SELECT emp_name FROM emp WHERE emp_salay < $1")
 
 	# Create some employees, but do it in a transaction--all or nothing.
 	with db.xact:
@@ -28,12 +45,11 @@ recommended as it provides greater utility::
 		make_emp("Andrew Doe", "55,000")
 		make_emp("Susan Doe", "60,000")
 
-	# Now print the employees with a healthy salary
+	# Give some raises
 	with db.xact:
-		for row in get_emp_with_salary_gt("125,000"):
+		for row in get_emp_with_salary_lt("125,000"):
 			print(row["emp_name"])
-			# And fire them. ;)
-			remove_emp(row["emp_name"])
+			raise_emp(row["emp_name"], "10,000")
 
 
 Of course, if DB-API 2.0 is desired, the module is located at
