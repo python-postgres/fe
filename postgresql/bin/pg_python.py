@@ -38,13 +38,12 @@ def extract_parameters(src):
 	]
 
 def command(args = sys.argv):
-	# Allow connection options to be collected in #!pg_python lines
 	p = clientparameters.DefaultParser(
 		"%prog [connection options] [script] [-- script options] [args]",
 		version = '1.0',
 		option_list = default_options
 	)
-	p.enable_interspersed_args()
+	p.disable_interspersed_args()
 	co, ca = p.parse_args(args[1:])
 	in_xact = co.in_xact
 
