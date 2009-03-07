@@ -69,7 +69,10 @@ linkcheck: dump
 	@echo "Link check complete; look for any errors in the above output " \
 	      "or in $(BUILD_DIR)/linkcheck/output.txt."
 
-dump:
+mkdirs:
+	mkdir -p .static .templates
+
+dump: mkdirs
 	cp ../postgresql/__init__.py ./meta.py
 	cp index.rst index.txt
 	env PYTHONPATH=.. python -m postgresql.documentation.driver dump >driver.txt
