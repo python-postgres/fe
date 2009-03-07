@@ -9,7 +9,7 @@ py-postgresql
 
 py-postgresql is a project dedicated to improving Python interfaces to
 PostgreSQL. At its core, py-postgresql provides a PG-API and DB-API 2.0
-interfaces for accessing a PostgreSQL database.
+interface for accessing a PostgreSQL database.
 
 --------
 Contents
