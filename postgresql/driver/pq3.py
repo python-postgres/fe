@@ -1987,9 +1987,24 @@ class Connection(pg_api.Connection):
 		timeout = timeout or self.connector.connect_timeout
 		sslmode = self.connector.sslmode or 'prefer'
 
-		# get the list of sockets to try
-		socket_makers = self.connector.socket_factory_sequence()
 		connection_failures = []
+		socket_makers = ()
+
+		try:
+			# get the list of sockets to try
+			socket_makers = self.connector.socket_factory_sequence()
+		except Exception as exc:
+			err = pg_exc.ClientCannotConnectError(
+				"failed to resolve socket makers",
+				details = {
+					"severity" : "FATAL",
+				},
+				source = 'DRIVER'
+			)
+			self.ife_descend(err)
+			err.database = self
+			err.set_connection_failures(connection_failures)
+			err.raise_exception(raise_from = exc)
 
 		# resolve when to do SSL.
 		with_ssl = zip(repeat(True, len(socket_makers)), socket_makers)
@@ -2016,8 +2031,14 @@ class Connection(pg_api.Connection):
 		else:
 			raise ValueError("invalid sslmode {0!r}".format(sslmode))
 
-		# for each potential socket connection
+		# can_skip is used when 'prefer' is the sslmode.
+		# if the ssl negotiation returns 'N' (nossl), then
+		# ssl "failed", but the socket is still usable for nossl.
+		# in these cases, can_skip is set to True so that the
+		# subsequent non-ssl attempt is skipped.
 		can_skip = False
+
+		# for each potential socket connection
 		for (dossl, socket_maker) in socket_makers:
 			supported = None
 			if can_skip is True:
@@ -2079,13 +2100,13 @@ class Connection(pg_api.Connection):
 					(dossl, socket_maker, e)
 				)
 		else:
-			# No servers available.
+			# No servers available. (see the break-statement after establishing)
 			err = pg_exc.ClientCannotConnectError(
 				"failed to connect to server",
 				details = {
 					"severity" : "FATAL",
 				},
-				# It's really a collection of exceptions.
+				# It's really a sequence of exceptions.
 				source = 'DRIVER'
 			)
 			self.ife_descend(err)
