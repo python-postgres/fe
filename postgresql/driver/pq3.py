@@ -1496,14 +1496,14 @@ class Settings(pg_api.Settings):
 
 	def values(self):
 		for x, in self.database.prepare(
-			"SELECT settings FROM pg_settings ORDER BY name",
+			"SELECT setting FROM pg_settings ORDER BY name",
 			title = 'get_setting_values'
 		):
 			yield x
 
 	def items(self):
 		return self.database.prepare(
-			"SELECT name, settings FROM pg_settings ORDER BY name",
+			"SELECT name, setting FROM pg_settings ORDER BY name",
 			title = 'get_settings'
 		)
 

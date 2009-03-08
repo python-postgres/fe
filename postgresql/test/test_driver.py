@@ -495,7 +495,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 					self.db.execute("selekt 1;")
 				except pg_exc.SyntaxError:
 					pass
-			self.fail("__exit__ didn't raise syntax error")
+			self.fail("__exit__ didn't identify failed transaction")
 		except pg_exc.InFailedTransactionError as err:
 			self.failUnlessEqual(err.source, 'DRIVER')
 		else:
@@ -512,7 +512,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 						self.db.execute("selekt 1;")
 					except pg_exc.SyntaxError:
 						pass
-				self.fail("__exit__ didn't raise syntax error")
+				self.fail("__exit__ didn't identify failed transaction")
 			except pg_exc.InFailedTransactionError as err:
 				# driver released instead
 				self.failUnlessEqual(err.source, 'DRIVER')
@@ -543,6 +543,19 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		# connection was closed while in a xact. can't get back to zero.
 		self.failUnlessEqual(self.db.xact.depth, 2)
 
+	def testDeepDepths(self):
+		i = 0
+		self.failUnlessEqual(0, self.db.xact.depth)
+		while i < 1000:
+			self.failUnlessEqual(i, self.db.xact.depth)
+			self.db.xact.start()
+			i = i + 1
+		while i:
+			self.failUnlessEqual(i, self.db.xact.depth)
+			self.db.xact.rollback()
+			i = i - 1
+		self.failUnlessEqual(0, self.db.xact.depth)
+
 	def testSettingsCM(self):
 		orig = self.db.settings['search_path']
 		with self.db.settings(search_path='public'):
@@ -555,6 +568,28 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.db.settings['search_path'] = 'pg_catalog'
 		del self.db.settings['search_path']
 		self.failUnlessEqual(self.db.settings['search_path'], cur)
+
+	def testSettingsCount(self):
+		self.failUnlessEqual(
+			len(self.db.settings), self.db.prepare('select count(*) from pg_settings').first()
+		)
+
+	def testSettingsGet(self):
+		self.failUnlessEqual(
+			self.db.settings['search_path'], self.db.settings.get('search_path')
+		)
+		self.failUnlessEqual(None, self.db.settings.get(' $*0293 vksnd'))
+
+	def testSettings(self):
+		'general access tests'
+		d = dict(self.db.settings)
+		d = dict(self.db.settings.items())
+		k = list(self.db.settings.keys())
+		v = list(self.db.settings.values())
+		self.failUnlessEqual(len(k), len(d))
+		self.failUnlessEqual(len(k), len(v))
+		for x in k:
+			self.failUnless(d[x] in v)
 
 if __name__ == '__main__':
 	unittest.main()
