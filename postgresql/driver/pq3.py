@@ -1362,15 +1362,31 @@ class StoredProcedure(pg_api.StoredProcedure):
 		self.srf = bool(proctup.get("proretset"))
 		self.composite = proctup["composite"]
 
+class SettingsCM(object):
+	def __init__(self, database, settings_to_set):
+		self.database = database
+		self.settings_to_set = settings_to_set
+
+	def __context__(self):
+		return self
+
+	def __enter__(self):
+		if hasattr(self, 'stored_settings'):
+			raise RuntimeError("cannot re-use setting CMs")
+		self.stored_settings = self.database.settings.getset(
+			self.settings_to_set.keys()
+		)
+		self.database.settings.update(self.settings_to_set)
+
+	def __exit__(self, typ, val, tb):
+		self.database.settings.update(self.stored_settings)
+
 class Settings(pg_api.Settings):
 	ife_ancestor = property(attrgetter('database'))
 
 	def __init__(self, database):
 		self.database = database
 		self.cache = {}
-		self._store = []
-		self._restore = []
-		self._restored = {}
 
 	def _clear_cache(self):
 		self.cache.clear()
@@ -1412,34 +1428,8 @@ class Settings(pg_api.Settings):
 	def ife_snapshot_text(self):
 		return "Settings"
 
-	def __call__(self, **kw):
-		# In the usual case:
-		#   with db.settings(search_path = 'public,pg_catalog'):
-		# 
-		# The expected effect would be that shared_buffers would be set,
-		# so it's important that call prepend the settings as opposed to append.
-		self._store.insert(0, kw)
-
-	def __context__(self):
-		return self
-
-	def __enter__(self):
-		# _store *usually* has one item. However, it is possible for
-		# defaults to be pushed onto the stack.
-		res = self.getset(self._store[0].keys())
-		self.update(self._store[0])
-		del self._store[0]
-		self._restore.append(res)
-
-	def __exit__(self, exc, val, tb):
-		# Iff the transaction is open, restore the settings.
-		self._restored.update(self._restore[-1])
-		del self._restore[-1]
-		if not self.database.xact.failed:
-			self.update(self._restored)
-			self._restored.clear()
-
-		return exc is None
+	def __call__(self, **settings):
+		return SettingsCM(self.database, settings)
 
 	def path():
 		def fget(self):

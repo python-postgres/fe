@@ -877,36 +877,11 @@ class Settings(
 	@abstractmethod
 	def __call__(self, **kw):
 		"""
-		Configure settings for the next established context and return the
-		settings object. This is normally used in conjunction with a
-		with-statement:
+		Create a context manager applying the given settings. This is normally used
+		in conjunction with a with-statement:
 
 		>>> with db.settings(search_path = 'local,public'):
-		...
-
-		When called, the settings' object will configure itself to use the given
-		settings for the duration of the block, when the block exits, the previous
-		settings will be restored.
-
-		If a configuration has already been stored when invoked, the old
-		configuration will be overwritten. Users are expected to set the
-		configuration immediately.
-		"""
-
-	@abstractmethod
-	def __enter__(self):
-		"""
-		Set the settings configured using the __call__ method.
-
-		If nothing has been configured, do nothing.
-		"""
-
-	@abstractmethod
-	def __exit__(self, exc, val, tb):
-		"""
-		Immediately restore the settings if the connection is not in an error
-		state. Otherwise, make the restoration pending until the state is
-		corrected.
+		...  ...
 		"""
 
 	@abstractmethod
