@@ -203,7 +203,6 @@ class Cluster(pg_api.Cluster):
 			+ extra_args
 		p = sp.Popen(
 			cmd,
-			close_fds = True,
 			stdin = sp.PIPE,
 			stdout = logfile,
 			stderr = sp.PIPE
@@ -284,7 +283,6 @@ class Cluster(pg_api.Cluster):
 
 		p = sp.Popen(
 			cmd,
-			close_fds = True,
 			stdout = sp.PIPE if logfile is None else logfile,
 			stderr = sp.STDOUT,
 			stdin = sp.PIPE,

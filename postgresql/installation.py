@@ -94,6 +94,13 @@ def parse_configure_options(confopt):
 		kv = x.split('=', 1) + [True]
 		yield (kv[0].replace('-','_'), kv[1])
 
+def platform_binary(path):
+	return path
+
+if sys.platform == 'win32':
+	def platform_binary(path):
+		return path + '.exe'
+
 installations = {}
 class Installation(pg_api.Installation):
 	"""
@@ -218,7 +225,8 @@ class Installation(pg_api.Installation):
 			k : v for k,v in (
 				(k, (v if os.path.exists(v) else None)) for k,v in chain(
 					(
-						(k, os.path.join(bindir_path, k)) for k in self.pg_binaries
+						(k, platform_binary(os.path.join(bindir_path, k)))
+						for k in self.pg_binaries
 					),
 					(
 						(k, self.pg_config_data[k]) for k in
