@@ -222,6 +222,11 @@ class Cursor(pg_api.Cursor):
 		with_scroll = False,
 		insensitive = True,
 	):
+		if statement._input is not None:
+			if len(parameters) != len(statement._input):
+				raise TypeError("statement requires %d parameters, given %d" %(
+					len(statement._input), len(parameters)
+				))
 		c = super().__new__(typ)
 		c.parameters = parameters
 		c.statement = statement
@@ -1427,7 +1432,7 @@ class Settings(pg_api.Settings):
 		self._restore.append(res)
 
 	def __exit__(self, exc, val, tb):
-		# If the transaction is open, restore the settings.
+		# Iff the transaction is open, restore the settings.
 		self._restored.update(self._restore[-1])
 		del self._restore[-1]
 		if not self.database.xact.failed:
@@ -1608,14 +1613,13 @@ class TransactionManager(pg_api.TransactionManager):
 			pq.element.Query(self.database.typio._encode(qstring)[0]),
 		))
 		self.database._pq_push(x)
+		self.database._pq_complete()
 
-		# The operation is going to happen. Adjust the depth accordingly.
 		if adjustment < 0 and self._depth <= -adjustment:
 			self.__init__(self.database)
 			self._depth = 0
 		else:
 			self._depth += adjustment
-		self.database._pq_complete()
 
 	def _start_block_string(mode, isolation):
 		return 'START TRANSACTION' + (
@@ -1705,13 +1709,28 @@ class TransactionManager(pg_api.TransactionManager):
 	__enter__ = start
 	def __context__(self):
 		return self
-	def __exit__(self, type, value, tb):
-		if not self.database.closed:
-			if type is None:
-				self.commit()
-			else:
+
+	def __exit__(self, typ, value, tb):
+		if typ is None:
+			# No exception, but in a failed transaction?
+			if self.failed is True:
+				err = pg_exc.InFailedTransactionError(
+					"invalid block exit detected",
+					source = 'DRIVER',
+				)
+				self.ife_descend(err)
 				self.rollback()
-		return type is None
+				raise err
+			else:
+				# Everything is fine.
+				self.commit()
+		else:
+			# There's an exception, so only rollback if the connection
+			# exists. If the rollback() was called here, it would just
+			# contribute noise to the error.
+			if not self.database.closed:
+				self.rollback()
+		return typ is None
 
 	def __call__(self, gid = None, mode = None, isolation = None):
 		if self._depth == 0:
@@ -1901,12 +1920,16 @@ class Connection(pg_api.Connection):
 		ps = PreparedStatement.from_string(sql_statement_string, self)
 		self.ife_descend(ps)
 		ps._init()
+		if self.xact.depth > 0:
+			ps._fini()
 		return ps
 
 	def statement_from_id(self, statement_id : str) -> PreparedStatement:
 		ps = PreparedStatement(statement_id, self)
 		self.ife_descend(ps)
 		ps._init()
+		if self.xact.depth > 0:
+			ps._fini()
 		return ps
 
 	def proc(self, proc_id : (str, int)) -> StoredProcedure:
@@ -1918,6 +1941,8 @@ class Connection(pg_api.Connection):
 		c = Cursor(cursor_id, self)
 		self.ife_descend(c)
 		c._init()
+		if self.xact.depth > 0:
+			c._fini()
 		return c
 
 	def close(self):
@@ -1930,10 +1955,8 @@ class Connection(pg_api.Connection):
 		finally:
 			if self.socket is not None:
 				self.socket.close()
-			self._clear()
 			self._reset()
-			# the data in the closed connection transaction is
-			# in utf-8.
+			# the data in the closed connection transaction is in utf-8.
 			self.typio.set_encoding('utf-8')
 
 	@property
@@ -2059,7 +2082,8 @@ class Connection(pg_api.Connection):
 					self.socket.close()
 					self.socket = None
 				self._reset()
-				self._clear()
+				self._pq_in_buffer.truncate()
+
 				connection_failures.append(
 					(dossl, socket_maker, e)
 				)
@@ -2429,17 +2453,6 @@ class Connection(pg_api.Connection):
 		# state is Complete, so remove it as the working transaction
 		self._pq_xact = None
 
-	def _clear(self):
-		"""
-		[internal] Clear container objects of data.
-		"""
-		del self._closestatements[:]
-		del self._closeportals[:]
-
-		self._pq_in_buffer.truncate()
-		self.xact.__init__(self)
-		self.settings._clear_cache()
-
 	def _reset(self):
 		"""
 		[internal] Reset state and connection information attributes.
@@ -2575,11 +2588,14 @@ class Connector(pg_api.Connector):
 		tnkw = {}
 		if self.settings:
 			s = dict(self.settings)
-			sp = s.get('search_path')
-			if not isinstance(sp, str):
-				s['search_path'] = ','.join(
-					pg_str.quote_ident(x) for x in sp
-				)
+			if 'search_path' in self.settings:
+				sp = s.get('search_path')
+				if sp is None:
+					self.settings.pop('search_path')
+				elif not isinstance(sp, str):
+					s['search_path'] = ','.join(
+						pg_str.quote_ident(x) for x in sp
+					)
 			tnkw.update(s)
 
 		tnkw['user'] = self.user
