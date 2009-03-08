@@ -1419,8 +1419,9 @@ class Settings(pg_api.Settings):
 
 	def __delitem__(self, k):
 		self.database.execute(
-			'RESET "{1}"'.format(k.replace('"', '""'))
+			'RESET "' + k.replace('"', '""') + '"'
 		)
+		self.cache.pop(k, None)
 
 	def __len__(self):
 		return self.database.prepare("SELECT count(*) FROM pg_settings").first()
@@ -1507,7 +1508,7 @@ class Settings(pg_api.Settings):
 		)
 
 	def update(self, d):
-		kvl = tuple(d.items())
+		kvl = [list(x) for x in d.items()]
 		self.cache.update(self.database.prepare(
 			"SELECT ($1::text[][])[i][1] AS key, " \
 			"set_config(($1::text[][])[i][1], $1[i][2], false) AS value " \

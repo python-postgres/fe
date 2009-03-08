@@ -543,5 +543,18 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		# connection was closed while in a xact. can't get back to zero.
 		self.failUnlessEqual(self.db.xact.depth, 2)
 
+	def testSettingsCM(self):
+		orig = self.db.settings['search_path']
+		with self.db.settings(search_path='public'):
+			self.failUnlessEqual(self.db.settings['search_path'], 'public')
+		self.failUnlessEqual(self.db.settings['search_path'], orig)
+
+	def testSettingsReset(self):
+		# <3 search_path
+		cur = self.db.settings['search_path']
+		self.db.settings['search_path'] = 'pg_catalog'
+		del self.db.settings['search_path']
+		self.failUnlessEqual(self.db.settings['search_path'], cur)
+
 if __name__ == '__main__':
 	unittest.main()
