@@ -43,6 +43,8 @@ initdb_option_map = {
 	'user' : '-U',
 }
 
+pg_kill = os.kill
+
 class Cluster(pg_api.Cluster):
 	"""
 	Interface to a PostgreSQL cluster.
@@ -311,6 +313,18 @@ class Cluster(pg_api.Cluster):
 		self.start(logfile = logfile, settings = settings)
 		self.wait_until_started(timeout = timeout)
 
+	def reload(self):
+		"""
+		Signal the cluster to reload its configuration file.
+		"""
+		pid = self.pid
+		if pid is not None:
+			try:
+				pg_kill(pid, signal.SIGHUP)
+			except OSError as e:
+				if e.errno != errno.ESRCH:
+					raise
+
 	def stop(self):
 		"""
 		Stop the cluster gracefully waiting for clients to disconnect(SIGTERM).
@@ -318,7 +332,7 @@ class Cluster(pg_api.Cluster):
 		pid = self.pid
 		if pid is not None:
 			try:
-				os.kill(pid, signal.SIGTERM)
+				pg_kill(pid, signal.SIGTERM)
 			except OSError as e:
 				if e.errno != errno.ESRCH:
 					raise
@@ -330,7 +344,7 @@ class Cluster(pg_api.Cluster):
 		pid = self.pid
 		if pid is not None:
 			try:
-				os.kill(pid, signal.SIGINT)
+				pg_kill(pid, signal.SIGINT)
 			except OSError as e:
 				if e.errno != errno.ESRCH:
 					raise
@@ -344,7 +358,7 @@ class Cluster(pg_api.Cluster):
 		pid = self.pid
 		if pid is not None:
 			try:
-				os.kill(pid, signal.SIGKILL)
+				pg_kill(pid, signal.SIGKILL)
 			except OSError as e:
 				if e.errno != errno.ESRCH:
 					raise
@@ -374,7 +388,7 @@ class Cluster(pg_api.Cluster):
 			if pid is None:
 				return False
 			try:
-				os.kill(pid, signal.SIG_DFL)
+				pg_kill(pid, signal.SIG_DFL)
 			except OSError as e:
 				if e.errno != errno.ESRCH:
 					raise
