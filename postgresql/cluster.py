@@ -201,11 +201,12 @@ class Cluster(pg_api.Cluster):
 			+ tuple(opts) \
 			+ supw_file \
 			+ extra_args
+
 		p = sp.Popen(
 			cmd,
 			stdin = sp.PIPE,
 			stdout = logfile,
-			stderr = sp.PIPE
+			stderr = sp.PIPE,
 		)
 		p.stdin.close()
 
@@ -222,7 +223,7 @@ class Cluster(pg_api.Cluster):
 		if rc != 0:
 			r = p.stderr.read().strip()
 			try:
-				msg = r.decode('utf-8') # :(
+				msg = r.decode('utf-8')
 			except UnicodeDecodeError:
 				# split up the lines, and use rep.
 				msg = os.linesep.join([
@@ -243,7 +244,7 @@ class Cluster(pg_api.Cluster):
 		Stop the cluster and remove it from the filesystem
 		"""
 		if self.running():
-			self.stop()
+			self.shutdown()
 			try:
 				self.wait_until_stopped()
 			except pg_exc.ClusterTimeoutError:
@@ -312,14 +313,24 @@ class Cluster(pg_api.Cluster):
 
 	def stop(self):
 		"""
-		Stop the cluster gracefully(SIGTERM).
-
-		Does *not* wait for shutdown.
+		Stop the cluster gracefully waiting for clients to disconnect(SIGTERM).
 		"""
 		pid = self.pid
 		if pid is not None:
 			try:
 				os.kill(pid, signal.SIGTERM)
+			except OSError as e:
+				if e.errno != errno.ESRCH:
+					raise
+
+	def shutdown(self):
+		"""
+		Shutdown the cluster as soon as possible, disconnecting clients.
+		"""
+		pid = self.pid
+		if pid is not None:
+			try:
+				os.kill(pid, signal.SIGINT)
 			except OSError as e:
 				if e.errno != errno.ESRCH:
 					raise
