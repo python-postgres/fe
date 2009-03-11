@@ -507,7 +507,7 @@ def array_typio(
 
 		def pack_an_array(data):
 			if not type(data) is pg_types.Array:
-				data = pg_types.Array(data, seqtypes = (list,))
+				data = pg_types.Array(data)
 			dlb = []
 			for x in data.dimensions:
 				dlb.append(x)

@@ -329,7 +329,7 @@ class point(tuple):
 			type(self).__name__,
 			tuple.__repr__(self),
 		)
-	
+
 	def __str__(self):
 		return tuple.__repr__(self)
 
@@ -497,6 +497,7 @@ class circle(tuple):
 		return '<%s,%s>' %(self[0], self[1])
 
 class Array(object):
+	@staticmethod
 	def unroll_nest(hier, dimensions):
 		"return an iterator over the absolute elements of a nested sequence"
 		weight = []
@@ -515,33 +516,36 @@ class Array(object):
 				x = r
 			for i in v:
 				yield i
-	unroll_nest = staticmethod(unroll_nest)
 
-	def detect_dimensions(hier, seqtypes = (list,)):
+	@staticmethod
+	def detect_dimensions(hier):
 		'Detect the dimensions of a nested sequence'
-		while type(hier) in seqtypes or type(hier) is Array:
+		while type(hier) is list or type(hier) is Array:
 			if type(hier) is Array:
 				for x in hier.dimensions:
 					yield x
 				break
+			l = len(hier)
+			yield l
+			if l > 0:
+				# boundary consistency checks come later.
+				hier = hier[0]
+			else:
+				break
 
-			yield len(hier)
-			hier = hier[0]
-	detect_dimensions = staticmethod(detect_dimensions)
-
-	def from_nest(subtype, nest, seqtypes = None, offset = None):
+	@classmethod
+	def from_nest(typ, nest, offset = None):
 		'Create an array from a nested sequence'
-		dims = list(subtype.detect_dimensions(
-			nest, **(seqtypes and {'seqtypes': seqtypes} or {})
-		))
+		dims = list(typ.detect_dimensions(nest,))
 		if offset:
 			dims = dims[:len(dims)-offset]
-		return subtype(tuple(subtype.unroll_nest(nest, dims)), dims)
-	from_nest = classmethod(from_nest)
+		return typ(list(typ.unroll_nest(nest, dims)), dims)
 
 	def __new__(subtype, elements, dimensions = None, **kw):
 		if dimensions is None:
-			return subtype.from_nest(elements, **kw)
+			# there has to be at least one dimension, so
+			# normalize it into a list.
+			return subtype.from_nest(list(elements), **kw)
 		rob = object.__new__(subtype)
 		rob.elements = elements
 		rob.dimensions = dimensions
@@ -590,7 +594,7 @@ class Array(object):
 		)
 		rob.slice = newslice
 		return rob
-	
+
 	def subarray(self, idx):
 		rob = object.__new__(type(self))
 		rob.elements = self.elements
@@ -612,8 +616,6 @@ class Array(object):
 		return seqtype(rl)
 
 	def __repr__(self):
-		# XXX: This doesn't consider elements
-		#      that might be seen as dimensions.
 		return '%s.%s(%r)' %(
 			type(self).__module__,
 			type(self).__name__,
@@ -623,24 +625,24 @@ class Array(object):
 	def __len__(self):
 		sl = self.slice
 		return sl.stop - sl.start
-	
+
 	def __eq__(self, ob):
-		return tuple(self) == ob
+		return list(self) == ob
 
 	def __ne__(self, ob):
-		return tuple(self) != ob
+		return list(self) != ob
 
 	def __gt__(self, ob):
-		return tuple(self) > ob
+		return list(self) > ob
 
 	def __lt__(self, ob):
-		return tuple(self) < ob
+		return list(self) < ob
 	
 	def __le__(self, ob):
-		return tuple(self) <= ob
+		return list(self) <= ob
 
 	def __ge__(self, ob):
-		return tuple(self) >= ob
+		return list(self) >= ob
 
 	def __getitem__(self, item):
 		if isinstance(item, slice):
