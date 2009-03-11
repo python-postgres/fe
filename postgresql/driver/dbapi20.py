@@ -231,7 +231,8 @@ class Connection(object):
 
 	def __init__(self, connection):
 		self.database = connection
-		self.database.xact.start()
+		self._xact = self.database.xact()
+		self._xact.start()
 
 	def close(self):
 		if self.database.closed:
@@ -242,12 +243,14 @@ class Connection(object):
 		return Cursor(self)
 
 	def commit(self):
-		self.database.xact.commit()
-		self.database.xact.start()
+		self._xact.commit()
+		self._xact = self.database.xact()
+		self._xact.start()
 
 	def rollback(self):
-		self.database.xact.abort()
-		self.database.xact.start()
+		self._xact.rollback()
+		self._xact = self.database.xact()
+		self._xact.start()
 
 def connect(**kw):
 	"""

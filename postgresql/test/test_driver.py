@@ -10,6 +10,7 @@ import time
 import datetime
 import decimal
 from itertools import chain
+from operator import itemgetter
 
 import postgresql.types as pg_types
 import postgresql.exceptions as pg_exc
@@ -207,7 +208,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessRaises(TypeError, ps, 1, "foo", "bar")
 
 	def testCopyToSTDOUT(self):
-		with self.db.xact:
+		with self.db.xact():
 			self.db.execute("CREATE TABLE foo (i int)")
 			foo = self.db.prepare('insert into foo values ($1)')
 			foo.load(((x,) for x in range(500)))
@@ -219,7 +220,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			self.db.execute("DROP TABLE foo")
 
 	def testCopyFromSTDIN(self):
-		with self.db.xact:
+		with self.db.xact():
 			self.db.execute("CREATE TABLE foo (i int)")
 			foo = self.db.prepare('copy foo from stdin')
 			foo.load((str(i).encode('ascii') + b'\n' for i in range(200)))
@@ -452,7 +453,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		)
 
 	def testTransactionCommit(self):
-		with self.db.xact:
+		with self.db.xact():
 			self.db.execute("CREATE TEMP TABLE withfoo(i int)")
 		self.db.prepare("SELECT * FROM withfoo")
 
@@ -466,7 +467,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		class SomeError(Exception):
 			pass
 		try:
-			with self.db.xact:
+			with self.db.xact():
 				self.db.execute("CREATE TABLE withfoo (i int)")
 				raise SomeError
 		except SomeError:
@@ -476,21 +477,78 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			self.db.prepare("SELECT * FROM withfoo")
 		)
 
-	def testConfiguredTransaction(self):
-		if 'gid' in self.db.xact.prepared:
-			self.db.xact.rollback_prepared('gid')
-		with self.db.xact('gid'):
-			pass
-		with self.db.xact:
-			pass
-		self.db.xact.rollback_prepared('gid')
+	def testPreparedTransactionCommit(self):
+		with self.db.xact(gid = 'commit_gid') as x:
+			with x:
+				self.db.execute("create table commit_gidtable as select 'foo'::text as t;")
+			self.failUnlessRaises(pg_exc.UndefinedTableError,
+				self.db.prepare("select * from commit_gidtable")
+			)
+		self.failUnlessEqual(
+			self.db.prepare("select * FROM commit_gidtable").first(),
+			'foo',
+		)
+
+	def testPreparedTransactionRollback(self):
+		x = self.db.xact(gid = 'rollback_gid')
+		with x:
+			self.db.execute("create table gidtable as select 'foo'::text as t;")
+		x.rollback()
+		self.failUnlessRaises(pg_exc.UndefinedTableError,
+			self.db.prepare("select * from gidtable")
+		)
+
+	def testPreparedTransactionRecovery(self):
+		x = self.db.xact(gid='recover dis')
+		with x:
+			self.db.execute("create table distable (i int);")
+		del x
+		x = self.db.xact(gid='recover dis')
+		x.recover()
+		x.commit()
+		self.db.execute("drop table distable;")
+
+	def testPreparedTransactionFailedRecovery(self):
+		x = self.db.xact(gid="NO XACT HERE")
+		self.failUnlessRaises(
+			pg_exc.UndefinedObjectError,
+			x.recover
+		)
 
 	def testSerializeable(self):
-		pass
+		with self.db.connector() as db2:
+			db2.execute("create table some_darn_table (i int);")
+			try:
+				with self.db.xact(isolation = 'serializable'):
+					self.db.execute('insert into some_darn_table values (123);')
+					# db2 is in autocommit..
+					db2.execute('insert into some_darn_table values (321);')
+					self.failIfEqual(
+						list(self.db.prepare('select * from some_darn_table')),
+						list(db2.prepare('select * from some_darn_table')),
+					)
+			finally:
+				# cleanup
+				db2.execute("drop table some_darn_table;")
+
+	def testReadOnly(self):
+		class something(Exception):
+			pass
+		try:
+			with self.db.xact(mode = 'read only'):
+				self.failUnlessRaises(
+					pg_exc.ReadOnlyTransactionError,
+					self.db.execute, 
+					"create table ieeee(i int)"
+				)
+				raise something("yeah, it raised.")
+			self.fail("should have been passed by exception")
+		except something:
+			pass
 
 	def testFailedTransactionBlock(self):
 		try:
-			with self.db.xact:
+			with self.db.xact():
 				try:
 					self.db.execute("selekt 1;")
 				except pg_exc.SyntaxError:
@@ -498,63 +556,37 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			self.fail("__exit__ didn't identify failed transaction")
 		except pg_exc.InFailedTransactionError as err:
 			self.failUnlessEqual(err.source, 'DRIVER')
-		else:
-			self.failUnlessEqual(self.db.xact.depth, 0)
 
 	def testFailedSubtransactionBlock(self):
-		self.failUnlessEqual(self.db.xact.depth, 0)
-		with self.db.xact:
-			self.failUnlessEqual(self.db.xact.depth, 1)
+		with self.db.xact():
 			try:
-				with self.db.xact:
-					self.failUnlessEqual(self.db.xact.depth, 2)
+				with self.db.xact():
 					try:
 						self.db.execute("selekt 1;")
 					except pg_exc.SyntaxError:
 						pass
 				self.fail("__exit__ didn't identify failed transaction")
 			except pg_exc.InFailedTransactionError as err:
-				# driver released instead
+				# driver should have released/aborted instead
 				self.failUnlessEqual(err.source, 'DRIVER')
-			self.failUnlessEqual(self.db.xact.depth, 1)
-		self.failUnlessEqual(self.db.xact.depth, 0)
 
 	def testCloseInSubTransactionBlock(self):
-		self.failUnlessEqual(self.db.xact.depth, 0)
 		try:
-			with self.db.xact:
-				self.failUnlessEqual(self.db.xact.depth, 1)
+			with self.db.xact():
 				self.db.close()
+			self.fail("transaction __exit__ didn't identify cause ConnectionDoesNotExistError")
 		except pg_exc.ConnectionDoesNotExistError:
 			pass
-		# connection was closed while in a xact. can't get back to zero.
-		self.failUnlessEqual(self.db.xact.depth, 1)
 
 	def testCloseInSubTransactionBlock(self):
-		self.failUnlessEqual(self.db.xact.depth, 0)
 		try:
-			with self.db.xact:
-				self.failUnlessEqual(self.db.xact.depth, 1)
-				with self.db.xact:
-					self.failUnlessEqual(self.db.xact.depth, 2)
+			with self.db.xact():
+				with self.db.xact():
 					self.db.close()
+				self.fail("transaction __exit__ didn't identify cause ConnectionDoesNotExistError")
+			self.fail("transaction __exit__ didn't identify cause ConnectionDoesNotExistError")
 		except pg_exc.ConnectionDoesNotExistError:
 			pass
-		# connection was closed while in a xact. can't get back to zero.
-		self.failUnlessEqual(self.db.xact.depth, 2)
-
-	def testDeepDepths(self):
-		i = 0
-		self.failUnlessEqual(0, self.db.xact.depth)
-		while i < 1000:
-			self.failUnlessEqual(i, self.db.xact.depth)
-			self.db.xact.start()
-			i = i + 1
-		while i:
-			self.failUnlessEqual(i, self.db.xact.depth)
-			self.db.xact.rollback()
-			i = i - 1
-		self.failUnlessEqual(0, self.db.xact.depth)
 
 	def testSettingsCM(self):
 		orig = self.db.settings['search_path']
@@ -580,6 +612,13 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		)
 		self.failUnlessEqual(None, self.db.settings.get(' $*0293 vksnd'))
 
+	def testSettingsGetSet(self):
+		sub = self.db.settings.getset(
+			('search_path', 'default_statistics_target')
+		)
+		self.failUnlessEqual(self.db.settings['search_path'], sub['search_path'])
+		self.failUnlessEqual(self.db.settings['default_statistics_target'], sub['default_statistics_target'])
+
 	def testSettings(self):
 		'general access tests'
 		d = dict(self.db.settings)
@@ -590,6 +629,11 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(len(k), len(v))
 		for x in k:
 			self.failUnless(d[x] in v)
+		all = list(self.db.settings.getset(k).items())
+		all.sort(key=itemgetter(0))
+		dall = list(d.items())
+		dall.sort(key=itemgetter(0))
+		self.failUnlessEqual(dall, all)
 
 if __name__ == '__main__':
 	unittest.main()

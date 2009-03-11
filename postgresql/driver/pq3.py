@@ -15,6 +15,7 @@ import ssl
 
 from operator import attrgetter, itemgetter, is_, is_not
 from itertools import repeat, chain, islice
+from functools import partial
 
 from abc import abstractmethod, abstractproperty
 import collections
@@ -101,6 +102,11 @@ SELECT
 			)
 		ORDER BY prepared ASC
 	), ('{}'::text[]))
+"""
+
+TransactionIsPrepared = """
+SELECT TRUE FROM pg_catalog.pg_prepared_xacts
+WHERE gid::text = $1;
 """
 
 GetPreparedStatement = """
@@ -1540,180 +1546,39 @@ class Settings(pg_api.Settings):
 		if callback in callbacks:
 			callbacks.remove(callback)
 
-class TransactionManager(pg_api.TransactionManager):
+class Transaction(pg_api.Transaction):
 	ife_ancestor = property(attrgetter('database'))
-	depth = property(attrgetter('_depth'))
 	database = None
 
-	def __init__(self, database):
-		self._depth = 0
+	def __init__(self, database, gid = None, isolation = None, mode = None):
 		self.database = database
-		self.isolation = None
-		self.mode = None
-		self.gid = None
+		self.gid = gid
+		self.isolation = isolation
+		self.mode = mode
+		self.state = 'initialized'
+		self.type = None
 
-	def ife_snapshot_text(self):
-		content = filter(
-			partial(is_not, None), [
-				None if self.isolation is None else (
-					' ISOLATION: ' + self.isolation
-				),
-				None if self.gid is None else (
-					' GID: ' + self.gid,
-				),
-				None if self.mode is None else (
-					' MODE: ' + self.mode
-				),
-			]
-		)
-		return "[depth: " + str(self._depth) + "]" + (
-			(os.linesep if content else "") + os.linesep.join(content)
-		)
-
-	@property
-	def failed(self):
-		s = self.database._pq_state
-		if s is None or s == b'I':
-			return None
-		elif s == b'E':
-			return True
-		else:
-			return False
-
-	@property
-	def prepared(self):
-		return tuple(
-			self.database.prepare(
-				PreparedLookup,
-				title = "usable_prepared_xacts"
-			).first(self.database.user)
-		)
-
-	def commit_prepared(self, gid):
-		self.database.execute(
-			"COMMIT PREPARED '" + gid.replace("'", "''") + "'"
-		)
-
-	def rollback_prepared(self, gid):
-		self.database.execute(
-			"ROLLBACK PREPARED '" + gid.replace("'", "''") + "'"
-		)
-
-	def _execute(self, qstring, adjustment):
-		x = pq.Transaction((
-			pq.element.Query(self.database.typio._encode(qstring)[0]),
-		))
-		self.database._pq_push(x)
-		self.database._pq_complete()
-
-		if adjustment < 0 and self._depth <= -adjustment:
-			self.__init__(self.database)
-			self._depth = 0
-		else:
-			self._depth += adjustment
-
-	def _start_block_string(mode, isolation):
-		return 'START TRANSACTION' + (
-			isolation and ' ISOLATION LEVEL ' + isolation.replace(';', '') or \
-			''
-		) + (
-			mode and ' ' + mode.replace(';', '') or ''
-		)
-	_start_block_string = staticmethod(_start_block_string)
-
-	def reset(self):
-		if self._depth != 0:
-			self._execute("ABORT", 0)
-			self._depth = 0
-
-	def _start_string(self, depth, isolation = None, mode = None):
-		if depth == 0:
-			return self._start_block_string(
-				mode or self.mode,
-				isolation or self.isolation
-			)
-		else:
-			return 'SAVEPOINT "xact(%d)"' %(depth,)
-
-	def start(self, isolation = None, mode = None):
-		self._execute(
-			self._start_string(
-				self._depth, isolation = isolation, mode = mode
-			),
-			1
-		)
-	begin = start
-
-	def _commit_string(self, depth):
-		if depth == 1:
-			if self.gid is None:
-				return 'COMMIT'
-			else:
-				return "PREPARE TRANSACTION '" + self.gid.replace("'", "''") + "'"
-		else:
-			return 'RELEASE "xact(' + str(depth - 1) + ')"'
-
-	def commit(self):
-		self._execute(self._commit_string(self._depth), -1)
-
-	def _rollback_string(self, depth):
-		if depth == 1:
-			return 'ABORT'
-		else:
-			return 'ROLLBACK TO "xact(%d)"' %(depth - 1,)
-
-	def rollback(self):
-		if self._depth == 0:
-			raise TypeError("no transaction to rollback")
-		self._execute(self._rollback_string(self._depth), -1)
-	abort = rollback
-
-	def restart(self, isolation = None, mode = None):
-		abort = self._rollback_string(self._depth)
-		start = self._start_string(
-			self._depth - 1, isolation = isolation, mode = mode
-		)
-
-		self.database._pq_push(
-			pq.Transaction((
-				pq.element.Query(self.database.typio._encode(abort)[0]),
-				pq.element.Query(self.database.typio._encode(start)[0]),
-			))
-		)
-		self.database._pq_complete()
-
-	def checkpoint(self, isolation = None, mode = None):
-		commit = self._commit_string(self._depth)
-		start = self._start_string(
-			self._depth - 1, isolation = isolation, mode = mode
-		)
-
-		self.database._pq_push(
-			pq.Transaction((
-				pq.element.Query(self.database.typio._encode(commit)[0]),
-				pq.element.Query(self.database.typio._encode(start)[0]),
-			))
-		)
-		self.database._pq_complete()
-
-	# with statement interface
-	__enter__ = start
 	def __context__(self):
+		return self
+
+	def __enter__(self):
+		self.start()
 		return self
 
 	def __exit__(self, typ, value, tb):
 		if typ is None:
 			# No exception, but in a failed transaction?
-			if self.failed is True:
+			if self.database._pq_state == b'E':
 				err = pg_exc.InFailedTransactionError(
-					"invalid block exit detected",
+					"invalid transaction block exit detected",
 					source = 'DRIVER',
 				)
 				self.ife_descend(err)
-				self.rollback()
-				raise err
+				if not self.database.closed:
+					self.rollback()
+				err.raise_exception()
 			else:
-				# Everything is fine.
+				# No exception, and no error state. Everything is good.
 				self.commit()
 		else:
 			# There's an exception, so only rollback if the connection
@@ -1721,14 +1586,193 @@ class TransactionManager(pg_api.TransactionManager):
 			# contribute noise to the error.
 			if not self.database.closed:
 				self.rollback()
-		return typ is None
 
-	def __call__(self, gid = None, mode = None, isolation = None):
-		if self._depth == 0:
-			self.gid = gid
-			self.mode = mode
-			self.isolation = isolation
-		return self
+	def ife_snapshot_text(self):
+		content = filter(
+			partial(is_not, None), [
+				None if self.isolation is None else (
+					' ISOLATION: ' + repr(self.isolation)
+				),
+				None if self.gid is None else (
+					' GID: ' + repr(self.gid)
+				),
+				None if self.mode is None else (
+					' MODE: ' + repr(self.mode)
+				),
+			]
+		)
+		return (
+			(self.type + ' ' if self.type else '') + self.state + \
+			(os.linesep if content else "") + os.linesep.join(content)
+		)
+
+	@staticmethod
+	def _start_xact_string(isolation = None, mode = None):
+		q = 'START TRANSACTION'
+		if isolation is not None:
+			if ';' in isolation:
+				raise ValueError("invalid transaction isolation " + repr(mode))
+			q += ' ISOLATION LEVEL ' + isolation
+		if mode is not None:
+			if ';' in mode:
+				raise ValueError("invalid transaction mode " + repr(isolation))
+			q += ' ' + mode
+		return q + ';'
+
+	@staticmethod
+	def _savepoint_xact_string(id):
+		return 'SAVEPOINT "' + id.replace('"', '""') + '";'
+
+	def start(self):
+		if self.state == 'open':
+			return
+		if self.state != 'initialized':
+			err = pg_exc.OperationError(
+				"transactions cannot be restarted",
+				details = {
+					'hint': \
+					'Create a new transaction object instead of re-using an old one.'
+				}
+			)
+			self.ife_descend(err)
+			err.raise_exception()
+
+		if self.database._pq_state == b'I':
+			self.type = 'block'
+			q = self._start_xact_string(
+				isolation = self.isolation,
+				mode = self.mode,
+			)
+		else:
+			self.type = 'savepoint'
+			if (self.gid, self.isolation, self.mode) != (None,None,None):
+				err = pg_exc.OperationError(
+					"configured transaction used inside a transaction block",
+					details = {
+						'hint': 'A transaction block was already started.'
+					}
+				)
+				self.ife_descend(err)
+				err.raise_exception()
+			q = self._savepoint_xact_string(hex(id(self)))
+		self.state = 'starting'
+		self.database.execute(q)
+		self.state = 'open'
+	begin = start
+
+	@staticmethod
+	def _prepare_string(id):
+		"2pc prepared transaction 'gid'"
+		return "PREPARE TRANSACTION '" + id.replace("'", "''") + "';"
+
+	@staticmethod
+	def _release_string(id):
+		'release "";'
+		return 'RELEASE "xact(' + id.replace('"', '""') + ')";'
+
+	def prepare(self):
+		if self.state == 'prepared':
+			return
+		if self.state != 'open':
+			err = pg_exc.OperationError(
+				"transaction state must be 'open' in order to prepare",
+			)
+			self.ife_descend(err)
+			err.raise_exception()
+		if self.type != 'block':
+			err = pg_exc.OperationError(
+				"improper transaction type to prepare",
+			)
+			self.ife_descend(err)
+			err.raise_exception()
+		q = self._prepare_string(self.gid)
+		self.state = 'preparing'
+		self.database.execute(q)
+		self.state = 'prepared'
+
+	def recover(self):
+		if self.state != 'initialized':
+			err = pg_exc.OperationError(
+				"improper state for prepared transaction recovery",
+			)
+			self.ife_descend(err)
+			err.raise_exception()
+		if self.database.prepare(TransactionIsPrepared).first(self.gid):
+			self.state = 'prepared'
+			self.type = 'block'
+		else:
+			err = pg_exc.UndefinedObjectError(
+				"prepared transaction does not exist",
+				source = 'DRIVER',
+			)
+			self.ife_descend(err)
+			err.raise_exception()
+
+	def commit(self):
+		if self.state not in ('prepared', 'open'):
+			err = pg_exc.OperationError(
+				"commit attempted on transaction with unexpected state",
+				details = {
+					'hint': "Transactions cannot be re-used."
+				}
+			)
+			self.ife_descend(err)
+			err.raise_exception()
+
+		if self.type == 'block':
+			if self.gid is not None:
+				if self.state == 'prepared':
+					q = "COMMIT PREPARED '" + self.gid.replace("'", "''") + "';"
+				else:
+					return self.prepare()
+			else:
+				q = 'COMMIT'
+		else:
+			if self.gid is not None:
+				err = pg_exc.OperationError(
+					"savepoint configured with global identifier",
+					details = {
+						'hint': \
+						"Don't configure savepoint transactions with global identifiers."
+					}
+				)
+				self.ife_descend(err)
+				err.raise_exception()
+			q = self._release_string(hex(id(self)))
+		self.state = 'committing'
+		self.database.execute(q)
+		self.state = 'committed'
+
+	@staticmethod
+	def _rollback_to_string(id):
+		return 'ROLLBACK TO "' + id.replace('"', '""') + '";'
+
+	def rollback(self):
+		if self.state == 'aborted':
+			return
+		if self.state not in ('prepared', 'open'):
+			err = pg_exc.OperationError(
+				"aborted attempted on transaction with unexpected state",
+				details = {
+					'hint': "Transactions cannot be re-used."
+				}
+			)
+			self.ife_descend(err)
+			err.raise_exception()
+
+		if self.type == 'block':
+			if self.state == 'prepared':
+				q = "ROLLBACK PREPARED '" + self.gid.replace("'", "''") + "'"
+			else:
+				q = 'ABORT;'
+		elif self.type == 'savepoint':
+			q = self._rollback_to_string(hex(id(self)))
+		else:
+			raise RuntimeError("unknown transaction type " + repr(self.type))
+		self.state = 'aborting'
+		self.database.execute(q)
+		self.state = 'aborted'
+	abort = rollback
 
 class Connection(pg_api.Connection):
 	ife_ancestor = property(attrgetter('connector'))
@@ -1745,7 +1789,6 @@ class Connection(pg_api.Connection):
 
 	# Replaced with instances on connection instantiation.
 	settings = Settings
-	xact = TransactionManager
 
 	_socketfactory = None
 
@@ -1842,9 +1885,7 @@ class Connection(pg_api.Connection):
 			type(self).__module__,
 			type(self).__name__,
 			self.connector._pq_iri,
-			self.closed and 'closed' or '%s.%d' %(
-				self._pq_state, self.xact._depth
-			)
+			self.closed and 'closed' or '%s' %(self._pq_state,)
 		)
 
 	def ife_snapshot_text(self):
@@ -1870,7 +1911,6 @@ class Connection(pg_api.Connection):
 	def __exit__(self, type, value, tb):
 		'Close the connection on exit.'
 		self.close()
-		return type is None
 
 	def synchronize(self):
 		"""
@@ -1903,6 +1943,10 @@ class Connection(pg_api.Connection):
 		self._pq_push(q)
 		self._pq_complete()
 
+	def xact(self, gid = None, isolation = None, mode = None):
+		x = Transaction(self, gid = gid, isolation = isolation, mode = mode)
+		return x
+
 	def prepare(self,
 		sql_statement_string : str,
 		statement_id = None,
@@ -1911,7 +1955,7 @@ class Connection(pg_api.Connection):
 		ps = PreparedStatement.from_string(sql_statement_string, self)
 		self.ife_descend(ps)
 		ps._init()
-		if self.xact.depth > 0:
+		if self._pq_state != b'I':
 			ps._fini()
 		return ps
 
@@ -1919,7 +1963,7 @@ class Connection(pg_api.Connection):
 		ps = PreparedStatement(statement_id, self)
 		self.ife_descend(ps)
 		ps._init()
-		if self.xact.depth > 0:
+		if self._pq_state != b'I':
 			ps._fini()
 		return ps
 
@@ -1932,7 +1976,7 @@ class Connection(pg_api.Connection):
 		c = Cursor(cursor_id, self)
 		self.ife_descend(c)
 		c._init()
-		if self.xact.depth > 0:
+		if self._pq_state != b'I':
 			c._fini()
 		return c
 
@@ -1973,8 +2017,7 @@ class Connection(pg_api.Connection):
 		restore original settings, reset the transaction, drop temporary
 		objects.
 		"""
-		self.xact.reset()
-		self.execute("RESET ALL")
+		self.execute("ABORT; RESET ALL;")
 
 	def connect(self, timeout = None):
 		'Establish the connection to the server'
@@ -2502,7 +2545,6 @@ class Connection(pg_api.Connection):
 
 		self.typio = TypeIO(self)
 		self.settings = Settings(self)
-		self.xact = TransactionManager(self)
 		# Update the _encode and _decode attributes on the connection
 		# when a client_encoding ShowOption message comes in.
 		self.settings.subscribe('client_encoding', self._update_encoding)

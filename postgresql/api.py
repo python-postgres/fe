@@ -8,13 +8,13 @@ Application Programmer Interface specifications for PostgreSQL (ABCs).
 PG-API
 ======
 
-``postgresql.api`` is a Python API to the PostgreSQL RDBMS. It is designed to take
+``postgresql.api`` is a Python API to the PostgreSQL DBMS. It is designed to take
 full advantage of PostgreSQL's features to provide the Python programmer with
 substantial convenience.
 
 This module is used to define the PG-API. It creates a set of ABCs
 that makes up the basic interfaces used to work with a PostgreSQL. PG-API is an
-extension of the ``py-sqlapi`` ABCs.
+extension of ``py-database``'s database.api.sql APIs.
 
 The `InterfaceElement` is the common ABC, the methods and attributes defined
 within that class can, should, be mostly ignored while extracting information.
@@ -75,15 +75,14 @@ class InterfaceElement(metaclass = ABCMeta):
 	
 		<Python Traceback>
 		postgresql.exceptions.Error: <message>
-		DRIVER: postgresql.driver.pq3
-		CONNECTOR: pq://user@localhost:5432/database
-		CONNECTION: <connection_title> <backend_id> <socket information>
-			<settings, transaction state, connection state>
-		QUERY: <query_title> <statement_id> <parameter info>
-			<query body>
 		CURSOR: <cursor_id>
 			<parameters>
-	
+		QUERY: <statement_id> <parameter info>
+			<query body>
+		CONNECTION: <connection_title> <backend_id> <socket information>
+			<settings, transaction state, connection state>
+		CONNECTOR: pq://user@localhost:5432/database
+		DRIVER: postgresql.driver.pq3
 
 	Receptors
 	---------
@@ -99,8 +98,8 @@ class InterfaceElement(metaclass = ABCMeta):
 	-------
 
 	Many of these APIs are used to support features that users are *not*
-	expected to use. Almost everything on `InterfaceElement` is subject to
-	deprecation.
+	expected to use directly. Almost everything on `InterfaceElement` is subject
+	to deprecation.
 	"""
 	ife_object_title = "<untitled>"
 
@@ -566,7 +565,7 @@ class PreparedStatement(
 
 	@propertydoc
 	@abstractproperty
-	def string(self) -> str:
+	def string(self) -> object:
 		"""
 		The SQL string of the prepared statement.
 
@@ -594,7 +593,7 @@ class PreparedStatement(
 
 		>>> p=db.prepare("SELECT column FROM ttable WHERE key = $1")
 		>>> p('identifier')
-		<`Cursor` instance>
+		<postgresql.api.Cursor>
 		"""
 
 	@abstractmethod
@@ -679,148 +678,193 @@ class StoredProcedure(
 		SRF returns a composite(OUT parameters), it *should* return a `Cursor`.
 		"""
 
-class TransactionManager(
-	InterfaceElement
-):
+##
+# Arguably, it would be wiser to isolate blocks, prepared transactions, and
+# savepoints, but the utility of the separation is not significant. It's really
+# more interesting as a formality that the user may explicitly state the
+# type of the transaction. However, this capability is not completely absent
+# from the current interface as the configuration parameters, or lack thereof,
+# help imply the expectations.
+class Transaction(InterfaceElement):
 	"""
-	A `TranactionManager` is the `Connection`'s transaction manager.
-	`TransactionManager` compliant instances *must* exist on a `Connection`
-	instance's `xact` attribute.
+	A `Tranaction` is an element that represents a transaction in the session.
+	Once created, it's ready to be started, and subsequently committed or
+	rolled back.
 
-	Normal usage would entail the use of the with-statement::
+	Read-only transaction:
 
-		with db.xact:
-		...
-	
-	Or, in cases where two-phase commit is desired::
+		>>> with db.xact(mode = 'read only'):
+		...  ...
 
-		with db.xact(gid = 'gid'):
-		...
+	Read committed isolation:
+
+		>>> with db.xact(isolation = 'READ COMMITTED'):
+		...  ...
+
+	Savepoints are created if inside a transaction block:
+
+		>>> with db.xact():
+		...  with db.xact():
+		...   ...
+
+	Or, in cases where two-phase commit is desired:
+
+		>>> with db.xact(gid = 'gid') as gxact:
+		...  with gxact:
+		...   # phase 1 block
+		...   ...
+		>>> # fully committed at this point
+
+	Considering that transactions decide what's saved and what's not saved, it is
+	important that they are used properly. In most situations, when an action is
+	performed where state of the transaction is unexpected, an exception should
+	occur.
 	"""
 	ife_label = 'XACT'
 
 	@propertydoc
 	@abstractproperty
-	def failed(self) -> (bool, None):
+	def mode(self) -> (None, str):
 		"""
-		bool stating if the current transaction has failed due to an error.
-		`None` if not in a transaction block.
+		The mode of the transaction block:
+
+			START TRANSACTION [ISOLATION] <mode>;
+
+		The `mode` property is a string and will be directly interpolated into the
+		START TRANSACTION statement.
 		"""
 
 	@propertydoc
 	@abstractproperty
-	def depth(self) -> int:
+	def isolation(self) -> (None, str):
 		"""
-		`int` stating the current transaction depth.
+		The isolation level of the transaction block:
 
-		The depth starts at zero, indicating no transactions have been started.
-		For each call to `start`, this is incremented by one.
-		For each call to `abort` or `commit`, this is decremented by one.
+			START TRANSACTION <isolation> [MODE];
 
-		Implementation must protect against negative levels.
+		The `isolation` property is a string and will be directly interpolated into
+		the START TRANSACTION statement.
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def gid(self) -> (None, str):
+		"""
+		The global identifier of the transaction block:
+
+			PREPARE TRANSACTION <gid>;
+
+		The `gid` property is a string that indicates that the block is a prepared
+		transaction.
 		"""
 
 	@abstractmethod
 	def start(self) -> None:
 		"""
-		Start a transaction block. If a transaction block has already been
-		started, make a savepoint.
-		``start``, ``begin``, and ``__enter__`` are synonyms.
-		"""
-	__enter__ = begin = start
+		Start the transaction.
 
-	def __context__(self):
-		return self
+		If the database is in a transaction block, the transaction should be
+		configured as a savepoint. If any transaction block configuration was
+		applied to the transaction, raise a postgresql.exceptions.OperationError.
 
-	@abstractmethod
-	def __exit__(self, typ, obj, tb):
-		"""
-		Commit the transaction, or abort if the given exception is not `None`.
-		If the transaction level is greater than one, then the savepoint
-		corresponding to the current level will be released or rolled back in
-		cases of an exception.
+		If the database is not in a transaction block, start one using the
+		configuration where:
 
-		If an exception was raised, then the return value must indicate the need
-		to further raise the exception, unless the exception is an
-		`postgresql.exceptions.AbortTransaction`. In which case, the transaction
-		will be rolled back accordingly, but the no exception will be raised.
+		`self.isolation` specifies the ``ISOLATION LEVEL``. Normally, ``READ
+		COMMITTED``, ``SERIALIZABLE``, or ``READ UNCOMMITTED``.
+
+		`self.mode` specifies the mode of the transaction. Normally, ``READ
+		ONLY`` or ``READ WRITE``.
+
+		If the transaction is open, do nothing.
 		"""
+	begin = start
 
 	@abstractmethod
 	def commit(self) -> None:
 		"""
-		Commit the transaction block, release a savepoint, or prepare the
-		transaction for commit. If the number of running transactions is greater
-		than one, then the corresponding savepoint is released. If no savepoints
-		are set and the transaction is configured with a 'gid', then the
-		transaction is prepared instead of committed, otherwise the transaction 
-		is simply committed.
+		Commit the transaction.
+
+		If the transaction is configured with a `gid` and it has not been
+		prepared, issue a PREPARE TRANSACTION statement with the configured `gid`.
+
+		If the transaction is configured with a `gid` and has already been
+		prepared, issue a COMMIT PREPARED statement with the configured `gid`.
+
+		If the transaction was started inside a transaction block, it should be
+		identified as a savepoint, and the savepoint should be released.
+
+		If the transaction has already been committed, do nothing.
 		"""
 
 	@abstractmethod
 	def rollback(self) -> None:
 		"""
-		Abort the current transaction or rollback to the last started savepoint.
-		`rollback` and `abort` are synonyms.
+		Abort the transaction.
+
+		If the transaction is configured with a `gid` *and* has been prepared, issue
+		a ROLLBACK PREPARE statement with the configured `gid`.
+
+		If the transaction is a savepoint, ROLLBACK TO the savepoint identifier.
+
+		If the transaction is a transaction block, issue an ABORT.
+
+		If the transaction has already been aborted, do nothing.
 		"""
 	abort = rollback
 
 	@abstractmethod
-	def __call__(self, gid = None, isolation = None, read_only = None):
+	def recover(self) -> None:
 		"""
-		Initialize the transaction using parameters and return self to support a
-		convenient with-statement syntax.
+		If the transaction is assigned a `gid`, recover may be used to identify
+		the transaction as prepared and ready for committing or aborting.
 
-		The configuration only applies to transaction blocks as savepoints have 
-		no parameters to be configured.
+		This method is used in recovery procedures where a prepared transaction
+		needs to be committed or rolled back.
 
-		If the `gid`, the first keyword parameter, is configured, the
-		transaction manager will issue a ``PREPARE TRANSACTION`` with the
-		specified identifier instead of a ``COMMIT``.
+		If no prepared transaction with the configured `gid` exists, a
+		`postgresql.exceptions.UndefinedObjectError` must be raised.
+		[This is consistent with the error raised by ROLLBACK/COMMIT PREPARED]
 
-		If `isolation` is specified, the ``START TRANSACTION`` will include it
-		as the ``ISOLATION LEVEL``. This must be a character string.
-
-		If the `read_only` parameter is specified, the transaction block will be
-		started in the ``READ ONLY`` mode if True, and ``READ WRITE`` mode if
-		False.  If `None`, neither ``READ ONLY`` or ``READ WRITE`` will be
-		specified.
-
-		Read-only transaction::
-
-			>>> with db.xact(read_only = True):
-			...
-
-		Read committed isolation::
-
-			>>> with pg_con.xact(isolation = 'READ COMMITTED'):
-			...
-
-		Database configured defaults apply to all `TransactionManager`
-		operations.
+		Once this method has been ran, it should identify the transaction as being
+		prepared so that subsequent invocations to `commit` or `rollback` should
+		cause the appropriate ROLLBACK PREPARED or COMMIT PREPARED statements to
+		be executed.
 		"""
 
 	@abstractmethod
-	def commit_prepared(self, gid : str):
+	def prepare(self) -> None:
 		"""
-		Commit the prepared transaction with the given `gid`.
+		Explicitly prepare the transaction with the configured `gid`.
+		Commit will automatically call this method if the transaction has a
+		configured `gid`, so it is primarily provided for isolating the
+		functionality that will be used by `commit`.
 		"""
 
 	@abstractmethod
-	def rollback_prepared(self, *gids : str):
+	def __enter__(self):
 		"""
-		Rollback the prepared transactions with the given `gid`.
+		Synonym for `start` returning self.
 		"""
 
-	@propertydoc
-	@abstractproperty
-	def prepared(self) -> "sequence of prepared transaction identifiers":
+	def __context__(self):
+		'Return self'
+		return self
+
+	@abstractmethod
+	def __exit__(self, typ, obj, tb):
 		"""
-		A sequence of available prepared transactions for the current user on
-		the current database. This is intended to be more relavent for the
-		current context than selecting the contents of ``pg_prepared_xacts``.
-		So, the view *must* be limited to those of the current database, and
-		those which the user can commit.
+		If an exception is indicated by the parameters, run the transaction's
+		`rollback` method iff the database is still available(not closed), and
+		return a `False` value.
+
+		If an exception is not indicated, but the database's transaction state is
+		in error, run the transaction's `rollback` method and raise a
+		`postgresql.exceptions.InFailedTransactionError`. If the database is
+		unavailable, the `rollback` method should cause a
+		`postgresql.exceptions.ConnectionDoesNotExistError` exception to occur.
+
+		Otherwise, run the transaction's `commit` method.
 		"""
 
 class Settings(
@@ -994,9 +1038,14 @@ class Database(InterfaceElement):
 
 	@propertydoc
 	@abstractproperty
-	def xact(self) -> TransactionManager:
+	def xact(self,
+		gid : "global identifier to configure" = None,
+		isolation : "ISOLATION LEVEL to use with the transaction" = None,
+		mode : "Mode of the transaction, READ ONLY or READ WRITE" = None,
+	) -> Transaction:
 		"""
-		A `TransactionManager` instance bound to the `Database`.
+		Create a `Transaction` object using the given keyword arguments as its
+		configuration.
 		"""
 
 	@propertydoc
@@ -1091,14 +1140,12 @@ class Database(InterfaceElement):
 
 		Issues a ``RESET ALL`` to the database. If the database supports
 		removing temporary tables created in the session, then remove them.
-		Reapply initial configuration settings such as path. If inside a
-		transaction block when called, reset the transaction state using the
-		`reset` method on the connection's transaction manager, `xact`.
+		Reapply initial configuration settings such as path.
 
 		The purpose behind this method is to provide a soft-reconnect method
 		that re-initializes the connection into its original state. One
 		obvious use of this would be in a connection pool where the connection
-		is done being used.
+		is being recycled.
 		"""
 
 class Connector(InterfaceElement):
@@ -1120,7 +1167,6 @@ class Connector(InterfaceElement):
 	def Connection(self) -> "`Connection`":
 		"""
 		The default `Connection` class that is used.
-		This *should* be available on the type object.
 		"""
 
 	@propertydoc
