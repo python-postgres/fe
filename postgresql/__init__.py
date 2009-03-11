@@ -37,9 +37,7 @@ __pkg_documentation__ = __project_id__ + '/v' + '.'.join([
 ]) + '/'
 
 pg_iri = pg_driver = pg_cp = None
-def open(
-	iri : "The URL to connect to: pq://user:pass@host/dbname" = None,
-):
+def open(iri = None):
 	"""
 	Create a `postgresql.api.Connection` to the server referenced by the given
 	`iri` keyword.
