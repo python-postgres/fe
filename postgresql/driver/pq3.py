@@ -1550,6 +1550,10 @@ class Transaction(pg_api.Transaction):
 	ife_ancestor = property(attrgetter('database'))
 	database = None
 
+	mode = None
+	isolation = None
+	gid = None
+
 	def __init__(self, database, gid = None, isolation = None, mode = None):
 		self.database = database
 		self.gid = gid
