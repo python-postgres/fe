@@ -78,4 +78,5 @@ dump: mkdirs
 	env PYTHONPATH=.. python -m postgresql.documentation.admin dump >admin.txt
 	env PYTHONPATH=.. python -m postgresql.documentation.driver dump >driver.txt
 	env PYTHONPATH=.. python -m postgresql.documentation.clientparameters dump >clientparameters.txt
+	env PYTHONPATH=.. python -m postgresql.documentation.bin dump >bin.txt
 	env PYTHONPATH=.. python -m postgresql.documentation.gotchas dump >gotchas.txt

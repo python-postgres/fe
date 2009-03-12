@@ -26,6 +26,9 @@ Contents
  Client Parameters
   `postgresql.documentation.clientparameters`
 
+ Console Scripts
+  `postgresql.documentation.bin`
+
  Gotchas
   `postgresql.documentation.gotchas`
 

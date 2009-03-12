@@ -33,21 +33,21 @@ Extension Modules under Windows
 
 By default, a Python installation on Windows cannot build extension modules.
 py-postgresql provides optimizations for various key points, but can be
-installed and used without them. When an installation is performed on 'win32'
-systems, extension modules are *not* built by default.
+installed and used without them. When a source installation is performed on
+'win32' systems, extension modules are *not* built by default.
 
 In order to enable the compilation of extensions, set the environment variable
-``PY_BUILD_EXTENSIONS`` to a non-empty string before executing the ``setup.py``
+``PY_BUILD_EXTENSIONS`` to '1' before executing the ``setup.py``
 script::
 
 	C:\-> setenv PY_BUILD_EXTENSIONS 1
-	C:\-> python3 setup.py install
+	C:\-> c:\python30\python setup.py install
 
-Or if mingw32 installed::
+Or more likely, compile using mingw32::
 
 	C:\-> setenv PY_BUILD_EXTENSIONS 1
-	C:\-> python3 setup.py build_ext --compiler=mingw32
-	C:\-> python3 setup.py install
+	C:\-> c:\python30\python setup.py build_ext --compiler=mingw32
+	C:\-> c:\python30\python setup.py install
 
 
 Environment
@@ -55,11 +55,9 @@ Environment
 
 py-postgresql is not included with the PostgreSQL distribution, so it's
 impossible for certain defaults to be filled in in a way that's consistent with
-bundled applications.
-
- ``PGINSTALLATION``
-  The default installation to use and reference when collecting client
-  parameters or managing clusters.
+bundled applications. ``PGINSTALLATION`` can be used to direct the Python
+libraries at the appropriate PostgreSQL installation. This should be set to the
+absolute path of the ``pg_config`` executable.
 """
 
 __docformat__ = 'reStructuredText'

@@ -14,6 +14,7 @@ accessing a PostgreSQL database.
    admin
    driver
    clientparameters
+   bin
    gotchas
 
 ------------------

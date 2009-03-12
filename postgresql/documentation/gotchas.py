@@ -2,9 +2,9 @@
 # copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
-r"""
-py-postgresql gotchas
-=====================
+r'''
+Gotchas
+=======
 
 It is recognized that decisions were made that may not always be ideal for a
 given user. In order to highlight those potential issues and hopefully bring
@@ -57,7 +57,7 @@ Backslash characters are being treated literally
 
 The driver enables standard compliant strings. Stop using non-standard features.
 ;)
-"""
+'''
 
 __docformat__ = 'reStructuredText'
 if __name__ == '__main__':
