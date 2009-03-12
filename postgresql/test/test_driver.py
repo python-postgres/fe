@@ -133,11 +133,13 @@ type_samples = (
 	),
 	('smallint[]', (
 			[123,321,-123,-321],
+			[],
 		),
 	),
 	('int[]', [
 			[123,321,-123,-321],
 			[[1],[2]],
+			[],
 		],
 	),
 	('bigint[]', [
@@ -150,11 +152,13 @@ type_samples = (
 				((1 << 64) // 2) - 1,
 				- ((1 << 64) // 2),
 			],
+			[],
 		],
 	),
 	('varchar[]', [
 			["foo", "bar",],
 			["foo", "bar",],
+			[],
 		],
 	),
 	('timestamp', [
@@ -260,6 +264,10 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnless(ifoo(1) == 1)
 		self.failUnless(ifoo(None) is None)
 
+	def testProcExecutionInXact(self):
+		with self.db.xact():
+			self.testProcExecution()
+
 	def testNULL(self):
 		# Directly commpare (SELECT NULL) is None
 		self.failUnless(
@@ -295,6 +303,10 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		for tup in s1:
 			self.failUnlessEqual(tup["name"], 1)
 
+	def testSelectInXact(self):
+		with self.db.xact():
+			self.testSelect()
+
 	def testChunking(self):
 		gs = self.db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
 		self.failUnlessEqual(
@@ -313,7 +325,9 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				)()
 				read_chunking = self.db.prepare('select * FROM chunking')
 				write_chunking = db2.prepare('insert into chunking values ($1, $2)')
-				for rows in read_chunking().chunks:
+				out = read_chunking()
+				out.chunksize = 256
+				for rows in out.chunks:
 					write_chunking.load(rows)
 				self.failUnlessEqual(
 					self.db.prepare('select count(*) FROM chunking').first(),
@@ -355,6 +369,10 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		finally:
 			self.db.execute("DROP TABLE t")
 
+	def testDDLInXact(self):
+		with self.db.xact():
+			self.testDDL()
+
 	def testBatchDDL(self):
 		self.db.execute("CREATE TEMP TABLE t(i int)")
 		try:
@@ -373,6 +391,10 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			]))
 		finally:
 			self.db.execute("DROP TABLE t")
+
+	def testBatchDDLInXact(self):
+		with self.db.xact():
+			self.testBatchDDL()
 
 	def testTypes(self):
 		'test basic object I/O--input must equal output'
@@ -507,6 +529,18 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		x.recover()
 		x.commit()
 		self.db.execute("drop table distable;")
+
+	def testPreparedTransactionRecoveryAbort(self):
+		x = self.db.xact(gid='recover dis abort')
+		with x:
+			self.db.execute("create table distableabort (i int);")
+		del x
+		x = self.db.xact(gid='recover dis abort')
+		x.recover()
+		x.rollback()
+		self.failUnlessRaises(pg_exc.UndefinedTableError,
+			self.db.prepare("select * from distableabort")
+		)
 
 	def testPreparedTransactionFailedRecovery(self):
 		x = self.db.xact(gid="NO XACT HERE")
