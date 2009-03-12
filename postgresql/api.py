@@ -1306,15 +1306,6 @@ class Connection(Database):
 		Does nothing if the connection is already closed.
 		"""
 
-	def reconnect(self, *args, **kw) -> None:
-		"""
-		Method drawing the effect of `close` then `connect`.
-		
-		Any arguments given will be applied to `connect`.
-		"""
-		self.close()
-		self.connect(*args, **kw)
-
 	__enter__ = methodcaller('connect')
 	def __exit__(self, typ, obj, tb):
 		"""
