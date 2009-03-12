@@ -2,7 +2,10 @@
 # copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
-r"""
+r'''
+Console Scripts
+***************
+
 ``pg_python``
 =============
 
@@ -76,7 +79,7 @@ Inspired by ``psql``::
 	  \i      Execute a Python script within the interpreter's context.
 	  \set    Configure environment variables. \set without arguments to show all
 	  \x      Execute the Python command within this process.
-"""
+'''
 
 __docformat__ = 'reStructuredText'
 if __name__ == '__main__':
@@ -85,6 +88,6 @@ if __name__ == '__main__':
 		sys.stdout.write(__doc__)
 	else:
 		try:
-			help(__package__ + '.pg_python')
+			help(__package__ + '.bin')
 		except NameError:
 			help(__name__)
