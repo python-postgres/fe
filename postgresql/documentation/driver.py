@@ -2,56 +2,86 @@
 # copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
-r"""
-===================
-`postgresql.driver`
-===================
+r'''
+******
+Driver
+******
 
-The `postgresql.driver` implements PG-API, `postgresql.api`, using PQ version
+`postgresql.driver` implements PG-API, `postgresql.api`, using PQ version
 3.0 to communicate with PostgreSQL servers. It makes use of the protocol's
 extended features to provide binary datatype transmission and protocol level
-prepared statements.
-
--------------
-Compatibility
--------------
+prepared statements for strongly typed parameters.
 
 `postgresql.driver` currently supports PostgreSQL servers as far back as 8.0.
 Prior versions are not tested. While any version of PostgreSQL supporting
-version 3.0 of the PQ protocol *should* work, some of the higher level features
-will not work due to the lack of supporting stored procedures.
+version 3.0 of the PQ protocol *should* work.
 
------------
-Conventions
------------
-
-The following identifiers are regularly used as shorthands for instances of
-significant interface elements:
+The following identifiers are regularly used as shorthands for significant
+interface elements:
 
  ``db``
-  `postgresql.api.Connection`, a database connection.
+  `postgresql.api.Connection`, a database connection. `Connections`_
 
  ``ps``
-  `postgresql.api.PreparedStatement`, a prepared statement.
+  `postgresql.api.PreparedStatement`, a prepared statement. `Prepared Statements`_
 
  ``c``
-  `postgresql.api.Cursor``, a cursor; the results of a prepared statement.
+  `postgresql.api.Cursor`, a cursor; the results of a prepared statement.
+  `Cursors`_
 
-------
-Design
-------
+ ``C``
+  `postgresql.api.Connector`, a connector. `Connectors`_
 
-`postresql.driver` implements a prepared statement driven interface.
-This means that most interactions that occur, start with a statement being
-defined and subsequently used. This design provides a familiar means for
-managing the set of requests used to extract information from the resource.
-Generally, prepared statements are treated like functions.
 
------------
-Connections
------------
+Establishing a Connection
+=========================
 
-The simple connection creation interface is `postgresql.driver.connect`::
+There are many ways to establish a `postgresql.api.Connection` to a PostgreSQL
+server. This section discusses those interfaces.
+
+`postgresql.open`
+-----------------
+
+In the root package module, the ``open()`` function is provided for accessing
+databases using a single locator string. The string taken by `postgresql.open` is
+a URL:
+
+	>>> import postgresql
+	>>> db = postgresql.open("pq://localhost/postgres")
+
+This will connect to the host, ``localhost`` and to the database named
+``postgres`` via the ``pq`` protocol. open will inherit client parameters from
+the environment, so the user name given to the server will come from ``$PGUSER``
+or if that is unset, the result of ``getpass.getuser()``. The user's
+"pgpassfile" will also be referenced if no password is given:
+
+	>>> db = postgresql.open("pq://username:password@localhost/postgres")
+
+In this case, the password is given, so ``~/.pgpass`` would never be referenced.
+The ``user`` client parameter is also given, ``username``, so ``$PGUSER`` or
+`getpass.getuser` will not be given to the server.
+
+Settings can also be provided by the query portion of the URL:
+
+	>>> db = postgresql.open("pq://user@localhost/postgres?search_path=public&timezone=mst")
+
+However, the above syntax passes those as GUC settings(see the description of
+the ``settings`` keyword in `Connection Keywords`). Driver parameters require a
+distinction. This distinction is made when the setting's name is wrapped in
+square-brackets, '[' and ']':
+
+	>>> db = postgresql.open("pq://user@localhost/postgres?[sslmode]=require&[connect_timeout]=5")
+
+
+`postgresql.driver.connect`
+---------------------------
+
+`postgresql.open` is a high-level interface to connection creation. It provides
+password resolution services and client parameter inheritance. For some
+applications, this is undesirable as such implicit inheritance may lead to
+failures due to unanticipated parameters being used. For those applications,
+use of `postgresql.open` is not recommended. Rather, `postgresql.driver.connect`
+should be used when explicit parameterization is desired by an application:
 
 	>>> import postgresql.driver as pg_driver
 	>>> db = pg_driver.connect(user = 'usename', password = 'secret', host = 'localhost', port = 5432)
@@ -62,8 +92,74 @@ on the host ``localhost`` as the user ``usename`` with the password ``secret``.
 .. note::
  `connect` will *not* inherit parameters from the environment as libpq-based drivers do.
 
+See `Connection Keywords`_ for a full list of acceptable keyword parameters and
+their meaning.
+
+
+Connectors
+----------
+
+Connectors are the supporting objects used to instantiate a connection. They
+exist for the purpose of providing connections with the necessary abstractions
+for facilitating the client's communication with the server, *and to act as a
+container for the client parameters*. The latter purpose is of primary interest
+to this section.
+
+Each connection object is associated with its connector by the ``connector``
+attribute on the connection. This provides the user with access to the
+parameters used to establish the connection in the first place, and the means to
+create another connection to the same server. The attributes on the connector
+should *not* be altered. If parameter changes are needed, a new connector should
+be created.
+
+The attributes available on a connector are consistent with the names of the
+connection parameters described in `Connection Keywords`_, so that list can be
+used as a reference to identify the information available on the connector.
+
+Connectors fit into the category of "connection creation interfaces", so
+connector creation takes the same parameters that the
+`postgresql.driver.connect` function takes.
+
+The driver, `postgresql.driver.default` provides a set connectors for making a
+connection:
+
+ ``Host``
+  Provides a ``getaddrinfo()`` abstraction for establishing a connection.
+
+ ``IP4``
+  Connect to a single, IPv4 addressed host.
+
+ ``IP6``
+  Connect to a single, IPv6 addressed host.
+
+ ``Unix``
+  Connect to a unix domain socket.
+
+``Host`` is usual connector used to establish a connection:
+
+	>>> C = postgresql.driver.default.Host(
+	...  user = 'auser',
+	...  host = 'foo.com',
+	...  port = 5432)
+	>>> # now establish a connection
+	>>> db = C()
+
+Connectors can also create connections that have not been established.
+Sometimes, it is useful to have a reference to the connection prior to
+establishing it:
+
+	>>> db = C.create()
+	>>> db.connect()
+
+Additionally, ``db.connect()`` on ``db.__enter__()`` for with-statement support:
+
+	>>> db = C.create()
+	>>> with db:
+	...  ...
+
+
 Connection Keywords
-===================
+-------------------
 
 The following is a list of keywords accepted by connection creation
 interfaces:
@@ -111,8 +207,66 @@ interfaces:
  ``sslrootcrlfile``
   Revocation list file path. [Currently not checked.]
 
+
+Connections
+===========
+
+`postgresql.open` and `postgresql.driver.connect` provide the means to
+establish a connection. Connections provide a `postgresql.api.Database`
+interface to a remote PostgreSQL server; specifically, a
+`postgresql.api.Connection`.
+
+Connections are one-time objects. Once, it is closed or lost, it can longer be
+used to interact with the database provided by the server. If further use of the
+server is desired, a new connection *must* be established.
+
+
+Database Interface Entry Points
+-------------------------------
+
+After a connection is established, the primary interface entry points are ready
+for use. These entry points exist as properties and methods on the connection
+object:
+
+ ``prepare(sql_statement_string)``
+  Create a `postgresql.api.PreparedStatement` object for querying the database.
+  This provides an "SQL statement template" that can be executed multiple times.
+  See `Prepared Statements`_ for more information.
+
+ ``proc(procedure_id)``
+  Create a `postgresql.api.StoredProcedure` object referring to a stored
+  procedure on the database. The returned object will provide a
+  `collections.Callable` interface to the stored procedure on the server. See
+  `Stored Procedures`_ for more information.
+
+ ``statement_from_id(statement_id)``
+  Create a `postgresql.api.PreparedStatement` object from an existing statement
+  identifier. This is used in cases where the statement was prepared on the
+  server. See `Prepared Statements`_ for more information.
+
+ ``cursor_from_id(cursor_id)``
+  Create a `postgresql.api.Cursor` object from an existing cursor identifier.
+  This is used in cases where the cursor was declared on the server. See
+  `Cursors`_ for more information.
+
+ ``execute(sql_statements_string)``
+  Run a block of SQL on the server. This method returns `None` unless an error
+  occurs. If errors occur, the processing of the statements will stop and the
+  the error will be raised.
+
+ ``xact(gid = None, isolation = None, mode = None)``
+  The `postgresql.api.Transaction` constructor for creating transactions.
+  This method creates a transaction reference. The transaction will not be
+  started until it's instructed to do so. See `Transactions`_ for more
+  information.
+
+ ``settings``
+  A property providing a `collections.MutableMapping` interface to the
+  database's SQL settings. See `Settings`_ for more information.
+
+
 Connection Metadata
-===================
+-------------------
 
 When a connection is established, certain pieces of metadata are collected from
 the backend. The following are the attributes set on the connection object after
@@ -137,184 +291,9 @@ the connection is made:
 The latter three are collected from pg_stat_activity. If this information is
 unavailable, the attributes will be `None`.
 
-Database Interface Entry Points
-===============================
 
-After a connection is established, the interface entry points are ready for use.
-These entry points are the primary interfaces used to create prepared statements
-or stored procedure references. These entry points exist as attributes on the
-connection object:
-
- ``prepare(sql_statement_string)``
-  Create a `postgresql.api.PreparedStatement` object for querying the database.
-  See `Prepared Statement` for more information.
-
- ``proc(procedure_id)``
-  Create a `postgresql.api.StoredProcedure` object referring to a stored
-  procedure on the database. The returned object will provide a
-  `collections.Callable` interface to the stored procedure on the server.
-
- ``statement_from_id(statement_id)``
-  Create a `postgresql.api.PreparedStatement` object from an existing statement
-  identifier. This is used in cases where the statement was prepared on the
-  server.
-
- ``cursor_from_id(cursor_id)``
-  Create a `postgresql.api.Cursor` object from an existing cursor identifier.
-  This is used in cases where the cursor was declared on the server.
-
- ``execute(sql_statements_string)``
-  Run a block of SQL on the server. This method returns `None` unless an error
-  occurs. If errors occur, the processing of the statements will stop and the
-  the error will be raised.
-
- ``xact``
-  The `postgresql.api.TransactionManager` instance for managing the connection's
-  transactions. See `Transaction Management` for more information.
-
- ``settings``
-  A `collections.MutableMapping` interface to the database's SQL settings. See
-  `Settings Management` for more information.
-
-Client Parameters
-=================
-
-Connection creation interfaces in `postgresql.driver` are purposefully simple.
-All parameters are keywords, and are taken literally. libpq-based drivers
-tend differ as they inherit default client parameters from the environment.
-Doing this by default is undesirable as it can cause trivial failures due to
-unexpected parameter inheritance. However, using these parameters from the
-environment and other sources are simply expected in *some* cases. The
-`postgresql.clientparameters` module provides a means to collect them into one
-dictionary-object for subsequent application to a connection creation interface.
-
-`postgresql.clientparameters` is primarily useful to script authors that want to
-provide an interface consistent with PostgreSQL commands like ``psql``.
-
-The primary entry points are `postgresql.clientparameters` is
-
- `postgresql.clientparameters.standard(...)`
- Build a client parameter dictionary from the environment and parsed command
- line options.
-
-  ``co``
-   Options parsed by `postgresql.clientparameters.StandardParser` or
-   `postgresql.clientparameters.DefaultParser` instances.
-  ``no_defaults``
-   Don't include defaults like ``pgpassfile`` and ``user``. Defaults to `False`.
-  ``environ``
-   Environment variables to extract client parameter variables from.
-   Defaults to `os.environ` and expects a `collections.Mapping` interface.
-  ``environ_prefix``
-   Environment variable prefix to use. Defaults to "PG". This allows the
-   collection of non-standard environment variables whose keys are partially
-   consistent with the standard variants. e.g. "PG_SRC_USER", "PG_SRC_HOST",
-   etc.
-  ``default_pg_sysconfdir``
-   The location of the pg_service.conf file. The ``PGSYSCONFDIR`` environment
-   variable will override this.
-  ``pg_service_file``
-   Explicit location of the service file. This will override the "sysconfdir"
-   based path.
-  ``prompt_title``
-   Descriptive title to use if a password prompt is needed. `None` to disable
-	password resolution--disables pgpassfile lookups.
-  ``parameters``
-   Base client parameters to use. These are set after the defaults are
-   collected.
-   (The defaults that can be disabled by ``no_defaults``).
-
- `postgresql.clientparameters.resolve_password`
- Resolve the password for the given client parameters dictionary returned by
- ``standard``. By default, this function need not be used as ``standard`` will
- resolve the password by default. However, password resolution 
- can be turned off by passing ``prompt_title`` keyword argument as `None`.
- ``resolve_password`` will use the configured ``pgpassfile`` keyword.
-
-  ``parameters``
-   First positional argument. Normalized client parameters dictionary to update
-	in-place with the resolved password. If the 'prompt_password' key is in
-	``parameters``, it will prompt regardless(normally comes from ``-W``).
-  ``getpass``
-   Function to call to prompt for the password. Defaults to `getpass.getpass`.
-  ``prompt_title``
-   Additional title to use if a prompt is requested. This can also be specified
-	in the ``parameters`` as the ``prompt_title`` key.
-
-Example usage::
-
-	import postgresql.clientparameters as pg_param
-	p = pg_param.DefaultParser()
-	co, ca = p.parse_args(...)
-	cp = pg_param.standard(co = co)
-	print(cp)
-
-The `postgresql.clientparameters` module is executable, so you can see the
-results of the above snippet by::
-
-	$ python -m postgresql.clientparameters -h localhost -U a_db_user -ssearch_path=public
-	{'host': 'localhost',
-	 'password': None,
-	 'port': 5432,
-	 'settings': {'search_path': 'public'},
-	 'user': 'a_db_user'}
-
-Environment Variables
----------------------
-
-The following is a list of environment variables that will be collected by the
-`postgresql.clientparameter.standard` function using the "PG" ``environ_prefix``:
-
- ===================== ======================================
- ``PGUSER``            ``'user'``
- ``PGDATABASE``        ``'database'``
- ``PGHOST``            ``'host'``
- ``PGPORT``            ``'port'``
- ``PGPASSWORD``        ``'password'``
- ``PGSSLMODE``         ``'sslmode'``
- ``PGSSLKEY``          ``'sslkey'``
- ``PGCONNECT_TIMEOUT`` ``'connect_timeout'``
- ``PGREALM``           ``'kerberos4_realm'``
- ``PGKRBSRVNAME``      ``'kerberos5_service'``
- ``PGROLE``            ``'role'``
- ``PGPASSFILE``        ``'pgpassfile'``
- ``PGTZ``              ``'settings' = {'timezone': }``
- ``PGDATESTYLE``       ``'settings' = {'datestyle': }``
- ``PGCLIENTENCODING``  ``'settings' = {'client_encoding': }``
- ``PGGEQO``            ``'settings' = {'geqo': }``
- ===================== ======================================
-
-The "PG" prefix is adjustable using the ``environ_prefix`` keyword.
-This is useful in cases where multiple connections are being established by a
-single script.
-
-
-Connectors
-==========
-
-Connectors are the supporting objects used to instantiate a connection. They
-exist for the purpose of providing connections with the necessary abstractions
-for facilitating the client's communication with the server, and to act as a
-container for the client parameters. The latter purpose is of primary interest
-to this section.
-
-Each connection object is associated with its connector by the ``connector``
-attribute on the connection. This provides the user with access to the
-parameters used to establish the connection in the first place. The attributes
-on the connector should *not* be altered. If parameter changes are needed, a
-new connector should be created.
-
-The attributes available on a connector are consistent with the names of the
-connection parameters described in `Connection Keywords`, so that list can be
-used as a reference to identify the information available on the connector.
-
-Connectors fit into the category of "connection creation interfaces", so
-connector creation takes the same parameters that the
-`postgresql.driver.connect` callable takes.
-
--------------------
 Prepared Statements
--------------------
+===================
 
 Prepared statements are the primary entry point for initiating an operation on
 the database. Prepared statement objects represent a request that will, likely,
@@ -329,16 +308,19 @@ connection(``db``):
 
 Prepared statements are normally executed just like functions:
 
-	>>> my_results = ps()
+	>>> c = ps()
+	>>> c.read()
+	[('hello, world!',)]
 
-``my_results``, the object returned by ``ps.__call__``, is a cursor with a
+``c``, the object returned by ``ps.__call__``, is a cursor with a
 `postgresql.api.Cursor` interface.
 
 .. note::
- Don't confuse PG-API cursors with DB-API cursors.
- PG-API cursors are SQL cursors and don't contain methods
- for executing more queries "within the cursor". Rather, they
- only provide interfaces to retrieving the results.
+ Don't confuse PG-API cursors with DB-API 2.0 cursors.
+ PG-API cursors are single result-set SQL cursors and don't contain
+ methods for executing more queries "within the cursor". They
+ only provide interfaces to retrieving the results to that specific
+ invocation of the statement.
 
 Prepared statement objects have a few ways to submit the request to the database:
 
@@ -355,24 +337,24 @@ Prepared statement objects have a few ways to submit the request to the database
 
  ``first(...)``
   For simple statements, a cursor object can be a bit tiresome to get data from.
-  Consider the data contained in ``my_results``, 'hello world!'. To get at this
+  Consider the data contained in ``c`` from above, 'hello world!'. To get at this
   data directly from the ``__call__(...)`` method, it looks something like::
 
 	>>> ps().read()[0][0]
 
   While it's certainly easy to understand, it can be quite cumbersome and
-  perhaps even error prone for more complicated queries returing single values.
+  perhaps even error prone depending on the statement.
 
   To simplify access to simple data, the ``first`` method will simply return
   the "first" of the result set.
 
   The first value.
-   When there is a single row with a single column, ``first()`` will return
-   the contents of that cell.
+   When the result set consists of a single column, ``first()`` will return
+   that column in the first row.
 
   The first row.
-   When there is a single row with multiple columns, ``first()`` will return
-   that row.
+   When the result set consists of multiple columns, ``first()`` will return
+   that first row.
 
   The first, and only, row count.
    When DML--for instance, an INSERT-statement--is executed, ``first()`` will
@@ -384,22 +366,16 @@ Prepared statement objects have a few ways to submit the request to the database
 
 
 Parameterized Statements
-========================
+------------------------
 
-Statement objects can take parameters. To do this, the statement must be defined using
-PostgreSQL's positional parameter notation. ``$1``, ``$2``, ``$3``, etc. If the
-statement object ``ps`` were to be re-written to take a parameter::
+Statements can take parameters. In order to do this, the statement must be
+defined using PostgreSQL's positional parameter notation. ``$1``, ``$2``,
+``$3``, etc:
 
 	>>> ps = db.prepare("SELECT $1")
-
-And, re-create the ``my_cursor``::
-
-	>>> my_cursor = ps('hello, world!')
-
-And using ``first()``::
-
-	>>> 'hello, world!' == ps.first('hello, world!')
-	True
+	>>> c = ps('hello, world!')
+	>>> c.read()[0][0]
+	'hello, world!'
 
 PostgreSQL determines the type of the parameter based on the context of the
 parameter's identifier.
@@ -409,10 +385,11 @@ parameter's identifier.
 	... )
 	>>> c = ps("tables", 1)
 	>>> c.read()
+	[('postgres', 'information_schema', 'tables', 'VIEW', None, None, None, None, None, 'NO', 'NO', None)]
 
 Parameter ``$1`` in the above statement will take on the type of the
-``table_name`` column and ``#2`` will take on the type required by the LIMIT
-clause:
+``table_name`` column and ``$2`` will take on the type required by the LIMIT
+clause(text and int8).
 
 However, types can be forced to a specific type using explicit casts:
 
@@ -420,51 +397,102 @@ However, types can be forced to a specific type using explicit casts:
 	>>> ps.first(-400)
 	-400
 
+Parameters are typed. PostgreSQL servers provide the driver with the
+type information about a positional parameter, and the driver will require that
+a given parameter is in the appropriate type. The Python types expected by the driver
+for a given SQL and PostgreSQL type are listed in `Type Support`_.
+
+This usage of Python types that are included in the standard library is not always
+convenient. Notably, the `datetime` module does not provide a friendly way for a
+user to express intervals, dates, or times. There is a likely inclination to
+forego these parameter type requirements.
+
+In such cases, explicit casts can be made to work-around the type requirements:
+
+	>>> ps = db.prepare("SELECT $1::text::date")
+	>>> ps.first('yesterday')
+	datetime.date(2009, 3, 11)
+
+The parameter, ``$1``, is given to the database as a string, which is then
+promptly cast into a date. Of course, without the explicit cast as text, the
+outcome would be different:
+
+	>>> ps = db.prepare("SELECT $1::text::date")
+	>>> ps.first('yesterday')
+	Traceback:
+	 ...
+	AttributeError: 'str' object has no attribute 'toordinal'
+
+The function that processes the parameter expects a `datetime.date` object, and
+the given `str` object does not provide the necessary interfaces for the
+conversion.
+
 
 Statement Metadata
-==================
+------------------
 
 In order to provide the appropriate type transformations, the driver must
 acquire metadata about the statement's parameters and results. This data is
-published via the following attributes on the statement object:
+published via the following properties on the statement object:
 
  ``sql_parameter_types``
   A sequence of SQL type names specifying the types of the parameters used in
-  the statement. The indexes of the sequence correspond to the
-  parameter identifier, N+1.
-
- ``pg_parameter_types``
-  A sequence of PostgreSQL type Oids specifying the types of the parameters
-  used in the statement. The indexes of the sequence correspond to the
-  parameter identifier, N+1.
+  the statement.
 
  ``sql_column_types``
   A sequence of SQL type names specifying the types of the columns produced by
   the statement. `None` if the statement does not return row-data.
 
+ ``pg_parameter_types``
+  A sequence of PostgreSQL type Oid's specifying the types of the parameters
+  used in the statement.
+
  ``pg_column_types``
-  A sequence of PostgreSQL type Oids specifying the types of the columns produced by
+  A sequence of PostgreSQL type Oid's specifying the types of the columns produced by
   the statement. `None` if the statement does not return row-data.
+
+ ``parameter_types``
+  A sequence of Python types that the statement expects.
+
+ ``column_types``
+  A sequence of Python types that the statement will produce.
 
  ``column_names``
   A sequence of `str` objects specifying the names of the columns produced by
   the statement. `None` if the statement does not return row-data.
 
+The indexes of the sequence correspond to the parameter's identifier, N+1.
+
+In order for this information to be available, the statement must be fully
+prepared, so if the statement is closed, it will be re-prepared when this
+information is accessed.
+
+	>>> ps = db.prepare("SELECT $1::integer AS intname, $2::varchar AS chardata")
+	>>> ps.sql_parameter_types
+	('integer','varchar')
+	>>> ps.sql_column_types
+	('integer','varchar')
+	>>> ps.column_names
+	('intname','chardata')
+	>>> ps.column_types
+	(<class 'int'>, <class 'str'>)
+
+
 Inserting and DML
-=================
+-----------------
 
 Loading data into the database is facilitated by prepared statements. In these
 examples, a table definition is necessary for a complete illustration::
 
 	>>> db.execute(
-	... 	'''
+	... 	"""
 	... CREATE TABLE employee (
 	... 	employee_name text,
 	... 	employee_salary numeric,
 	... 	employee_dob date,
 	... 	employee_hire_date data
 	... );
-	... 	'''
+	... 	"""
 	... )
 
 Create the INSERT statement:
@@ -491,14 +519,14 @@ occurs will be immediately raised regardless of the context.
 
 
 Cursors
-=======
+-------
 
 When a prepared statement is called, a `postgresql.api.Cursor` is created and
 returned. The type of statement ultimately decides the kind of cursor used to
 manage the results.
 
-For cursors that return rows, these interfaces are provided for accessing those
-results:
+For cursors that return row data, these interfaces are provided for accessing
+those results:
 
  ``__next__()``
   This fetches the next row in the cursor object. Cursors support the iterator
@@ -509,29 +537,31 @@ results:
   This method name is borrowed from `file` objects, and are semantically
   similar. However, this being a cursor, rows are returned instead of bytes or
   characters. When the number of rows returned is less then the absolute value
-  of the number requested, it means that cursor has been exhausted, and there
-  are no more rows to be read.
+  of the number requested, it means that cursor has been exhausted,
+  and there are no more rows to be read in that direction.
 
   In cases where the cursor is scrollable, backward fetches are available via
   negative read quantities.
 
  ``chunks``
-  This access point is designed for situations where rows are being read
+  This access point is designed for situations where rows are being streamed out
   quickly. It is a property that provides an ``collections.Iterator`` that returns
   *sequences* of rows. The size of the "chunks" produced is *normally* consistent
   with the ``chunksize`` attribute on the cursor object itself. This is
-  normally the fastest way to get rows out of the cursor.
+  normally the most efficient way to get rows out of the cursor.
+
 
 Scrollable Cursors
-------------------
+^^^^^^^^^^^^^^^^^^
 
 By default, cursors are not scrollable. It is assumed, for performance reasons,
 that the user just wants the results in a linear fashion. However, scrollable
-cursors are supported. To create a scrollable cursor, call the statement with
-the ``with_scroll`` keyword argument set to `True`.
+cursors are supported for applications that need to implement paging. To create
+a scrollable cursor, call the statement with the ``with_scroll`` keyword
+argument set to `True`.
 
 .. note::
- Scrollable cursors never pre-fetch to provide guaranteed positioning.
+ Scrollable cursors never pre-fetch in order to provide guaranteed positioning.
 
 The cursor interface supports scrolling using the ``seek`` method. Like
 ``read``, it is semantically similar to a file's ``seek()``. ``seek`` takes two
@@ -548,19 +578,21 @@ arguments: ``position`` and ``whence``:
     cursor.
 
    relative: ``'RELATIVE'`` or ``1``
-    seek to the relative position. 
+    seek to the relative position. Negative ``position``'s will cause a MOVE
+    backwards, while positive ``position``'s will MOVE forwards.
 
    from end: ``'FROM_END'`` or ``2``
-    seek to the absolute position relative from the end of the cursor.
+    seek to the end of the cursor and then MOVE backwards by the given
+    ``position``.
 
 Scrolling through employees:
 
-	>>> emps_by_age = db.prepare('''
+	>>> emps_by_age = db.prepare("""
 	... SELECT
 	... 	employee_name, employee_salary, employee_dob, employee_hire_date,
 	... 	EXTRACT(years FROM AGE(employee_dob)) AS age
 	... ORDER BY age ASC
-	... ''')
+	... """)
 	>>> snapshot = emps_by_age(with_scroll = True)
 	>>> # seek to the end
 	>>> snapshot.seek(0, 'FROM_END')
@@ -575,13 +607,14 @@ counts:
 	>>> snapshot.seek(0, -2)
 	>>> snapshot.read(-1)
 
-COPY
-----
+
+COPY Cursors
+^^^^^^^^^^^^
 
 `postgresql.driver` transparently supports PostgreSQL's COPY command. To the
-user, it will act exactly like a cursor that produces tuples with the only
-recommendation being that the cursor *should* be completed before other
-actions take place on the connection.
+user, it will act exactly like a cursor that produces tuples; COPY tuples,
+however, are `bytes` objects. The only distinction in usability is that the
+cursor *should* be completed before other actions take place on the connection.
 
 In situations where other actions are invoked during a ``COPY TO STDOUT``, the
 entire result set of the COPY will be read. However, no error will be raised so
@@ -592,23 +625,23 @@ In situations where other actions are invoked during a ``COPY FROM STDIN``, a
 COPY failure error will be thrown by the database. The driver manages the
 connection state in such a way that will purposefully cause the error as the
 COPY was inappropriately interrupted. This not usually a problem as the
-``load(...)`` method must complete the COPY before returning.
+``load(...)`` method must complete the COPY command before returning.
 
 Copy data is always transferred using ``bytes`` objects. Even in cases where the
-COPY is not in ``BINARY`` mode. Any needed encoding transformations must be made
-the caller. This is done to avoid any unnecessary overhead by default.
+COPY is not in ``BINARY`` mode. Any needed encoding transformations *must* be
+made the caller. This is done to avoid any unnecessary overhead by default.
 
 ``COPY FROM STDIN`` commands are supported via
 `postgresql.api.PreparedStatement.load`. Each invocation to ``load``
 is a single invocation of COPY. ``load`` takes an iterable of COPY lines
 to send to the server::
 
-	>>> db.execute('''
+	>>> db.execute("""
 	... CREATE TABLE sample_copy (
 	...	sc_number int,
 	...	sc_text text
 	... );
-	... ''')
+	... """)
 	>>> copyin = db.prepare('COPY sample_copy FROM STDIN')
 	>>> copyin.load([
 	... 	b'123\tone twenty three\n',
@@ -622,92 +655,170 @@ direct transfers from a source database to a destination database could be made:
 	>>> copyin = dst.prepare('COPY atable FROM STDIN')
 	>>> copyin.load(copyout())
 
-----------------------
-Transaction Management
-----------------------
 
-To simplify transaction management, an interface extension is provided on the
-``xact`` attribute of connection objects. This extension provides interfaces for
-managing the transaction state of the database. It provides the necessary
-interfaces for starting, committing, and aborting transactions blocks and,
-transparently, savepoints.
+Stored Procedures
+=================
 
-The attributes available on ``xact``:
+The ``proc`` method on `postgresql.api.Database` objects provides a means to
+create a reference to a stored procedure on the remote database.
+`postgresql.api.StoredProcedure` objects are used to represent the referenced
+SQL routine.
 
- ``start(...)``
-  Start a transaction block, or set a savepoint if already in a transaction
-  block. The savepoint identifier is automatically generated based on the
-  transaction "depth".
+This provides a direct interface to the function stored on the database. It
+leverages knowledge of the parameters and results of the function in order
+to provide the user with a natural interface to the procedure:
 
- ``depth``
-  The "depth" of the transaction state. This is incremented every time the
-  ``start()`` method is called. If the depth is greater than `1`, it means that
-  the database is in a savepoint.
+	>>> get_version = db.proc('version()')
+	>>> get_version()
+	'PostgreSQL 8.3.6 on ...'
 
- ``commit()``
-  Commit the transaction block or release the savepoint.
+Set-returning functions, SRFs, on the other hand, return a sequence:
 
- ``abort()``
-  Abort the transaction block or rollback to the savepoint associated with the
-  current depth.
+	>>> generate_series = db.proc('generate_series(int,int)')
+	>>> gs = generate_series(1, 20)
+	>>> gs
+	<generator object <genexpr>>
+	>>> next(gs)
+	1
+	>>> list(gs)
+	[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 
- ``failed``
-  A property indicating one of three states:
+For functions like ``generate_series()``, the driver is able to identify that
+the return is a sequence of *solitary* integer objects, so the result of the
+function is just that.
 
-   `False`
-    Not failed, and in an active transaction-block.
+Functions returning composite types are recognized, and return row objects:
 
-   `True`
-    In a failed transaction-block. Savepoints can make this `False` again
-	 without reaching zero-depth.
+	>>> db.execute("""
+	... CREATE FUNCTION composite(OUT i int, OUT t text)
+	... LANGUAGE SQL AS
+	... $body$
+	...  SELECT 900::int AS i, 'sample text'::text AS t;
+	... $body$;
+	... """)
+	>>> composite = db.proc('composite()')
+	>>> r = composite()
+	>>> r
+	(900, 'sample text')
+	>>> r['i']
+	900
+	>>> r['t']
+	'sample text'
 
-   `None`
-    Not in a transaction block. (``start()`` hasn't been called)
+Functions returning a set of composites are recognized, and the result is a
+`postgresql.api.Cursor` object whose column names are consistent with the names
+of the OUT parameters:
 
-With the introduction of with-statements, Python introduced a mechanism
-that allows for the provision of a convenient syntax for transaction
-management. It's a very obvious application of with-statements:
+	>>> db.execute("""
+	... CREATE FUNCTION srfcomposite(out i int, out t text)
+	... RETURNS SETOF RECORD
+	... LANGUAGE SQL AS
+	... $body$
+	...  SELECT 900::int AS i, 'sample text'::text AS t
+	...  UNION ALL
+	...  SELECT 450::int AS i, 'more sample text'::text AS t
+	... $body$;
+	... """)
+	>>> srfcomposite = db.proc('srfcomposite()')
+	>>> c = srfcomposite()
+	>>> c
+	<postgresql.driver.pq3.DeclaredCursor object>
+	>>> c.read(1)
+	[(900, 'sample text')]
+	>>> r = c.read(1)[0]
+	>>> r['i'], r['t']
+	(450, 'more sample text')
 
-	>>> with db.xact:
-	... 	...
 
-And savepoints are completely abstracted as well::
+Transactions
+============
 
-	>>> with db.xact:
-	... 	with db.xact:
-	... 		...
-	... 	with db.xact:
-	... 		...
+Transactions are managed by creating an object that will correspond to the
+transaction started on the server. A transaction is a transaction block,
+a savepoint, or a prepared transaction. The ``xact(...)`` method on the
+connection object provides the standard method for creating a
+`postgresql.api.Transaction` object to manage a transaction on the connection.
+
+The creation of a transaction object does not open the transaction. Rather, the
+transaction must be explicitly started. Usually, transactions should be managed
+with context managers:
+
+	>>> with db.xact():
+	...  ...
+
+The transaction in the above example is opened, started, by the ``__enter__``
+method invoked by the with-statement's usage. It will be subsequently
+committed or rolled-back depending on the exception state and the error state
+of the connection when ``__exit__`` is called.
 
 **Using the with-statement syntax for managing transactions is strongly
-recommended.** By using the transaction manager's CM, it allows for Python
-exceptions to be properly treated as fatal to the transaction as if an error of
-any kind occurs within a transaction block, it is unlikely that the state of the
-transaction can be trusted. Additionally, the ``__exit__`` method provides a
-safe-guard against invalid commits. This can occur if a database error is
-inappropriately caught within a block without being raised.
+recommended.** By using the transaction's context manager, it allows for Python
+exceptions to be properly treated as fatal to the transaction as when an
+exception of any kind occurs within a transaction block, it is unlikely that
+the state of the transaction can be trusted. Additionally, the ``__exit__``
+method provides a safe-guard against invalid commits. This can occur if a
+database error is inappropriately caught within a block without being raised.
 
-.. note::
- "Zero-depth" means no active transaction block. It's the default
- "transaction depth" when a connection is establish. It's normally referred to
- when the transaction state has ascended to the ceiling.
+The context manager interfaces are higher level interfaces to the explicit
+instruction methods provided by `postgresql.api.Transaction` objects.
 
-Handling database errors inside transaction blocks is generally discouraged as
+Transaction Interface Entry Points
+----------------------------------
+
+The methods available on transaction objects manage the state of the transaction
+and relay any necessary instructions to the remote server in order to change
+that state.
+
+ ``start()``
+  Start the transaction.
+
+ ``commit()``
+  Commit the transaction.
+
+ ``rollback()``
+  Abort the transaction.
+
+ ``recover()``
+  Identify the existence of the prepared transaction.
+
+ ``prepare()``
+  Prepare the transaction for the final commit. Once prepared, the second phase
+  may be ran--commit, or rollback.
+
+These methods are primarily provided for applications that manage transactions
+in a way that cannot be formed around single, sequential blocks of code.
+Generally, using these methods require additional work to be performed by the
+code that is managing the transaction.
+If usage of these direct, instructional methods is necessary, there are some
+important factors to keep in mind:
+
+ * If the transaction is configured with a `gid`, the ``prepare()`` method
+   *must* be invoked prior to the ``commit()``.
+ * If the database is in an error state when the commit() is issued, an implicit
+   rollback will occur. Usually, when the database is in an error state, an
+   a database exception will have been thrown, so it is likely that it will be
+   understood that a rollback should occur.
+
+
+Error Control
+-------------
+
+Handling *database* errors inside transaction CMs is generally discouraged as
 any database operation that occurs within a failed transaction is an error
-itself. This means that it's important to traps any recoverable operation
-outside of the transaction block:
+itself. It is important to trap any recoverable database error outside of the
+scope of the transaction's context manager:
 
 	>>> try:
-	...  with db.xact:
+	...  with db.xact():
 	...   ...
 	... except postgresql.exceptions.UniqueError:
 	...  pass
 
-In cases where the transaction is in a failure state, but the context exits
+In cases where the database is in an error state, but the context exits
 without an exception, a `postgresql.exceptions.InFailedTransactionError` is
-raised:
+raised by the driver:
 
-	>>> with db.xact:
+	>>> with db.xact():
 	...  try:
 	...   ...
 	...  except postgresql.exceptions.UniqueError:
@@ -723,58 +834,98 @@ raised:
 Normally, if a ``COMMIT`` is issued on a failed transaction, the command implies a
 ``ROLLBACK`` without error. This is a very undesirable result for the CM's exit
 as it may allow for code to be ran that presumes the transaction was committed.
-The driver intervenes here and instantiates the
-`postgresql.exceptions.InFailedTransactionError` to provide safe-guards against
-the implied ``ROLLBACK``. This effect is consistent with savepoint releases that
-occur in a failed transactions.
+The driver intervenes here and raises the
+`postgresql.exceptions.InFailedTransactionError` to safe-guard against such
+cases. This effect is consistent with savepoint releases that occur during an
+error state. The distinction between the two is made using the ``source``
+property on the raised exception.
 
 
 Transaction Configuration
-=========================
+-------------------------
 
-In order to specify the isolation level, some configuration is necessary.
-The ``xact`` property on a connection is callable; this interface
-uses the keywords arguments for establishing the configuration:
+Keyword arguments given to ``xact()`` provide the means for configuring the
+properties of the transaction. Only three points of configuration are available:
 
-	>>> with db.xact(isolation = 'serializeable'):
-	... 	...
+ ``gid``
+  The global identifier to use. Identifies the transaction as using two-phase
+  commit.
 
-The actual string given as the isolation level is given to the database.
+ ``isolation``
+  The isolation level of the transaction. This must be a string. It will be
+  interpolated directly into the START TRANSACTION statement. Normally,
+  'SERIALIZABLE' or 'READ COMMITTED'.
 
-Read-only is also supported:
+ ``mode``
+  A string, 'READ ONLY' or 'READ WRITE'. States the mutability of stored
+  information in the database.
 
-	>>> with db.xact(readonly = True):
-	... 	...
+The specification of any of these transaction properties imply that the transaction
+is a block. Savepoints do not take configuration, so if a transaction identified
+as a block is started while another block is running, an exception will be
+thrown.
 
-Savepoint transactions have no configuration--the identifiers are
-automatically generated based on the transaction depth.
 
-Prepared Transactions - Two Phase Commit
-========================================
+Prepared Transactions
+---------------------
 
-PostgreSQL's two-phase commit is supported by the `gid` keyword given to the
-transaction's configuration:
+Transactions configured with the ``gid`` keyword will require two steps to fully
+commit the transaction. First, ``prepare()``, then ``commit()``. The prepare
+method will issue the necessary PREPARE TRANSACTION statement, and commit will
+finalize the operation with the issuance of the COMMIT PREPARED statement. At
+any state of the transaction, ``rollback()`` may be used to abort the
+transaction. If the transaction has yet to be prepared, it will issue the ABORT
+statement, and if it has, it will issue ROLLBACK PREPARED instead.
 
-	>>> with db.xact(gid = 'global identifier'):
-	... 	...
+Prepared transactions can be used with with-statements:
 
-If the ``commit()`` bringing the transaction to zero-depth sees a configured
-`gid`, it will cause the transaction manager to issue a ``PREPARE TRANSACTION``
-statement instead of a commit. Of course, provided that ``failed`` is `False`,
-in which case the usual ``ABORT`` will be issued.
+	>>> with db.xact(gid='global-id') as gxact:
+	...  with gxact:
+	...   ...
 
-The global identifier can be configured at any time during the transaction, but
-it is *strongly* recommended to specify it within the first transaction context
-to enjoy clarity.
+The ``__enter__`` method on the transaction is invoked twice. The transaction
+keeps its state, so only one START TRANSACTION statement will be executed.
+The ``__exit__`` method is also invoked twice. Exit will analyze the transaction
+and make the appropriate action for the state of the transaction object. If the
+transaction is open, it will prepare the transaction using ``prepare()``, and if
+the transaction is prepared, it will commit the transaction using ``commit()``.
 
--------------------
-Settings Management
--------------------
+When a prepared transaction is partially committed, the transaction should be
+rolled-back or committed at some point in time. It is possible
+for a transaction to be prepared, but the connection lost before the final
+commit or rollback. Cases where this occurs require a recovery operation to
+determine the fate of the transaction.
+
+In order to recover a prepared transaction, the ``recover()`` method can be
+used:
+
+	>>> gxact = db.xact(gid='a-lost-transaction')
+	>>> gxact.recover()
+
+Once recovered, it may then be committed or rolled-back using the appropriate
+methods:
+
+	>>> gxact.commit()
+
+When a transaction is recovered and the configured ``gid`` does not exist, the
+driver will throw a `postgresql.exceptions.UndefinedObjectError`. This is
+consistent with the error that is thrown by ROLLBACK PREPARED and COMMIT
+PREPARED when the global identifier does not exist.
+
+	>>> gxact = db.xact(gid='a-non-existing-gid')
+	>>> gxact.recover()
+	postgresql.exceptions.UndefinedObjectError
+
+This allows recovery operations to identify the existence of the prepared
+transaction.
+
+
+Settings
+========
 
 SQL's SHOW and SET provides a means to configure runtime parameters on the
 database("GUC"s). In order to save the user some grief, a
 `collections.MutableMapping` interface is provided to simplify configuration.
-This is especially useful for things settings like "search_path".
 
 The ``settings`` attribute on the connection provides the interface extension. 
 
@@ -782,30 +933,31 @@ The standard dictionary interface is supported:
 
 	>>> db.settings['search_path'] = "$user,public"
 
-And ``update(...)`` is better performing for multiple:
+And ``update(...)`` is better performing for multiple sets:
 
 	>>> db.settings.update({
-	... 	'search_path' : "$user,public",
-	... 	'default_statistics_target' : "1000"
+	...  'search_path' : "$user,public",
+	...  'default_statistics_target' : "1000"
 	... })
 
-Settings Context Manager
-========================
+
+Settings Contexts
+-----------------
 
 `postgresql.api.Settings` objects are context managers as well. This provides
 the user with the ability to specify sections of code that are to be ran with
-certain settings. The settings' context manager makes heavy use of keyword
+certain settings. The settings' context manager takes full advantage of keyword
 arguments:
 
 	>>> with db.settings(search_path = 'local,public', timezone = 'mst'):
-	... 	...
+	...  ...
 
 When the block exits, the settings will be restored to the values that they had
 when the block entered.
 
-------------
+
 Type Support
-------------
+============
 
 The driver supports a large number of PostgreSQL types at the binary level.
 Most types are converted to standard Python types. The remaining types are
@@ -817,7 +969,6 @@ will use the string format of the type and instantiate a `str` object
 for the data. It will also expect `str` data when parameter of a type without a
 conversion function is bound.
 
-Mulit-dimensional arrays and composite types are completely supported.
 
 .. note::
    Generally, these standard types are provided for convenience. If conversions into
@@ -840,21 +991,55 @@ Mulit-dimensional arrays and composite types are completely supported.
 
  `postgresql.types.DATEOID`        `datetime.date`                    date
  `postgresql.types.TIMESTAMPOID`   `datetime.datetime`                timestamp
- `postgresql.types.TIMESTAMPTZOID` `datetime.datetime` (UTC timezone) timestamptz
+ `postgresql.types.TIMESTAMPTZOID` `datetime.datetime` (tzinfo)       timestamptz
  `postgresql.types.TIMEOID`        `datetime.time`                    time
  `postgresql.types.TIMETZOID`      `datetime.time`                    timetz
  `postgresql.types.INTERVALOID`    `datetime.timedelta`               interval
 
- `postgresql.types.NUMERICOID`     `decimal.Decimal`
- `postgresql.types.BYTEAOID`       `bytes`
- `postgresql.types.TEXTOID`        `str`
+ `postgresql.types.NUMERICOID`     `decimal.Decimal`                  numeric
+ `postgresql.types.BYTEAOID`       `bytes`                            bytea
+ `postgresql.types.TEXTOID`        `str`                              text
  ================================= ================================== ===========
 
 The mapping in the above table *normally* goes both ways. So when a parameter
 is passed to a statement, the type *should* be consistent with the corresponding
 Python type. However, many times, for convenience, the object will be passed
 through the type's constructor, so it is not always necessary.
-"""
+
+
+Arrays
+------
+
+Arrays of PostgreSQL types are supported with near transparency. For simple
+arrays, arbitrary iterables can just be given as a statement's parameter and the
+array's constructor will consume the objects produced by the iterator into a
+`postgresql.types.Array` instance. However, in situations where the array has
+multiple dimensions, list objects are used to delimit the boundaries of the
+array.
+
+	>>> ps = db.prepare("select $1::int[]")
+	>>> ps.first([(1,2), (2,3)])
+	TypeError
+
+In the above case, it is apparent that this array is supposed to have two
+dimensions. However, this is not the case for other types:
+
+	>>> ps = db.prepare("select $1::point[]")
+	>>> ps.first([(1,2), (2,3)])
+	postgresql.types.Array([postgresql.types.point((1.0, 2.0)), postgresql.types.point((2.0, 3.0))])
+
+Lists are used to provide the necessary boundary information:
+
+	>>> ps = db.prepare("select $1::int[]")
+	>>> ps.first([[1,2],[2,3]])
+	postgresql.types.Array([[1,2],[2,3]])
+
+The above is the appropriate way to define the array from the original example.
+
+.. hint::
+ The root-iterable object given as an array parameter does not need to be a
+ list-type as it's assumed to be made up of elements.
+'''
 
 __docformat__ = 'reStructuredText'
 if __name__ == '__main__':
