@@ -39,7 +39,7 @@ def extract_parameters(src):
 
 def command(args = sys.argv):
 	p = clientparameters.DefaultParser(
-		"%prog [connection options] [script] [-- script options] [args]",
+		"%prog [connection options] [script] ...",
 		version = '1.0',
 		option_list = default_options
 	)

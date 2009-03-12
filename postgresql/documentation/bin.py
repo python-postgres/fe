@@ -17,9 +17,9 @@ to make the connection with.
 Usage
 -----
 
-Usage: pg_python [connection options] [script] [-- script options] [args]
+Usage: pg_python [Connection Options] [script or script designator] ...
 
-Options:
+Connection Options:
   -d DATABASE, --database=DATABASE
                         database's name
   -h hostname, --host=hostname
@@ -38,14 +38,16 @@ Options:
   -I IRI, --iri=IRI     complete resource identifier, pq-IRI
   -1, --with-transaction
                         run operation with a transaction block
+  --pq-trace=PQ_TRACE   trace PQ protocol transmissions
+
   -C PYTHON_CONTEXT
                         Python context code to
                         run[file://,module:,<code>(__context__)]
   -m PYTHON_MAIN        Python module to run as script(__main__)
   -c PYTHON_MAIN        Python expression to run(__main__)
-  --pq-trace=PQ_TRACE   trace PQ protocol transmissions
   --version             show program's version number and exit
   --help                show this help message and exit
+
 
 Python Environment
 ------------------
@@ -54,16 +56,21 @@ Python Environment
 connection based on the given arguments. It provides the following additional
 builtins:
 
- - ``db`` (the connection object)
- - ``xact`` (db.xact)
- - ``settings`` (db.settings)
- - ``prepare`` (db.prepare)
- - ``proc`` (db.proc)
+ ``db``
+  The PG-API connection object.
 
-All of these are provided for convenience. With a single target being the
-primary use-case, ambiguity is not an issue. Surely, saving four characters for
-accessing each of these is not substantial, but it helps keep code concise and
-tends to be very useful when using ``pg_python`` interactively.
+ ``xact``
+  ``db.xact``
+
+ ``settings``
+  ``db.settings``
+
+ ``prepare``
+  ``db.prepare``
+
+ ``proc``
+  ``db.proc``
+
 
 Interactive Console Backslash Commands
 --------------------------------------

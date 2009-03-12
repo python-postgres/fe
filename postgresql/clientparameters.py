@@ -17,7 +17,6 @@ from itertools import chain
 from functools import partial
 
 from . import iri as pg_iri
-from . import dsn as pg_dsn
 from . import pgpassfile as pg_pass
 
 try:
@@ -252,14 +251,9 @@ def append_db_client_x_parameters(option, opt_str, value, parser):
 make_x_option = partial(make_option, callback = append_db_client_x_parameters)
 
 option_iri = make_x_option('-I', '--iri',
-	help = 'complete resource identifier, pq-IRI',
+	help = 'database locator string',
 	type = 'str',
 	dest = 'pq_iri',
-)
-option_dsn = make_x_option('--dsn',
-	help = 'DSN for connection',
-	type = 'str',
-	dest = 'pq_dsn',
 )
 
 # PostgreSQL Standard Options
@@ -301,14 +295,13 @@ default_optparse_options = [
 	option_settings,
 # Complex Options
 	option_iri,
-	option_dsn,
 ]
 default_optparse_options.extend(standard_optparse_options)
 
 class DefaultParser(StandardParser):
 	"""
 	Parser that includes a variety of connectivity options.
-	(IRI, DSN, sslmode, role(set role), settings)
+	(IRI, sslmode, role(set role), settings)
 	"""
 	standard_option_list = default_optparse_options
 
@@ -381,9 +374,6 @@ def denormalize_parameters(p):
 def x_pq_iri(iri, config):
 	return denormalize_parameters(pg_iri.parse(iri))
 
-def x_pq_dsn(dsn, config):
-	return denormalize_parameters(pg_dsn.parse(dsn))
-
 def x_pg_service(service_name, config):
 	"""
 	Lookup service data using the `service_name`.
@@ -424,7 +414,6 @@ def x_pg_ldap(ldap_url, config):
 default_x_callbacks = {
 	'settings' : x_settings,
 	'pq_iri' : x_pq_iri,
-	'pq_dsn' : x_pq_dsn,
 	'pg_service' : x_pg_service,
 	'pg_ldap' : x_pg_ldap,
 }
