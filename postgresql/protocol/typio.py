@@ -48,11 +48,6 @@ from abc import ABCMeta, abstractmethod
 from decimal import Decimal, DecimalTuple
 import datetime
 
-try:
-	import xml.etree.cElementTree as etree
-except ImportError:
-	import xml.etree.ElementTree as etree
-
 from .. import types as pg_types
 from ..encodings import aliases as pg_enc_aliases
 from . import typstruct as ts
@@ -676,7 +671,12 @@ class TypeIO(object, metaclass = ABCMeta):
 		return self._encode(etree.tostring(xml))[0]
 
 	def xml_unpack(self, xmldata):
-		return pg_types.etree.XML(self._decode(xmldata)[0])
+		xml_or_frag = self._decode(xmldata)[0]
+		try:
+			return pg_types.etree.XML(xml_or_frag)
+		except Exception:
+			# try it again, but return the children.
+			return list(pg_types.etree.XML('<x>' + xml_or_frag + '</x>'))
 
 	def attribute_map(self, pq_descriptor):
 		return {

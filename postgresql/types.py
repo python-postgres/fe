@@ -6,6 +6,10 @@
 PostgreSQL types and identifiers
 """
 import math
+try:
+	import xml.etree.cElementTree as etree
+except ImportError:
+	import xml.etree.ElementTree as etree
 
 InvalidOid = 0
 
