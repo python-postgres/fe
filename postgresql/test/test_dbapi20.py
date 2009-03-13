@@ -728,6 +728,29 @@ class test_dbapi20(TestCaseWithCluster):
 		# Real test for setoutputsize is driver dependant
 		pass
 
+	def test_autocommit(self):
+		con = self._connect()
+		con2 = self._connect()
+		try:
+			con.autocommit = True
+			# autocommit mode on, commit/abort on inappropriate.
+			self.failUnlessRaises(
+				con.InterfaceError,
+				con.commit
+			)
+			self.failUnlessRaises(
+				con.InterfaceError,
+				con.rollback
+			)
+			c = con.cursor()
+			c.execute("create table some_committed_table(i int)")
+			# if this fails, autocommit had no effect on `con`
+			con2.cursor().execute("drop table some_committed_table")
+			con2.commit()
+		finally:
+			con.close()
+			con2.close()
+
 	def test_None(self):
 		con = self._connect()
 		try:

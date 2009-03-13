@@ -197,7 +197,7 @@ class Cursor(object):
 			for p in ps: p.close()
 
 	# Describe the "real" cursor as a "portal".
-	# This should keep ambiguous terminology out of the picture.
+	# This should keep ambiguous terminology out of adaptor.
 	def _portal():
 		def fget(self):
 			if self.__portals is None:
@@ -229,6 +229,32 @@ class Connection(object):
 	DatabaseError = DatabaseError
 	NotSupportedError = NotSupportedError
 
+	def autocommit_set(self, val):
+		if val:
+			# already in autocommit mode.
+			if self._xact is None:
+				return
+			self._xact.rollback()
+			self._xact = None
+		else:
+			if self._xact is not None:
+				return
+			self._xact = self.database.xact()
+			self._xact.start()
+
+	def autocommit_get(self):
+		return self._xact is None
+
+	def autocommit_del(self):
+		self.autocommit = False
+
+	autocommit = property(
+		fget = autocommit_get,
+		fset = autocommit_set,
+		fdel = autocommit_del,
+	)
+	del autocommit_set, autocommit_get, autocommit_del
+
 	def __init__(self, connection):
 		self.database = connection
 		self._xact = self.database.xact()
@@ -236,18 +262,43 @@ class Connection(object):
 
 	def close(self):
 		if self.database.closed:
-			raise Error("connection already closed")
+			err = Error(
+				"connection already closed",
+				source = 'DRIVER',
+			)
+			self.database.ife_descend(err)
+			err.raise_exception()
 		self.database.close()
 
 	def cursor(self):
 		return Cursor(self)
 
 	def commit(self):
+		if self._xact is None:
+			err = InterfaceError(
+				"commit on connection in autocommit mode",
+				source = 'DRIVER',
+				details = {
+					'hint': 'The "autocommit" property on the connection was set to True.'
+				}
+			)
+			self.database.ife_descend(err)
+			err.raise_exception()
 		self._xact.commit()
 		self._xact = self.database.xact()
 		self._xact.start()
 
 	def rollback(self):
+		if self._xact is None:
+			err = InterfaceError(
+				"rollback on connection in autocommit mode",
+				source = 'DRIVER',
+				details = {
+					'hint': 'The "autocommit" property on the connection was set to True.'
+				}
+			)
+			self.database.ife_descend(err)
+			err.raise_exception()
 		self._xact.rollback()
 		self._xact = self.database.xact()
 		self._xact.start()
