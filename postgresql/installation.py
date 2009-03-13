@@ -186,11 +186,16 @@ class Installation(pg_api.Installation):
 				if os.path.exists(os.path.join(x, 'pg_config'))
 			] + [None])[0]
 		)
-		return pg_config_path if os.path.exists(pg_config_path) else None
+		return pg_config_path if (
+			pg_config_path and os.path.exists(pg_config_path)
+		) else None
 
 	@classmethod
 	def default(typ):
-		return typ(typ.default_pg_config())
+		path = typ.default_pg_config()
+		if path is None:
+			return None
+		return typ(path)
 
 	def __new__(typ, pg_config_path):
 		# One instance for each installation.
