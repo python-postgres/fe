@@ -10,13 +10,31 @@ paramstyle = 'pyformat'
 apilevel = '2.0'
 
 from operator import itemgetter
+from functools import partial
 import re
 import postgresql.driver as pg_driver
 import postgresql.types as pg_type
 import postgresql.string as pg_str
 import datetime, time
 
-find_parameters = re.compile(r'%\(([^)]+)\)s')
+##
+# Basically, is it a mapping, or is it a sequence?
+# If findall()'s first index is 's', it's a sequence.
+# If it starts with '(', it's mapping.
+# The pain here is due to a need to recognize any %% escapes.
+parameters_re = re.compile(
+	r'(?:%%)+|%(s|[(][^)]*[)]s)'
+)
+def percent_parameters(sql):
+	# filter any %% matches(empty strings).
+	return [
+		x for x in parameters_re.findall(sql) if x
+	]
+
+def convert_keywords(keys, mapping):
+	return [
+		mapping[k] for k in keys
+	]
 
 from postgresql.exceptions import \
 	Error, DataError, InternalError, \
@@ -60,15 +78,6 @@ def dbapi_type(typid):
 		return DATETIME
 	elif typid == pg_type.OIDOID:
 		return ROWID
-
-def convert_keyword_parameters(nseq, seq):
-	"""
-	Given a sequence of keywords, `nseq`, yield each mapping object in `seq`
-	as a tuple whose objects are the values of the keys specified in `nseq` in
-	an order consistent with that in `nseq`
-	"""
-	for x in seq:
-		yield [x[y] for y in nseq]
 
 class Cursor(object):
 	rowcount = -1
@@ -117,76 +126,85 @@ class Cursor(object):
 		del self._portal
 		return len(self.__portals) or None
 
-	def execute(self, query, parameters = None):
-		if parameters:
-			parameters = list(parameters.items())
-			pnmap = {}
-			plist = []
-			for x in range(len(parameters)):
-				pnmap[parameters[x][0]] = '$' + str(x + 1)
-				plist.append(parameters[x][1])
-			# Substitute %(key)s with the $x positional parameter number
-			rqparts = []
-			for qpart in pg_str.split(query):
-				if type(qpart) is type(()):
-					# quoted section
-					rqparts.append(qpart)
+	def _convert_query(self, string):
+		parts = list(pg_str.split(string))
+		style = None
+		count = 0
+		keys = []
+		kmap = {}
+		transformer = tuple
+		rparts = []
+		for part in parts:
+			if type(part) is type(()):
+				# skip quoted portions
+				rparts.append(part)
+			else:
+				r = percent_parameters(part)
+				pcount = 0
+				for x in r:
+					if x == 's':
+						pcount += 1
+					else:
+						x = x[1:-2]
+						if x not in keys:
+							kmap[x] = '$' + str(len(keys) + 1)
+							keys.append(x)
+				if r:
+					if pcount:
+						# format
+						params = tuple([
+							'$' + str(i+1) for i in range(count, count + pcount)
+						])
+						count += pcount
+						rparts.append(part % params)
+					else:
+						# pyformat
+						rparts.append(part % kmap)
 				else:
-					rqparts.append(qpart % pnmap)
-			q = self.database.prepare(pg_str.unsplit(rqparts))
-			r = q(*plist)
-		else:
-			q = self.database.prepare(query)
-			r = q()
+					# no parameters identified in string
+					rparts.append(part)
 
-		if q._output is not None and len(q._output) > 0:
+		if keys:
+			if count:
+				raise TypeError(
+					"keyword parameters and positional parameters used in query"
+				)
+			transformer = partial(convert_keywords, keys)
+			count = len(keys)
+
+		return (pg_str.unsplit(rparts) if rparts else string, transformer, count)
+
+	def execute(self, statement, parameters = ()):
+		sql, pxf, nparams = self._convert_query(statement)
+		if nparams != -1 and len(parameters) != nparams:
+			raise TypeError(
+				"statement require %d parameters, given %d" %(
+					nparams, len(parameters)
+				)
+			)
+		ps = self.database.prepare(sql)
+		c = ps(*pxf(parameters))
+		if ps._output is not None and len(ps._output) > 0:
 			# name, relationId, columnNumber, typeId, typlen, typmod, format
 			self.description = tuple([
 				(self.database.typio.decode(x[0]), dbapi_type(x[3]),
 				None, None, None, None, None)
-				for x in q._output
+				for x in ps._output
 			])
-			self.__portals.insert(0, r)
+			self.__portals.insert(0, c)
 		else:
 			self.description = None
 			if self.__portals:
 				del self._portal
 		return self
 
-	def _convert_query(self, string, map):
-		rqparts = []
-		for qpart in pg_str.split(string):
-			if type(qpart) is type(()):
-				rqparts.append(qpart)
-			else:
-				rqparts.append(qpart % map)
-		return pg_str.unsplit(rqparts)
-
-	def _statement_params(self, string):
-		map = {}
-		param_num = 1
-		for qpart in pg_str.split(string):
-			if type(qpart) is not type(()):
-				for x in find_parameters.finditer(qpart):
-					pname = x.group(1)
-					if pname not in map:
-						map[pname] = param_num
-						param_num += 1
-		return map
-
-	def executemany(self, query, param_iter):
-		mapseq = list(self._statement_params(query).items())
-		realquery = self._convert_query(query, {
-			k : '$' + str(v) for k,v in mapseq
-		})
-		mapseq.sort(key = itemgetter(1))
-		nseq = [x[0] for x in mapseq]
-		q = self.database.prepare(realquery)
-		q.prepare()
-		if q._input is not None:
-			q.load(convert_keyword_parameters(nseq, param_iter))
+	def executemany(self, statement, parameters):
+		sql, pxf, nparams = self._convert_query(statement)
+		ps = self.database.prepare(sql)
+		if ps._input is not None:
+			ps.load(map(pxf, parameters))
 		else:
-			q.load(param_iter)
+			ps.load(parameters)
 		return self
 
 	def close(self):

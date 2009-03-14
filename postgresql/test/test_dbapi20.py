@@ -326,6 +326,13 @@ class test_dbapi20(TestCaseWithCluster):
 		finally:
 			con.close()
 
+	def test_format_execute(self):
+		self.driver.paramstyle = 'format'
+		try:
+			self.test_execute()
+		finally:
+			self.driver.paramstyle = 'pyformat'
+
 	def _paraminsert(self,cur):
 		self.executeDDL1(cur)
 		cur.execute("insert into %sbooze values ('Victoria Bitter')" % (
@@ -427,6 +434,13 @@ class test_dbapi20(TestCaseWithCluster):
 			self.assertEqual(beers[1],"Cooper's",'incorrect data retrieved')
 		finally:
 			con.close()
+
+	def test_format_executemany(self):
+		self.driver.paramstyle = 'format'
+		try:
+			self.test_executemany()
+		finally:
+			self.driver.paramstyle = 'pyformat'
 
 	def test_fetchone(self):
 		con = self._connect()
