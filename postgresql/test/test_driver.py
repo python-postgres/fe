@@ -511,6 +511,12 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			'foo',
 		)
 
+	def testUnPreparedTransactionCommit(self):
+		x = self.db.xact(gid = 'never_prepared')
+		x.start()
+		self.failUnlessRaises(pg_exc.OperationError, x.commit)
+		self.failUnlessRaises(pg_exc.OperationError, x.commit)
+
 	def testPreparedTransactionRollback(self):
 		x = self.db.xact(gid = 'rollback_gid')
 		with x:

@@ -765,7 +765,7 @@ class Transaction(InterfaceElement):
 
 		If the database is in a transaction block, the transaction should be
 		configured as a savepoint. If any transaction block configuration was
-		applied to the transaction, raise a postgresql.exceptions.OperationError.
+		applied to the transaction, raise a `postgresql.exceptions.OperationError`.
 
 		If the database is not in a transaction block, start one using the
 		configuration where:
@@ -776,7 +776,10 @@ class Transaction(InterfaceElement):
 		`self.mode` specifies the mode of the transaction. Normally, ``READ
 		ONLY`` or ``READ WRITE``.
 
-		If the transaction is open, do nothing.
+		If the transaction is open--started or prepared, do nothing.
+
+		If the transaction has been committed or aborted, raise an
+		`postgresql.exceptions.OperationError`.
 		"""
 	begin = start
 
@@ -786,7 +789,7 @@ class Transaction(InterfaceElement):
 		Commit the transaction.
 
 		If the transaction is configured with a `gid` and it has not been
-		prepared, issue a PREPARE TRANSACTION statement with the configured `gid`.
+		prepared, raise a `postgresql.exceptions.OperationError`.
 
 		If the transaction is configured with a `gid` and has already been
 		prepared, issue a COMMIT PREPARED statement with the configured `gid`.
@@ -835,10 +838,11 @@ class Transaction(InterfaceElement):
 	@abstractmethod
 	def prepare(self) -> None:
 		"""
-		Explicitly prepare the transaction with the configured `gid`.
-		Commit will automatically call this method if the transaction has a
-		configured `gid`, so it is primarily provided for isolating the
-		functionality that will be used by `commit`.
+		Explicitly prepare the transaction with the configured `gid` by issuing a
+		PREPARE TRANSACTION statement with the configured `gid`.
+		This *must* be called for the first phase of the commit.
+
+		If the transaction is already prepared, do nothing.
 		"""
 
 	@abstractmethod
@@ -863,6 +867,9 @@ class Transaction(InterfaceElement):
 		`postgresql.exceptions.InFailedTransactionError`. If the database is
 		unavailable, the `rollback` method should cause a
 		`postgresql.exceptions.ConnectionDoesNotExistError` exception to occur.
+
+		If the transaction is configured with a `gid` and the transaction has not
+		been prepared, run the `prepare` method.
 
 		Otherwise, run the transaction's `commit` method.
 		"""

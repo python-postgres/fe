@@ -1583,7 +1583,10 @@ class Transaction(pg_api.Transaction):
 				err.raise_exception()
 			else:
 				# No exception, and no error state. Everything is good.
-				self.commit()
+				if self.gid is not None and self.state == 'open':
+					self.prepare()
+				else:
+					self.commit()
 		else:
 			# There's an exception, so only rollback if the connection
 			# exists. If the rollback() was called here, it would just
@@ -1659,7 +1662,6 @@ class Transaction(pg_api.Transaction):
 				self.ife_descend(err)
 				err.raise_exception()
 			q = self._savepoint_xact_string(hex(id(self)))
-		self.state = 'starting'
 		self.database.execute(q)
 		self.state = 'open'
 	begin = start
@@ -1690,7 +1692,6 @@ class Transaction(pg_api.Transaction):
 			self.ife_descend(err)
 			err.raise_exception()
 		q = self._prepare_string(self.gid)
-		self.state = 'preparing'
 		self.database.execute(q)
 		self.state = 'prepared'
 
@@ -1713,6 +1714,8 @@ class Transaction(pg_api.Transaction):
 			err.raise_exception()
 
 	def commit(self):
+		if self.state == 'committed':
+			return
 		if self.state not in ('prepared', 'open'):
 			err = pg_exc.OperationError(
 				"commit attempted on transaction with unexpected state",
@@ -1728,7 +1731,14 @@ class Transaction(pg_api.Transaction):
 				if self.state == 'prepared':
 					q = "COMMIT PREPARED '" + self.gid.replace("'", "''") + "';"
 				else:
-					return self.prepare()
+					err = pg_exc.OperationError(
+						"cannot commit un-prepared two-phase commit transaction",
+						details = {
+							'hint': "Run the prepare() method before commit()."
+						}
+					)
+					self.ife_descend(err)
+					err.raise_exception()
 			else:
 				q = 'COMMIT'
 		else:
@@ -1743,7 +1753,6 @@ class Transaction(pg_api.Transaction):
 				self.ife_descend(err)
 				err.raise_exception()
 			q = self._release_string(hex(id(self)))
-		self.state = 'committing'
 		self.database.execute(q)
 		self.state = 'committed'
 
@@ -1773,7 +1782,6 @@ class Transaction(pg_api.Transaction):
 			q = self._rollback_to_string(hex(id(self)))
 		else:
 			raise RuntimeError("unknown transaction type " + repr(self.type))
-		self.state = 'aborting'
 		self.database.execute(q)
 		self.state = 'aborted'
 	abort = rollback
