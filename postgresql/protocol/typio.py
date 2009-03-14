@@ -274,13 +274,6 @@ time64_io_noday[pg_types.INTERVALOID] = (
 	lambda x: interval_unpack(ts.interval64_noday_unpack(x))
 )
 
-def circle_unpack(x):
-	"""
-	Given raw circle data, (x, y, radius), make a circle instance using
-	`postgresql.types.circle`.
-	"""
-	return pg_types.circle(((x[0], x[1]), x[2]))
-
 def two_pair(x):
 	'Make a pair of pairs out of a sequence of four objects'
 	return ((x[0], x[1]), (x[2], x[3]))
@@ -306,9 +299,10 @@ def lseg_unpack(x):
 	return pg_types.lseg(two_pair(ts.lseg_unpack(x)))
 
 def circle_pack(x):
-	lambda x: ts.circle_pack((x[0][0], x[0][1], x[1])),
+	return ts.circle_pack((x[0][0], x[0][1], x[1]))
 def circle_unpack(x):
-	lambda x: circle_unpack(ts.circle_unpack(x))
+	x = ts.circle_unpack(x)
+	return pg_types.circle(((x[0], x[1]), x[2]))
 
 ##
 # numeric is represented using:
