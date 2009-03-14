@@ -125,7 +125,7 @@ def alter_config(
 			if val is not None:
 				if not lines[-1].endswith(os.linesep):
 					lines[-1] = lines[-1] + os.linesep
-				lines.append('%s = %s' %(key, val))
+				lines.append("%s = '%s'" %(key, val.replace("'", "''")))
 
 	# Multiple lines may have the key, so make a decision based on the value.
 	for ck in candidates.keys():
@@ -211,12 +211,14 @@ def read_config(iter, d = None, selector = None):
 
 class ConfigFile(pg_api.Settings):
 	"""
-	Provides a dictionary mapping interface to a configuration file.
+	Provides a mapping interface to a configuration file.
 
-	Every action will cause the file to be wholly read.
+	Every action will cause the file to be wholly read, so using `update` to make
+	multiple changes is desirable.
 	"""
 	ife_ancestor = None
 	ife_label = 'CONFIGFILE'
+
 	def ife_snapshot_text(self):
 		s = (os.linesep+' ').join(
 			k + ' = ' + v for k,v in self.items()

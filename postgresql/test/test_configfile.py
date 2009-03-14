@@ -108,6 +108,24 @@ winning_cases = [
 		{'foo' : 'newval'},
 		"foo = 'newval'#foo this should be commented"
 	),
+	(
+		# New setting in empty string
+		"",
+		{'bar' : 'newvar'},
+		"bar = 'newvar'",
+	),
+	(
+		# New setting
+		"foo = 'bar'",
+		{'bar' : 'newvar'},
+		"foo = 'bar'\nbar = 'newvar'",
+	),
+	(
+		# New setting with quote escape
+		"foo = 'bar'",
+		{'bar' : "new'var"},
+		"foo = 'bar'\nbar = 'new''var'",
+	),
 ]
 
 class test_configfile(unittest.TestCase):

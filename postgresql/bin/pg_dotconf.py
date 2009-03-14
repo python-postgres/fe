@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 import sys
 from optparse import OptionParser
-from postgresql.configfile import pg_cf
+from .. import configfile as pg_cf
 
-__all__ = ['pg_dotconf']
+__all__ = ['command']
 
 def command(args):
 	"""
 	pg_dotconf script entry point.
 	"""
 	op = OptionParser(
-		"%prog [--stdout] [-f settings] config_file_src [param=val]+",
+		"%prog [--stdout] [-f settings] config_file_src ([param=val]|[param])+",
 		version = '0'
 	)
 	op.add_option(
@@ -41,15 +41,9 @@ def command(args):
 						settings[line[pl[0]]] = unquote(line[pl[1]])
 
 	for p in ca[1:]:
-		if p.startswith('#'):
-			k = p[1:]
+		if '=' not in p:
+			k = p
 			v = None
-		elif '=' not in p:
-			sys.stderr.write(
-				"ERROR: setting parameter, %r, does not have '=' " \
-				"to separate setting name from setting value"
-			)
-			return 1
 		else:
 			k, v = p.split('=', 1)
 		settings[k] = v
