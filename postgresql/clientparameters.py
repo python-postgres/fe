@@ -235,7 +235,7 @@ option_settings = make_option('-s', '--setting',
 
 option_sslmode = make_option('--ssl-mode',
 	dest = 'sslmode',
-	help = 'SSL rules for connectivity',
+	help = 'SSL requirement for connectivity: require, prefer, allow, disable',
 	choices = ('require','prefer','allow','disable'),
 	type = 'choice',
 )
@@ -251,7 +251,7 @@ def append_db_client_x_parameters(option, opt_str, value, parser):
 make_x_option = partial(make_option, callback = append_db_client_x_parameters)
 
 option_iri = make_x_option('-I', '--iri',
-	help = 'database locator string',
+	help = 'database locator string [pq://user:password@host:port/database?setting=value]',
 	type = 'str',
 	dest = 'pq_iri',
 )
