@@ -55,7 +55,6 @@ class PythonMessage(pg_api.Message):
 		l = [
 			': '.join((x[1], x[2])) for x in ss
 		]
-		l.reverse()
 		this = self.ife_snapshot_text()
 		return this + (os.linesep + os.linesep.join(l) if l else "")
 
