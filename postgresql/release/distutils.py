@@ -28,8 +28,8 @@ of PostgreSQL. Notably, it provides a driver for querying a PostgreSQL database.
 Sample PG-API Code
 ------------------
 
-	>>> import postresql.driver as pg_driver
-	>>> db = pg_driver.connect(user = 'mydbuser', host = 'localhost', port = 5432, database = 'mydbname')
+	>>> import postresql
+	>>> db = postgresql.open('pq://user:password@host:port/database')
 	>>> db.execute("CREATE TABLE emp (emp_first_name text, emp_last_name text, emp_salary numeric)")
 	>>> make_emp = db.prepare("INSERT INTO emp VALUES ($1, $2, $3)")
 	>>> make_emp("John", "Doe", "75,322")
@@ -46,10 +46,11 @@ However, PG-API is recommended as it provides greater utility.
 
 Once you get it installed, try out the ``pg_python`` command::
 
-	$ pg_python -h localhost -U theuser -d database_name
+	$ pg_python -h localhost -p port -U theuser -d database_name
 
-That should give you a Python console with the database connection bound to the
-`db` name.
+If a successful connection is made to the remote host, it will provide a Python
+console with the database connection bound to the `db` name.
+
 
 History
 -------
