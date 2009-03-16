@@ -3,7 +3,7 @@
 # http://python.projects.postgresql.org
 ##
 """
-Python command with a postgresql.driver.pq3 connection.
+Python command with a PG-API connection.
 """
 import os
 import sys
@@ -15,6 +15,7 @@ from .. import clientparameters
 from ..resolved import pythoncommand as pycmd
 
 from ..driver import default as pg_driver
+from .. import exceptions as pg_exc
 
 pq_trace = optparse.make_option(
 	'--pq-trace',
@@ -23,50 +24,50 @@ pq_trace = optparse.make_option(
 	default = None,
 )
 default_options = [
-	clientparameters.option_in_xact,
 	pq_trace,
 ] + pycmd.default_optparse_options
 
-param_pattern = re.compile(
-	r'^\s*#\s+-\*-\s+postgresql\.([^:]+):\s+([^\s]*)\s+-\*-\s*$',
-	re.M
-)
-def extract_parameters(src):
-	'extract hard parameters out of the "-*- postgresql.*: -*-" magic lines'
-	return [
-		x for x in re.findall(param_pattern, src)
-	]
-
-def command(args = sys.argv):
+def command(argv = sys.argv):
 	p = clientparameters.DefaultParser(
 		"%prog [connection options] [script] ...",
 		version = '1.0',
 		option_list = default_options
 	)
 	p.disable_interspersed_args()
-	co, ca = p.parse_args(args[1:])
-	in_xact = co.in_xact
+	co, ca = p.parse_args(argv[1:])
 
-	cond = clientparameters.standard(co = co, prompt_title = "pg_python")
-	connector = pg_driver.create(**cond)
-	connection = connector.create()
+	need_prompt = False
+	cond = None
+	connector = None
+	connection = None
+	while connection is None:
+		try:
+			cond = clientparameters.standard(co = co, prompt_title = None)
+			if need_prompt:
+				# authspec error thrown last time
+				cond['prompt_password'] = True
+			try:
+				clientparameters.resolve_password(cond, prompt_title = 'pg_python')
+			except EOFError:
+				sys.stderr.write(os.linesep + "ERROR: session aborted" + os.linesep)
+				raise SystemExit(1)
+			connector = pg_driver.create(**cond)
+			connection = connector()
+		except pg_exc.ClientCannotConnectError as err:
+			for (didssl, sc, cf) in err.connection_failures:
+				if isinstance(cf, pg_exc.AuthenticationSpecificationError):
+					sys.stderr.write(os.linesep + cf.message + (os.linesep*2))
+					# keep prompting the user
+					need_prompt = True
+					break
+			else:
+				# no invalid password failures..
+				raise
 
 	pythonexec = pycmd.Execution(ca,
 		context = getattr(co, 'python_context', None),
 		loader = getattr(co, 'python_main', None),
 	)
-	# Some points of configuration need to be demanded by a script.
-	src = pythonexec.get_main_source()
-	if src is not None:
-		hard_params = dict(extract_parameters(src))
-		if hard_params:
-			iso = hard_params.get('isolation')
-			if iso is not None:
-				if iso == 'none':
-					in_xact = False
-				else:
-					in_xact = True
-					connection.xact(isolation = iso)
 
 	builtin_overload = {
 	# New built-ins
@@ -92,8 +93,6 @@ def command(args = sys.argv):
 		if trace_file is not None:
 			connection.tracer = trace_file.write
 		context = [connection]
-		if in_xact:
-			context.append(connection.xact)
 		with contextlib.nested(*context):
 			rv = pythonexec(
 				context = pycmd.postmortem(os.environ.get('PYTHON_POSTMORTEM'))
