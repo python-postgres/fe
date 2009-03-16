@@ -27,6 +27,8 @@ build_extensions = (
 	os.environ.get('PY_BUILD_EXTENSIONS') \
 	or not sys.platform in ('win32',)
 )
+if build_extensions == '0':
+	build_extensions = False
 
 import postgresql.release.distutils as pg_dist
 defaults = pg_dist.standard_setup_keywords(
