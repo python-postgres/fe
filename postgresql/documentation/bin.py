@@ -6,6 +6,8 @@ r'''
 Console Scripts
 ***************
 
+This chapter discusses the usage of the available console scripts.
+
 ``pg_python``
 =============
 
@@ -14,35 +16,31 @@ single target database. It acts like the regular Python console command, but
 then takes standard PostgreSQL options as well to specify the client parameters
 to make the connection with.
 
-Usage
------
+pg_python Usage
+---------------
 
-Usage: pg_python [Connection Options] [script or script designator] ...
+Usage: pg_python.py [connection options] [script] ...
 
-Connection Options:
-  -d DATABASE, --database=DATABASE
-                        database's name
-  -h hostname, --host=hostname
-                        database server host
+Options:
+  --unix=UNIX           path to filesystem socket
+  --ssl-mode=SSLMODE    SSL requirement for connectivity: require, prefer,
+                        allow, disable
+  --role=ROLE           run operation as the role
+  -s SETTINGS, --setting=SETTINGS
+                        run-time parameters to set upon connecting
+  -I PQ_IRI, --iri=PQ_IRI
+                        database locator string
+                        [pq://user:password@host:port/database?setting=value]
+  -h HOST, --host=HOST  database server host
   -p PORT, --port=PORT  database server port
   -U USER, --username=USER
                         user name to connect as
   -W, --password        prompt for password
-  --unix=FILE_SYSTEM_PATH
-                        path to filesystem socket
-  --ssl-mode=SSLMODE    SSL rules for connectivity
-   disable, allow, require, or prefer. prefer is the default.
-  --role=ROLE           run operation as the role
-  -s NAME=VALUE, --setting=NAME=VALUE
-                        run-time parameters to set upon connecting
-  -I IRI, --iri=IRI     complete resource identifier, pq-IRI
-  -1, --with-transaction
-                        run operation with a transaction block
+  -d DATABASE, --database=DATABASE
+                        database's name
   --pq-trace=PQ_TRACE   trace PQ protocol transmissions
-
-  -C PYTHON_CONTEXT
-                        Python context code to
-                        run[file://,module:,<code>(__context__)]
+  -C PYTHON_CONTEXT, --context=PYTHON_CONTEXT
+                        Python context code to run[file://,module:,<code>]
   -m PYTHON_MAIN        Python module to run as script(__main__)
   -c PYTHON_MAIN        Python expression to run(__main__)
   --version             show program's version number and exit
@@ -86,6 +84,95 @@ Inspired by ``psql``::
 	  \i      Execute a Python script within the interpreter's context.
 	  \set    Configure environment variables. \set without arguments to show all
 	  \x      Execute the Python command within this process.
+
+
+``pg_dotconf``
+==============
+
+pg_dotconf is used to safely modify a PostgreSQL cluster's configuration file.
+It provides a means to apply settings specified from the command line and from a
+file referenced using the ``-f`` option.
+
+.. warning::
+ ``include`` directives in configuration files are completely ignored. If
+ modification of an included file is desired, the command must be applied to
+ that specific file.
+
+
+pg_dotconf Usage
+----------------
+
+Usage: pg_dotconf.py [--stdout] [-f filepath] postgresql.conf ([param=val]|[param])*
+
+Options:
+  --version             show program's version number and exit
+  -h, --help            show this help message and exit
+  -f SETTINGS, --file=SETTINGS
+                        A file of settings to *apply* to the given
+                        "postgresql.conf"
+  --stdout              Redirect the product to standard output instead of
+                        writing back to the "postgresql.conf" file
+
+
+Modifying a simple configuration file::
+
+	$ echo "setting = value" >pg.conf
+	$
+	$ # change 'setting'
+	$ pg_dotconf pg.conf setting=newvalue
+	$ cat pg.conf
+	setting = 'newvalue'
+	$
+	$ # new settings are appended to the file
+	$ pg_dotconf pg.conf another_setting=value
+	$ cat pg.conf
+	setting = 'newvalue'
+	another_setting = 'value'
+	$
+	$ # comment a setting
+	$ pg_dotconf pg.conf another_setting
+	$ cat pg.conf
+	setting = 'newvalue'
+	#another_setting = 'value'
+
+When a setting is given on the command line, it must been seen as one argument
+to the command, so it's *very* important to avoid invocations like::
+
+	$ pg_dotconf pg.conf setting = value
+	ERROR: invalid setting, '=' after 'setting'
+	HINT: Settings must take the form 'setting=value' or 'setting_name_to_comment'. Settings must also be received as a single argument.
+
+
+``pg_withcluster``
+==================
+
+``pg_withcluster`` is a command that manages a cluster for the duration of the
+given command. It is intended to provide support for test suites that require
+a cluster in order to validate functionality.
+
+
+pg_withcluster Usage
+--------------------
+
+
+``pg_tin``
+==========
+
+``pg_tin`` provides functionality for the management of a set of PostgreSQL
+clusters for the purpose of running quick tests against arbitrary versions of
+PostgreSQL.
+
+The functionality of the command is based around a cluster selector, and the
+command to run for each selected cluster::
+
+	$ pg_tin -V 8.0 com psql -c 'SELECT 1'
+
+The above command runs the ``psql`` command associated with the
+installation of the current working cluster for each cluster in the active set
+whose version is "8.0.x".
+
+pg_tin Usage
+------------
 '''
 
 __docformat__ = 'reStructuredText'

@@ -20,13 +20,20 @@ this is the setup.py script contained in the root project directory.
 
 Normally, installation is as simple as::
 
-	$ ./setup.py install
+	$ python3 ./setup.py install
 
 However, if you need to install for use with a particular version of python::
 
 	$ /usr/opt/bin/python3.0 ./setup.py install
 
-Under most POSIX systems, the above should work without problem.
+Under most POSIX systems, the above should work without problem. However, if it
+does fail, it is likely due to a C extension.
+
+The building of C extensions can be disable using the ``PY_BUILD_EXTENSIONS``
+environment variable::
+
+	$ env PY_BUILD_EXTENSIONS=0 python3 ./setup.py install
+
 
 Extension Modules under Windows
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -53,11 +60,11 @@ Or more likely, compile using mingw32::
 Environment
 -----------
 
-py-postgresql is not included with the PostgreSQL distribution, so it's
-impossible for certain defaults to be filled in in a way that's consistent with
-bundled applications. ``PGINSTALLATION`` can be used to direct the Python
-libraries at the appropriate PostgreSQL installation. This should be set to the
-absolute path of the ``pg_config`` executable.
+These environment variables effect the operation of the package:
+
+ ============== ===============================================================================
+ PGINSTALLATION The path to the ``pg_config`` executable of the installation to use by default.
+ ============== ===============================================================================
 """
 
 __docformat__ = 'reStructuredText'

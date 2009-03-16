@@ -624,7 +624,7 @@ class PreparedStatement(
 		query. This is a bulk-loading interface for parameterized queries.
 
 		Effectively, it is equivalent to:
-		
+
 			>>> q = db.prepare(sql)
 			>>> for i in iterable:
 			...  q(*i)

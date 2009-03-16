@@ -622,10 +622,10 @@ long as there is enough memory available, so it is *very* desirable to avoid
 doing other actions on the connection while a COPY is active.
 
 In situations where other actions are invoked during a ``COPY FROM STDIN``, a
-COPY failure error will be thrown by the database. The driver manages the
-connection state in such a way that will purposefully cause the error as the
-COPY was inappropriately interrupted. This not usually a problem as the
-``load(...)`` method must complete the COPY command before returning.
+COPY failure error will occur. The driver manages the connection state in such
+a way that will purposefully cause the error as the COPY was inappropriately
+interrupted. This not usually a problem as the ``load(...)`` method must
+complete the COPY command before returning.
 
 Copy data is always transferred using ``bytes`` objects. Even in cases where the
 COPY is not in ``BINARY`` mode. Any needed encoding transformations *must* be
@@ -733,7 +733,7 @@ of the OUT parameters:
 Transactions
 ============
 
-Transactions are managed by creating an object that will correspond to the
+Transactions are managed by creating an object corresponds to a
 transaction started on the server. A transaction is a transaction block,
 a savepoint, or a prepared transaction. The ``xact(...)`` method on the
 connection object provides the standard method for creating a
@@ -766,24 +766,27 @@ Transaction Interface Entry Points
 ----------------------------------
 
 The methods available on transaction objects manage the state of the transaction
-and relay any necessary instructions to the remote server in order to change
-that state.
+and relay any necessary instructions to the remote server in order to reflect
+that change of state.
 
- ``start()``
+	>>> x = db.xact(...)
+
+ ``x.start()``
   Start the transaction.
 
- ``commit()``
+ ``x.commit()``
   Commit the transaction.
 
- ``rollback()``
-  Abort the transaction.
+ ``x.rollback()``
+  Abort the transaction. For prepared transactions, this can be called at any
+  phase.
 
- ``recover()``
+ ``x.recover()``
   Identify the existence of the prepared transaction.
 
- ``prepare()``
-  Prepare the transaction for the final commit. Once prepared, the second phase
-  may be ran--commit, or rollback.
+ ``x.prepare()``
+  Prepare the transaction for the final commit. Once prepared, the second commit
+  may be ran to finalize the transaction, ``x.commit()``. 
 
 These methods are primarily provided for applications that manage transactions
 in a way that cannot be formed around single, sequential blocks of code.
@@ -837,7 +840,7 @@ as it may allow for code to be ran that presumes the transaction was committed.
 The driver intervenes here and raises the
 `postgresql.exceptions.InFailedTransactionError` to safe-guard against such
 cases. This effect is consistent with savepoint releases that occur during an
-error state. The distinction between the two is made using the ``source``
+error state. The distinction between the two cases is made using the ``source``
 property on the raised exception.
 
 
@@ -849,7 +852,7 @@ properties of the transaction. Only three points of configuration are available:
 
  ``gid``
   The global identifier to use. Identifies the transaction as using two-phase
-  commit.
+  commit. The ``prepare()`` method must be called first.
 
  ``isolation``
   The isolation level of the transaction. This must be a string. It will be
@@ -863,7 +866,7 @@ properties of the transaction. Only three points of configuration are available:
 The specification of any of these transaction properties imply that the transaction
 is a block. Savepoints do not take configuration, so if a transaction identified
 as a block is started while another block is running, an exception will be
-thrown.
+raised.
 
 
 Prepared Transactions
@@ -909,7 +912,7 @@ methods:
 
 When a transaction is recovered and the configured ``gid`` does not exist, the
 driver will throw a `postgresql.exceptions.UndefinedObjectError`. This is
-consistent with the error that is thrown by ROLLBACK PREPARED and COMMIT
+consistent with the error that is caused by ROLLBACK PREPARED and COMMIT
 PREPARED when the global identifier does not exist.
 
 	>>> gxact = db.xact(gid='a-non-existing-gid')

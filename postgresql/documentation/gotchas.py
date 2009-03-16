@@ -11,8 +11,8 @@ given user. In order to highlight those potential issues and hopefully bring
 some sense into a confusing situation, this document was drawn.
 
 
-client_encoding GUCs should be altered carefully
-------------------------------------------------
+client_encoding GUC should be altered carefully
+-----------------------------------------------
 
 `postgresql.driver`'s streaming cursor implementation reads a fixed set of rows
 when it queries the server for more. In order to optimize some situations, the

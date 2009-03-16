@@ -4,7 +4,7 @@
 ##
 """
 Client Parameters
-=================
+*****************
 
 Connection creation interfaces in `postgresql.driver` are purposefully simple.
 All parameters are keywords, and are taken literally. libpq-based drivers
@@ -12,17 +12,25 @@ tend differ as they inherit default client parameters from the environment.
 Doing this by default is undesirable as it can cause trivial failures due to
 unexpected parameter inheritance. However, using these parameters from the
 environment and other sources are simply expected in *some* cases--
-`postgresql.open`. The `postgresql.clientparameters` module provides a means
-to collect them into one dictionary-object for subsequent application to a
-connection creation interface.
+`postgresql.open`, `postgresql.bin.pg_python`, and other high-level utilities.
+The `postgresql.clientparameters` module provides a means to collect them into
+one dictionary-object for subsequent application to a connection creation
+interface.
 
 `postgresql.clientparameters` is primarily useful to script authors that want to
 provide an interface consistent with PostgreSQL commands like ``psql``.
 
-The primary entry points are `postgresql.clientparameters` is
+Collecting Parameters
+=====================
 
- `postgresql.clientparameters.standard`
- 
+The primary entry points in `postgresql.clientparameters` are
+`postgresql.clientparameters.standard` and
+`postgresql.clientparameters.resolve_password`.
+
+``standard()`` provides a single function for collecting parameters all the
+standard sources, and even prompting for a password when needed and ``stdin``
+is a TTY.
+
  Build a client parameter dictionary from the environment and parsed command
  line options.
 
@@ -96,7 +104,7 @@ The following is a list of environment variables that will be collected by the
 `postgresql.clientparameter.standard` function using the "PG" ``environ_prefix``:
 
  ===================== ======================================
- Environment Variable  Connection Creation Keyword
+ Environment Variable  Keyword
  ===================== ======================================
  ``PGUSER``            ``'user'``
  ``PGDATABASE``        ``'database'``
