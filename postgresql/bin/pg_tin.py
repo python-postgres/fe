@@ -6,8 +6,8 @@
 pg_tin provides a means to manage a set of test clusters.
 
 This script is used to manage the set of test clusters normally managed in
-"~/.pg_tin". It's purpose is to provide simple and quick access to a PostgreSQL
-database of a given version or configuration.
+"~/.pg_tin". It's purpose is to provide simple and **quick** access to a
+PostgreSQL database of a given version or configuration.
 """
 import sys
 import os
@@ -23,16 +23,6 @@ from ..cluster import Cluster
 from gettext import gettext as _
 
 import optparse
-
-# FIXME: This should check if it can bind the port as well.
-def genport(exceptions = (), limit = 100):
-	port = 0
-	exceptions = (port,) + tuple(exceptions)
-	while port in exceptions and limit:
-		limit -= 1
-		# Get a random a port from 5433 to 55433
-		port = int(random() * 50000) + 5433
-	return port
 
 class Cup(object):
 	'The cup of clusters.'
@@ -82,7 +72,7 @@ class Cup(object):
 				high = num
 		ddirpath = os.path.join(self.path, 'cluster_%d' %(high + 1,))
 
-		kw['superusername'] = 'tinman'
+		kw['user'] = 'tinman'
 		if not kw.has_key('logfile'):
 			kw['logfile'] = sys.stderr
 		clust = Cluster(ddirpath, pg_config_data = conf)
