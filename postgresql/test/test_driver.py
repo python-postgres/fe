@@ -14,7 +14,6 @@ from operator import itemgetter
 
 import postgresql.types as pg_types
 import postgresql.exceptions as pg_exc
-import postgresql.protocol.client3 as c3
 
 import postgresql.unittest as pg_unittest
 
