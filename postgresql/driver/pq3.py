@@ -29,7 +29,7 @@ from .. import api as pg_api
 from ..python.itertools import interlace
 
 from ..protocol.buffer import pq_message_stream
-from ..protocol import client3 as pq
+from ..protocol import xact3 as pq
 from ..protocol import typio as pg_typio
 
 TypeLookup = """
@@ -248,7 +248,7 @@ class Cursor(pg_api.Cursor):
 		if not cursor_id:
 			# Driver uses the empty id(b'').
 			##
-			raise TypeError("invalid cursor identifier, " + repr(cursor_id))
+			raise ValueError("invalid cursor identifier, " + repr(cursor_id))
 		self.cursor_id = str(cursor_id)
 		self._quoted_cursor_id = '"' + self.cursor_id.replace('"', '""') + '"'
 		self.database = database
@@ -286,25 +286,6 @@ class Cursor(pg_api.Cursor):
 
 		self._complete_message = None
 		self.__class__ = Cursor
-
-	def restart(self):
-		if self.parameters is None:
-			e = pg_exc.OperationError(
-				"cannot restart cursor when parameters are unknown"
-			)
-			self.ife_descend(e)
-			e.raise_exception()
-
-		if self.statement is None:
-			e = pg_exc.OperationError(
-				"cannot restart cursor when statement is unknown"
-			)
-			self.ife_descend(e)
-			e.raise_exception()
-
-		if not self.closed:
-			self.close()
-		self._init()
 
 	def _pq_parameters(self):
 		return list(pg_typio.row_pack(
@@ -518,7 +499,7 @@ class TupleCursor(StreamingCursor):
 			self.chunksize = 0
 
 		more = self._pq_xp_fetchmore(self.chunksize)
-		x = pq.Transaction(
+		x = pq.Instruction(
 			setup + more + (pq.element.SynchronizeMessage,)
 		)
 		self._state = (
@@ -534,7 +515,7 @@ class TupleCursor(StreamingCursor):
 		more = self._pq_xp_fetchmore(self.chunksize)
 		if more:
 			new_x = more + (pq.element.SynchronizeMessage,)
-			new_x = pq.Transaction(new_x)
+			new_x = pq.Instruction(new_x)
 			self.ife_descend(new_x)
 		self._state = (
 			self._state[0],
@@ -567,7 +548,7 @@ class TupleCursor(StreamingCursor):
 			# No previous transaction started, so make one.
 			##
 			more = self._pq_xp_fetchmore(count)
-			x = pq.Transaction(more + (pq.element.SynchronizeMessage,))
+			x = pq.Instruction(more + (pq.element.SynchronizeMessage,))
 			self.ife_descend(x)
 			self._state = (offset, buffer, x)
 			self.database._pq_push(x)
@@ -638,7 +619,7 @@ class TupleCursor(StreamingCursor):
 			cmd = self._pq_xp_move(b'', b'LAST') + \
 				self._pq_xp_move(str(offset).encode('ascii'), b'BACKWARD')
 
-		x = pq.Transaction(cmd + (pq.element.SynchronizeMessage,))
+		x = pq.Instruction(cmd + (pq.element.SynchronizeMessage,))
 		self.ife_descend(x)
 		self._state = (0, [], x)
 		self.database._pq_push(x)
@@ -775,7 +756,7 @@ class ServerDeclaredCursor(DeclaredCursor):
 			pq.element.DescribePortal(self._pq_cursor_id),
 			pq.element.FlushMessage,
 		)
-		self._state = (0, [], pq.Transaction(setup))
+		self._state = (0, [], pq.Instruction(setup))
 		self.database._pq_push(self._state[2])
 
 	def _fini(self):
@@ -809,7 +790,7 @@ class UtilityCursor(CursorStrategy):
 	cursor_type = 'utility'
 
 	def _init(self):
-		self._pq_xact = pq.Transaction((
+		self._pq_xact = pq.Instruction((
 			pq.element.Bind(
 				b'',
 				self.statement._pq_statement_id,
@@ -1031,7 +1012,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				pq.element.SynchronizeMessage,
 			)
 		)
-		self._pq_xact = pq.Transaction(cmd)
+		self._pq_xact = pq.Instruction(cmd)
 		self.ife_descend(self._pq_xact)
 		self.database._pq_push(self._pq_xact)
 
@@ -1109,7 +1090,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			params = ()
 
 		# Run the statement
-		x = pq.Transaction((
+		x = pq.Instruction((
 			pq.element.Bind(
 				b'',
 				self._pq_statement_id,
@@ -1166,7 +1147,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		to the socket's send.
 		"""
 		tps = tps or 500
-		x = pq.Transaction((
+		x = pq.Instruction((
 			pq.element.Bind(
 				b'',
 				self._pq_statement_id,
@@ -1248,7 +1229,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				else:
 					last = pq.element.SynchronizeMessage
 				xm.append(last)
-				self.database._pq_push(pq.Transaction(xm))
+				self.database._pq_push(pq.Instruction(xm))
 			self.database._pq_complete()
 		except:
 			##
@@ -1934,7 +1915,7 @@ class Connection(pg_api.Connection):
 		"""
 		if self._pq_xact is not None:
 			self._pq_complete()
-		x = pq.Transaction((pq.element.SynchronizeMessage,))
+		x = pq.Instruction((pq.element.SynchronizeMessage,))
 		self._pq_xact = x
 		self._pq_complete()
 
@@ -1950,7 +1931,7 @@ class Connection(pg_api.Connection):
 			s.close()
 
 	def execute(self, query : str) -> None:
-		q = pq.Transaction((
+		q = pq.Instruction((
 			pq.element.Query(self.typio._encode(query)[0]),
 		))
 		self.ife_descend(q)
@@ -2405,12 +2386,12 @@ class Connection(pg_api.Connection):
 			xm.append(pq.element.CloseStatement(x))
 			statements += 1
 		xm.append(pq.element.SynchronizeMessage)
-		x = pq.Transaction(xm)
+		x = pq.Instruction(xm)
 		self._pq_xact = x
 		del self._closeportals[:portals], self._closestatements[:statements]
 		self._pq_complete()
 
-	def _pq_push(self, xact : pq.ProtocolState):
+	def _pq_push(self, xact : pq.Transaction):
 		'[internal] setup the given transaction to be processed'
 		# Push any queued closures onto the transaction or a new transaction.
 		if xact.state is pq.Complete:

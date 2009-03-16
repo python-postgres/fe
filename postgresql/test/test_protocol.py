@@ -6,7 +6,7 @@ import unittest
 import struct
 import decimal
 import postgresql.protocol.element3 as e3
-import postgresql.protocol.client3 as c3
+import postgresql.protocol.xact3 as x3
 import postgresql.protocol.pbuffer as p_buffer_module
 import postgresql.protocol.typstruct as pg_typstruct
 import postgresql.protocol.typio as pg_typio
@@ -195,7 +195,7 @@ class test_element3(unittest.TestCase):
 				self.failUnless(x is xtype())
 
 ##
-# client3 tests
+# xact3 tests
 ##
 
 xact_samples = [
@@ -326,15 +326,15 @@ xact_samples = [
 	),
 ]
 
-class test_client3(unittest.TestCase):
+class test_xact3(unittest.TestCase):
 	def testTransactionSamplesAll(self):
 		for xcmd, xres in xact_samples:
-			x = c3.Transaction(xcmd)
+			x = x3.Instruction(xcmd)
 			r = tuple([(y.type, y.serialize()) for y in xres])
 			x.state[1]()
 			self.failUnlessEqual(x.messages, ())
 			x.state[1](r)
-			self.failUnlessEqual(x.state, c3.Complete)
+			self.failUnlessEqual(x.state, x3.Complete)
 			rec = []
 			for y in x.completed:
 				for z in y[1]:

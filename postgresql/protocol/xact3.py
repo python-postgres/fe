@@ -28,7 +28,7 @@ AsynchronousMap = {
 def return_arg(x):
 	return x
 
-class ProtocolState(pg_api.InterfaceElement):
+class Transaction(pg_api.InterfaceElement):
 	ife_label = 'PROTOCOL'
 	ife_ancestor = None
 	_ife_exclude_snapshot = True
@@ -49,7 +49,7 @@ class ProtocolState(pg_api.InterfaceElement):
 			s += repr(self.error_message)
 		return s
 
-class Negotiation(ProtocolState):
+class Negotiation(Transaction):
 	"""
 	Negotiation is a protocol transaction used to manage the initial stage of a
 	connection to PostgreSQL.
@@ -246,13 +246,13 @@ class Negotiation(ProtocolState):
 			)
 		self.last_ready = element.Ready.parse(x[1])
 
-class Transaction(ProtocolState):
+class Instruction(Transaction):
 	"""
-	A transaction object is state machine that is initialized with the request
-	messages to be sent to the server. It provides the messages to be sent and
-	takes the response messages for order and integrity validation:
+	Manage the state of a sequence of request messages to be sent to the server.
+	It provides the messages to be sent and takes the response messages for order
+	and integrity validation:
 
-		Transaction([postgresql.protocol.element3.Message(), ..])
+		Instruction([postgresql.protocol.element3.Message(), ..])
 
 	A message must be one of:
 
@@ -383,9 +383,19 @@ class Transaction(ProtocolState):
 
 	def __init__(self, commands):
 		"""
-		Initialize a `Transaction` instance using the given commands. Commands are
-		`postgresql.protocol.element3.Message` instances. (Of course,
-		subclasses thereof.)
+		Initialize an `Instruction` instance using the given commands.
+
+		Commands are `postgresql.protocol.element3.Message` instances:
+
+		 * `postgresql.protocol.element3.Query`
+		 * `postgresql.protocol.element3.Function`
+		 * `postgresql.protocol.element3.Parse`
+		 * `postgresql.protocol.element3.Bind`
+		 * `postgresql.protocol.element3.Describe`
+		 * `postgresql.protocol.element3.Close`
+		 * `postgresql.protocol.element3.Execute`
+		 * `postgresql.protocol.element3.Synchronize`
+		 * `postgresql.protocol.element3.Flush`
 		"""
 		# Commands are accessed by index.
 		self.commands = tuple(commands)
