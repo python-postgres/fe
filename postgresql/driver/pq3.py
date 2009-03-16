@@ -108,7 +108,7 @@ SELECT
 
 TransactionIsPrepared = """
 SELECT TRUE FROM pg_catalog.pg_prepared_xacts
-WHERE gid::text = $1;
+WHERE gid::text = $1
 """
 
 GetPreparedStatement = """
@@ -466,8 +466,11 @@ class StreamingCursor(CursorStrategy):
 				left_to_read -= expanded
 		##
 		# The real quantity becomes the difference
-		# in the buffer length[len(1)] and the offset(0).
-		quantity = len(self._state[1]) - offset
+		# in the buffer length[len(1)] and the offset(0) or
+		# remains the request if more than quantity is buffered.
+		quantity = len(self._state[1]) - offset \
+			if quantity is None \
+			else min(len(self._state[1]) - offset, quantity)
 
 		end_of_block = offset + quantity
 		t = self._state[1][offset:end_of_block]
