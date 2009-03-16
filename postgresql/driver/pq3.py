@@ -49,6 +49,8 @@ FROM pg_type bt
    bt.typelem != 0 AND
    bt.typelem = ae.oid
   )
+ LEFT JOIN pg_namespace ns
+  ON (ns.oid = bt.typnamespace)
 WHERE bt.oid = $1
 """
 
@@ -146,15 +148,15 @@ class ClosedConnection(pg_api.InterfaceElement):
 		self.connection = connection
 
 class TypeIO(pg_typio.TypeIO):
-	def __init__(self, connection):
-		self.connection = connection
+	def __init__(self, database):
+		self.database = database
 		super().__init__()
 
 	def lookup_type_info(self, typid):
-		return self.connection.prepare(TypeLookup).first(typid)
+		return self.database.prepare(TypeLookup).first(typid)
 
 	def lookup_composite_type_info(self, typid):
-		return self.connection.prepare(CompositeLookup)(typid)
+		return self.database.prepare(CompositeLookup)(typid)
 
 class CursorChunks(pg_api.CursorChunks):
 	cursor = None
@@ -464,10 +466,6 @@ class StreamingCursor(CursorStrategy):
 			##
 			while self._buffer_more(None) > 0:
 				pass
-			##
-			# Reading all, so the quantity becomes the difference
-			# in the buffer length[len(1)] and the offset(0).
-			quantity = len(self._state[1]) - offset
 		else:
 			if quantity < 0:
 				# watch me go backwards
@@ -485,6 +483,10 @@ class StreamingCursor(CursorStrategy):
 				# there is no pre-fetching going on.
 				expanded = self._buffer_more(dir*left_to_read)
 				left_to_read -= expanded
+		##
+		# The real quantity becomes the difference
+		# in the buffer length[len(1)] and the offset(0).
+		quantity = len(self._state[1]) - offset
 
 		end_of_block = offset + quantity
 		t = self._state[1][offset:end_of_block]
@@ -992,9 +994,9 @@ class PreparedStatement(pg_api.PreparedStatement):
 		if self.ife_object_title != pg_api.InterfaceElement.ife_object_title:
 			s += self.ife_object_title + ", "
 		s += "statement_id(" + repr(self.statement_id) + ")"
-		s += os.linesep + ' ' * 2 + (os.linesep + ' ' * 2).join(
+		s += os.linesep*2 + ' '*2 + (os.linesep + ' ' * 2).join(
 			str(self.string).split(os.linesep)
-		)
+		) + os.linesep
 		return s
 
 	def __del__(self):
