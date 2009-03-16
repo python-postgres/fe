@@ -17,7 +17,9 @@ Installation should be as simple as::
 	$ python3.0 ./setup.py install
 
 
-Further information is available via: python -m postgresql.documentation.admin
+More information about installation is available via::
+
+	python -m postgresql.documentation.admin
 
 
 Basic Driver Usage
@@ -29,24 +31,20 @@ DB-API 2.0 driver is provided: `postgresql.driver.dbapi20`.
 Sample PG-API Code
 ^^^^^^^^^^^^^^^^^^
 
-	import postgreql.driver as pg_driver
-
-	# Alter the parameters accordingly
-	db = pg_driver.connect(user = 'myuser', host = 'localhost', port = 5432, database = 'mydbname', password = 'secret')
-
-	# create a prepared statement
-	get_table = db.prepare("select * from information_schema.tables where table_name = $1")
-	for x in get_table("tables"):
-		print(x)
-	print(get_table.first("tables"))
+	>>> import postgresql
+	>>> db = postgresql.open('pq://user:password@host:port/database')
+	>>> get_table = db.prepare("select * from information_schema.tables where table_name = $1")
+	>>> for x in get_table("tables"):
+	>>>  print(x)
+	>>> print(get_table.first("tables"))
 
 
 Further Information
 -------------------
 
-The documentation directory, `postgresql/documentation`, contains more detailed
-information on the modules herein, and HTML versions of the documentation can
-be found at::
+The documentation package, `postgresql.documentation.index`, contains more
+detailed information on the modules herein, and HTML versions of the
+documentation can be found at::
 
 	http://python.projects.postgresql.org
 
