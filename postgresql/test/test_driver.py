@@ -306,6 +306,36 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		with self.db.xact():
 			self.testSelect()
 
+	def testCursorRead(self):
+		ps = self.db.prepare("SELECT i FROM generate_series(0, (2^8)::int - 1) AS g(i)")
+		c = ps()
+		self.failUnlessEqual(c.read(0), [])
+		self.failUnlessEqual(c.read(0), [])
+		self.failUnlessEqual(c.read(1), [(0,)])
+		self.failUnlessEqual(c.read(1), [(1,)])
+		self.failUnlessEqual(c.read(2), [(2,), (3,)])
+		self.failUnlessEqual(c.read(2), [(4,), (5,)])
+		self.failUnlessEqual(c.read(3), [(6,), (7,), (8,)])
+		self.failUnlessEqual(c.read(4), [(9,), (10,), (11,), (12,)])
+		self.failUnlessEqual(c.read(4), [(13,), (14,), (15,), (16,)])
+		self.failUnlessEqual(c.read(5), [(17,), (18,), (19,), (20,), (21,)])
+		self.failUnlessEqual(c.read(0), [])
+		self.failUnlessEqual(c.read(6), [(22,),(23,),(24,),(25,),(26,),(27,)])
+		r = [-1]
+		i = 4
+		v = 28
+		maxv = 2**8
+		while r:
+			i = i * 2
+			r = [x for x, in c.read(i)]
+			top = min(maxv, v + i)
+			self.failUnlessEqual(r, list(range(v, top)))
+			v = top
+
+	def testCursorReadInXact(self):
+		with self.db.xact():
+			self.testCursorRead()
+
 	def testChunking(self):
 		gs = self.db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
 		self.failUnlessEqual(
