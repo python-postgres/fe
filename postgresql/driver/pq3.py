@@ -2150,6 +2150,17 @@ class Connection(pg_api.Connection):
 					# *not* be ran because it has already been noted to be
 					# a failure.
 					can_skip = True
+				# If the exception is a socket error, chances are that it's
+				# going to fail again.
+				if isinstance(e, self.connector.fatal_exception):
+					if sslmode == 'prefer' and dossl is True:
+						# when 'prefer', the first attempt
+						# is marked with dossl is True
+						can_skip = True
+					elif sslmode == 'allow' and dossl is False:
+						# when 'allow', the first attempt
+						# is marked with dossl is False
+						can_skip = True
 				if self.socket is not None:
 					self.socket.close()
 					self.socket = None
