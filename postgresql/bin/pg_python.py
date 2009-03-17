@@ -50,7 +50,6 @@ def command(argv = sys.argv):
 			try:
 				clientparameters.resolve_password(cond, prompt_title = 'pg_python')
 			except EOFError:
-				sys.stderr.write(os.linesep + "ERROR: session aborted" + os.linesep)
 				raise SystemExit(1)
 			connector = pg_driver.create(**cond)
 			connection = connector()
