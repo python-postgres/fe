@@ -504,10 +504,10 @@ class Cursor(
 		quantity : "Number of rows to read" = None
 	) -> ["Row"]:
 		"""
-		Read the specified number of rows and return them in a list.
+		Read, fetch, the specified number of rows and return them in a list.
 		This alters the cursor's position.
 
-		If the quantity is a negative value, read backwards.
+		If the quantity is a negative value, fetch backwards.
 		"""
 
 	@abstractmethod
@@ -886,30 +886,6 @@ class Settings(
 	"""
 	ife_label = 'SETTINGS'
 
-	def getpath(self) -> [str]:
-		"""
-		Returns a sequence of the schemas that make up the current search_path.
-		"""
-	def setpath(self, seq : [str]):
-		"""
-		Set the "search_path" setting to the given a sequence of schema names, 
-		[Implementations must properly escape and join the strings]
-		"""
-	path = propertydoc(abstractproperty(
-		getpath, setpath,
-		doc = """
-		An interface to a structured ``search_path`` setting:
-
-		>>> db.settings.path
-		['public', '$user']
-
-		It may also be used to set the path:
-
-		>>> db.settings.path = ('public', 'tools')
-		"""
-	))
-	del getpath, setpath
-
 	@abstractmethod
 	def __getitem__(self, key):
 		"""
@@ -928,8 +904,8 @@ class Settings(
 	@abstractmethod
 	def __call__(self, **kw):
 		"""
-		Create a context manager applying the given settings. This is normally used
-		in conjunction with a with-statement:
+		Create a context manager applying the given settings on __enter__ and
+		restoring the old values on __exit__.
 
 		>>> with db.settings(search_path = 'local,public'):
 		...  ...
@@ -972,31 +948,6 @@ class Settings(
 	def items(self):
 		"""
 		Return an iterator to all of the setting value pairs.
-		"""
-
-	@abstractmethod
-	def subscribe(self, key, callback):
-		"""
-		Subscribe to changes of the setting using the callback. When the setting
-		is changed, the callback will be invoked with the connection, the key,
-		and the new value. If the old value is locally cached, its value will
-		still be available for inspection, but there is no guarantee.
-		If `None` is passed as the key, the callback will be called whenever any
-		setting is remotely changed.
-
-		>>> def watch(connection, key, newval):
-		...
-		>>> db.settings.subscribe('TimeZone', watch)
-		"""
-
-	@abstractmethod
-	def unsubscribe(self, key, callback):
-		"""
-		Stop listening for changes to a setting. The setting name(`key`), and
-		the callback used to subscribe must be given again for successful
-		termination of the subscription.
-
-		>>> db.settings.unsubscribe('TimeZone', watch)
 		"""
 
 class Database(InterfaceElement):
@@ -1259,7 +1210,6 @@ class Connector(InterfaceElement):
 		password : str = None,
 		database : str = None,
 		settings : (dict, [(str,str)]) = None,
-		path : "sequence of schema names to set the search_path to" = None
 	):
 		if user is None:
 			# sure, it's a "required" keyword, makes for better documentation
@@ -1268,7 +1218,6 @@ class Connector(InterfaceElement):
 		self.password = password
 		self.database = database
 		self.settings = settings
-		self.path = path
 
 class Connection(Database):
 	"""

@@ -331,11 +331,5 @@ class ConfigFile(pg_api.Settings):
 		for x in (keys - set(cfg.keys())):
 			cfg[x] = None
 		return cfg
-
-	def subscribe(self):
-		pass
-
-	def unsubscribe(self):
-		pass
 ##
 # vim: ts=3:sw=3:noet:

@@ -1521,12 +1521,31 @@ class Settings(pg_api.Settings):
 		self.cache[key] = val
 
 	def subscribe(self, key, callback):
+		"""
+		Subscribe to changes of the setting using the callback. When the setting
+		is changed, the callback will be invoked with the connection, the key,
+		and the new value. If the old value is locally cached, its value will
+		still be available for inspection, but there is no guarantee.
+		If `None` is passed as the key, the callback will be called whenever any
+		setting is remotely changed.
+
+		>>> def watch(connection, key, newval):
+		...
+		>>> db.settings.subscribe('TimeZone', watch)
+		"""
 		subs = self._subscriptions = getattr(self, '_subscriptions', {})
 		callbacks = subs.setdefault(key, [])
 		if callback not in callbacks:
 			callbacks.append(callback)
 
 	def unsubscribe(self, key, callback):
+		"""
+		Stop listening for changes to a setting. The setting name(`key`), and
+		the callback used to subscribe must be given again for successful
+		termination of the subscription.
+
+		>>> db.settings.unsubscribe('TimeZone', watch)
+		"""
 		subs = getattr(self, '_subscriptions', {})
 		callbacks = subs.get(key, ())
 		if callback in callbacks:

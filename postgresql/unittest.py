@@ -51,8 +51,8 @@ class TestCaseWithCluster(unittest.TestCase):
 			e.raise_exception()
 		self.cluster.settings.update(dict(
 			port = str(self.cluster_port), # XXX: identify an available port and use it
-			max_connections = '16',
-			shared_buffers = '64',
+			max_connections = '8',
+			shared_buffers = '32',
 			listen_addresses = 'localhost',
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',
@@ -69,7 +69,6 @@ class TestCaseWithCluster(unittest.TestCase):
 				"where datname = 'test'"
 			).first() is None:
 				c.execute('create database test')
-			print("============ INITIALIZED test ==============")
 
 	def run(self, *args, **kw):
 		if not self.cluster.initialized():
