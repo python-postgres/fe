@@ -438,7 +438,7 @@ class Cluster(pg_api.Cluster):
 		if 'listen_addresses' in d:
 			# Prefer localhost over other addresses.
 			# More likely to get a successful connection.
-			addrs = d['listen_addresses'].lower().split(',')
+			addrs = d.get('listen_addresses', 'localhost').lower().split(',')
 			if 'localhost' in addrs or '*' in addrs:
 				host = 'localhost'
 			elif '127.0.0.1' in addrs:
