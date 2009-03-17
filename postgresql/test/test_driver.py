@@ -336,6 +336,71 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		with self.db.xact():
 			self.testCursorRead()
 
+	def testWithScroll(self):
+		# Use a large row-set.
+		imin = 0
+		imax = 2**16 -1
+		ps = self.db.prepare("SELECT i FROM generate_series(0, (2^16)::int) AS g(i)")
+		c = ps(with_scroll = True)
+
+		self.failUnlessEqual([x for x, in c.read(10)], list(range(10)))
+		# bit strange to me, but i've watched the fetch backwards -jwp 2009
+		self.failUnlessEqual([x for x, in c.read(-10)], list(range(8, -1, -1)))
+		c.seek(0, 2)
+		self.failUnlessEqual([x for x, in c.read(-10)], list(range(imax, imax-10, -1)))
+
+		# move to end
+		c.seek(0, 2)
+		self.failUnlessEqual([x for x, in c.read(-100)], list(range(imax, imax-100, -1)))
+		# move backwards, relative
+		c.seek(-100, 1)
+		self.failUnlessEqual([x for x, in c.read(-100)], list(range(imax-200, imax-300, -1)))
+
+		# move abs, again
+		c.seek(14000)
+		self.failUnlessEqual([x for x, in c.read(100)], list(range(14000, 14100)))
+		# move forwards, relative
+		c.seek(100, 1)
+		self.failUnlessEqual([x for x, in c.read(100)], list(range(14200, 14300)))
+		# move abs, again
+		c.seek(24000)
+		self.failUnlessEqual([x for x, in c.read(200)], list(range(24000, 24200)))
+		# move to end and then back some
+		c.seek(20, 2)
+		self.failUnlessEqual([x for x, in c.read(-200)], list(range(imax-20, imax-20-200, -1)))
+
+		c.seek(0, 2)
+		c.seek(-10, 1)
+		r1 = c.read(10)
+		c.seek(10, 2)
+		self.failUnlessEqual(r1, c.read(10))
+
+	def testWithHold(self):
+		with self.db.xact():
+			ps = self.db.prepare("SELECT 1")
+			c = ps(with_hold = True)
+			cid = c.cursor_id
+		self.failUnlessEqual(c.read()[0][0], 1)
+		# make sure it's not cheating
+		self.failUnlessEqual(c.cursor_id, cid)
+		# check grabs beyond the default chunksize.
+		with self.db.xact():
+			ps = self.db.prepare("SELECT i FROM generate_series(0, 99) as g(i)")
+			c = ps(with_hold = True)
+			cid = c.cursor_id
+		self.failUnlessEqual([x for x, in c.read()], list(range(100)))
+		# make sure it's not cheating
+		self.failUnlessEqual(c.cursor_id, cid)
+
+	def testNoHold(self):
+		with self.db.xact():
+			c = self.db.prepare("SELECT i from generate_series(0, 99) as g(i)")()
+			# no hold, no cursor after xact.
+		self.failUnlessRaises(
+			pg_exc.CursorNameError,
+			c.read
+		)
+
 	def testChunking(self):
 		gs = self.db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
 		self.failUnlessEqual(
@@ -355,7 +420,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				read_chunking = self.db.prepare('select * FROM chunking')
 				write_chunking = db2.prepare('insert into chunking values ($1, $2)')
 				out = read_chunking()
-				out.chunksize = 256
+				out.chunksize = 512
 				for rows in out.chunks:
 					write_chunking.load(rows)
 				self.failUnlessEqual(
@@ -368,9 +433,14 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				)
 		finally:
 			try:
-				self.db.execute('DROP TABLE chunking')
+				with self.db.xact():
+					self.db.execute('DROP TABLE chunking')
 			except:
 				pass
+
+	def testChunkingInXact(self):
+		with self.db.xact():
+			self.testChunking()
 
 	def testDDL(self):
 		self.db.execute("CREATE TEMP TABLE t(i int)")
