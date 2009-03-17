@@ -230,6 +230,10 @@ class ExtendedConsole(code.InteractiveConsole):
 		self.register_backslash(r'\x', self.bs_x,
 			"Execute the Python command within this process.")
 
+	def interact(self, *args, **kw):
+		self.showhelp(None, None)
+		super().interact(*args,**kw)
+
 	def register_backslash(self, bscmd, meth, doc):
 		self.bsc_map[bscmd] = (meth, doc)
 
@@ -308,7 +312,7 @@ class ExtendedConsole(code.InteractiveConsole):
 			src.close()
 		if co is not None:
 			try:
-				exec(co, self.globals, self.locals)
+				exec(co, self.locals, self.locals)
 			except:
 				e, v, tb = sys.exc_info()
 				print_exception(e, v, tb.tb_next or tb)
@@ -330,7 +334,7 @@ class ExtendedConsole(code.InteractiveConsole):
 		self.editfiles([self.resolve_path(x) for x in self.split(arg) or ('',)])
 
 	def bs_e(self, cmd, arg):
-		'edit and execute the files'
+		'edit *and* execute the files'
 		filepaths = [self.resolve_path(x) for x in self.split(arg) or ('',)]
 		self.editfiles(filepaths)
 		for x in filepaths:
@@ -341,7 +345,10 @@ class ExtendedConsole(code.InteractiveConsole):
 		if len(cmd) > 1:
 			a = self.split(arg)
 			a.insert(0, '\\x')
-			rv = command(args = a)
+			try:
+				rv = command(argv = a)
+			except SystemExit as se:
+				rv = se.code
 			self.write("[Return Value: %d]%s" %(rv, os.linesep))
 
 	def push(self, line):
@@ -591,8 +598,8 @@ class Execution(object):
 		if path is not None:
 			return loader.get_source(path)
 
-def command_execution(args = sys.argv):
-	'create an execution using the given args'
+def command_execution(argv = sys.argv):
+	'create an execution using the given argv'
 	# The pwd should be in the path for python commands.
 	# setuptools' console_scripts appear to strip this out.
 	if '' not in sys.path:
@@ -604,15 +611,15 @@ def command_execution(args = sys.argv):
 	)
 	op.disable_interspersed_args()
 	op.add_options(default_optparse_options)
-	co, ca = op.parse_args(args[1:])
+	co, ca = op.parse_args(argv[1:])
 
 	return Execution(ca,
 		context = getattr(co, 'python_context', ()),
 		loader = getattr(co, 'python_main', None),
 	)
 
-def command(args = sys.argv):
-	return command_execution(args = args)(
+def command(argv = sys.argv):
+	return command_execution(argv = argv)(
 		context = postmortem(os.environ.get('PYTHON_POSTMORTEM'))
 	)
 

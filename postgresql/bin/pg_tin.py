@@ -19,6 +19,7 @@ from random import random
 
 from .. import versionstring as pg_version
 from ..cluster import Cluster
+from .. import __version__
 
 from gettext import gettext as _
 
@@ -219,7 +220,7 @@ def command(args):
 
 	op = optparse.OptionParser(
 		COMMAND_HELP,
-		version = '1.0',
+		version = __version__,
 	)
 	op.allow_interspersed_args = False
 

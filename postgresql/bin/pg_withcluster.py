@@ -6,13 +6,15 @@ import tempfile
 import subprocess as sp
 import getpass
 from optparse import OptionParser
-from postgresql.cluster import Cluster
-from postgresql.installation import Installation
 
-def main(args = sys.argv):
+from ..cluster import Cluster
+from ..installation import Installation
+from .. import __version__
+
+def command(argv = sys.argv):
 	op = OptionParser(
 		"%prog [-p] [--version] {[setting=value], ...} [pg_config] command",
-		version = '1.0'
+		version = __version__
 	)
 	op.allow_interspersed_args = False
 	op.add_option(
@@ -95,4 +97,4 @@ def main(args = sys.argv):
 		c.drop()
 
 if __name__ == '__main__':
-	sys.exit(main())
+	sys.exit(command(argv=sys.argv))

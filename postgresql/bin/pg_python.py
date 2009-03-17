@@ -13,6 +13,7 @@ import optparse
 import contextlib
 from .. import clientparameters
 from ..resolved import pythoncommand as pycmd
+from .. import __version__
 
 from ..driver import default as pg_driver
 from .. import exceptions as pg_exc
@@ -30,7 +31,7 @@ default_options = [
 def command(argv = sys.argv):
 	p = clientparameters.DefaultParser(
 		"%prog [connection options] [script] ...",
-		version = '1.0',
+		version = __version__,
 		option_list = default_options
 	)
 	p.disable_interspersed_args()

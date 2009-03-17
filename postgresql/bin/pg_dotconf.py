@@ -3,6 +3,7 @@ import sys
 import os
 from optparse import OptionParser
 from .. import configfile
+from .. import __version__
 
 __all__ = ['command']
 
@@ -12,7 +13,7 @@ def command(args):
 	"""
 	op = OptionParser(
 		"%prog [--stdout] [-f settings] postgresql.conf ([param=val]|[param])*",
-		version = '1.0'
+		version = __version__
 	)
 	op.add_option(
 		'-f', '--file',
