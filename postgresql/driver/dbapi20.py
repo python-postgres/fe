@@ -113,6 +113,7 @@ class Cursor(object):
 
 	def __next__(self):
 		return next(self._portal)
+	next = __next__
 	def __iter__(self):
 		return self
 
