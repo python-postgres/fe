@@ -761,9 +761,6 @@ class TypeIO(object, metaclass = ABCMeta):
 		dt = dt.replace(tzinfo = UTC)
 		return dt
 
-	def set_timezone(self, tzname):
-		pass
-
 	def resolve_descriptor(self, desc, index):
 		'create a sequence of I/O routines from a pq descriptor'
 		return [
