@@ -221,11 +221,11 @@ used to interact with the database provided by the server. If further use of the
 server is desired, a new connection *must* be established.
 
 
-Database Interface Entry Points
--------------------------------
+Database Interface Points
+-------------------------
 
-After a connection is established, the primary interface entry points are ready
-for use. These entry points exist as properties and methods on the connection
+After a connection is established, the primary interface points are ready for
+use. These entry points exist as properties and methods on the connection
 object:
 
  ``prepare(sql_statement_string)``
@@ -273,7 +273,7 @@ the backend. The following are the attributes set on the connection object after
 the connection is made:
 
  ``version``
-  The results of ``SELECT version()``
+  The results of ``SELECT version()``.
  ``version_info``
   A ``sys.version_info`` form of the ``server_version`` setting. eg. ``(8, 1, 2,
   'final', 0)``.
@@ -302,18 +302,25 @@ SQL command.
 
 The ``prepare`` entry point on the connection provides the standard method for
 creating a `postgersql.api.PreparedStatement` instance bound to the
-connection(``db``):
+connection(``db``) from an SQL statement.
 
-	>>> ps = db.prepare("SELECT 'hello, world!'")
+Statement objects may also be created from a statement identifier using the
+``statement_from_id`` method on the connection. When this method is used, the
+statement must have already been prepared or an error will be raised.
+
+
+Prepared Statement Interface Points
+-----------------------------------
 
 Prepared statements are normally executed just like functions:
 
+	>>> ps = db.prepare("SELECT 'hello, world!'")
 	>>> c = ps()
 	>>> c.read()
 	[('hello, world!',)]
 
-``c``, the object returned by ``ps.__call__``, is a cursor with a
-`postgresql.api.Cursor` interface.
+``c``, the object returned by the invocation of ``ps.__call__``, is a cursor
+object providing a `postgresql.api.Cursor` interface.
 
 .. note::
  Don't confuse PG-API cursors with DB-API 2.0 cursors.
@@ -363,69 +370,6 @@ Prepared statement objects have a few ways to submit the request to the database
   The result set created by the statement determines what is actually returned.
   Naturally, a statement used with ``first()`` should be crafted with these
   rules in mind.
-
-
-Parameterized Statements
-------------------------
-
-Statements can take parameters. In order to do this, the statement must be
-defined using PostgreSQL's positional parameter notation. ``$1``, ``$2``,
-``$3``, etc:
-
-	>>> ps = db.prepare("SELECT $1")
-	>>> c = ps('hello, world!')
-	>>> c.read()[0][0]
-	'hello, world!'
-
-PostgreSQL determines the type of the parameter based on the context of the
-parameter's identifier.
-
-	>>> ps = db.prepare(
-	...  "SELECT * FROM information_schema.tables WHERE table_name = $1 LIMIT $2"
-	... )
-	>>> c = ps("tables", 1)
-	>>> c.read()
-	[('postgres', 'information_schema', 'tables', 'VIEW', None, None, None, None, None, 'NO', 'NO', None)]
-
-Parameter ``$1`` in the above statement will take on the type of the
-``table_name`` column and ``$2`` will take on the type required by the LIMIT
-clause(text and int8).
-
-However, types can be forced to a specific type using explicit casts:
-
-	>>> ps = db.prepare("SELECT $1::integer")
-	>>> ps.first(-400)
-	-400
-
-Parameters are typed. PostgreSQL servers provide the driver with the
-type information about a positional parameter, and the driver will require that
-a given parameter is in the appropriate type. The Python types expected by the driver
-for a given SQL and PostgreSQL type are listed in `Type Support`_.
-
-This usage of Python types that are included in the standard library is not always
-convenient. Notably, the `datetime` module does not provide a friendly way for a
-user to express intervals, dates, or times. There is a likely inclination to
-forego these parameter type requirements.
-
-In such cases, explicit casts can be made to work-around the type requirements:
-
-	>>> ps = db.prepare("SELECT $1::text::date")
-	>>> ps.first('yesterday')
-	datetime.date(2009, 3, 11)
-
-The parameter, ``$1``, is given to the database as a string, which is then
-promptly cast into a date. Of course, without the explicit cast as text, the
-outcome would be different:
-
-	>>> ps = db.prepare("SELECT $1::text::date")
-	>>> ps.first('yesterday')
-	Traceback:
-	 ...
-	AttributeError: 'str' object has no attribute 'toordinal'
-
-The function that processes the parameter expects a `datetime.date` object, and
-the given `str` object does not provide the necessary interfaces for the
-conversion.
 
 
 Statement Metadata
@@ -478,6 +422,71 @@ information is accessed.
 	(<class 'int'>, <class 'str'>)
 
 
+Parameterized Statements
+------------------------
+
+Statements can take parameters. Using statement parameters is the recommended
+way to interrogate the database when variable information is needed to formulate
+a complete request. In order to do this, the statement must be defined using
+PostgreSQL's positional parameter notation. ``$1``, ``$2``, ``$3``, etc:
+
+	>>> ps = db.prepare("SELECT $1")
+	>>> c = ps('hello, world!')
+	>>> c.read()[0][0]
+	'hello, world!'
+
+PostgreSQL determines the type of the parameter based on the context of the
+parameter's identifier.
+
+	>>> ps = db.prepare(
+	...  "SELECT * FROM information_schema.tables WHERE table_name = $1 LIMIT $2"
+	... )
+	>>> c = ps("tables", 1)
+	>>> c.read()
+	[('postgres', 'information_schema', 'tables', 'VIEW', None, None, None, None, None, 'NO', 'NO', None)]
+
+Parameter ``$1`` in the above statement will take on the type of the
+``table_name`` column and ``$2`` will take on the type required by the LIMIT
+clause(text and int8).
+
+However, types can be forced to a specific type using explicit casts:
+
+	>>> ps = db.prepare("SELECT $1::integer")
+	>>> ps.first(-400)
+	-400
+
+Parameters are typed. PostgreSQL servers provide the driver with the
+type information about a positional parameter, and the driver will require that
+a given parameter is in the appropriate type as required by the serialization
+routines. The Python types expected by the driver for a given SQL and PostgreSQL
+type are listed in `Type Support`_.
+
+This usage of Python types that are included in the standard library is not always
+convenient. Notably, the `datetime` module does not provide a friendly way for a
+user to express intervals, dates, or times. There is a likely inclination to
+forego these parameter type requirements.
+
+In such cases, explicit casts can be made to work-around the type requirements:
+
+	>>> ps = db.prepare("SELECT $1::text::date")
+	>>> ps.first('yesterday')
+	datetime.date(2009, 3, 11)
+
+The parameter, ``$1``, is given to the database as a string, which is then
+promptly cast into a date. Of course, without the explicit cast as text, the
+outcome would be different:
+
+	>>> ps = db.prepare("SELECT $1::text::date")
+	>>> ps.first('yesterday')
+	Traceback:
+	 ...
+	AttributeError: 'str' object has no attribute 'toordinal'
+
+The function that processes the parameter expects a `datetime.date` object, and
+the given `str` object does not provide the necessary interfaces for the
+conversion.
+
+
 Inserting and DML
 -----------------
 
@@ -519,11 +528,18 @@ occurs will be immediately raised regardless of the context.
 
 
 Cursors
--------
+=======
 
 When a prepared statement is called, a `postgresql.api.Cursor` is created and
 returned. The type of statement ultimately decides the kind of cursor used to
 manage the results.
+
+Cursors can also be created directly from ``cursor_id``'s using the
+``cursor_from_id`` method on connection objects.
+
+
+Cursor Interface Points
+-----------------------
 
 For cursors that return row data, these interfaces are provided for accessing
 those results:
@@ -550,9 +566,38 @@ those results:
   with the ``chunksize`` attribute on the cursor object itself. This is
   normally the most efficient way to get rows out of the cursor.
 
+ ``seek(position[, whence = 0])``
+  When the cursor is scrollable, this seek interface can be used to move the
+  position of the cursor. See `Scrollable Cursors`_ for more information.
+
+
+Cursor Metadata
+---------------
+
+Cursors normally share metadata with the statements that create them, so it is
+usually unnecessary for referencing the cursor's column descriptions directly.
+However, when a cursor is opened from an identifier, the cursor interface must
+collect the metadata itself. These attributes provide the metadata in absence of
+a statement object:
+
+ ``sql_column_types``
+  A sequence of SQL type names specifying the types of the columns produced by
+  the cursor. `None` if the cursor does not return row-data.
+
+ ``pg_column_types``
+  A sequence of PostgreSQL type Oid's specifying the types of the columns produced by
+  the cursor. `None` if the cursor does not return row-data.
+
+ ``column_types``
+  A sequence of Python types that the cursor will produce.
+
+ ``column_names``
+  A sequence of `str` objects specifying the names of the columns produced by
+  the cursor. `None` if the cursor does not return row-data.
+
 
 Scrollable Cursors
-^^^^^^^^^^^^^^^^^^
+------------------
 
 By default, cursors are not scrollable. It is assumed, for performance reasons,
 that the user just wants the results in a linear fashion. However, scrollable
@@ -609,7 +654,7 @@ counts:
 
 
 COPY Cursors
-^^^^^^^^^^^^
+------------
 
 `postgresql.driver` transparently supports PostgreSQL's COPY command. To the
 user, it will act exactly like a cursor that produces tuples; COPY tuples,
@@ -762,8 +807,9 @@ database error is inappropriately caught within a block without being raised.
 The context manager interfaces are higher level interfaces to the explicit
 instruction methods provided by `postgresql.api.Transaction` objects.
 
-Transaction Interface Entry Points
-----------------------------------
+
+Transaction Interface Points
+----------------------------
 
 The methods available on transaction objects manage the state of the transaction
 and relay any necessary instructions to the remote server in order to reflect
@@ -798,7 +844,7 @@ important factors to keep in mind:
  * If the transaction is configured with a `gid`, the ``prepare()`` method
    *must* be invoked prior to the ``commit()``.
  * If the database is in an error state when the commit() is issued, an implicit
-   rollback will occur. Usually, when the database is in an error state, an
+   rollback will occur. Usually, when the database is in an error state,
    a database exception will have been thrown, so it is likely that it will be
    understood that a rollback should occur.
 

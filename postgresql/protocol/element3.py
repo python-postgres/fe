@@ -380,16 +380,6 @@ class TupleDescriptor(TupleMessage):
 	struct = Struct("!LhLhlh")
 	__slots__ = ()
 
-	@property
-	def attribute_map(self):
-		"""
-		create a dictionary from a pq desc that maps attribute names
-		to their index
-		"""
-		return {
-			self[x][0] : x for x in range(len(self))
-		}
-
 	def keys(self):
 		return [x[0] for x in self]
 

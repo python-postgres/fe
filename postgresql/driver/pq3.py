@@ -32,8 +32,11 @@ from ..protocol.buffer import pq_message_stream
 from ..protocol import xact3 as pq
 from ..protocol import typio as pg_typio
 
+from .. import types as pg_types
+
 TypeLookup = """
 SELECT
+ ns.nspname as namespace,
  bt.typname,
  bt.typtype,
  bt.typlen,
@@ -277,6 +280,24 @@ class Cursor(pg_api.Cursor):
 	def chunks(self):
 		return CursorChunks(self)
 
+	@property
+	def column_names(self):
+		if self._output is not None:
+			return list(self.database.typio.decodes(self._output.keys()))
+
+	@property
+	def pg_column_types(self):
+		if self._output is not None:
+			return [x[3] for x in self._output]
+
+	@property
+	def sql_column_types(self):
+		return [
+			pg_types.oid_to_sql_name.get(x) or \
+			self.database.typio.sql_type_from_oid(x)
+			for x in self.pg_column_types
+		]
+
 	def close(self):
 		if self.closed is False:
 			self.database._closeportals.append(
@@ -301,7 +322,7 @@ class Cursor(pg_api.Cursor):
 		"""
 		if self.statement is not None:
 			# If the cursor comes from a statement object, always
-			# get the output information from it if it's closed.
+			# get the output information from it.
 			if self.statement.closed:
 				self.statement.prepare()
 			self._output = self.statement._output
@@ -954,6 +975,46 @@ class PreparedStatement(pg_api.PreparedStatement):
 			return 'closed'
 		return 'prepared'
 
+	@property
+	def column_names(self):
+		if self.closed:
+			self.prepare()
+		if self._output is not None:
+			return list(self.database.typio.decodes(self._output.keys()))
+
+	@property
+	def pg_parameter_types(self):
+		if self.closed:
+			self.prepare()
+		return self._input
+
+	@property
+	def pg_column_types(self):
+		if self.closed:
+			self.prepare()
+		if self._output is not None:
+			return [x[3] for x in self._output]
+
+	@property
+	def sql_column_types(self):
+		if self.closed:
+			self.prepare()
+		return [
+			pg_types.oid_to_sql_name.get(x) or \
+			self.database.typio.sql_type_from_oid(x)
+			for x in self.pg_column_types
+		]
+
+	@property
+	def sql_parameter_types(self):
+		if self.closed:
+			self.prepare()
+		return [
+			pg_types.oid_to_sql_name.get(x) or \
+			self.database.typio.sql_type_from_oid(x)
+			for x in self.pg_parameter_types
+		]
+
 	def close(self):
 		if self._cid == self.database._cid:
 			self.database._closestatements.append(self._pq_statement_id)
@@ -1039,7 +1100,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			self._output_formats = None
 		else:
 			self._output = tupdesc
-			self._output_attmap = self.database.typio.attribute_map(tupdesc)
+			self._output_attmap = dict(self.database.typio.attribute_map(tupdesc))
 			# tuple output
 			self._output_io = \
 				self.database.typio.resolve_descriptor(tupdesc, 1)

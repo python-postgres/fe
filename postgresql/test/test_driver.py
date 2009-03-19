@@ -12,10 +12,9 @@ import decimal
 from itertools import chain
 from operator import itemgetter
 
-import postgresql.types as pg_types
-import postgresql.exceptions as pg_exc
-
-import postgresql.unittest as pg_unittest
+from .. import types as pg_types
+from .. import exceptions as pg_exc
+from .. import unittest as pg_unittest
 
 type_samples = (
 	('smallint', (
@@ -161,10 +160,23 @@ type_samples = (
 		],
 	),
 	('timestamp', [
+			datetime.datetime(3000,5,20,5,30,10),
 			datetime.datetime(2000,1,1,5,25,10),
 			datetime.datetime(500,1,1,5,25,10),
 		],
-	)
+	),
+	('date', [
+			datetime.date(3000,5,20),
+			datetime.date(2000,1,1),
+			datetime.date(500,1,1),
+		],
+	),
+	('time', [
+			datetime.time(12,15,20),
+			datetime.time(0,1,1),
+			datetime.time(23,59,59),
+		],
+	),
 )
 
 class test_driver(pg_unittest.TestCaseWithCluster):
@@ -209,6 +221,57 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		# too many and takes some
 		ps = self.db.prepare("select $1::int, $2::text")
 		self.failUnlessRaises(TypeError, ps, 1, "foo", "bar")
+
+	def testStatementAndCursorMetadata(self):
+		ps = self.db.prepare("SELECT $1::integer AS my_int_column")
+		self.failUnlessEqual(tuple(ps.column_names), ('my_int_column',))
+		self.failUnlessEqual(tuple(ps.sql_column_types), ('INTEGER',))
+		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('INTEGER',))
+		self.failUnlessEqual(tuple(ps.pg_parameter_types), (pg_types.INT4OID,))
+		c = ps(15)
+		self.failUnlessEqual(tuple(c.column_names), ('my_int_column',))
+		self.failUnlessEqual(tuple(c.sql_column_types), ('INTEGER',))
+		self.failUnlessEqual(tuple(ps.pg_parameter_types), (pg_types.INT4OID,))
+
+		ps = self.db.prepare("SELECT $1::text AS my_text_column")
+		self.failUnlessEqual(tuple(ps.column_names), ('my_text_column',))
+		self.failUnlessEqual(tuple(ps.sql_column_types), ('text',))
+		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('text',))
+		self.failUnlessEqual(tuple(ps.pg_parameter_types), (pg_types.TEXTOID,))
+		c = ps('textdata')
+		self.failUnlessEqual(tuple(c.column_names), ('my_text_column',))
+		self.failUnlessEqual(tuple(c.sql_column_types), ('text',))
+		self.failUnlessEqual(tuple(c.pg_column_types), (pg_types.TEXTOID,))
+
+		ps = self.db.prepare("SELECT $1::text AS my_column1, $2::varchar AS my_column2")
+		self.failUnlessEqual(tuple(ps.column_names), ('my_column1','my_column2'))
+		self.failUnlessEqual(tuple(ps.sql_column_types), ('text', 'CHARACTER VARYING'))
+		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('text', 'CHARACTER VARYING'))
+		self.failUnlessEqual(tuple(ps.pg_parameter_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
+		self.failUnlessEqual(tuple(ps.pg_column_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
+		c = ps('textdata', 'varchardata')
+		self.failUnlessEqual(tuple(c.column_names), ('my_column1','my_column2'))
+		self.failUnlessEqual(tuple(c.sql_column_types), ('text', 'CHARACTER VARYING'))
+		self.failUnlessEqual(tuple(c.pg_column_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
+
+		self.db.execute("CREATE TYPE public.myudt AS (i int)")
+		myudt_oid = self.db.prepare("select oid from pg_type WHERE typname='myudt'").first()
+		ps = self.db.prepare("SELECT $1::text AS my_column1, $2::varchar AS my_column2, $3::public.myudt AS my_column3")
+		self.failUnlessEqual(tuple(ps.column_names), ('my_column1','my_column2', 'my_column3'))
+		self.failUnlessEqual(tuple(ps.sql_column_types), ('text', 'CHARACTER VARYING', 'public.myudt'))
+		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('text', 'CHARACTER VARYING', 'public.myudt'))
+		self.failUnlessEqual(tuple(ps.pg_column_types), (
+			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid)
+		)
+		self.failUnlessEqual(tuple(ps.pg_parameter_types), (
+			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid)
+		)
+		c = ps('textdata', 'varchardata', (123,))
+		self.failUnlessEqual(tuple(c.column_names), ('my_column1','my_column2', 'my_column3'))
+		self.failUnlessEqual(tuple(c.sql_column_types), ('text', 'CHARACTER VARYING', 'public.myudt'))
+		self.failUnlessEqual(tuple(c.pg_column_types), (
+			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid
+		))
 
 	def testCopyToSTDOUT(self):
 		with self.db.xact():
@@ -499,16 +562,16 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		'test basic object I/O--input must equal output'
 		for (typname, sample_data) in type_samples:
 			pb = self.db.prepare(
-				"SELECT $1::" + typname + ", $1::" + typname + "::text"
+				"SELECT $1::" + typname
 			)
 			for sample in sample_data:
-				rsample, tsample = pb.first(sample)
+				rsample = pb.first(sample)
 				if isinstance(rsample, pg_types.Array):
 					rsample = rsample.nest()
 				self.failUnless(
 					rsample == sample,
-					"failed to return %s object data as-is; gave %r, received %r(%r::text)" %(
-						typname, sample, rsample, tsample
+					"failed to return %s object data as-is; gave %r, received %r" %(
+						typname, sample, rsample
 					)
 				)
 

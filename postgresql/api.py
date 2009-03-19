@@ -450,9 +450,44 @@ class Cursor(
 
 	@propertydoc
 	@abstractproperty
+	def sql_column_types(self) -> [str]:
+		"""
+		The type of the columns produced by the cursor.
+
+		A sequence of `str` objects stating the SQL type name::
+
+			['INTEGER', 'CHARACTER VARYING', 'INTERVAL']
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def pg_column_types(self) -> [int]:
+		"""
+		The type Oids of the columns produced by the cursor.
+
+		A sequence of `int` objects stating the SQL type name::
+
+			[27, 28]
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def column_names(self) -> [str]:
+		"""
+		The attribute names of the columns produced by the cursor.
+
+		A sequence of `str` objects stating the column name::
+
+			['column1', 'column2', 'emp_name']
+		"""
+
+	@propertydoc
+	@abstractproperty
 	def parameters(self) -> (tuple, None):
 		"""
 		The parameters bound to the cursor. `None`, if unknown.
+
+		These *should* be the original parameters given to the invoked statement.
 		"""
 
 	@propertydoc
@@ -573,6 +608,61 @@ class PreparedStatement(
 		prepared on the server and a reference to the statement is sent to the
 		client which subsequently uses the statement via the `Database`'s
 		`statement` constructor.
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def sql_parameter_types(self) -> [str]:
+		"""
+		The type of the parameters required by the statement.
+
+		A sequence of `str` objects stating the SQL type name::
+
+			['INTEGER', 'VARCHAR', 'INTERVAL']
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def sql_column_types(self) -> [str]:
+		"""
+		The type of the columns produced by the statement.
+
+		A sequence of `str` objects stating the SQL type name::
+
+			['INTEGER', 'VARCHAR', 'INTERVAL']
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def pg_parameter_types(self) -> [int]:
+		"""
+		The type Oids of the parameters required by the statement.
+
+		A sequence of `int` objects stating the PostgreSQL type Oid::
+
+			[27, 28]
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def pg_column_types(self) -> [int]:
+		"""
+		The type Oids of the columns produced by the statement.
+
+		A sequence of `int` objects stating the SQL type name::
+
+			[27, 28]
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def column_names(self) -> [str]:
+		"""
+		The attribute names of the columns produced by the statement.
+
+		A sequence of `str` objects stating the column name::
+
+			['column1', 'column2', 'emp_name']
 		"""
 
 	@abstractmethod

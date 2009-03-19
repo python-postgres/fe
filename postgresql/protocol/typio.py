@@ -41,7 +41,7 @@ from operator import itemgetter, __mul__
 get0 = itemgetter(0)
 get1 = itemgetter(1)
 
-from itertools import chain, starmap, repeat, groupby, cycle, islice
+from itertools import chain, starmap, repeat, groupby, cycle, islice, count
 
 from abc import ABCMeta, abstractmethod
 
@@ -49,6 +49,7 @@ from decimal import Decimal, DecimalTuple
 import datetime
 
 from .. import types as pg_types
+from .. import string as pg_str
 from ..encodings import aliases as pg_enc_aliases
 from . import typstruct as ts
 from .element3 import StringFormat, BinaryFormat
@@ -669,14 +670,25 @@ class TypeIO(object, metaclass = ABCMeta):
 		try:
 			return pg_types.etree.XML(xml_or_frag)
 		except Exception:
-			# try it again, but return the children.
+			# try it again, but return the sequence of children.
 			return list(pg_types.etree.XML('<x>' + xml_or_frag + '</x>'))
 
 	def attribute_map(self, pq_descriptor):
-		return {
-			self._decode(k)[0] : v
-			for k, v in pq_descriptor.attribute_map.items()
-		}
+		return zip(self.decodes(pq_descriptor.keys()), count())
+
+	def decodes(self, iter):
+		"""
+		Decode the items in the iterable from the configured encoding.
+		"""
+		for k in iter:
+			yield self._decode(k)[0]
+
+	def encodes(self, iter):
+		"""
+		Encode the items in the iterable in the configured encoding.
+		"""
+		for k in iter:
+			yield self._encode(k)
 
 	def __init__(self):
 		self.encoding = None
@@ -691,19 +703,30 @@ class TypeIO(object, metaclass = ABCMeta):
 				anyarray_pack,
 				self.anyarray_unpack,
 			),
+
 			# Encoded character strings
 			pg_types.ACLITEMOID : (None, None), # No binary functions.
 			pg_types.NAMEOID : (None, None),
 			pg_types.VARCHAROID : (None, None),
 			pg_types.TEXTOID : (None, None),
+			pg_types.CIDROID : (None, None),
+			pg_types.INETOID : (None, None),
+
 			pg_types.TIMESTAMPTZOID : (
 				self._pack_timestamptz,
 				self._unpack_timestamptz,
 			),
 			pg_types.XMLOID : (
 				self.xml_pack, self.xml_unpack
-			)
+			),
 		}
+		self.typnames = {}
+
+	def sql_type_from_oid(self, oid):
+		if oid in self.typnames:
+			nsp, name = self.typnames[oid]
+			return pg_str.quote_ident(nsp) + '.' + pg_str.quote_ident(name)
+		return pg_types.oid_to_name[oid]
 
 	def set_encoding(self, value):
 		self.encoding = value.lower()
@@ -760,8 +783,9 @@ class TypeIO(object, metaclass = ABCMeta):
 			##
 			ti = self.lookup_type_info(typid)
 			if ti is not None:
-				typname, typtype, typlen, typelem, typrelid, \
+				typnamespace, typname, typtype, typlen, typelem, typrelid, \
 					ae_typid, ae_hasbin_input, ae_hasbin_output = ti
+				self.typnames[typid] = (typnamespace, typname)
 				if typrelid:
 					# Composite/Complex/Row Type
 					#
