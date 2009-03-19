@@ -6,6 +6,7 @@
 PostgreSQL types and identifiers
 """
 import math
+import decimal
 import datetime
 try:
 	import xml.etree.cElementTree as etree
@@ -729,12 +730,17 @@ oid_to_type = {
 	BPCHAROID: str,
 	NAMEOID: str,
 
+	# XXX: should reflect any changes that a user may have invoked.
+	XMLOID: etree.ElementTree,
+
+	# This is *not* bpchar, the SQL CHARACTER type.
 	CHAROID: bytes,
 	BYTEAOID: bytes,
 
 	INT2OID: int,
 	INT4OID: int,
 	INT8OID: int,
+	NUMERICOID: decimal.Decimal,
 
 	FLOAT4OID: float,
 	FLOAT8OID: float,
@@ -746,4 +752,9 @@ oid_to_type = {
 	TIMETZOID: datetime.time,
 
 	INTERVALOID: datetime.timedelta,
+
+	RECORDOID : tuple,
+	ANYARRAYOID : list,
+	ANYELEMENTOID : str,
+	ANYENUMOID : int,
 }
