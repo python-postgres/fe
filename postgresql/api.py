@@ -483,6 +483,17 @@ class Cursor(
 
 	@propertydoc
 	@abstractproperty
+	def column_types(self) -> [str]:
+		"""
+		The Python types of the columns produced by the cursor.
+
+		A sequence of type objects::
+
+			[<class 'int'>, <class 'str'>]
+		"""
+
+	@propertydoc
+	@abstractproperty
 	def parameters(self) -> (tuple, None):
 		"""
 		The parameters bound to the cursor. `None`, if unknown.
@@ -663,6 +674,28 @@ class PreparedStatement(
 		A sequence of `str` objects stating the column name::
 
 			['column1', 'column2', 'emp_name']
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def column_types(self) -> [type]:
+		"""
+		The Python types of the columns produced by the statement.
+
+		A sequence of type objects::
+
+			[<class 'int'>, <class 'str'>]
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def parameter_types(self) -> [type]:
+		"""
+		The Python types expected of parameters given to the statement.
+
+		A sequence of type objects::
+
+			[<class 'int'>, <class 'str'>]
 		"""
 
 	@abstractmethod

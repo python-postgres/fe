@@ -286,6 +286,11 @@ class Cursor(pg_api.Cursor):
 			return list(self.database.typio.decodes(self._output.keys()))
 
 	@property
+	def column_types(self):
+		if self._output is not None:
+			return [self.database.typio.type_from_oid(x[3]) for x in self._output]
+
+	@property
 	def pg_column_types(self):
 		if self._output is not None:
 			return [x[3] for x in self._output]
@@ -983,6 +988,20 @@ class PreparedStatement(pg_api.PreparedStatement):
 			return list(self.database.typio.decodes(self._output.keys()))
 
 	@property
+	def parameter_types(self):
+		if self.closed:
+			self.prepare()
+		if self._input is not None:
+			return [self.database.typio.type_from_oid(x) for x in self._input]
+
+	@property
+	def column_types(self):
+		if self.closed:
+			self.prepare()
+		if self._output is not None:
+			return [self.database.typio.type_from_oid(x[3]) for x in self._output]
+
+	@property
 	def pg_parameter_types(self):
 		if self.closed:
 			self.prepare()
@@ -999,21 +1018,23 @@ class PreparedStatement(pg_api.PreparedStatement):
 	def sql_column_types(self):
 		if self.closed:
 			self.prepare()
-		return [
-			pg_types.oid_to_sql_name.get(x) or \
-			self.database.typio.sql_type_from_oid(x)
-			for x in self.pg_column_types
-		]
+		if self._output is not None:
+			return [
+				pg_types.oid_to_sql_name.get(x) or \
+				self.database.typio.sql_type_from_oid(x)
+				for x in self.pg_column_types
+			]
 
 	@property
 	def sql_parameter_types(self):
 		if self.closed:
 			self.prepare()
-		return [
-			pg_types.oid_to_sql_name.get(x) or \
-			self.database.typio.sql_type_from_oid(x)
-			for x in self.pg_parameter_types
-		]
+		if self._input is not None:
+			return [
+				pg_types.oid_to_sql_name.get(x) or \
+				self.database.typio.sql_type_from_oid(x)
+				for x in self.pg_parameter_types
+			]
 
 	def close(self):
 		if self._cid == self.database._cid:
@@ -1946,18 +1967,6 @@ class Connection(pg_api.Connection):
 		database.typio.set_encoding(value)
 	_update_encoding = staticmethod(_update_encoding)
 
-	def _update_timezone(database, key, value):
-		'[internal] subscription method to TimeZone on settings'
-		offset = database.prepare(
-			"SELECT EXTRACT(timezone FROM now())"
-		).first()
-		database.typio.set_timezone(offset, value)
-	_update_timezone = staticmethod(_update_timezone)
-
-	def _update_server_version(database, key, value):
-		database.version_info = pg_version.normalize(pg_version.split(value))
-	_update_server_version = staticmethod(_update_server_version)
-
 	def __repr__(self):
 		return '<%s.%s[%s] %s>' %(
 			type(self).__module__,
@@ -2294,6 +2303,9 @@ class Connection(pg_api.Connection):
 		# Use the version_info and integer_datetimes setting to identify
 		# the necessary binary type i/o functions to use.
 		self.backend_id = self._pq_killinfo.pid
+
+		sv = self.settings.cache.get("server_version", "0.0")
+		self.version_info = pg_version.normalize(pg_version.split(sv))
 		self.typio.select_time_io(
 			self.version_info,
 			self.settings.cache.get("integer_datetimes", "off").lower() in (
@@ -2637,8 +2649,6 @@ class Connection(pg_api.Connection):
 		# Update the _encode and _decode attributes on the connection
 		# when a client_encoding ShowOption message comes in.
 		self.settings.subscribe('client_encoding', self._update_encoding)
-		self.settings.subscribe('server_version', self._update_server_version)
-		self.settings.subscribe('TimeZone', self._update_timezone)
 		self._reset()
 # class Connection
 

@@ -647,6 +647,20 @@ class TypeIO(object, metaclass = ABCMeta):
 	def decode(self, bytes_data):
 		return self._decode(bytes_data)[0]
 
+	def decodes(self, iter):
+		"""
+		Decode the items in the iterable from the configured encoding.
+		"""
+		for k in iter:
+			yield self._decode(k)[0]
+
+	def encodes(self, iter):
+		"""
+		Encode the items in the iterable in the configured encoding.
+		"""
+		for k in iter:
+			yield self._encode(k)
+
 	def resolve_pack(self, typid):
 		return self.resolve(typid)[0] or self.encode
 
@@ -676,23 +690,8 @@ class TypeIO(object, metaclass = ABCMeta):
 	def attribute_map(self, pq_descriptor):
 		return zip(self.decodes(pq_descriptor.keys()), count())
 
-	def decodes(self, iter):
-		"""
-		Decode the items in the iterable from the configured encoding.
-		"""
-		for k in iter:
-			yield self._decode(k)[0]
-
-	def encodes(self, iter):
-		"""
-		Encode the items in the iterable in the configured encoding.
-		"""
-		for k in iter:
-			yield self._encode(k)
-
 	def __init__(self):
 		self.encoding = None
-		self.tzinfo = None
 		self._time_io = ()
 		self._cache = {
 			pg_types.RECORDOID : (
@@ -720,13 +719,26 @@ class TypeIO(object, metaclass = ABCMeta):
 				self.xml_pack, self.xml_unpack
 			),
 		}
-		self.typnames = {}
+		self.typmeta = {}
 
 	def sql_type_from_oid(self, oid):
-		if oid in self.typnames:
-			nsp, name = self.typnames[oid]
+		if oid in self.typmeta:
+			nsp, name, *_ = self.typmeta[oid]
 			return pg_str.quote_ident(nsp) + '.' + pg_str.quote_ident(name)
-		return pg_types.oid_to_name[oid]
+		return pg_types.oid_to_name.get(oid)
+
+	def type_from_oid(self, oid):
+		typ = pg_types.oid_to_type.get(oid)
+		if typ is None:
+			if oid in self.typmeta:
+				tm = self.typmeta[oid]
+				if tm[2]:
+					# composite/row
+					typ = tuple
+				elif tm[3]:
+					# array
+					typ = list
+		return typ
 
 	def set_encoding(self, value):
 		self.encoding = value.lower()
@@ -749,8 +761,8 @@ class TypeIO(object, metaclass = ABCMeta):
 		dt = dt.replace(tzinfo = UTC)
 		return dt
 
-	def set_timezone(self, offset, tzname):
-		self.tzinfo = FixedOffset(offset, tzname = tzname)
+	def set_timezone(self, tzname):
+		pass
 
 	def resolve_descriptor(self, desc, index):
 		'create a sequence of I/O routines from a pq descriptor'
@@ -785,7 +797,9 @@ class TypeIO(object, metaclass = ABCMeta):
 			if ti is not None:
 				typnamespace, typname, typtype, typlen, typelem, typrelid, \
 					ae_typid, ae_hasbin_input, ae_hasbin_output = ti
-				self.typnames[typid] = (typnamespace, typname)
+				self.typmeta[typid] = (
+					typnamespace, typname, typrelid, int(typelem) if ae_typid else None
+				)
 				if typrelid:
 					# Composite/Complex/Row Type
 					#
