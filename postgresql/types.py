@@ -6,6 +6,7 @@
 PostgreSQL types and identifiers
 """
 import math
+import datetime
 try:
 	import xml.etree.cElementTree as etree
 except ImportError:
@@ -100,6 +101,38 @@ ANYOID = 2276
 ANYNONARRAYOID = 2776
 ANYENUMOID = 3500
 
+oid_to_sql_name = {
+	BPCHAROID : 'CHARACTER',
+	VARCHAROID : 'CHARACTER VARYING',
+	# *OID : 'CHARACTER LARGE OBJECT',
+
+	# SELECT X'0F' -> bit. XXX: Does bytea have any play here?
+	#BITOID : 'BINARY',
+	#BYTEAOID : 'BINARY VARYING',
+	# *OID : 'BINARY LARGE OBJECT',
+
+	BOOLOID : 'BOOLEAN',
+
+# exact numeric types
+	INT2OID : 'SMALLINT',
+	INT4OID : 'INTEGER',
+	INT8OID : 'BIGINT',
+	NUMERICOID : 'NUMERIC',
+
+# approximate numeric types
+	FLOAT4OID : 'REAL',
+	FLOAT8OID : 'DOUBLE PRECISION',
+
+# datetime types
+	TIMEOID : 'TIME WITHOUT TIME ZONE',
+	TIMETZOID : 'TIME WITH TIME ZONE',
+	TIMESTAMPOID : 'TIMESTAMP WITHOUT TIME ZONE',
+	TIMESTAMPTZOID : 'TIMESTAMP WITH TIME ZONE',
+	DATEOID : 'DATE',
+
+# interval types
+	INTERVALOID : 'INTERVAL',
+}
 
 oid_to_name = {
 	RECORDOID : 'record',
@@ -263,7 +296,7 @@ class varbit(object):
 
 	def __add__(self, ob):
 		return varbit(str(self) + str(ob))
-	
+
 	def __mul__(self, ob):
 		return varbit(str(self) * ob)
 
@@ -705,4 +738,12 @@ oid_to_type = {
 
 	FLOAT4OID: float,
 	FLOAT8OID: float,
+
+	DATEOID: datetime.date,
+	TIMESTAMPOID: datetime.datetime,
+	TIMESTAMPTZOID: datetime.datetime,
+	TIMEOID: datetime.time,
+	TIMETZOID: datetime.time,
+
+	INTERVALOID: datetime.timedelta,
 }
