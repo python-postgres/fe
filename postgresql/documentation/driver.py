@@ -854,7 +854,7 @@ Error Control
 
 Handling *database* errors inside transaction CMs is generally discouraged as
 any database operation that occurs within a failed transaction is an error
-itself. It is important to trap any recoverable database error outside of the
+itself. It is important to trap any recoverable database errors outside of the
 scope of the transaction's context manager:
 
 	>>> try:
@@ -943,7 +943,7 @@ When a prepared transaction is partially committed, the transaction should be
 rolled-back or committed at some point in time. It is possible
 for a transaction to be prepared, but the connection lost before the final
 commit or rollback. Cases where this occurs require a recovery operation to
-determine the fate of the transaction.
+determine the ultimate fate of the transaction.
 
 In order to recover a prepared transaction, the ``recover()`` method can be
 used:
@@ -966,7 +966,8 @@ PREPARED when the global identifier does not exist.
 	postgresql.exceptions.UndefinedObjectError
 
 This allows recovery operations to identify the existence of the prepared
-transaction.
+transaction. Global transaction managers should trap this exception in order to
+identify how to proceed.
 
 
 Settings
@@ -990,19 +991,57 @@ And ``update(...)`` is better performing for multiple sets:
 	... })
 
 
-Settings Contexts
------------------
+Settings Interface Points
+-------------------------
 
-`postgresql.api.Settings` objects are context managers as well. This provides
+Manipulation of the connection's settings is achieved by using the standard
+`collections.MutableMapping` interfaces. It's very similar to using a dictionary
+object. However, there are some additional interfaces provided in order to
+accommodate for the remote nature of the finite map.
+
+ ``db.settings[k]``
+  Get the value of a single setting.
+
+ ``db.settings[k] = v``
+  Set the value of a single setting.
+
+ ``db.settings.update([(k1,v2), (k2,v2), ..., (kn,vn)])``
+  Set multiple settings using a sequence of key-value pairs.
+
+ ``db.settings.update({k1 : v1, k2 : v2, ..., kn : vn})``
+  Set multiple settings using a dictionary or mapping object.
+
+ ``db.settings.getset([k1, k2, ..., kn])``
+  Get a set of a settings. This is the most efficient way to get multiple
+  settings as it uses a single request.
+
+ ``db.settings.keys()``
+  Get all available setting names.
+
+ ``db.settings.values()``
+  Get all setting values.
+
+ ``db.settings.items()``
+  Get a sequence of key-value pairs corresponding to all settings on the
+  database.
+
+Settings Management
+-------------------
+
+`postgresql.api.Settings` objects provide context managers as well. This gives
 the user with the ability to specify sections of code that are to be ran with
 certain settings. The settings' context manager takes full advantage of keyword
-arguments:
+arguments in order to configure the context manager:
 
 	>>> with db.settings(search_path = 'local,public', timezone = 'mst'):
 	...  ...
 
+`postgresql.api.Settings` objects are callable; the return is a context manager
+configured with the given keyword arguments representing the settings to use for
+the block of code that is about to be executed. 
+
 When the block exits, the settings will be restored to the values that they had
-when the block entered.
+before the block entered.
 
 
 Type Support
