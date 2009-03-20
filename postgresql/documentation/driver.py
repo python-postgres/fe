@@ -1038,7 +1038,7 @@ arguments in order to configure the context manager:
 
 `postgresql.api.Settings` objects are callable; the return is a context manager
 configured with the given keyword arguments representing the settings to use for
-the block of code that is about to be executed. 
+the block of code that is about to be executed.
 
 When the block exits, the settings will be restored to the values that they had
 before the block entered.
