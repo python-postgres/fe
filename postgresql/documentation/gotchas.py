@@ -11,8 +11,8 @@ given user. In order to highlight those potential issues and hopefully bring
 some sense into a confusing situation, this document was drawn.
 
 
-client_encoding GUC should be altered carefully
------------------------------------------------
+client_encoding setting should be altered carefully
+---------------------------------------------------
 
 `postgresql.driver`'s streaming cursor implementation reads a fixed set of rows
 when it queries the server for more. In order to optimize some situations, the
@@ -49,7 +49,7 @@ with a `server_encoding` parameter. Setting `server_encoding` to the proper
 value of the target server will allow the driver to properly encode *some* of
 the parameters. Also, any GUC parameters passed via the `settings` parameter
 should use typed objects when possible to hint that the server encoding should
-not be used on that parameter.
+not be used on that parameter(`bytes`, for instance).
 
 
 Backslash characters are being treated literally
@@ -57,6 +57,23 @@ Backslash characters are being treated literally
 
 The driver enables standard compliant strings. Stop using non-standard features.
 ;)
+
+If support for non-standard strings was provided it would require to the
+driver to provide subjective quote interfaces(eg, db.quote_literal). Doing so is
+not desirable as it introduces difficulties for the driver *and* the user.
+
+
+Types without binary support in the driver are unsupported in arrays and records
+--------------------------------------------------------------------------------
+
+When an array or composite type is identified, `postgresql.protocol.typio`
+ultimately chooses the binary format for the transfer of the column or
+parameter. When this is done, PostgreSQL will pack or expect *all* the values
+in binary format as well. If that binary format is not a ``client_encoding``
+string, it will fail to unpack the row or pack the appropriate data for the
+element or attribute.
+
+In, most cases issues related to this can be avoided with exlicit casts to text.
 '''
 
 __docformat__ = 'reStructuredText'
