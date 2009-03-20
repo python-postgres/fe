@@ -52,7 +52,7 @@ Python Environment
 
 ``pg_python`` creates a Python environment with an already established
 connection based on the given arguments. It provides the following additional
-builtins:
+built-ins:
 
  ``db``
   The PG-API connection object.
@@ -114,23 +114,28 @@ Options:
                         writing back to the "postgresql.conf" file
 
 
+Examples
+--------
+
 Modifying a simple configuration file::
 
 	$ echo "setting = value" >pg.conf
-	$
-	$ # change 'setting'
+	
+	# change 'setting'
 	$ pg_dotconf pg.conf setting=newvalue
+	
 	$ cat pg.conf
 	setting = 'newvalue'
-	$
-	$ # new settings are appended to the file
+	
+	# new settings are appended to the file
 	$ pg_dotconf pg.conf another_setting=value
 	$ cat pg.conf
 	setting = 'newvalue'
 	another_setting = 'value'
-	$
-	$ # comment a setting
+	
+	# comment a setting
 	$ pg_dotconf pg.conf another_setting
+	
 	$ cat pg.conf
 	setting = 'newvalue'
 	#another_setting = 'value'
@@ -141,38 +146,6 @@ to the command, so it's *very* important to avoid invocations like::
 	$ pg_dotconf pg.conf setting = value
 	ERROR: invalid setting, '=' after 'setting'
 	HINT: Settings must take the form 'setting=value' or 'setting_name_to_comment'. Settings must also be received as a single argument.
-
-
-``pg_withcluster``
-==================
-
-``pg_withcluster`` is a command that manages a cluster for the duration of the
-given command. It is intended to provide support for test suites that require
-a cluster in order to validate functionality.
-
-
-pg_withcluster Usage
---------------------
-
-
-``pg_tin``
-==========
-
-``pg_tin`` provides functionality for the management of a set of PostgreSQL
-clusters for the purpose of running quick tests against arbitrary versions of
-PostgreSQL.
-
-The functionality of the command is based around a cluster selector, and the
-command to run for each selected cluster::
-
-	$ pg_tin -V 8.0 com psql -c 'SELECT 1'
-
-The above command runs the ``psql`` command associated with the
-installation of the current working cluster for each cluster in the active set
-whose version is "8.0.x".
-
-pg_tin Usage
-------------
 '''
 
 __docformat__ = 'reStructuredText'
