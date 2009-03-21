@@ -15,10 +15,11 @@ IPv6 is supported via the standard representation::
 
 Driver Parameters:
 
-	pq://user@host/?[driver_param]=value&[other_param]=value
+	pq://user@host/?[driver_param]=value&[other_param]=value?setting=val
 """
 from .resolved import riparse as ri
 from . import string as pg_str
+import operator
 import re
 
 escape_path_re = re.compile('[%s]' %(re.escape(ri.unescaped + ','),))
@@ -134,6 +135,15 @@ def construct(x, obscure_password = False):
 	password = x.get('password')
 	if obscure_password and password is not None:
 		password = '***'
+	driver_params = list({
+		'[' + k + ']' : str(v) for k,v in x.items()
+		if k not in (
+			'user', 'password', 'port', 'database', 'ssl',
+			'path', 'host', 'unix', 'ipv','settings'
+		)
+	}.items())
+	driver_params.sort(key=operator.itemgetter(0))
+
 	return (
 		'pqs' if x.get('ssl', False) is True else 'pq',
 		# netloc: user:pass@host[:port]
@@ -148,7 +158,9 @@ def construct(x, obscure_password = False):
 			for path_comp in path
 		]),
 		None if no_path_settings is None else (
-			ri.construct_query(no_path_settings)
+			ri.construct_query(
+				driver_params + no_path_settings
+			)
 		),
 		None if search_path is None else construct_path(search_path),
 	)

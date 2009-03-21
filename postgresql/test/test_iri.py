@@ -23,6 +23,7 @@ iri_samples = (
 	'pq://fæm.com:123/õéf/á?param=val',
 	'pq://l»»@fæm.com:123/õéf/á?param=val',
 	'pq://fæᎱᏋm.com/õéf/á?param=val',
+	'pq://fæᎱᏋm.com/õéf/á?param=val&[setting]=value',
 )
 
 sample_structured_parameters = [
@@ -67,6 +68,19 @@ sample_structured_parameters = [
 			'set1' : 'val1',
 			'set2' : 'val2',
 		},
+	},
+	{
+		'user' : 'user',
+		'password' : 'secret',
+		'host' : '',
+		'port' : 'ssh',
+		'database' : 'database_name',
+		'settings' : {
+			'set1' : 'val1',
+			'set2' : 'val2',
+		},
+		'connect_timeout' : '10',
+		'sslmode' : 'prefer',
 	},
 ]
 
