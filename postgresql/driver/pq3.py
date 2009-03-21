@@ -128,6 +128,23 @@ def ID(s, title = None):
 	'generate an id for a client statement or cursor'
 	return IDNS %(title or 'untitled', hex(id(s)))
 
+def direction_str_to_bool(str):
+	s = str.upper()
+	if s == 'FORWARD':
+		return True
+	elif s == 'BACKWARD':
+		return False
+	else:
+		raise ValueError("invalid direction " + repr(str))
+
+def direction_to_bool(v):
+	if isinstance(v, str):
+		return direction_str_to_bool(v)
+	elif v is not True and v is not False:
+		raise TypeError("invalid direction " + repr(v))
+	else:
+		return v
+
 class ClosedConnection(pg_api.InterfaceElement):
 	ife_label = 'CLOSED'
 	ife_ancestor = attrgetter('connection')
@@ -164,64 +181,55 @@ class TypeIO(pg_typio.TypeIO):
 class CursorChunks(pg_api.CursorChunks):
 	cursor = None
 
-	def ife_snapshot_text(self):
-		return ''
-
 	def __init__(self, cursor):
 		self.cursor = cursor
-		if not isinstance(cursor, CursorStrategy):
-			cursor._fini()
 
 	def __iter__(self):
 		return self
 
 	def __next__(self):
-		offset, buffer = self.cursor._state[:2]
-		if offset == 0:
-			chunk = buffer
+		if self.cursor._offset == 0:
+			chunk = self.cursor._buffer
 		else:
-			chunk = buffer[offset:]
+			chunk = self.cursor._buffer[self.cursor._offset:]
 		if not chunk:
-			self.cursor._state = (0, [],) + tuple(self.cursor._state[2:])
-			self.cursor._buffer_more(self.cursor.chunksize or self.cursor.default_chunksize)
-			offset, buffer = self.cursor._state[:2]
-			if not buffer:
+			self.cursor._buffer_more(self.cursor.chunksize or 64, self.cursor.direction)
+			if not self.cursor._buffer \
+			and self.cursor._last_increase != self.cursor._last_reqsize:
 				raise StopIteration
 			# offset is expected to be zero.
-			chunk = buffer
+			chunk = self.cursor._buffer
 
-		self.cursor._state = (0, [],) + tuple(self.cursor._state[2:])
-		if not self.cursor.with_scroll:
-			self.cursor._dispatch_for_more()
+		self.cursor._offset = 0
+		self.cursor._buffer = []
+		self.cursor.__dict__.update({
+			'_offset': 0,
+			'_buffer': [],
+		})
 
 		return chunk
-##
-# Base Cursor class and cursor creation entry point.
-class Cursor(pg_api.Cursor):
-	"""
-	Cursor interface handling all cursor objects. This class is exclusively
-	used to provide an interface with an arbitrary SQL cursor.
 
-	See `CursorStrategy` subclasses for the kinds of cursors supported.
-	"""
+##
+# Base Cursor class and cursor creation entry points.
+class Cursor(pg_api.Cursor):
 	ife_ancestor = None
 
+	closed = None
 	cursor_id = None
 	statement = None
 	parameters = None
 
 	with_hold = None
-	with_scroll = None
+	scroll = None
 	insensitive = None
 
-	chunksize = 1
+	chunksize = 64
 
 	_output = None
 	_output_io = None
 	_output_formats = None
 	_output_attmap = None
 
-	_cid = -1
 	_complete_message = None
 
 	@classmethod
@@ -229,10 +237,12 @@ class Cursor(pg_api.Cursor):
 		typ,
 		parameters,
 		statement,
+		scroll = False,
 		with_hold = False,
-		with_scroll = False,
 		insensitive = True,
 	):
+		if statement.closed:
+			statement.prepare()
 		if statement._input is not None:
 			if len(parameters) != len(statement._input):
 				raise TypeError("statement requires %d parameters, given %d" %(
@@ -242,12 +252,14 @@ class Cursor(pg_api.Cursor):
 		c.parameters = parameters
 		c.statement = statement
 		c.with_hold = with_hold
-		c.with_scroll = with_scroll
+		c.scroll = scroll
 		c.insensitive = insensitive
 		c.__init__(ID(c), statement.database)
 		return c
 
 	def __init__(self, cursor_id, database):
+		self.closed = True
+		self.__dict__['direction'] = True
 		if not cursor_id:
 			# Driver uses the empty id(b'').
 			##
@@ -255,6 +267,7 @@ class Cursor(pg_api.Cursor):
 		self.cursor_id = str(cursor_id)
 		self._quoted_cursor_id = '"' + self.cursor_id.replace('"', '""') + '"'
 		self.database = database
+		self._pq_cursor_id = database.typio.encode(self.cursor_id)
 
 	def __del__(self):
 		if not self.closed and ID(self) == self.cursor_id:
@@ -265,16 +278,35 @@ class Cursor(pg_api.Cursor):
 	def __iter__(self):
 		return self
 
+	def get_direction(self):
+		return self.__dict__['direction']
+	def set_direction(self, value):
+		self.__dict__['direction'] = direction_to_bool(value)
+	direction = property(
+		fget = get_direction,
+		fset = set_direction,
+	)
+	del get_direction, set_direction
+
+	def _which_way(self, direction):
+		if direction is not None:
+			direction = direction_to_bool(direction)
+			# -1 * -1 = 1, -1 * 1 = -1, 1 * 1 = 1
+			return not ((not self.direction) ^ (not direction))
+		else:
+			return self.direction
+
+	def _statement_string(self):
+		if self.statement:
+			return self.statement.string
+		return None
+
 	@property
 	def state(self):
 		if self.closed:
 			return 'closed'
 		else:
 			return 'open'
-
-	@property
-	def closed(self):
-		return self._cid != self.database._cid
 
 	@property
 	def chunks(self):
@@ -308,17 +340,14 @@ class Cursor(pg_api.Cursor):
 			self.database._closeportals.append(
 				self.database.typio.encode(self.cursor_id)
 			)
-		self._cid = -2
-
-		self._complete_message = None
-		self.__class__ = Cursor
+			self.closed = True
 
 	def _pq_parameters(self):
-		return list(pg_typio.row_pack(
+		return pg_typio.row_pack(
 			self.parameters,
 			self.statement._input_io,
 			self.database.typio.encode
-		))
+		)
 
 	def _init(self):
 		"""
@@ -346,16 +375,16 @@ class Cursor(pg_api.Cursor):
 				self.database._pq_complete()
 			##
 			# In auto-commit mode or with_hold is on?
-			if (self.database._pq_state == b'I' or self.with_hold is True) \
-			or self.with_scroll is True \
+			if (self.database._pq_state == b'I' \
+			or self.with_hold is True or self.scroll is True) \
 			and self.statement.string is not None:
 				##
-				# with_hold or with_scroll require a DeclaredCursor.
+				# with_hold or scroll require a DeclaredCursor.
 				self.__class__ = DeclaredCursor
 			else:
 				self.__class__ = ProtocolCursor
 		else:
-			# If there's no statement, it's probably server declared cursor.
+			# If there's no statement, it's probably a server declared cursor.
 			# Treat it as an SQL declared cursor with special initialization.
 			self.__class__ = ServerDeclaredCursor
 		return self._init()
@@ -363,7 +392,7 @@ class Cursor(pg_api.Cursor):
 	def _fini(self):
 		##
 		# Mark the Cursor as open.
-		self._cid = self.database._cid
+		self.closed = False
 
 	def ife_snapshot_text(self):
 		return self.cursor_id + ('' if self.parameters is None else (
@@ -381,7 +410,7 @@ class Cursor(pg_api.Cursor):
 	def command(self):
 		"The completion message's command identifier"
 		if self._complete_message is not None:
-			return self._complete_message.extract_command()
+			return self._complete_message.extract_command().decode('ascii')
 
 	def count(self):
 		"The completion message's count number"
@@ -398,18 +427,22 @@ class CursorStrategy(Cursor):
 	def __init__(self, *args, **kw):
 		raise TypeError("cannot instantiate CursorStrategy-types directly")
 
-class StreamingCursor(CursorStrategy):
-	chunksize = None
-
-	def close(self):
-		super().close()
-		self._state = None
+class ReadableCursor(CursorStrategy):
+	def _init(self):
+		self._offset = 0
+		self._buffer = []
+		self._this_reqsize = -1
+		self._this_direction = None
+		self._last_reqsize = 0
+		self._last_increase = 0
+		self._last_direction = self.direction
+		self._xact = None
 
 	@abstractmethod
 	def _expansion(self):
 		"""
 		Return a sequence of the new data provided by the transaction
-		in _state. "the expansion of data for the buffer"
+		_xact. "the expansion of data for the buffer"
 		"""
 
 	@abstractmethod
@@ -420,181 +453,195 @@ class StreamingCursor(CursorStrategy):
 		"""
 
 	def _contract(self):
-		"[internal] reduce the number of items in the buffer"
-		offset, buffer, *x = self._state
-		maxtrim = offset - self.chunksize
+		"reduce the number of items in the buffer"
+		# when chunksize is zero, it will trim the entire buffer.
+		maxtrim = self._offset - self.chunksize
 		trim = self.chunksize or maxtrim
 		if trim >= self.chunksize:
-			self._state = (
-				offset - trim,
-				buffer[trim:],
-			) + tuple(x)
+			self.__dict__.update({
+				'_offset' : self._offset - trim,
+				'_buffer' : self._buffer[trim:]
+			})
+
+	def _maintain(self, direction):
+		if self._last_direction is not None and direction is not self._last_direction:
+			# change in direction, reset buffer.
+			if self._xact is not None:
+				if self._xact.state is not pq.Complete \
+				and self._xact is self.database._pq_xact:
+					self.database._pq_complete()
+			self.__dict__.update({
+				'_offset' : 0,
+				'_buffer' : [],
+				'_last_increase' : 0,
+				'_last_reqsize' : 0,
+				# Don't identify a direction change again.
+				'_last_direction' : direction,
+				'_this_direction' : None,
+				'_xact' : None,
+				'_this_reqsize' : 0,
+			})
+			return
+		# Reduce the buffer, if need be.
+		if self._offset >= self.chunksize and len(self._buffer) >= (3 * self.chunksize):
+			self._contract()
+		# Expand it if reading-ahead,
+		# and the offset is nearing the end of the chunksize.
+		if self._xact is not None and \
+		(len(self._buffer) - self._offset) > (self.chunksize // 8):
+			# Transaction ready, but only attempt expanding if it
+			# will be needed soon.
+			##
+			self._expand()
 
 	def __next__(self):
-		# Reduce set size if need be.
-		offset, buffer = self._state[:2]
-		if offset >= self.chunksize and len(buffer) >= (3 * self.chunksize):
-			self._contract()
-			offset, buffer = self._state[:2]
-		if self._state[2] != None and \
-		(len(buffer) - offset) > (self.chunksize // 8):
-			# Transaction ready, but only attempt expanding if it
-			# will be needed soon.
-			##
-			self._expand()
-			offset, buffer = self._state[:2]
+		self._maintain(self.direction)
 
-		while offset >= len(buffer):
-			if self._buffer_more(1) == 0:
-				# End of cursor.
-				##
+		if self._offset >= len(self._buffer):
+			if self._last_increase != self._last_reqsize \
+			or not (self._buffer_more(1, self.direction) > 0):
 				raise StopIteration
-			offset, buffer = self._state[:2]
-		t = buffer[offset]
-		self._state = (offset + 1,) + self._state[1:]
+
+		t = self._buffer[self._offset]
+		self._offset = self._offset + 1
 		return t
 
-	def read(self, quantity = None):
-		# reduce set size if need be
-		offset, buffer = self._state[:2]
-		if offset >= self.chunksize and len(buffer) > (3 * self.chunksize):
-			self._contract()
-			offset, buffer = self._state[:2]
-		if self._state[2] != None and \
-		((len(buffer) - offset) > (self.chunksize // 8) or not buffer):
-			# Transaction ready, but only attempt expanding if it
-			# will be needed soon.
-			##
-			self._expand()
-			offset, buffer = self._state[:2]
+	def read(self, quantity = None, direction = None):
+		dir = self._which_way(direction)
+		self._maintain(dir)
 
 		if quantity is None:
-			# Read all.
+			# Read all in the direction.
 			##
-			while self._buffer_more(None) > 0:
-				pass
+			while self._last_increase == self._last_reqsize:
+				self._buffer_more(None, dir)
+			quantity = len(self._buffer) - self._offset
 		else:
-			if quantity < 0:
-				# watch me go backwards
-				quantity = -quantity
-				dir = -1
-			else:
-				dir = 1
 			# Read some.
 			##
-			left_to_read = (quantity - (len(buffer) - offset))
-			expanded = -1 
-			while left_to_read > 0 and expanded != 0:
+			left_to_read = (quantity - (len(self._buffer) - self._offset))
+			expanded = 0
+			while left_to_read > 0 and self._last_increase == self._last_reqsize:
 				# In scroll situations, there's no concern
 				# about reading already requested data as
 				# there is no pre-fetching going on.
-				expanded = self._buffer_more(dir*left_to_read)
+				expanded = self._buffer_more(left_to_read, dir)
 				left_to_read -= expanded
-		##
-		# The real quantity becomes the difference
-		# in the buffer length[len(1)] and the offset(0) or
-		# remains the request if more than quantity is buffered.
-		quantity = len(self._state[1]) - offset \
-			if quantity is None \
-			else min(len(self._state[1]) - offset, quantity)
+			quantity = min(len(self._buffer) - self._offset, quantity)
 
-		end_of_block = offset + quantity
-		t = self._state[1][offset:end_of_block]
-		self._state = (end_of_block,) + self._state[1:]
+		end_of_block = self._offset + quantity
+		t = self._buffer[self._offset:end_of_block]
+		self._offset = end_of_block
 		return t
 
-class TupleCursor(StreamingCursor):
-	_state = None
-	default_chunksize = 64
-
-	def close(self):
-		super().close()
-		self._output = \
-		self._output_attmap = \
-		self._output_io = \
-		self._output_formats = None
-
+class TupleCursor(ReadableCursor):
 	def _init(self, setup):
+		super()._init()
 		##
 		# chunksize determines whether or not to pre-fetch.
 		# If the cursor is not scrollable, use the default.
-		if not self.with_scroll and self.chunksize is None:
+		if self.scroll:
 			# This restriction on scroll was set to insure
-			# any possible needed consistency with the cursor position
-			# on the backend.
+			# any needed consistency with the cursor position.
+			# If this was not done, than compensation would need
+			# to be made when direction changes occur.
 			##
-			self.chunksize = self.default_chunksize
-		else:
 			self.chunksize = 0
+			more = ()
+		else:
+			more = self._pq_xp_fetchmore(self.chunksize, self.direction)
 
-		more = self._pq_xp_fetchmore(self.chunksize)
 		x = pq.Instruction(
 			setup + more + (pq.element.SynchronizeMessage,)
 		)
-		self._state = (
-			# offset, buffer, next_xact (pq_xact)
-			0, [], x
-		)
-		self.database._pq_push(x)
+		self.__dict__.update({
+			'_xact' : x,
+			'_this_reqsize' : self.chunksize
+		})
+		self.database._pq_push(self._xact)
+		self._fini()
 
-	def _dispatch_for_more(self):
-		##
-		# There's a chunksize, so if the new extension matches
-		# chunksize, make a read-ahead transaction.
-		more = self._pq_xp_fetchmore(self.chunksize)
-		if more:
-			new_x = more + (pq.element.SynchronizeMessage,)
-			new_x = pq.Instruction(new_x)
-			self.ife_descend(new_x)
-		self._state = (
-			self._state[0],
-			self._state[1],
-			new_x,
-		)
+	def _dispatch_for_more(self, direction):
+		if self._xact:
+			# didn't expand
+			raise RuntimeError("invalid state for dispatch")
+		more = self._pq_xp_fetchmore(self.chunksize, direction)
+		x = more + (pq.element.SynchronizeMessage,)
+		x = pq.Instruction(x)
+		self.ife_descend(x)
+		self.__dict__.update({
+			'_xact' : x,
+			'_this_reqsize' : self.chunksize,
+			'_this_direction' : direction,
+		})
+		self.database._pq_push(self._xact)
 
 	def _expand(self):
 		"""
-		[internal] Expand the buffer using the data in the xact in _state.
+		[internal] Expand the _buffer using the data in _xact
 		"""
-		x = self._state[2]
-		if x is not None:
-			if x.state is not pq.Complete:
-				self.database._pq_push(x)
-				if x.state is not pq.Complete:
+		if self._xact is not None:
+			# complete the _xact
+			if self._xact.state is not pq.Complete:
+				self.database._pq_push(self._xact)
+				if self._xact.state is not pq.Complete:
 					self.database._pq_complete()
 			expansion = self._expansion()
-			newbuffer = self._state[1] + expansion
-			self._state = (self._state[0], newbuffer, None) + self._state[3:]
+			self.__dict__.update({
+				'_buffer' : self._buffer + expansion,
+				'_xact' : None,
+				'_last_increase' : len(expansion),
+				'_last_reqsize' : self._this_reqsize,
+				'_last_direction' : self._this_direction,
+				'_this_reqsize' : None,
+				'_this_direction' : None,
+			})
 
-	def _buffer_more(self, count):
+	def _buffer_more(self, quantity, direction):
 		"""
-		[internal] Expand the buffer with more tuples. Does *not* alter offset.
+		Expand the buffer with more tuples. Does *not* alter offset.
 		"""
 		##
-		# get the current state information
-		offset, buffer, x = self._state
-		if x is None:
+		# The final fallback of 64 is to handle scrollable cursors
+		# where read(None) is invoked.
+		rquantity = self.chunksize or quantity or 64
+		if rquantity < 0:
+			raise RuntimeError("cannot buffer negative quantities")
+
+		if self._xact is None:
 			# No previous transaction started, so make one.
 			##
-			more = self._pq_xp_fetchmore(count)
+			##
+			# Use chunksize if it's non-zero. This will allow the cursor to
+			# complete the transaction and process the rows while more are
+			# coming in.
+			more = self._pq_xp_fetchmore(rquantity, direction)
 			x = pq.Instruction(more + (pq.element.SynchronizeMessage,))
 			self.ife_descend(x)
-			self._state = (offset, buffer, x)
+			self.__dict__.update({
+				'_xact' : x,
+				'_this_reqsize' : rquantity,
+				'_this_direction' : direction,
+			})
 			self.database._pq_push(x)
 
-		bufsize = len(self._state[1])
 		self._expand()
-		newbufsize = len(self._state[1])
-		increased_by = newbufsize - bufsize
 
-		if self.chunksize > 0 and not self.with_scroll is True \
-		and increased_by == self.chunksize \
-		and (newbufsize - offset) >= (self.chunksize // 4):
-			# If a quarter of the chunksize remains, dispatch for another.
+		if self.scroll is False and (
+			self._last_increase == self._last_reqsize \
+			and (
+				(len(self._buffer) - self._offset) >= (self.chunksize // 4) \
+				or quantity > rquantity
+			)
+		):
+			# If not scrolling and
+			# The last buffer increase was the same as the request and
+			# A quarter of the chunksize remains, dispatch for another.
+			#  or, if the quantity is greater than the rquantity.
 			##
-			self._dispatch_for_more()
+			self._dispatch_for_more(direction)
 
-		return newbufsize - bufsize
+		return self._last_increase
 
 	def _expansion(self):
 		return [
@@ -606,12 +653,12 @@ class TupleCursor(StreamingCursor):
 				),
 				attmap = self._output_attmap
 			)
-			for y in self._state[2].messages_received()
+			for y in self._xact.messages_received()
 			if y.type == pq.element.Tuple.type
 		]
 
 	def _pq_xp_move(self, position, whence):
-		'[internal] make a command sequence for a MOVE single command'
+		'make a command sequence for a MOVE single command'
 		return (
 			pq.element.Parse(b'',
 				b'MOVE ' + whence + b' ' + position + b' IN ' + \
@@ -630,10 +677,15 @@ class TupleCursor(StreamingCursor):
 				"unknown whence parameter, %r" %(whence,)
 			)
 		rwhence = rwhence.upper()
+		if self.direction is False:
+			if rwhence == 'RELATIVE':
+				offset = -offset
+			elif rwhence == 'ABSOLUTE':
+				rwhence = 'FROM_END'
+			else:
+				rwhence = 'ABSOLUTE'
 
 		if rwhence == 'RELATIVE':
-			coffset, buffer, x = self._state
-			rpos = len(buffer) - coffset
 			if offset < 0:
 				cmd = self._pq_xp_move(
 					str(-offset).encode('ascii'), b'BACKWARD'
@@ -645,12 +697,25 @@ class TupleCursor(StreamingCursor):
 		elif rwhence == 'ABSOLUTE':
 			cmd = self._pq_xp_move(str(offset).encode('ascii'), b'ABSOLUTE')
 		else:
+			# move to last record, then consume it to put the position at
+			# the very end of the cursor.
 			cmd = self._pq_xp_move(b'', b'LAST') + \
+				self._pq_xp_move(b'', b'NEXT') + \
 				self._pq_xp_move(str(offset).encode('ascii'), b'BACKWARD')
 
 		x = pq.Instruction(cmd + (pq.element.SynchronizeMessage,))
 		self.ife_descend(x)
-		self._state = (0, [], x)
+		# moves are a full reset
+		self.__dict__.update({
+			'_offset' : 0,
+			'_buffer' : [],
+			'_xact' : x,
+			'_this_reqsize' : 0,
+			'_this_direction' : None,
+			'_last_reqsize' : 0,
+			'_last_increase' : 0,
+			'_last_direction' : None,
+		})
 		self.database._pq_push(x)
 
 class ProtocolCursor(TupleCursor):
@@ -659,21 +724,25 @@ class ProtocolCursor(TupleCursor):
 	def _init(self):
 		# Protocol-bound cursor.
 		##
-		if self.with_scroll:
+		if self.scroll:
 			# That doesn't work.
 			##
-			e = pg_exc.OperationError("cannot bind cursor WITH SCROLL")
+			e = pg_exc.OperationError("cannot bind cursor scroll = True")
 			self.ife_descend(e)
 			e.raise_exception()
 		if self.with_hold:
 			# That either.
 			##
-			e = pg_exc.OperationError("cannot bind cursor WITH HOLD")
+			e = pg_exc.OperationError("cannot bind cursor with_hold = True")
 			self.ife_descend(e)
 			e.raise_exception()
 
-		self._pq_cursor_id = self.database.typio._encode(self.cursor_id)[0]
-		setup = (
+		if self.database._pq_state == b'I':
+			# have to fetch them all. as soon as the next sync occurs, the
+			# cursor will be dropped.
+			self.chunksize = 0xFFFFFFFF
+
+		return super()._init((
 			pq.element.Bind(
 				self._pq_cursor_id,
 				self.statement._pq_statement_id,
@@ -681,77 +750,60 @@ class ProtocolCursor(TupleCursor):
 				self._pq_parameters(),
 				self._output_formats,
 			),
-		)
-		super()._init(setup)
-		self._fini()
+		))
 
-	def _pq_xp_fetchmore(self, count):
-		'[internal] make and return a transaction to get more rows'
-		if self.chunksize:
-			# ignore the count if chunksize is non-zero
-			count = self.chunksize
-		if count == 0:
-			return ()
-
+	def _pq_xp_fetchmore(self, quantity, direction):
+		if direction is not True:
+			err = pg_exc.OperationError(
+				"cannot read backwards with protocol cursors"
+			)
+			self.ife_descent(err)
+			err.raise_exception()
 		return (
-			pq.element.Execute(self._pq_cursor_id, count),
+			pq.element.Execute(self._pq_cursor_id, quantity),
 		)
 
 class DeclaredCursor(TupleCursor):
 	cursor_type = 'declared'
+
+	def _statement_string(self):
+		qstr = super()._statement_string()
+		return 'DECLARE {name}{insensitive} {scroll} '\
+			'CURSOR {hold} FOR {source}'.format(
+				name = self._quoted_cursor_id,
+				insensitive = ' INSENSITIVE' if self.insensitive else '',
+				scroll = 'SCROLL' if (self.scroll is True) else 'NO SCROLL',
+				hold = 'WITH HOLD' if (self.with_hold is True) else 'WITHOUT HOLD',
+				source = qstr
+			)
 
 	def _init(self):
 		##
 		# Force with_hold as there is no transaction block.
 		# If this were not forced, the cursor would disappear
 		# before the user had a chance to read rows from it.
-		# Of course, the alternative is to read all the rows. :(
-		qstr = self.statement.string
-		qstr = \
-		'DECLARE {name}{insensitive} {scroll} '\
-		'CURSOR {hold} FOR {source}'.format(
-			name = self._quoted_cursor_id,
-			insensitive = ' INSENSITIVE' if self.insensitive else '',
-			scroll = 'SCROLL' if (
-				self.with_scroll is True
-			) else 'NO SCROLL',
-			hold = 'WITH HOLD' if (
-				self.with_hold is True or self.database._pq_state == b'I'
-			) else 'WITHOUT HOLD',
-			source = qstr
-		)
+		# Of course, the alternative is to read all the rows like ProtocolCursor
+		# does. :(
+		if self.database._pq_state == b'I':
+			self.with_hold = True
 
-		super()._init((
-			pq.element.Parse(b'', self.database.typio.encode(qstr), ()),
+		return super()._init((
+			pq.element.Parse(b'', self.database.typio.encode(self._statement_string()), ()),
 			pq.element.Bind(
 				b'', b'', self.statement._input_formats, self._pq_parameters(), ()
 			),
 			pq.element.Execute(b'', 1),
 		))
-		self._fini()
 
-	def _pq_xp_fetchmore(self, count):
-		if self.chunksize and not self.with_scroll:
-			##
-			# Ignore the `count` if chunksize is non-zero, but
-			# only if it's not a scroll cursor.
-			count = self.chunksize
-		if count == 0:
-			return ()
-
+	def _pq_xp_fetchmore(self, quantity, direction):
 		##
 		# It's an SQL declared cursor, manually construct the fetch commands.
-		if count is None:
-			qstr = "FETCH ALL IN " + self._quoted_cursor_id
+		qstr = "FETCH " + ("FORWARD " if direction else "BACKWARD ")
+		if quantity is None:
+			qstr = qstr + "ALL IN " + self._quoted_cursor_id
 		else:
-			if count < 0:
-				dir = False
-				count = -count
-			else:
-				dir = True
-			qstr = "FETCH " \
-				+ ("FORWARD " if dir else "BACKWARD ") \
-				+ str(count) + " IN " + self._quoted_cursor_id
+			qstr = qstr \
+				+ str(quantity) + " IN " + self._quoted_cursor_id
 		return (
 			pq.element.Parse(b'', self.database.typio.encode(qstr), ()),
 			pq.element.Bind(b'', b'', (), (), self._output_formats),
@@ -762,46 +814,31 @@ class DeclaredCursor(TupleCursor):
 class ServerDeclaredCursor(DeclaredCursor):
 	cursor_type = 'server'
 
-	def close(self):
-		super().close()
-		self._output = \
-		self._output_attmap = \
-		self._output_io = \
-		self._output_formats = None
-
-	def _expansion(self):
-		##
-		# If there's no output, the cursor hasn't been finalized.
-		if self._output is None:
-			self._fini()
-		return super()._expansion()
-
 	def _init(self):
-		self.with_scroll = None
-		self.with_hold = None
+		# scroll and hold are unknown, so assume them to be true.
+		# This means that fetch-ahead is disabled.
+		self.scroll = True
+		self.with_hold = True
+		self.chunksize = 0
 		##
 		# The portal description is needed, so get it.
-		setup = (
-			pq.element.DescribePortal(self._pq_cursor_id),
-			pq.element.FlushMessage,
+		return TupleCursor._init(
+			self, (pq.element.DescribePortal(self._pq_cursor_id),)
 		)
-		self._state = (0, [], pq.Instruction(setup))
-		self.database._pq_push(self._state[2])
 
 	def _fini(self):
-		x = self._state[2]
-		if x.state is not pq.Complete:
-			self.database._pq_push(x)
-			if self.database._pq_xact is x:
-				self.database._pq_complete()
-		for m in x.messages_received():
+		if self._xact.state is not pq.Complete:
+			if self.database._pq_xact is not self._xact:
+				self.database._pq_push(self._xact)
+			self.database._pq_complete()
+		for m in self._xact.messages_received():
 			if m.type is pq.element.TupleDescriptor.type:
-				self._output = tupdesc
+				self._output = m
 				self._output_attmap = \
-					self.database.typio.attribute_map(tupdesc)
+					self.database.typio.attribute_map(self._output)
 				# tuple output
 				self._output_io = self.database.typio.resolve_descriptor(
-					tupdesc, 1 # (input, output)[1]
+					self._output, 1 # (input, output)[1]
 				)
 				self._output_formats = [
 					pq.element.StringFormat
@@ -810,16 +847,23 @@ class ServerDeclaredCursor(DeclaredCursor):
 					for x in self._output_io
 				]
 				super()._fini()
+		# Done with the first transaction.
+		self._xact = None
 		if self.closed:
-			e = OperationError("failed to discover cursor output")
+			e = pg_exc.OperationError("failed to discover cursor output")
 			self.ife_descend(e)
 			e.raise_exception()
 
 class UtilityCursor(CursorStrategy):
 	cursor_type = 'utility'
 
+	def __del__(self):
+		# utility cursors must be finished immediately,
+		# so the cursor_id goes unused.
+		pass
+
 	def _init(self):
-		self._pq_xact = pq.Instruction((
+		self._xact = pq.Instruction((
 			pq.element.Bind(
 				b'',
 				self.statement._pq_statement_id,
@@ -830,16 +874,16 @@ class UtilityCursor(CursorStrategy):
 			pq.element.Execute(b'', 1),
 			pq.element.SynchronizeMessage,
 		))
-		self.ife_descend(self._pq_xact)
+		self.ife_descend(self._xact)
 
-		self.database._pq_push(self._pq_xact)
-		while self._pq_xact.state != pq.Complete:
+		self.database._pq_push(self._xact)
+		while self._xact.state != pq.Complete:
+			# in case it's a copy
 			self.database._pq_step()
-			for x in self._pq_xact.messages_received():
+			for x in self._xact.messages_received():
 				if x.type is pq.element.CopyToBegin.type:
 					self.__class__ = CopyCursor
-					self._init()
-					return
+					return self._init()
 					# The COPY TO STDOUT transaction terminates the loop
 					# *without* finishing the transaction.
 					# Buffering all of the COPY data would be a bad idea(tm).
@@ -850,43 +894,55 @@ class UtilityCursor(CursorStrategy):
 					self._complete_message = x
 		self._fini()
 
-class CopyCursor(StreamingCursor):
+class CopyCursor(ReadableCursor):
 	cursor_type = 'copy'
-	default_chunksize = 1000
-	chunksize = 1
 
 	def _init(self):
-		self._state = (0, [], self._pq_xact, None)
+		x = self._xact
+		super()._init()
+		self._xact = x
+		self._last_extension = None
+		self._last_direction = True
+		self._this_direction = True
 		self._fini()
 
 	def _expansion(self):
-		x = self._state[2]
-		if type(x.completed[0][1][0]) is bytes and \
-		type(x.completed[0][1][-1]) is bytes:
-			return x.completed[0][1]
+		ms = self._xact.completed[0][1]
+		if ms:
+			if type(ms[0]) is bytes and type(ms[-1]) is bytes:
+				return ms
 		return [
-			y for y in x.completed[0][1] if type(y) is bytes
+			y for y in ms if type(y) is bytes
 		]
 
 	def _expand(self):
-		if self._state[2].completed:
+		if self._xact.completed:
+			if self._last_extension is self._xact.completed[0]:
+				del self._xact.completed[0]
+				if not self._xact.completed:
+					return
 			expansions = self._expansion()
-			if self._state[1]:
-				buffer = self._state[1] + expansions
+			if self._buffer:
+				buffer = self._buffer + expansions
 			else:
 				buffer = expansions
-			self._state = (
-				self._state[0],
-				buffer,
-				self._state[2],
-				self._state[2].completed[0],
-			)
-			del self._state[2].completed[0]
+			l = len(expansions)
+			# There is no reqsize, so reveal the end of the
+			# copy when the last_increase is zero *and*
+			# the transaction is over.
+			self.__dict__.update({
+				'_buffer' : buffer,
+				'_last_extension' : self._xact.completed[0],
+				'_last_increase' : l,
+				'_last_reqsize' : \
+					-1 if l == 0 and self._xact.state is pq.Complete else l
+			})
 
-	def _dispatch_for_more(self):
-		return self._buffer_more(0)
+	def _dispatch_for_more(self, direction):
+		# nothing to do for copies
+		pass
 
-	def _buffer_more(self, count : "ignored"):
+	def _buffer_more(self, quantity, direction):
 		"""
 		[internal] helper function to put more copy data onto the buffer for
 		reading. This function will only append to the buffer and never
@@ -894,39 +950,35 @@ class CopyCursor(StreamingCursor):
 
 		Used to support ``COPY ... TO STDOUT ...;``
 		"""
-		if count is not None and count < 0:
+		if direction is not True:
 			e = pg_exc.OperationError(
-				"COPY cannot be read backwards"
+				"cannot read COPY backwards"
 			)
 			self.ife_descend(e)
 			e.raise_exception()
 
-		offset, buffer, x, last_seq = self._state
-		# get more data while incomplete and within buffer needs/limits
-		while self.database._pq_xact is x and len(x.completed) < 2:
+		while self.database._pq_xact is self._xact and not self._xact.completed:
 			self.database._pq_step()
 
-		if not x.completed:
-			# completed list depleted, can't buffer more
-			return 0
-
 		# Find the Complete message when _pq_xact is done
-		if x.state is pq.Complete:
-			i = x.reverse()
+		if self._xact.state is pq.Complete and self._complete_message is None:
+			i = self._xact.reverse()
 			ready = next(i)
 			complete = next(i)
 			self._complete_message = complete
 
-		if last_seq == x.completed[0]:
-			del x.completed[0]
-		bufsize = len(self._state[1])
+		if not self._xact.completed:
+			# completed list depleted, can't buffer more
+			self._last_increase = 0
+			return 0
+
+		bufsize = len(self._buffer)
 		self._expand()
-		newbufsize = len(self._state[1])
+		newbufsize = len(self._buffer)
 		return newbufsize - bufsize
 
 class PreparedStatement(pg_api.PreparedStatement):
 	ife_ancestor = None
-	_cid = -1
 	string = None
 	database = None
 	statement_id = None
@@ -956,6 +1008,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self.database = database
 		self._pq_xact = None
 		self._pq_statement_id = None
+		self.closed = True
 
 	def __repr__(self):
 		return '<{mod}.{name}[{ci}] {state}>'.format(
@@ -964,10 +1017,6 @@ class PreparedStatement(pg_api.PreparedStatement):
 			ci = self.database.connector._pq_iri,
 			state = self.state,
 		)
-
-	@property
-	def closed(self) -> bool:
-		return self._cid != self.database._cid
 
 	@property
 	def state(self) -> str:
@@ -1037,11 +1086,9 @@ class PreparedStatement(pg_api.PreparedStatement):
 			]
 
 	def close(self):
-		if self._cid == self.database._cid:
+		if not self.closed:
 			self.database._closestatements.append(self._pq_statement_id)
-		# Make a distinction between explicitly closed and uninitialized.
-		# (could be handy)
-		self._cid = -2
+		self.closed = True
 		self._pq_statement_id = None
 		self._pq_xact = None
 
@@ -1143,7 +1190,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			else pq.element.BinaryFormat
 			for x in self._input_io
 		]
-		self._cid = self.database._cid
+		self.closed = False
 		self._pq_xact = None
 
 	def __call__(self, *parameters, **kw):
@@ -1164,12 +1211,10 @@ class PreparedStatement(pg_api.PreparedStatement):
 		c = self.database
 
 		if self._input_io:
-			params = list(
-				pg_typio.row_pack(
-					parameters,
-					self._input_io,
-					c.typio.encode
-				)
+			params = pg_typio.row_pack(
+				parameters,
+				self._input_io,
+				c.typio.encode
 			)
 		else:
 			params = ()
@@ -1292,11 +1337,9 @@ class PreparedStatement(pg_api.PreparedStatement):
 				c = 0
 				xm = []
 				for t in tupleseqiter:
-					params = list(
-						pg_typio.row_pack(
-							t, self._input_io,
-							self.database.typio.encode
-						)
+					params = pg_typio.row_pack(
+						t, self._input_io,
+						self.database.typio.encode
 					)
 					xm.extend((
 						pq.element.Bind(
@@ -2068,16 +2111,18 @@ class Connection(pg_api.Connection):
 		return c
 
 	def close(self):
+		if self.closed:
+			return
 		# Write out the disconnect message if the socket is around.
 		# If the connection is known to be lost, don't bother. It will
 		# generate an extra exception.
+		self._pq_xact = self._pq_closed_xact
 		try:
 			if self.socket is not None and self._pq_state != 'LOST':
 				self._write_messages((pq.element.DisconnectMessage,))
 		finally:
 			if self.socket is not None:
 				self.socket.close()
-			self._reset()
 			# the data in the closed connection transaction is in utf-8.
 			self.typio.set_encoding('utf-8')
 
@@ -2109,9 +2154,18 @@ class Connection(pg_api.Connection):
 	def connect(self, timeout = None):
 		'Establish the connection to the server'
 		# already connected?
-		if self.closed is not True:
+		if self.closed is False:
 			return
-		self._cid += 1
+		else:
+			if self._pq_xact is not None:
+				err = pg_exc.OperationError(
+					"dead connection",
+					details = {
+						'hint' : 'Try creating a new connection instead.'
+					}
+				)
+				self.ife_descend(err)
+				err.raise_exception()
 		self.typio.set_encoding('ascii')
 
 		timeout = timeout or self.connector.connect_timeout
@@ -2253,6 +2307,8 @@ class Connection(pg_api.Connection):
 			self.ife_descend(err)
 			err.database = self
 			err.set_connection_failures(connection_failures)
+			# it's over.
+			self._pq_xact = self._pq_closed_xact
 			err.raise_exception()
 		self._init()
 
@@ -2622,6 +2678,7 @@ class Connection(pg_api.Connection):
 		self._asyncs = []
 		self._n_procasyncs = None
 
+		self._pq_xact = None
 		self._pq_killinfo = None
 		self._pq_state = None
 		self.backend_id = None
@@ -2630,14 +2687,11 @@ class Connection(pg_api.Connection):
 		self.client_port = None
 		self.security = None
 
-		self._pq_xact = self._pq_closed_xact
-
 	def __init__(self, connector, *args, **kw):
 		"""
 		Create a connection based on the given connector.
 		"""
 		self._pq_closed_xact = ClosedConnection(self)
-		self._cid = 0
 		self.connector = connector
 		self._closestatements = []
 		self._closeportals = []

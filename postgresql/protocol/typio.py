@@ -573,31 +573,39 @@ def composite_typio(
 # make the fundamental tranformation routines work on a sequence.
 def row_unpack(seq, typio, decode):
 	'Transform object data into an object using the associated IO routines'
-	for x in range(len(typio)):
-		io = typio[x]
-		ob = seq[x]
+	l = len(typio)
+	r = [None] * l
+	while l:
+		l = l - 1
+		ob = seq[l]
 		if ob is None:
-			yield None
-		elif io is None:
+			continue
+		io = typio[l]
+		if io is None:
 			# StringFormat
-			yield decode(ob)
+			r[l] = decode(ob)
 		else:
 			# BinaryFormat
-			yield io(ob)
+			r[l] = io(ob)
+	return r
 
 def row_pack(seq, typio, encode):
 	'Transform objects into object data using the associated IO routines'
-	for x in range(len(typio)):
-		io = typio[x]
-		ob = seq[x]
+	l = len(typio)
+	r = [None] * l
+	while l:
+		l = l - 1
+		ob = seq[l]
 		if ob is None:
-			yield None
-		elif io is None:
+			continue
+		io = typio[l]
+		if io is None:
 			# StringFormat
-			yield encode(ob)
+			r[l] = encode(ob)
 		else:
 			# BinaryFormat
-			yield io(ob)
+			r[l] = io(ob)
+	return r
 
 class TypeIO(object, metaclass = ABCMeta):
 	"""

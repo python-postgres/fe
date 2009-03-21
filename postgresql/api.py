@@ -399,7 +399,6 @@ class Message(InterfaceElement):
 		self.ife_emit(self)
 
 class CursorChunks(
-	InterfaceElement,
 	collections.Iterator,
 	collections.Iterable,
 ):
@@ -408,8 +407,6 @@ class CursorChunks(
 	by a cursor. Normally, a chunks object is created by the user accessing the
 	`chunks` property on a given cursor.
 	"""
-	ife_label = 'CHUNKS'
-	ife_ancestor = None
 
 	@propertydoc
 	@abstractproperty
@@ -439,6 +436,10 @@ class Cursor(
 		0 : 'ABSOLUTE',
 		1 : 'RELATIVE',
 		2 : 'FROM_END',
+	}
+	_direction_map = {
+		True : 'FORWARD',
+		False : 'BACKWARD',
 	}
 
 	@propertydoc
@@ -514,13 +515,17 @@ class Cursor(
 		"""
 		Whether or not the cursor is insensitive. Extant versions of PostgreSQL
 		only support insensitive cursors.
+
+		Cursor declaration property.
 		"""
 
 	@propertydoc
 	@abstractproperty
-	def with_scroll(self) -> bool:
+	def scroll(self) -> bool:
 		"""
 		Whether or not the cursor is scrollable.
+
+		Cursor declaration property.
 		"""
 
 	@propertydoc
@@ -528,14 +533,30 @@ class Cursor(
 	def with_hold(self) -> bool:
 		"""
 		Whether or not the cursor will persist across transactions.
+
+		Cursor declaration property.
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def direction(self) -> bool:
+		"""
+		The default `direction` argument for read().
+
+		When `True` reads are FORWARD.
+		When `False` reads are BACKWARD.
+
+		Cursor operation option.
 		"""
 
 	@propertydoc
 	@abstractproperty
 	def chunksize(self) -> int:
 		"""
-		Cursor runtime configuration for determining how many rows to fetch with
-		each request.
+		Cursor configuration for determining how many rows to fetch with each
+		request.
+
+		Cursor operation option.
 		"""
 
 	@propertydoc
@@ -547,13 +568,16 @@ class Cursor(
 
 	@abstractmethod
 	def read(self,
-		quantity : "Number of rows to read" = None
+		quantity : "Number of rows to read" = None,
+		direction : "Direction to fetch in, defaults to `self.direction`" = None,
 	) -> ["Row"]:
 		"""
 		Read, fetch, the specified number of rows and return them in a list.
-		This alters the cursor's position.
+		If quantity is `None`, all records will be fetched.
 
-		If the quantity is a negative value, fetch backwards.
+		`direction` can be used to override the default configured direction.
+
+		This alters the cursor's position.
 		"""
 
 	@abstractmethod
@@ -565,14 +589,15 @@ class Cursor(
 	@abstractmethod
 	def __next__(self) -> "Row":
 		"""
-		Get the next tuple in the cursor. Advances the cursor position by one.
+		Get the next tuple in the cursor.
+		Advances the cursor position by one.
 		"""
 
 	@abstractmethod
 	def seek(self, offset, whence = 'ABSOLUTE'):
 		"""
 		Set the cursor's position to the given offset with respect to the
-		whence parameter.
+		whence parameter and the configured direction.
 
 		Whence values:
 
@@ -582,6 +607,10 @@ class Cursor(
 		  Relative.
 		 ``2`` or ``"FROM_END"``
 		  Absolute from end.
+
+		Direction effects whence. If direction is BACKWARD, ABSOLUTE positioning
+		will effectively be FROM_END, RELATIVE's position will be negated, and
+		FROM_END will effectively be ABSOLUTE.
 		"""
 
 class PreparedStatement(
@@ -703,7 +732,7 @@ class PreparedStatement(
 		*args : "Positional Parameters",
 		with_hold : \
 			"Whether or not to request 'WITH HOLD'" = True,
-		with_scroll : \
+		scroll : \
 			"Whether or not to request 'SCROLL'" = False,
 		cursor_id : \
 			"If `None`, generate the cursor_id, " \

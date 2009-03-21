@@ -284,6 +284,29 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		))
 		self.failUnlessEqual(tuple(c.column_types), (str,str,tuple))
 
+	def testStatementFromId(self):
+		self.db.execute("PREPARE foo AS SELECT 1 AS colname;")
+		ps = self.db.statement_from_id('foo')
+		self.failUnlessEqual(ps.first(), 1)
+		self.failUnlessEqual(ps().read(), [(1,)])
+		self.failUnlessEqual(list(ps), [(1,)])
+		self.failUnlessEqual(tuple(ps.column_names), ('colname',))
+
+	def testCursorFromId(self):
+		self.db.execute("DECLARE foo CURSOR WITH HOLD FOR SELECT 1")
+		c = self.db.cursor_from_id('foo')
+		self.failUnlessEqual(c.read(), [(1,)])
+		self.db.execute(
+			"DECLARE bar SCROLL CURSOR WITH HOLD FOR SELECT i FROM generate_series(0, 99) AS g(i)"
+		)
+		c = self.db.cursor_from_id('bar')
+		c.seek(50)
+		self.failUnlessEqual([x for x, in c.read(10)], list(range(50,60)))
+		c.seek(0,2)
+		self.failUnlessEqual(c.read(), [])
+		c.seek(0)
+		self.failUnlessEqual([x for x, in c.read()], list(range(100)))
+
 	def testCopyToSTDOUT(self):
 		with self.db.xact():
 			self.db.execute("CREATE TABLE foo (i int)")
@@ -410,25 +433,31 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		with self.db.xact():
 			self.testCursorRead()
 
-	def testWithScroll(self):
+	def testScroll(self, direction = True):
 		# Use a large row-set.
 		imin = 0
-		imax = 2**16 -1
-		ps = self.db.prepare("SELECT i FROM generate_series(0, (2^16)::int) AS g(i)")
-		c = ps(with_scroll = True)
+		imax = 2**16
+		if direction:
+			ps = self.db.prepare("SELECT i FROM generate_series(0, (2^16)::int) AS g(i)")
+		else:
+			ps = self.db.prepare("SELECT i FROM generate_series((2^16)::int, 0, -1) AS g(i)")
+		c = ps(scroll = True)
+		c.direction = direction
+		if not direction:
+			c.seek(0)
 
 		self.failUnlessEqual([x for x, in c.read(10)], list(range(10)))
 		# bit strange to me, but i've watched the fetch backwards -jwp 2009
-		self.failUnlessEqual([x for x, in c.read(-10)], list(range(8, -1, -1)))
+		self.failUnlessEqual([x for x, in c.read(10, 'BACKWARD')], list(range(8, -1, -1)))
 		c.seek(0, 2)
-		self.failUnlessEqual([x for x, in c.read(-10)], list(range(imax, imax-10, -1)))
+		self.failUnlessEqual([x for x, in c.read(10, 'BACKWARD')], list(range(imax, imax-10, -1)))
 
 		# move to end
 		c.seek(0, 2)
-		self.failUnlessEqual([x for x, in c.read(-100)], list(range(imax, imax-100, -1)))
+		self.failUnlessEqual([x for x, in c.read(100, 'BACKWARD')], list(range(imax, imax-100, -1)))
 		# move backwards, relative
 		c.seek(-100, 1)
-		self.failUnlessEqual([x for x, in c.read(-100)], list(range(imax-200, imax-300, -1)))
+		self.failUnlessEqual([x for x, in c.read(100, 'BACKWARD')], list(range(imax-200, imax-300, -1)))
 
 		# move abs, again
 		c.seek(14000)
@@ -441,13 +470,16 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual([x for x, in c.read(200)], list(range(24000, 24200)))
 		# move to end and then back some
 		c.seek(20, 2)
-		self.failUnlessEqual([x for x, in c.read(-200)], list(range(imax-20, imax-20-200, -1)))
+		self.failUnlessEqual([x for x, in c.read(200, 'BACKWARD')], list(range(imax-20, imax-20-200, -1)))
 
 		c.seek(0, 2)
 		c.seek(-10, 1)
 		r1 = c.read(10)
 		c.seek(10, 2)
 		self.failUnlessEqual(r1, c.read(10))
+
+	def testScrollBackwards(self):
+		self.testScroll(direction = False)
 
 	def testWithHold(self):
 		with self.db.xact():

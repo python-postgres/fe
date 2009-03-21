@@ -14,7 +14,8 @@ prepared statements for strongly typed parameters.
 
 `postgresql.driver` currently supports PostgreSQL servers as far back as 8.0.
 Prior versions are not tested. While any version of PostgreSQL supporting
-version 3.0 of the PQ protocol *should* work.
+version 3.0 of the PQ protocol *should* work, many features may not work due to
+absent functionality in the remote end.
 
 The following identifiers are regularly used as shorthands for significant
 interface elements:
@@ -32,12 +33,16 @@ interface elements:
  ``C``
   `postgresql.api.Connector`, a connector. `Connectors`_
 
+ ``xact``
+  `postgresql.api.Transaction`, a transaction. `Transactions`_
+
 
 Establishing a Connection
 =========================
 
-There are many ways to establish a `postgresql.api.Connection` to a PostgreSQL
-server. This section discusses those interfaces.
+There are many ways to establish a `postgresql.api.Connection` to a
+PostgreSQL server. This section discusses those interfaces.
+
 
 `postgresql.open`
 -----------------
@@ -52,8 +57,9 @@ a URL:
 This will connect to the host, ``localhost`` and to the database named
 ``postgres`` via the ``pq`` protocol. open will inherit client parameters from
 the environment, so the user name given to the server will come from ``$PGUSER``
-or if that is unset, the result of ``getpass.getuser()``. The user's
-"pgpassfile" will also be referenced if no password is given:
+or if that is unset, the result of ``getpass.getuser()``--the name of the user
+that executed the process. The user's "pgpassfile" will also be referenced if
+no password is given:
 
 	>>> db = postgresql.open("pq://username:password@localhost/postgres")
 
@@ -208,6 +214,14 @@ interfaces:
   Revocation list file path. [Currently not checked.]
 
 
+Connection Failures
+-------------------
+
+If a connection cannot be established for a known reason, a
+`postgresql.exceptions.ClientCannotConnectError` will be raised by the
+connection creation interface.
+
+
 Connections
 ===========
 
@@ -219,6 +233,9 @@ interface to a remote PostgreSQL server; specifically, a
 Connections are one-time objects. Once, it is closed or lost, it can longer be
 used to interact with the database provided by the server. If further use of the
 server is desired, a new connection *must* be established.
+
+In cases where operations are performed on a closed connection, a
+`postgresql.exceptions.ConnectionDoesNotExistError` will be raised.
 
 
 Database Interface Points
@@ -274,17 +291,23 @@ the connection is made:
 
  ``version``
   The results of ``SELECT version()``.
+
  ``version_info``
   A ``sys.version_info`` form of the ``server_version`` setting. eg. ``(8, 1, 2,
   'final', 0)``.
+
  ``security``
   `None` if no security. ``'ssl'`` if SSL is enabled.
+
  ``backend_id``
   The process-id of the backend process.
+
  ``backend_start``
   When backend was started. ``datetime.datetime`` instance.
+
  ``client_address``
   The client address that the backend is communicating with.
+
  ``client_port``
   The port of the client that the backend is communicating with.
 
@@ -329,31 +352,31 @@ object providing a `postgresql.api.Cursor` interface.
  only provide interfaces to retrieving the results to that specific
  invocation of the statement.
 
-Prepared statement objects have a few ways to submit the request to the database:
+Prepared statement objects have a few execution methods:
 
- ``__call__(...)``
+ ``ps(...)``
   As shown before, statement objects can be simply invoked like a function to get a
   cursor to the statement's results.
 
- ``__iter__()``
+ ``iter(ps)``
   Convenience interface that executes the ``__call__`` method without arguments.
   This enables the following syntax:
 
   >>> for table_name, in db.prepare("SELECT table_name FROM information_schema.tables"):
   ...  print(table_name)
 
- ``first(...)``
-  For simple statements, a cursor object can be a bit tiresome to get data from.
+ ``ps.first(...)``
+  For simple statements, a cursor objects are unnecessary.
   Consider the data contained in ``c`` from above, 'hello world!'. To get at this
   data directly from the ``__call__(...)`` method, it looks something like::
 
 	>>> ps().read()[0][0]
 
-  While it's certainly easy to understand, it can be quite cumbersome and
-  perhaps even error prone depending on the statement.
-
   To simplify access to simple data, the ``first`` method will simply return
-  the "first" of the result set.
+  the "first" of the result set::
+
+   >>> ps.first()
+   'hello, world!'
 
   The first value.
    When the result set consists of a single column, ``first()`` will return
@@ -405,7 +428,8 @@ published via the following properties on the statement object:
   A sequence of `str` objects specifying the names of the columns produced by
   the statement. `None` if the statement does not return row-data.
 
-The indexes of the sequence correspond to the parameter's identifier, N+1.
+The indexes of the parameter sequences correspond to the parameter's
+identifier, N+1.
 
 In order for this information to be available, the statement must be fully
 prepared, so if the statement is closed, it will be re-prepared when this
@@ -428,7 +452,7 @@ Parameterized Statements
 Statements can take parameters. Using statement parameters is the recommended
 way to interrogate the database when variable information is needed to formulate
 a complete request. In order to do this, the statement must be defined using
-PostgreSQL's positional parameter notation. ``$1``, ``$2``, ``$3``, etc:
+PostgreSQL's positional parameter notation. ``$1``, ``$2``, ``$3``, etc::
 
 	>>> ps = db.prepare("SELECT $1")
 	>>> c = ps('hello, world!')
@@ -436,7 +460,7 @@ PostgreSQL's positional parameter notation. ``$1``, ``$2``, ``$3``, etc:
 	'hello, world!'
 
 PostgreSQL determines the type of the parameter based on the context of the
-parameter's identifier.
+parameter's identifier::
 
 	>>> ps = db.prepare(
 	...  "SELECT * FROM information_schema.tables WHERE table_name = $1 LIMIT $2"
@@ -449,7 +473,7 @@ Parameter ``$1`` in the above statement will take on the type of the
 ``table_name`` column and ``$2`` will take on the type required by the LIMIT
 clause(text and int8).
 
-However, types can be forced to a specific type using explicit casts:
+However, parameters can be forced to a specific type using explicit casts:
 
 	>>> ps = db.prepare("SELECT $1::integer")
 	>>> ps.first(-400)
@@ -461,12 +485,13 @@ a given parameter is in the appropriate type as required by the serialization
 routines. The Python types expected by the driver for a given SQL and PostgreSQL
 type are listed in `Type Support`_.
 
-This usage of Python types that are included in the standard library is not always
-convenient. Notably, the `datetime` module does not provide a friendly way for a
-user to express intervals, dates, or times. There is a likely inclination to
-forego these parameter type requirements.
+This usage of types is not always convenient. Notably, the `datetime` module
+does not provide a friendly way for a user to express intervals, dates, or
+times. There is a likely inclination to forego these parameter type
+requirements.
 
-In such cases, explicit casts can be made to work-around the type requirements:
+In such cases, explicit casts can be made to work-around the type
+requirements::
 
 	>>> ps = db.prepare("SELECT $1::text::date")
 	>>> ps.first('yesterday')
@@ -474,7 +499,7 @@ In such cases, explicit casts can be made to work-around the type requirements:
 
 The parameter, ``$1``, is given to the database as a string, which is then
 promptly cast into a date. Of course, without the explicit cast as text, the
-outcome would be different:
+outcome would be different::
 
 	>>> ps = db.prepare("SELECT $1::text::date")
 	>>> ps.first('yesterday')
@@ -504,11 +529,11 @@ examples, a table definition is necessary for a complete illustration::
 	... 	"""
 	... )
 
-Create the INSERT statement:
+Create the INSERT statement::
 
 	>>> mk_employee = db.prepare("INSERT INTO employee VALUES ($1, $2, $3, $4)")
 
-And add "Mr. Johnson" to the table:
+And add "Mr. Johnson" to the table::
 
 	>>> import datetime
 	>>> dmlr = mk_employee(
@@ -535,7 +560,11 @@ returned. The type of statement ultimately decides the kind of cursor used to
 manage the results.
 
 Cursors can also be created directly from ``cursor_id``'s using the
-``cursor_from_id`` method on connection objects.
+``cursor_from_id`` method on connection objects::
+
+	>>> db.execute('DECLARE ')
+	>>> c = db.cursor_from_id('the_cursor_id')
+	>>> c.close()
 
 
 Cursor Interface Points
@@ -544,31 +573,52 @@ Cursor Interface Points
 For cursors that return row data, these interfaces are provided for accessing
 those results:
 
- ``__next__()``
+ ``next(c)``
   This fetches the next row in the cursor object. Cursors support the iterator
   protocol. While equivalent to ``cursor.read(1)[0]``, `StopIteration` is raised
   if the returned sequence is empty.
 
- ``read(nrows)``
+ ``c.read(quantity = None, direction = None)``
   This method name is borrowed from `file` objects, and are semantically
   similar. However, this being a cursor, rows are returned instead of bytes or
-  characters. When the number of rows returned is less then the absolute value
-  of the number requested, it means that cursor has been exhausted,
-  and there are no more rows to be read in that direction.
+  characters. When the number of rows returned is less then the quantity
+  requested, it means that the cursor has been exhausted in the configured
+  direction. The ``direction`` argument can be either ``'FORWARD'`` or `True`
+  to FETCH FORWARD, or ``'BACKWARD'`` or `False` to FETCH BACKWARD.
 
-  In cases where the cursor is scrollable, backward fetches are available via
-  negative read quantities.
+  Like, ``seek()``, the ``direction`` cursor *property* effects this method.
 
- ``chunks``
+ ``c.seek(position[, whence = 0])``
+  When the cursor is scrollable, this seek interface can be used to move the
+  position of the cursor. See `Scrollable Cursors`_ for more information.
+
+ ``c.chunks``
   This access point is designed for situations where rows are being streamed out
   quickly. It is a property that provides an ``collections.Iterator`` that returns
   *sequences* of rows. The size of the "chunks" produced is *normally* consistent
   with the ``chunksize`` attribute on the cursor object itself. This is
   normally the most efficient way to get rows out of the cursor.
 
- ``seek(position[, whence = 0])``
-  When the cursor is scrollable, this seek interface can be used to move the
-  position of the cursor. See `Scrollable Cursors`_ for more information.
+ ``c.close()``
+  For cursors opened using ``cursor_from_id()``, this method must be called in
+  order to ``CLOSE`` the cursor. For cursors created by invoking a prepared
+  statement, this is not necessary as the garbage collection interface will take
+  the appropriate steps.
+
+Cursors have some additional operational properties that may be modified during
+the use of the cursor:
+
+ ``c.direction``
+  A value of `True`, the default, will cause read to fetch forwards, whereas a
+  value of `False` will cause it to fetch backwards.
+
+ ``c.chunksize``
+  The default number of rows to fetch when *fulfilling* a read request. For
+  cursors returning large rows, a small value may be wise in order to conserve
+  memory.
+
+.. warning::
+ Setting a non-zero ``chunksize`` on scrollable cursors is not supported.
 
 
 Cursor Metadata
@@ -602,7 +652,7 @@ Scrollable Cursors
 By default, cursors are not scrollable. It is assumed, for performance reasons,
 that the user just wants the results in a linear fashion. However, scrollable
 cursors are supported for applications that need to implement paging. To create
-a scrollable cursor, call the statement with the ``with_scroll`` keyword
+a scrollable cursor, call the statement with the ``scroll`` keyword
 argument set to `True`.
 
 .. note::
@@ -630,7 +680,7 @@ arguments: ``position`` and ``whence``:
     seek to the end of the cursor and then MOVE backwards by the given
     ``position``.
 
-Scrolling through employees:
+Scrolling through employees::
 
 	>>> emps_by_age = db.prepare("""
 	... SELECT
@@ -638,19 +688,54 @@ Scrolling through employees:
 	... 	EXTRACT(years FROM AGE(employee_dob)) AS age
 	... ORDER BY age ASC
 	... """)
-	>>> snapshot = emps_by_age(with_scroll = True)
-	>>> # seek to the end
+	>>> snapshot = emps_by_age(scroll = True)
+	>>> # seek to the end, ``2`` works as well.
 	>>> snapshot.seek(0, 'FROM_END')
-	>>> # scroll back one
+	>>> # scroll back one, ``1`` works as well.
 	>>> snapshot.seek(-1, 'RELATIVE')
 	>>> # and back to the beginning again
 	>>> snapshot.seek(0)
 
-Additionally, scrollable cursors support backward fetches using negative read
-counts:
+Additionally, scrollable cursors support backward fetches by specifying the
+direction keyword argument::
 
-	>>> snapshot.seek(0, -2)
-	>>> snapshot.read(-1)
+	>>> snapshot.seek(0, 2)
+	>>> snapshot.read(1, 'BACKWARD')
+
+
+Cursor Direction 
+^^^^^^^^^^^^^^^^
+
+The ``direction`` property on the cursor states the default direction for read
+and seek operations. Normally, the direction is `True`, ``'FORWARD'``. When the
+property is set to ``'BACKWARD'`` or `False`, the read method will fetch
+backward by default, and seek operations will be inverted to simulate a
+reversely ordered cursor. The following example illustrates the effect::
+
+	>>> reverse_c = db.prepare('SELECT i FROM generate_series(99, 0, -1) AS g(i)')(scroll = True)
+	>>> c = db.prepare('SELECT i FROM generate_series(0, 99) AS g(i)')(scroll = True)
+	>>> reverse_c.direction = 'BACKWARD'
+	>>> reverse_c.seek(0)
+	>>> c.read() == reverse_c.read()
+
+Furthermore, when the cursor is configured to read backwards, specifying
+``'BACKWARD'`` for read's ``direction`` argument will ultimately cause a forward
+fetch. This potentially confusing facet of direction configuration is
+implemented in order to create an appropriate symmetry in functionality.
+The cursors in the above example contain the same rows, but are ultimately in
+reverse order. The backward direction property is designed so that the effect
+of any read or seek operation on those cursors is the same::
+
+	>>> reverse_c.seek(50)
+	>>> c.seek(50)
+	>>> c.read(10) == reverse_c.read(10)
+	>>> c.read(10, 'BACKWARD') == reverse_c.read(10, 'BACKWARD')
+
+And for relative seeks::
+
+	>>> c.seek(-10, 1)
+	>>> reverse_c.seek(-10, 1)
+	>>> c.read(10, 'BACKWARD') == reverse_c.read(10, 'BACKWARD')
 
 
 COPY Cursors
@@ -694,7 +779,8 @@ to send to the server::
 	... ])
 
 Copy cursors and the load interface was designed to be used together so that
-direct transfers from a source database to a destination database could be made:
+direct transfers from a source database to a destination database could be
+made::
 
 	>>> copyout = src.prepare('COPY atable TO STDOUT')
 	>>> copyin = dst.prepare('COPY atable FROM STDIN')
@@ -711,13 +797,13 @@ SQL routine.
 
 This provides a direct interface to the function stored on the database. It
 leverages knowledge of the parameters and results of the function in order
-to provide the user with a natural interface to the procedure:
+to provide the user with a natural interface to the procedure::
 
 	>>> get_version = db.proc('version()')
 	>>> get_version()
 	'PostgreSQL 8.3.6 on ...'
 
-Set-returning functions, SRFs, on the other hand, return a sequence:
+Set-returning functions, SRFs, on the other hand, return a sequence::
 
 	>>> generate_series = db.proc('generate_series(int,int)')
 	>>> gs = generate_series(1, 20)
@@ -732,7 +818,7 @@ For functions like ``generate_series()``, the driver is able to identify that
 the return is a sequence of *solitary* integer objects, so the result of the
 function is just that.
 
-Functions returning composite types are recognized, and return row objects:
+Functions returning composite types are recognized, and return row objects::
 
 	>>> db.execute("""
 	... CREATE FUNCTION composite(OUT i int, OUT t text)
@@ -752,7 +838,7 @@ Functions returning composite types are recognized, and return row objects:
 
 Functions returning a set of composites are recognized, and the result is a
 `postgresql.api.Cursor` object whose column names are consistent with the names
-of the OUT parameters:
+of the OUT parameters::
 
 	>>> db.execute("""
 	... CREATE FUNCTION srfcomposite(out i int, out t text)
@@ -778,15 +864,15 @@ of the OUT parameters:
 Transactions
 ============
 
-Transactions are managed by creating an object corresponds to a
+Transactions are managed by creating an object corresponding to a
 transaction started on the server. A transaction is a transaction block,
 a savepoint, or a prepared transaction. The ``xact(...)`` method on the
 connection object provides the standard method for creating a
 `postgresql.api.Transaction` object to manage a transaction on the connection.
 
-The creation of a transaction object does not open the transaction. Rather, the
-transaction must be explicitly started. Usually, transactions should be managed
-with context managers:
+The creation of a transaction object does not start the transaction. Rather, the
+transaction must be explicitly started. Usually, transactions *should* be
+managed with the context manager interfaces::
 
 	>>> with db.xact():
 	...  ...
