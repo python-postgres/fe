@@ -8,6 +8,11 @@ import os
 import pprint
 from struct import pack, unpack, Struct
 
+try:
+	from .optimized import parse_tuple_message
+except ImportError:
+	pass
+
 StringFormat = b'\x00\x00'
 BinaryFormat = b'\x00\x01'
 
@@ -69,31 +74,19 @@ class StringMessage(Message):
 			raise ValueError("string message not NUL-terminated")
 		return typ(data[:-1])
 
-class TupleMessage(Message):
+class TupleMessage(tuple, Message):
 	"""
 	A message who's data is based on a tuple structure.
 	"""
 	type = b''
-	__slots__ = ('data',)
+	__slots__ = ()
 
 	def __repr__(self):
 		return '%s.%s(%s)' %(
 			type(self).__module__,
 			type(self).__name__,
-			repr(self.data)
+			tuple.__repr__(self)
 		)
-
-	def __iter__(self):
-		return self.data.__iter__()
-
-	def __len__(self):
-		return self.data.__len__()
-
-	def __getitem__(self, i):
-		return self.data.__getitem__(i)
-
-	def __init__(self, data):
-		self.data = tuple(data)
 
 class Void(Message):
 	"""
@@ -437,6 +430,10 @@ class Tuple(TupleMessage):
 			atts.append(att)
 			natts -= 1
 		return typ(atts)
+	try:
+		parse = classmethod(parse_tuple_message)
+	except NameError:
+		pass
 
 class KillInformation(Message):
 	'Backend cancellation information'

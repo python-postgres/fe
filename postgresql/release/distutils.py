@@ -96,6 +96,10 @@ extensions_data = {
 	'protocol.cbuffer' : {
 		'sources' : [os.path.join('protocol', 'buffer.c')],
 		'libraries' : (sys.platform == 'win32' and ['ws2_32'] or []),
+	},
+	'protocol.optimized' : {
+		'sources' : [os.path.join('protocol', 'optimized.c')],
+		'libraries' : (sys.platform == 'win32' and ['ws2_32'] or []),
 	}
 }
 
