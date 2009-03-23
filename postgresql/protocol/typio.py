@@ -596,15 +596,13 @@ class TypeIO(object, metaclass = ABCMeta):
 		"""
 		Decode the items in the iterable from the configured encoding.
 		"""
-		for k in iter:
-			yield self._decode(k)[0]
+		return map(compose((self._decode, get0)), iter)
 
 	def encodes(self, iter):
 		"""
 		Encode the items in the iterable in the configured encoding.
 		"""
-		for k in iter:
-			yield self._encode(k)[0]
+		return map(compose((self._encode, get0)), iter)
 
 	def resolve_pack(self, typid):
 		return self.resolve(typid)[0] or self.encode
