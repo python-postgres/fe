@@ -720,6 +720,7 @@ class Row(tuple):
 		iter = [
 			map.get(k) for k,_ in sorted(attribute_map.items(), key = get1)
 		]
+		return typ(iter, attribute_map)
 
 	def __new__(subtype, iter, attribute_map = {}):
 		rob = tuple.__new__(subtype, iter)

@@ -67,6 +67,8 @@ class DriverWarning(Warning):
 	source = 'DRIVER'
 class IgnoredClientParameterWarning(DriverWarning):
 	'Warn the user of a valid, but ignored parameter.'
+class TypeConversionWarning(DriverWarning):
+	'Report a potential issue with a conversion.'
 
 class ClusterWarning(Warning):
 	code = ''

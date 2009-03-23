@@ -12,6 +12,7 @@ import decimal
 from itertools import chain
 from operator import itemgetter
 
+from ..python.datetime import FixedOffset
 from .. import types as pg_types
 from .. import exceptions as pg_exc
 from .. import unittest as pg_unittest
@@ -169,12 +170,65 @@ type_samples = (
 			datetime.date(3000,5,20),
 			datetime.date(2000,1,1),
 			datetime.date(500,1,1),
+			datetime.date(1,1,1),
 		],
 	),
 	('time', [
 			datetime.time(12,15,20),
 			datetime.time(0,1,1),
 			datetime.time(23,59,59),
+		],
+	),
+	('timestamptz', [
+			datetime.datetime(1990,5,12,10,10,0, tzinfo=FixedOffset(4000)),
+			datetime.datetime(1982,5,18,10,10,0, tzinfo=FixedOffset(6000)),
+			datetime.datetime(1950,1,1,10,10,0, tzinfo=FixedOffset(7000)),
+			datetime.datetime(1800,1,1,10,10,0, tzinfo=FixedOffset(2000)),
+			datetime.datetime(2400,1,1,10,10,0, tzinfo=FixedOffset(2000)),
+		],
+	),
+	('timetz', [
+			datetime.time(10,10,0, tzinfo=FixedOffset(4000)),
+			datetime.time(10,10,0, tzinfo=FixedOffset(6000)),
+			datetime.time(10,10,0, tzinfo=FixedOffset(7000)),
+			datetime.time(10,10,0, tzinfo=FixedOffset(2000)),
+		],
+	),
+	('interval', [
+			datetime.timedelta(40, 10, 1234),
+			datetime.timedelta(0, 0),
+			datetime.timedelta(-100, 0),
+			datetime.timedelta(-100, -400),
+		],
+	),
+	('point', [
+			(10, 1234),
+			(-1, -1),
+			(0, 0),
+			(1, 1),
+			(-100, 0),
+			(-100, -400),
+			(-100.02314, -400.930425),
+			(0xFFFF, 1.3124243),
+		],
+	),
+	('lseg', [
+			((0,0),(0,0)),
+			((10,5),(18,293)),
+			((55,5),(10,293)),
+			((-1,-1),(-1,-1)),
+			((-100,0.00231),(50,45.42132)),
+			((0.123,0.00231),(50,45.42132)),
+		],
+	),
+	('circle', [
+			((0,0),0),
+			((0,0),1),
+			((0,0),1.0011),
+			((1,1),1.0011),
+			((-1,-1),1.0011),
+			((1,-1),1.0011),
+			((-1,1),1.0011),
 		],
 	),
 )

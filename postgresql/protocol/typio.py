@@ -36,8 +36,10 @@ Map PostgreSQL type Oids to routines that pack and unpack raw data.
  time64_noday_io
   long-long based time I/O with noday-intervals.
 """
+import warnings
 import codecs
 from ..encodings import aliases as pg_enc_aliases
+from .. import exceptions as pg_exc
 
 from operator import itemgetter, add, sub, mul, methodcaller
 get0 = itemgetter(0)
@@ -51,6 +53,7 @@ from abc import ABCMeta, abstractmethod
 from decimal import Decimal, DecimalTuple
 import datetime
 
+from ..exceptions import TypeConversionWarning
 from ..python.datetime import UTC, FixedOffset
 
 from ..python.functools import Composition as compose
@@ -71,6 +74,9 @@ pg_time_days = (pg_date_offset - datetime.date(1970, 1, 1).toordinal())
 # High level type I/O routines.
 ##
 toordinal = methodcaller("toordinal")
+convert_to_utc = methodcaller('astimezone', UTC)
+remove_tzinfo = methodcaller('replace', tzinfo = None)
+set_as_utc = methodcaller('replace', tzinfo = UTC)
 
 date_pack = compose((
 	toordinal,
@@ -83,12 +89,15 @@ date_unpack = compose((
 	datetime.date.fromordinal
 ))
 
+seconds_in_day = 24 * 60 * 60
+seconds_in_hour = 60 * 60
+
 def timestamp_pack(x):
 	"""
 	Create a (seconds, microseconds) pair from a `datetime.datetime` instance.
 	"""
 	d = (x - pg_epoch_datetime)
-	return (d.days * 24 * 60 * 60 + d.seconds, d.microseconds)
+	return ((d.days * seconds_in_day) + d.seconds, d.microseconds)
 
 def timestamp_unpack(seconds):
 	"""
@@ -103,7 +112,7 @@ def time_pack(x):
 	Create a (seconds, microseconds) pair from a `datetime.time` instance.
 	"""
 	return (
-		(x.hour * 60 * 60) + (x.minute * 60) + x.second,
+		(x.hour * seconds_in_hour) + (x.minute * 60) + x.second,
 		x.microsecond
 	)
 
@@ -132,6 +141,16 @@ def interval_unpack(mds):
 	`datetime.timedelta` instance.
 	"""
 	months, days, seconds_ms = mds
+	if months != 0:
+		w = pg_exc.TypeConversionWarning(
+			"datetime.timedelta cannot represent relative intervals",
+			details = {
+				''
+				'hint': 'An interval was unpacked with a non-zero "month" field.'
+			},
+			source = 'DRIVER'
+		)
+		warnings.warn(w)
 	sec, ms = seconds_ms
 	return datetime.timedelta(
 		days = days + (months * 30),
@@ -143,7 +162,9 @@ def timetz_pack(x):
 	Create a ((seconds, microseconds), timezone) tuple from a `datetime.time`
 	instance.
 	"""
-	return (time_pack(x), x.utcoffset())
+	td = x.tzinfo.utcoffset(x)
+	seconds = (td.days * seconds_in_day + td.seconds)
+	return (time_pack(x), seconds)
 
 def timetz_unpack(tstz):
 	"""
@@ -167,8 +188,8 @@ time_io = {
 		compose((ts.time_unpack, timestamp_unpack)),
 	),
 	pg_types.TIMESTAMPTZOID : (
-		compose((timestamp_pack, ts.time_pack)),
-		compose((ts.time_unpack, timestamp_unpack)),
+		compose((convert_to_utc, remove_tzinfo, timestamp_pack, ts.time_pack)),
+		compose((ts.time_unpack, timestamp_unpack, set_as_utc)),
 	),
 	pg_types.INTERVALOID : (
 		compose((interval_pack, ts.interval_pack)),
@@ -195,8 +216,8 @@ time64_io = {
 		compose((ts.time64_unpack, timestamp_unpack)),
 	),
 	pg_types.TIMESTAMPTZOID : (
-		compose((timestamp_pack, ts.time64_pack)),
-		compose((ts.time64_unpack, timestamp_unpack)),
+		compose((convert_to_utc, remove_tzinfo, timestamp_pack, ts.time64_pack)),
+		compose((ts.time64_unpack, timestamp_unpack, set_as_utc)),
 	),
 	pg_types.INTERVALOID : (
 		compose((interval_pack, ts.interval64_pack)),
@@ -564,7 +585,6 @@ class TypeIO(object, metaclass = ABCMeta):
 				self._time_io = time_io_noday
 			else:
 				self._time_io = time_io
-		self._ts_pack, self._ts_unpack = self._time_io[pg_types.TIMESTAMPOID]
 
 	def encode(self, string_data):
 		return self._encode(string_data)[0]
@@ -636,10 +656,6 @@ class TypeIO(object, metaclass = ABCMeta):
 			pg_types.CIDROID : (None, None),
 			pg_types.INETOID : (None, None),
 
-			pg_types.TIMESTAMPTZOID : (
-				self._pack_timestamptz,
-				self._unpack_timestamptz,
-			),
 			pg_types.XMLOID : (
 				self.xml_pack, self.xml_unpack
 			),
@@ -671,20 +687,6 @@ class TypeIO(object, metaclass = ABCMeta):
 		ci = codecs.lookup(enc)
 		self._encode = ci[0]
 		self._decode = ci[1]
-
-	def _pack_timestamptz(self, dt):
-		if dt.tzinfo:
-			return self._ts_pack(
-				(dt - dt.tzinfo.utcoffset(dt)).replace(tzinfo = None)
-			)
-		else:
-			# If no timezone is specified, assume UTC.
-			return self._ts_pack(dt)
-
-	def _unpack_timestamptz(self, data):
-		dt = self._ts_unpack(data)
-		dt = dt.replace(tzinfo = UTC)
-		return dt
 
 	def resolve_descriptor(self, desc, index):
 		'create a sequence of I/O routines from a pq descriptor'
