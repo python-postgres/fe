@@ -604,7 +604,7 @@ class TypeIO(object, metaclass = ABCMeta):
 		Encode the items in the iterable in the configured encoding.
 		"""
 		for k in iter:
-			yield self._encode(k)
+			yield self._encode(k)[0]
 
 	def resolve_pack(self, typid):
 		return self.resolve(typid)[0] or self.encode
