@@ -100,7 +100,11 @@ extensions_data = {
 	'protocol.optimized' : {
 		'sources' : [os.path.join('protocol', 'optimized.c')],
 		'libraries' : (sys.platform == 'win32' and ['ws2_32'] or []),
-	}
+	},
+	'python.optimized' : {
+		'sources' : [os.path.join('python', 'optimized.c')],
+		'libraries' : (sys.platform == 'win32' and ['ws2_32'] or []),
+	},
 }
 
 scripts = [

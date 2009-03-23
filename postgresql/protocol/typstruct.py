@@ -18,7 +18,9 @@ PostgreSQL.
 """
 import math
 import struct
+from operator import itemgetter
 from .. import types as pg_types
+from ..python.functools import Composition as compose
 
 null_sequence = b'\xff\xff\xff\xff'
 
@@ -30,9 +32,7 @@ def mk_pack(x):
 			return s.pack(*data)
 		return (pack_apply, s.unpack)
 	else:
-		def unpack_first(data):
-			return s.unpack(data)[0]
-		return (s.pack, unpack_first)
+		return (s.pack, compose((s.unpack, itemgetter(0))))
 
 def mktimetuple(ts):
 	'make a pair of (seconds, microseconds) out of the given double'
@@ -133,21 +133,12 @@ def path_unpack(data):
 	return points
 polygon_pack, polygon_unpack = path_pack, path_unpack
 
-
 # time types
 date_pack, date_unpack = long_pack, long_unpack
 
-def time_pack(timetup):
-	"""
-	Given a pair, (seconds, microseconds), serialize it into a double.
-	"""
-	return double_pack(mktime(timetup))
-
-def time_unpack(data):
-	"""
-	Given a serialized double, return the pai (seconds, microseconds).
-	"""
-	return mktimetuple(double_unpack(data))
+# takes a pair, (seconds, microseconds)
+time_pack = compose((mktime, double_pack))
+time_unpack = compose((double_unpack, mktimetuple))
 
 def interval_pack(m_d_timetup):
 	"""
@@ -188,19 +179,8 @@ def interval_noday_unpack(data):
 	tim, month = dl_unpack(data)
 	return (month, 0, mktimetuple(tim))
 
-def time64_pack(timetup):
-	"""
-	Pack a (seconds, microseconds) tuple into a quad-word.
-	"""
-	return longlong_pack(mktime64(timetup))
-
-def time64_unpack(data):
-	"""
-	Given a quad-word, unpack it into a pair:
-
-		(seconds, microseconds)
-	"""
-	return mktimetuple64(longlong_unpack(data))
+time64_pack = compose((mktime64, longlong_pack))
+time64_unpack = compose((longlong_unpack, mktimetuple64))
 
 def interval64_pack(m_d_timetup):
 	"""
@@ -385,7 +365,6 @@ def record_unpack(data):
 			offset += 4
 			att = data[offset:offset + size]
 			if size < -1 or len(att) != size:
-				# XXX: raise 22P03
 				raise ValueError("insufficient data left in message")
 			offset += size
 		yield (typid, att)

@@ -343,10 +343,8 @@ class Cursor(pg_api.Cursor):
 			self.closed = True
 
 	def _pq_parameters(self):
-		return pg_typio.row_pack(
-			self.parameters,
-			self.statement._input_io,
-			self.database.typio.encode
+		return pg_typio.process_tuple(
+			self.statement._input_io, self.parameters,
 		)
 
 	def _init(self):
@@ -645,13 +643,11 @@ class TupleCursor(ReadableCursor):
 
 	def _expansion(self):
 		return [
-			pg_typio.Row(
-				pg_typio.row_unpack(
-					y,
-					self._output_io,
-					self.database.typio.decode
+			pg_types.Row(
+				pg_typio.process_tuple(
+					self._output_io, y,
 				),
-				attmap = self._output_attmap
+				attribute_map = self._output_attmap
 			)
 			for y in self._xact.messages_received()
 			if y.type == pq.element.Tuple.type
@@ -846,6 +842,9 @@ class ServerDeclaredCursor(DeclaredCursor):
 					else pq.element.BinaryFormat
 					for x in self._output_io
 				]
+				self._output_io = tuple([
+					x or self.database.typio.decode for x in self._output_io
+				])
 				super()._fini()
 		# Done with the first transaction.
 		self._xact = None
@@ -1048,7 +1047,9 @@ class PreparedStatement(pg_api.PreparedStatement):
 		if self.closed:
 			self.prepare()
 		if self._output is not None:
-			return [self.database.typio.type_from_oid(x[3]) for x in self._output]
+			return [
+				self.database.typio.type_from_oid(x[3]) for x in self._output
+			]
 
 	@property
 	def pg_parameter_types(self):
@@ -1168,7 +1169,9 @@ class PreparedStatement(pg_api.PreparedStatement):
 			self._output_formats = None
 		else:
 			self._output = tupdesc
-			self._output_attmap = dict(self.database.typio.attribute_map(tupdesc))
+			self._output_attmap = dict(
+				self.database.typio.attribute_map(tupdesc)
+			)
 			# tuple output
 			self._output_io = \
 				self.database.typio.resolve_descriptor(tupdesc, 1)
@@ -1178,18 +1181,23 @@ class PreparedStatement(pg_api.PreparedStatement):
 				else pq.element.BinaryFormat
 				for x in self._output_io
 			]
+			self._output_io = tuple([
+				x or self.database.typio.decode for x in self._output_io
+			])
 
 		self._input = argtypes
-		self._input_io = [
-			(self.database.typio.resolve(x) or (None,None))[0]
-			for x in argtypes
-	 	]
-		self._input_formats = [
-			pq.element.StringFormat
-			if x is None
-			else pq.element.BinaryFormat
-			for x in self._input_io
-		]
+		packs = []
+		formats = []
+		for x in argtypes:
+			pack = (self.database.typio.resolve(x) or (None,None))[0]
+			packs.append(pack or self.database.typio.encode)
+			formats.append(
+				pq.element.StringFormat
+				if x is None
+				else pq.element.BinaryFormat
+			)
+		self._input_io = tuple(packs)
+		self._input_formats = formats
 		self.closed = False
 		self._pq_xact = None
 
@@ -1211,10 +1219,8 @@ class PreparedStatement(pg_api.PreparedStatement):
 		c = self.database
 
 		if self._input_io:
-			params = pg_typio.row_pack(
-				parameters,
-				self._input_io,
-				c.typio.encode
+			params = pg_typio.process_tuple(
+				self._input_io, parameters,
 			)
 		else:
 			params = ()
@@ -1245,9 +1251,9 @@ class PreparedStatement(pg_api.PreparedStatement):
 				return None
 
 			if len(self._output_io) > 1:
-				return pg_typio.Row(
-					pg_typio.row_unpack(xt, self._output_io, c.typio.decode),
-					attmap = self._output_attmap
+				return pg_types.Row(
+					pg_typio.process_tuple(self._output_io, xt),
+					attribute_map = self._output_attmap
 				)
 			else:
 				if xt[0] is None:
@@ -1337,10 +1343,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				c = 0
 				xm = []
 				for t in tupleseqiter:
-					params = pg_typio.row_pack(
-						t, self._input_io,
-						self.database.typio.encode
-					)
+					params = pg_typio.process_tuple(self._input_io, tuple(t))
 					xm.extend((
 						pq.element.Bind(
 							b'',
@@ -1444,7 +1447,7 @@ class StoredProcedure(pg_api.StoredProcedure):
 			).first(int(ident))
 		else:
 			proctup = database.prepare(
-				ProcedureLookup + ' WHERE pg_proc.oid = $1::regprocedure',
+				ProcedureLookup + ' WHERE pg_proc.oid = $1::text::regprocedure',
 				title = 'func_lookup_by_name'
 			).first(ident)
 		if proctup is None:

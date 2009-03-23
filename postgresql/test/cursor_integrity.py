@@ -8,10 +8,6 @@ import random
 import itertools
 
 iot = '_dst'
-if __name__ == '__main__':
-	execute("CREATE TEMP TABLE _dst (i bigint)")
-	copyin = prepare("COPY _dst FROM STDIN")
-	loadin = prepare("INSERT INTO _dst VALUES ($1)")
 
 getq = "SELECT i FROM generate_series(0, %d) AS g(i)"
 copy = "COPY (%s) TO STDOUT"
@@ -30,7 +26,7 @@ def random_read(curs, remaining_rows):
 		return curs.read(), -1
 	else:
 		try:
-			return [curs.next()], 1
+			return [next(curs)], 1
 		except StopIteration:
 			return [], 1
 
@@ -110,5 +106,12 @@ class test_integrity(unittest.TestCase):
 	def test_copy_in(self):
 		pass
 
-if __name__ == '__main__':
+def main():
+	global copyin, loadin
+	execute("CREATE TEMP TABLE _dst (i bigint)")
+	copyin = prepare("COPY _dst FROM STDIN")
+	loadin = prepare("INSERT INTO _dst VALUES ($1)")
 	unittest.main()
+
+if __name__ == '__main__':
+	main()

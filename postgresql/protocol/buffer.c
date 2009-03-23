@@ -94,7 +94,7 @@ p_new(PyTypeObject *subtype, PyObject *args, PyObject *kw)
 	struct p_buffer *pb;
 	PyObject *rob;
 
-	if (PyArg_ParseTupleAndKeywords(args, kw, "", kwlist) < 0)
+	if (!PyArg_ParseTupleAndKeywords(args, kw, "", kwlist))
 		return(NULL);
 
 	rob = subtype->tp_alloc(subtype, 0);
@@ -406,7 +406,7 @@ p_read(PyObject *self, PyObject *args)
 	struct p_buffer *pb;
 	PyObject *rob = NULL;
 
-	if (PyArg_ParseTuple(args, "|i", &msg_count) < 0)
+	if (!PyArg_ParseTuple(args, "|i", &msg_count))
 		return(NULL);
 
 	pb = (struct p_buffer *) self;

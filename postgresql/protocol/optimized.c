@@ -35,7 +35,10 @@ parse_tuple_message(PyObject *self, PyObject *args)
 		if (!PyObject_IsSubclass(typ, (PyObject *) &PyTuple_Type))
 		{
 			const char *typname = "<not-a-type>";
-			if (PyObject_IsInstance((PyObject *) typ->ob_type, (PyObject *) &PyType_Type))
+			if (PyObject_IsInstance(
+				(PyObject *) typ->ob_type,
+				(PyObject *) &PyType_Type
+			))
 			{
 				typname = ((PyTypeObject *) typ)->tp_name;
 			}
@@ -105,7 +108,7 @@ parse_tuple_message(PyObject *self, PyObject *args)
 			if (ob == NULL)
 			{
 				/*
-				 * Probably a OOM error.
+				 * Probably an OOM error.
 				 */
 				goto cleanup;
 			}
@@ -133,9 +136,84 @@ cleanup:
 	return(NULL);
 }
 
+static PyObject *
+process_tuple(PyObject *self, PyObject *args)
+{
+	PyObject *tup, *procs, *rob;
+	Py_ssize_t len, i;
+
+	if (!PyArg_ParseTuple(args, "OO", &procs, &tup))
+		return(NULL);
+
+	if (!PyObject_IsInstance(procs, (PyObject *) &PyTuple_Type))
+	{
+		PyErr_SetString(
+			PyExc_TypeError,
+			"process_tuple requires a tuple as its first argument"
+		);
+		return(NULL);
+	}
+
+	if (!PyObject_IsInstance(tup, (PyObject *) &PyTuple_Type))
+	{
+		PyErr_SetString(
+			PyExc_TypeError,
+			"process_tuple requires a tuple as its second argument"
+		);
+		return(NULL);
+	}
+
+	len = PyTuple_GET_SIZE(tup);
+
+	if (len != PyTuple_GET_SIZE(procs))
+	{
+		PyErr_Format(
+			PyExc_ValueError,
+			"inconsistent items, %d processors and %d objects",
+			len,
+			PyTuple_GET_SIZE(procs)
+		);
+		return(NULL);
+	}
+	rob = PyTuple_New(len);
+
+	for (i = 0; i < len; ++i)
+	{
+		PyObject *p, *o, *ot, *r;
+		o = PyTuple_GET_ITEM(tup, i);
+		if (o == Py_None)
+		{
+			Py_INCREF(Py_None);
+			PyTuple_SET_ITEM(rob, i, Py_None);
+			continue;
+		}
+		p = PyTuple_GET_ITEM(procs, i);
+		ot = PyTuple_New(1);
+		PyTuple_SET_ITEM(ot, 0, o);
+		Py_INCREF(o);
+		r = PyObject_CallObject(p, ot);
+		Py_DECREF(ot);
+		if (r == NULL)
+		{
+			Py_DECREF(rob);
+			rob = NULL;
+			break;
+		}
+		PyTuple_SET_ITEM(rob, i, r);
+	}
+
+	return(rob);
+}
+
 static PyMethodDef optimized_methods[] = {
 	{"parse_tuple_message", (PyCFunction) parse_tuple_message, METH_VARARGS,
 		PyDoc_STR("parse the given tuple data into a tuple of raw data"),},
+	{"process_tuple", (PyCFunction) process_tuple, METH_VARARGS,
+		PyDoc_STR(
+			"process the items in the second argument "
+			"with the corresponding items in the first argument."
+		),
+	},
 	{NULL}
 };
 

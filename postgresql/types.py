@@ -713,6 +713,58 @@ class Array(object):
 		for x in range(len(self)):
 			yield self[x]
 
+class Row(tuple):
+	"Name addressable items tuple; mapping and sequence"
+	@classmethod
+	def from_mapping(typ, map, attribute_map = {}):
+		iter = [
+			map.get(k) for k,_ in sorted(attribute_map.items(), key = get1)
+		]
+
+	def __new__(subtype, iter, attribute_map = {}):
+		rob = tuple.__new__(subtype, iter)
+		rob.attribute_map = attribute_map
+		return rob
+
+	def __getitem__(self, i):
+		if type(i) is int:
+			return tuple.__getitem__(self, i)
+		idx = self.attribute_map[i]
+		return tuple.__getitem__(self, idx)
+
+	def get(self, i):
+		if type(i) is int:
+			l = len(self)
+			if -l < i < l:
+				return tuple.__getitem__(self, i)
+		else:
+			idx = self.attribute_map.get(i)
+			if idx is not None:
+				return tuple.__getitem__(self, idx)
+		return None
+
+	def __contains__(self, k):
+		return k in self.attribute_map
+
+	def keys(self):
+		return self.attribute_map.keys()
+
+	def values(self):
+		return self
+
+	def items(self):
+		for k, v in self.attribute_map.iteritems():
+			yield k, tuple.__getitem__(self, v)
+
+	def attribute_index(self, k):
+		return self.attribute_map.get(k)
+
+	@property
+	def column_names(self):
+		l=list(self.attribute_map)
+		l.sort(key=itemgetter(1))
+		return list(map(itemgetter(0), l))
+
 # Python Representations of PostgreSQL Types
 oid_to_type = {
 	VARBITOID: varbit,

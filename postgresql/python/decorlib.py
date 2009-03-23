@@ -6,6 +6,7 @@
 common decorators
 """
 import os
+import types
 
 def propertydoc(ap):
 	"""
@@ -33,3 +34,10 @@ def propertydoc(ap):
 		"Abstract Property" + rstr + doc
 	)
 	return ap
+
+class method(object):
+	__slots__ = ('callable',)
+	def __init__(self, callable):
+		self.callable = callable
+	def __get__(self, val, typ):
+		return types.MethodType(self.callable, val or typ)
