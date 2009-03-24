@@ -620,7 +620,17 @@ class TypeIO(object, metaclass = ABCMeta):
 		return anyarray_unpack(self.resolve_unpack, adata)
 
 	def xml_pack(self, xml):
-		return self._encode(etree.tostring(xml))[0]
+		if isinstance(xml, str):
+			# if it's a string, encode and return.
+			return self._encode(xml)[0]
+		elif isinstance(xml, tuple):
+			# if it's a tuple, encode and return the joined items.
+			return b''.join((
+				self._encode(
+					x if isinstance(x, str) else pg_types.etree.tostring(x)
+				)[0] for x in xml
+			))
+		return self._encode(pg_types.etree.tostring(xml))[0]
 
 	def xml_unpack(self, xmldata):
 		xml_or_frag = self._decode(xmldata)[0]
@@ -628,7 +638,7 @@ class TypeIO(object, metaclass = ABCMeta):
 			return pg_types.etree.XML(xml_or_frag)
 		except Exception:
 			# try it again, but return the sequence of children.
-			return list(pg_types.etree.XML('<x>' + xml_or_frag + '</x>'))
+			return tuple(pg_types.etree.XML('<x>' + xml_or_frag + '</x>'))
 
 	def attribute_map(self, pq_descriptor):
 		return zip(self.decodes(pq_descriptor.keys()), count())

@@ -672,6 +672,52 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 					)
 				)
 
+	def testXML(self):
+		try:
+			xml = self.db.prepare('select $1::xml')
+			textxml = self.db.prepare('select $1::text::xml')
+			r = textxml.first('<foo/>')
+		except (pg_exc.FeatureError, pg_exc.UndefinedObjectError):
+			return
+		foo = pg_types.etree.XML('<foo/>')
+		bar = pg_types.etree.XML('<bar/>')
+		tostr = pg_types.etree.tostring
+		self.failUnlessEqual(tostr(xml.first(foo)), tostr(foo))
+		self.failUnlessEqual(tostr(xml.first(bar)), tostr(bar))
+		self.failUnlessEqual(tostr(textxml.first('<foo/>')), tostr(foo))
+		self.failUnlessEqual(tostr(textxml.first('<foo/>')), tostr(foo))
+		self.failUnlessEqual(tostr(xml.first(pg_types.etree.XML('<foo/>'))), tostr(foo))
+		self.failUnlessEqual(tostr(textxml.first('<foo/>')), tostr(foo))
+		# test fragments
+		self.failUnlessEqual(
+			tuple(
+				tostr(x) for x in xml.first('<foo/><bar/>')
+			), (tostr(foo), tostr(bar))
+		)
+		self.failUnlessEqual(
+			tuple(
+				tostr(x) for x in textxml.first('<foo/><bar/>')
+			),
+			(tostr(foo), tostr(bar))
+		)
+		# mixed text and etree.
+		self.failUnlessEqual(
+			tuple(
+				tostr(x) for x in xml.first((
+					'<foo/>', bar,
+				))
+			),
+			(tostr(foo), tostr(bar))
+		)
+		self.failUnlessEqual(
+			tuple(
+				tostr(x) for x in xml.first((
+					'<foo/>', bar,
+				))
+			),
+			(tostr(foo), tostr(bar))
+		)
+
 	def testSyntaxError(self):
 		self.failUnlessRaises(
 			pg_exc.SyntaxError,
