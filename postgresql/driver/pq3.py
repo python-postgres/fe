@@ -647,7 +647,7 @@ class TupleCursor(ReadableCursor):
 				pg_typio.process_tuple(
 					self._output_io, y,
 				),
-				attribute_map = self._output_attmap
+				keymap = self._output_attmap
 			)
 			for y in self._xact.messages_received()
 			if y.type == pq.element.Tuple.type
@@ -1253,7 +1253,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			if len(self._output_io) > 1:
 				return pg_types.Row(
 					pg_typio.process_tuple(self._output_io, xt),
-					attribute_map = self._output_attmap
+					keymap = self._output_attmap
 				)
 			else:
 				if xt[0] is None:
@@ -1709,6 +1709,11 @@ class Transaction(pg_api.Transaction):
 				err = pg_exc.InFailedTransactionError(
 					"invalid transaction block exit detected",
 					source = 'DRIVER',
+					details = {
+						'INTERFACE': \
+							'Connection was in an error-state, ' \
+							'but no exception was raised.'
+					},
 				)
 				self.ife_descend(err)
 				if not self.database.closed:
@@ -1716,10 +1721,32 @@ class Transaction(pg_api.Transaction):
 				err.raise_exception()
 			else:
 				# No exception, and no error state. Everything is good.
-				if self.gid is not None and self.state == 'open':
-					self.prepare()
-				else:
+				try:
 					self.commit()
+					# If an error occurs, clean up the transaction state
+					# and raise as needed.
+				except pg_exc.ActiveTransactionError as err:
+					##
+					# Failed COMMIT PREPARED <gid>?
+					# Likely cases:
+					#  - User exited block without preparing the transaction.
+					##
+					if not self.database.closed and self.gid is not None:
+						# adjust the state so rollback will do the right thing and abort.
+						self.state = 'open'
+						self.rollback()
+					##
+					# The other exception that *can* occur is
+					# UndefinedObjectError in which:
+					#  - User issued C/RB P <gid> before exit, but not via xact methods.
+					#  - User adjusted gid after prepare().
+					#
+					# But the occurrence of this exception means it's not in an active
+					# transaction, which means no cleanup other than raise is necessary.
+					err.details['INTERFACE'] = \
+						"The prepared transaction was not " \
+						"prepared prior to the block's exit."
+					raise
 		else:
 			# There's an exception, so only rollback if the connection
 			# exists. If the rollback() was called here, it would just
@@ -1770,7 +1797,7 @@ class Transaction(pg_api.Transaction):
 			err = pg_exc.OperationError(
 				"transactions cannot be restarted",
 				details = {
-					'hint': \
+					'INTERFACE': \
 					'Create a new transaction object instead of re-using an old one.'
 				}
 			)
@@ -1853,7 +1880,8 @@ class Transaction(pg_api.Transaction):
 			err = pg_exc.OperationError(
 				"commit attempted on transaction with unexpected state",
 				details = {
-					'hint': "Transactions cannot be re-used."
+					'INTERFACE': "Transaction was " + repr(self.state) + \
+					" , but it must be 'prepared' or 'open' in order to commit."
 				}
 			)
 			self.ife_descend(err)
@@ -1861,17 +1889,8 @@ class Transaction(pg_api.Transaction):
 
 		if self.type == 'block':
 			if self.gid is not None:
-				if self.state == 'prepared':
-					q = "COMMIT PREPARED '" + self.gid.replace("'", "''") + "';"
-				else:
-					err = pg_exc.OperationError(
-						"cannot commit un-prepared two-phase commit transaction",
-						details = {
-							'hint': "Run the prepare() method before commit()."
-						}
-					)
-					self.ife_descend(err)
-					err.raise_exception()
+				# User better have prepared it.
+				q = "COMMIT PREPARED '" + self.gid.replace("'", "''") + "';"
 			else:
 				q = 'COMMIT'
 		else:
@@ -1879,7 +1898,7 @@ class Transaction(pg_api.Transaction):
 				err = pg_exc.OperationError(
 					"savepoint configured with global identifier",
 					details = {
-						'hint': \
+						'INTERFACE': \
 						"Don't configure savepoint transactions with global identifiers."
 					}
 				)

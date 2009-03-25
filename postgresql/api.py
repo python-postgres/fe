@@ -351,12 +351,12 @@ class Message(InterfaceElement):
 			detailstr = os.linesep + detailstr
 		locstr = self.location_string
 		if locstr:
-			locstr = os.linesep + locstr
+			locstr = os.linesep + '  LOCATION: ' + locstr
 
 		code = "" if not self.code or self.code == "00000" else '(' + self.code + ')'
 		return sev + code + ': ' + self.message + locstr + detailstr + \
-			os.linesep + \
-			os.linesep.join([': '.join(x[1:]) for x in ss]) + \
+			os.linesep + '  ' + \
+			(os.linesep + '  ').join([': '.join(x[1:]) for x in ss]) + \
 			os.linesep
 
 	@property
@@ -367,31 +367,31 @@ class Message(InterfaceElement):
 		]
 		return (
 			"" if loc == ['?', '?', '?']
-			else "LOCATION: File {0!r}, "\
+			else "File {0!r}, "\
 			"line {1!s}, in {2!s}".format(*loc)
 		)
 
 	@property
 	def details_string(self):
 		return os.linesep.join((
-			': '.join((k.upper(), str(v)))
+			': '.join(('  ' + k.upper(), str(v)))
 			for k, v in sorted(self.details.items(), key = itemgetter(0))
 			if k not in ('message', 'severity', 'file', 'function', 'line')
 		))
 
 	def ife_snapshot_text(self):
 		details = self.details
-		code = (os.linesep + "CODE: " + self.code) if self.code else ""
+		code = (os.linesep + "  CODE: " + self.code) if self.code else ""
 		sev = details.get('severity')
 		sevmsg = ""
 		if sev:
-			sevmsg = os.linesep + "SEVERITY: " + sev.upper()
+			sevmsg = os.linesep + "  SEVERITY: " + sev.upper()
 		detailstr = self.details_string
 		if detailstr:
 			detailstr = os.linesep + detailstr
 		locstr = self.location_string
 		if locstr:
-			locstr = os.linesep + locstr
+			locstr = os.linesep + "  LOCATION: " + locstr
 		return self.message + code + sevmsg + detailstr + locstr
 
 	def emit(self):

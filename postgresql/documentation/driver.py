@@ -33,9 +33,6 @@ interface elements:
  ``C``
   `postgresql.api.Connector`, a connector. `Connectors`_
 
- ``xact``
-  `postgresql.api.Transaction`, a transaction. `Transactions`_
-
 
 Establishing a Connection
 =========================
@@ -306,7 +303,7 @@ the connection is made:
   When backend was started. ``datetime.datetime`` instance.
 
  ``client_address``
-  The client address that the backend is communicating with.
+  The address of the client that the backend is communicating with.
 
  ``client_port``
   The port of the client that the backend is communicating with.
@@ -354,9 +351,18 @@ object providing a `postgresql.api.Cursor` interface.
 
 Prepared statement objects have a few execution methods:
 
- ``ps(...)``
+ ``ps(*parameters, scroll = False, with_hold = False)``
   As shown before, statement objects can be simply invoked like a function to get a
-  cursor to the statement's results.
+  cursor to the statement's results. By default, cursors are not scrollable, so
+  passing in `True` as the ``scroll`` keyword argument would return a scrollable
+  cursor.
+
+  ``with_hold`` is subjective when `False`. If the connection is inside a
+  transaction block, the cursor will not be bound ``WITH HOLD`` if the
+  ``with_hold`` keyword is `False`. However, if the connection is not in a
+  transaction block, ``with_hold`` is implied to `True`. This is done because
+  the cursor would disappear as soon as it was bound--autocommit means a new
+  transaction, and a new transaction will close cursors not defined WITH HOLD.
 
  ``iter(ps)``
   Convenience interface that executes the ``__call__`` method without arguments.
@@ -365,8 +371,8 @@ Prepared statement objects have a few execution methods:
   >>> for table_name, in db.prepare("SELECT table_name FROM information_schema.tables"):
   ...  print(table_name)
 
- ``ps.first(...)``
-  For simple statements, a cursor objects are unnecessary.
+ ``ps.first(*parameters)``
+  For simple statements, cursor objects are unnecessary.
   Consider the data contained in ``c`` from above, 'hello world!'. To get at this
   data directly from the ``__call__(...)`` method, it looks something like::
 
@@ -524,12 +530,12 @@ examples, a table definition is necessary for a complete illustration::
 	... 	employee_name text,
 	... 	employee_salary numeric,
 	... 	employee_dob date,
-	... 	employee_hire_date data
+	... 	employee_hire_date date
 	... );
 	... 	"""
 	... )
 
-Create the INSERT statement::
+Create an INSERT statement using ``prepare``::
 
 	>>> mk_employee = db.prepare("INSERT INTO employee VALUES ($1, $2, $3, $4)")
 
@@ -538,7 +544,7 @@ And add "Mr. Johnson" to the table::
 	>>> import datetime
 	>>> dmlr = mk_employee(
 	... 	"John Johnson",
-	... 	"92,000",
+	... 	"92000",
 	... 	datetime.date(1950, 12, 10),
 	... 	datetime.date(1998, 4, 23)
 	... )
@@ -551,6 +557,34 @@ The execution of DML will return a utility cursor. Utility cursors are fully
 completed prior to returning control to the caller and any database error that
 occurs will be immediately raised regardless of the context.
 
+Using the call interface is fine for making a single insert, but when multiple
+records need to be inserted, it's not the most efficient means to load data. For
+multiple records, the ``ps.load([...])`` provides an efficient way to load large
+quantities of structured data::
+
+	>>> from datetime import date
+	>>> mk_employee.load([
+	...  ("Jack Johnson", "85000", date(1962, 11, 23), date(1990, 3, 5)),
+	...  ("Debra McGuffer", "52000", date(1973, 3, 4), date(2002, 1, 14)),
+	...  ("Barbara Smitch", "86000", date(1965, 2, 24), date(2005, 7, 19)),
+	... ])
+
+While small, the above illustrates the ``ps.load()`` method taking an iterable of
+tuples that provides parameters for the each execution of the statement.
+
+Load is also used to support ``COPY ... FROM STDIN`` statements::
+
+	>>> copy_emps_in = db.prepare("COPY employee FROM STDIN")
+	>>> copy_emps_in.load([
+	...  b'Emp Name1\t72000\t1970-2-01\t1980-10-22\n',
+	...  b'Emp Name2\t62000\t1968-9-11\t1985-11-1\n',
+	...  b'Emp Name3\t62000\t1968-9-11\t1985-11-1\n',
+	... ])
+
+Copy data goes in as bytes and come out as bytes regardless of the type of COPY
+taking place. It is the user's obligation to make sure the row-data is in the
+appropriate encoding.
+
 
 Cursors
 =======
@@ -562,8 +596,10 @@ manage the results.
 Cursors can also be created directly from ``cursor_id``'s using the
 ``cursor_from_id`` method on connection objects::
 
-	>>> db.execute('DECLARE ')
+	>>> db.execute('DECLARE the_cursor_id CURSOR WITH HOLD FOR SELECT 1;')
 	>>> c = db.cursor_from_id('the_cursor_id')
+	>>> c.read()
+	[(1,)]
 	>>> c.close()
 
 
@@ -597,7 +633,7 @@ those results:
   quickly. It is a property that provides an ``collections.Iterator`` that returns
   *sequences* of rows. The size of the "chunks" produced is *normally* consistent
   with the ``chunksize`` attribute on the cursor object itself. This is
-  normally the most efficient way to get rows out of the cursor.
+  the most efficient way to get rows out of the cursor.
 
  ``c.close()``
   For cursors opened using ``cursor_from_id()``, this method must be called in
@@ -605,17 +641,18 @@ those results:
   statement, this is not necessary as the garbage collection interface will take
   the appropriate steps.
 
-Cursors have some additional operational properties that may be modified during
-the use of the cursor:
+Cursors have some additional configuration properties that may be modified
+during the use of the cursor:
 
  ``c.direction``
   A value of `True`, the default, will cause read to fetch forwards, whereas a
-  value of `False` will cause it to fetch backwards.
+  value of `False` will cause it to fetch backwards. ``'BACKWARD'`` and
+  ``'FORWARD'`` can be used instead of `False` and `True`.
 
  ``c.chunksize``
   The default number of rows to fetch when *fulfilling* a read request. For
   cursors returning large rows, a small value may be wise in order to conserve
-  memory.
+  memory. This value defaults to ``64`` for ``NO SCROLL`` cursors.
 
 .. warning::
  Setting a non-zero ``chunksize`` on scrollable cursors is not supported.
@@ -785,6 +822,157 @@ made::
 	>>> copyout = src.prepare('COPY atable TO STDOUT')
 	>>> copyin = dst.prepare('COPY atable FROM STDIN')
 	>>> copyin.load(copyout())
+
+
+Rows
+====
+
+Rows received from PostgreSQL are instantiated into `postgresql.types.Row`
+objects. Rows are both a sequence and a mapping. Items accessed with an `int`
+are seen as indexes and other objects are seen as keys::
+
+	>>> row = db.prepare("SELECT 't'::text AS col0, 2::int4 AS col1").first()
+	>>> row
+	('t', 2)
+	>>> row[0]
+	't'
+	>>> row["col0"]
+	't'
+
+.. note::
+ Attributes aren't used to provide access to values due to potential conflicts
+ with existing method and property names.
+
+Row Interface Points
+--------------------
+
+Rows implement the `collections.Mapping` and `collections.Sequence` interfaces.
+Some of the interfaces overlap ultimately requiring the implementation to
+sacrifice some features. Notably, ``__contains__`` takes on the functionality of
+a mapping's implementation as column values in a row are not normally structures
+that are scanned.
+
+ ``row.keys()``
+  An iterable producing the column names. Order is not guaranteed. See the
+  ``column_names`` property to get an ordered sequence.
+
+ ``row.values()``
+  Iterable to the values in the row.
+
+ ``row.get(key_or_index[, default=None])``
+  Get the item in the row. If the key doesn't exist or the index is out of
+  range, return the default.
+
+ ``row.items()``
+  Iterable of key-value pairs. Ordered by index.
+
+ ``k in row``
+  Whether the row has a column named ``k``.
+  (``__contains__``: **mapping behaviour**)
+
+ ``iter(row)``
+  Iterable to the values in index order.
+
+ ``row[key_or_index]``
+  If ``key_or_index`` is an integer, return the value at that index. If the
+  index is out of range, raise an `IndexError`. Otherwise, return the value
+  associated with column name. If the given key, ``key_or_index``, does not
+  exist, raise a `KeyError`.
+
+ ``row.index_from_key(key)``
+  Return the index associated with the given key.
+
+ ``row.key_from_index(index)``
+  Return the key associated with the given index.
+
+ ``row.transform(*args, **kw)``
+  Create a new row object of the same length, with the same keys, but with new
+  values produced by applying the given callables to the corresponding items.
+  Callables given as ``args`` will be associated with values by their index and
+  callables given as keywords will be associated with values by their key,
+  column name.
+
+
+Row Metadata
+------------
+
+While the mapping interfaces will provide most of the needed information, some
+additional properties are provided for consistency with statement and cursor
+objects.
+
+ ``row.column_names``
+  Property providing an ordered sequence of column names. The index corresponds
+  to the row value-index that the name refers to.
+
+  	>>> row[row.column_names[i]] == row[i]
+
+
+Row Transformations
+-------------------
+
+After a row is returned, sometimes the data in the row is not quite right.
+Further processing is sometimes needed if the row object is to going to be given
+to another piece of code which requires an object of differring consistency.
+
+The ``transform`` method on row objects provides a means to create a new row
+object consisting of the old row's items, but with certain columns transformed
+using specified callables::
+
+	>>> row = db.prepare("""
+	...  SELECT
+	...   'XX9301423'::text AS product_code,
+	...   2::int4 AS quantity,
+	...   '4.92'::numeric AS total
+	... """).first()
+	>>> row
+	('XX9301423', 2, Decimal("4.92"))
+	>>> row.transform(quantity = str)
+	('XX9301423', '2', Decimal("4.92"))
+
+``transform`` supports both positional and keyword arguments in order to
+specify the callable for a column's transformation::
+
+	>>> from operator import methodcaller
+	>>> row.transform(methodcaller('strip', 'XX'))
+	('9301423', 2, Decimal("4.92"))
+
+Of course, more than one column can be transformed::
+
+	>>> stripxx = methodcaller('strip', 'XX')
+	>>> row.transform(stripxx, str, str)
+	('9301423', '2', '4.92')
+
+`None` can also be used to indicate no transformation::
+
+	>>> row.transform(None, str, str)
+	('XX9301423', '2', '4.92')
+
+More advanced usage can make use of `postgresql.python.functools.Composition`
+or lambdas for compound transformations in a single pass of the row::
+
+	>>> from postgresql.python.functools import Composition as compose
+	>>> strip_and_int = compose((stripxx, int))
+	>>> row.transform(strip_and_int)
+	(9301423, 2, Decimal("4.92"))
+
+Transformations will be, more often than not, applied against *rows* as
+opposed to *a* row. Using `operator.methodcaller` with `map` provides the
+necessary functionality to create simple iterables producing transformed row
+sequences::
+
+	>>> import decimal
+	>>> apply_tax = lambda x: (x * decimal.Decimal("0.1")) + x
+	>>> transform_row = methodcaller('transform', strip_and_int, None, apply_tax)
+	>>> r = map(transform_row, [row])
+	>>> list(r)
+	[(9301423, 2, Decimal('5.412'))]
+
+And finally, `functools.partial` can be used to create a simple callable::
+
+	>>> from functools import partial
+	>>> transform_rows = partial(map, transform_row)
+	>>> list(transform_rows([row]))
+	[(9301423, 2, Decimal('5.412'))]
 
 
 Stored Procedures
@@ -984,7 +1172,8 @@ properties of the transaction. Only three points of configuration are available:
 
  ``gid``
   The global identifier to use. Identifies the transaction as using two-phase
-  commit. The ``prepare()`` method must be called first.
+  commit. The ``prepare()`` method must be called prior to ``commit()`` or
+  ``__exit__()``.
 
  ``isolation``
   The isolation level of the transaction. This must be a string. It will be
@@ -1015,15 +1204,11 @@ statement, and if it has, it will issue ROLLBACK PREPARED instead.
 Prepared transactions can be used with with-statements:
 
 	>>> with db.xact(gid='global-id') as gxact:
-	...  with gxact:
-	...   ...
+	...  ...
+	...  gxact.prepare()
 
-The ``__enter__`` method on the transaction is invoked twice. The transaction
-keeps its state, so only one START TRANSACTION statement will be executed.
-The ``__exit__`` method is also invoked twice. Exit will analyze the transaction
-and make the appropriate action for the state of the transaction object. If the
-transaction is open, it will prepare the transaction using ``prepare()``, and if
-the transaction is prepared, it will commit the transaction using ``commit()``.
+Transactions always call ``commit()`` on exit. This requires transaction objects
+representing a prepared transaction to be prepared prior to the block's exit.
 
 When a prepared transaction is partially committed, the transaction should be
 rolled-back or committed at some point in time. It is possible
@@ -1135,8 +1320,8 @@ Type Support
 
 The driver supports a large number of PostgreSQL types at the binary level.
 Most types are converted to standard Python types. The remaining types are
-usually PostgreSQL specific types that are converted in objects whose class is
-defined in `postgresql.types`.
+usually PostgreSQL specific types that are converted into objects whose class
+is defined in `postgresql.types`.
 
 When a conversion function is not available for a particular type, the driver
 will use the string format of the type and instantiate a `str` object

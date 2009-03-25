@@ -128,6 +128,8 @@ type_samples = (
 	('bytea', (
 			bytes(range(256)),
 			bytes(range(255, -1, -1)),
+			b'\x00\x00',
+			b'foo',
 		),
 	),
 	('smallint[]', (
@@ -164,6 +166,7 @@ type_samples = (
 			datetime.datetime(3000,5,20,5,30,10),
 			datetime.datetime(2000,1,1,5,25,10),
 			datetime.datetime(500,1,1,5,25,10),
+			datetime.datetime(250,1,1,5,25,10),
 		],
 	),
 	('date', [
@@ -180,6 +183,8 @@ type_samples = (
 		],
 	),
 	('timestamptz', [
+			# It's converted to UTC. When it comes back out, it will be in UTC
+			# again. The datetime comparison will take the tzinfo into account.
 			datetime.datetime(1990,5,12,10,10,0, tzinfo=FixedOffset(4000)),
 			datetime.datetime(1982,5,18,10,10,0, tzinfo=FixedOffset(6000)),
 			datetime.datetime(1950,1,1,10,10,0, tzinfo=FixedOffset(7000)),
@@ -229,6 +234,36 @@ type_samples = (
 			((-1,-1),1.0011),
 			((1,-1),1.0011),
 			((-1,1),1.0011),
+		],
+	),
+	('box', [
+			((0,0),(0,0)),
+			((-1,-1),(-1,-1)),
+			((1,1),(-1,-1)),
+			((10,1),(-1,-1)),
+			((100.2312,45.1232),(-123.023,-1423.82342)),
+		],
+	),
+	('bit', [
+			pg_types.bit('1'),
+			pg_types.bit('0'),
+			None,
+		],
+	),
+	('varbit', [
+			pg_types.varbit('1'),
+			pg_types.varbit('0'),
+			pg_types.varbit('10'),
+			pg_types.varbit('11'),
+			pg_types.varbit('00'),
+			pg_types.varbit('001'),
+			pg_types.varbit('101'),
+			pg_types.varbit('111'),
+			pg_types.varbit('0010'),
+			pg_types.varbit('1010'),
+			pg_types.varbit('1010'),
+			pg_types.varbit('01010101011111011010110101010101111'),
+			pg_types.varbit('010111101111'),
 		],
 	),
 )
@@ -337,6 +372,69 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid
 		))
 		self.failUnlessEqual(tuple(c.column_types), (str,str,tuple))
+
+	def testRowInterface(self):
+		data = (1, '0', decimal.Decimal('0.00'), datetime.datetime(1982,5,18,12,30,0))
+		ps = self.db.prepare(
+			"SELECT 1::int2 AS col0, " \
+			"'0'::text AS col1, 0.00::numeric as col2, " \
+			"'1982-05-18 12:30:00'::timestamp as col3;"
+		)
+		row = ps.first()
+		self.failUnlessEqual(tuple(row), data)
+		self.failUnlessEqual(
+			tuple(row.column_names),
+			tuple(['col' + str(i) for i in range(4)])
+		)
+		self.failUnlessEqual(
+			(row["col0"], row["col1"], row["col2"], row["col3"]),
+			(row[0], row[1], row[2], row[3]),
+		)
+		self.failUnlessEqual(
+			(row["col0"], row["col1"], row["col2"], row["col3"]),
+			(row[0], row[1], row[2], row[3]),
+		)
+		keys = list(row.keys())
+		cnames = list(ps.column_names)
+		cnames.sort()
+		keys.sort()
+		self.failUnlessEqual(keys, cnames)
+		self.failUnlessEqual(list(row.values()), list(data))
+		self.failUnlessEqual(list(row.items()), list(zip(ps.column_names, data)))
+		for x in ps.column_names:
+			# column name/key check, *not* values.
+			self.failUnless(x in row, repr(x) + " not in row, " + repr(row))
+
+		row_d = dict(row)
+		for x in ps.column_names:
+			self.failUnlessEqual(row_d[x], row[x])
+		for x in row_d.keys():
+			self.failUnlessEqual(row.get(x), row_d[x])
+
+		row_t = tuple(row)
+		self.failUnlessEqual(row_t, row)
+
+		# transform
+		crow = row.transform(col0 = str)
+		self.failUnlessEqual(type(crow[0]), str)
+		crow = row.transform(str)
+		self.failUnlessEqual(type(crow[0]), str)
+		crow = row.transform(str, int)
+		self.failUnlessEqual(type(crow[0]), str)
+		self.failUnlessEqual(type(crow[1]), int)
+		# None = no transformation
+		crow = row.transform(None, int)
+		self.failUnlessEqual(type(crow[0]), int)
+		self.failUnlessEqual(type(crow[1]), int)
+		# and a combination
+		crow = row.transform(str, col1 = int, col3 = str)
+		self.failUnlessEqual(type(crow[0]), str)
+		self.failUnlessEqual(type(crow[1]), int)
+		self.failUnlessEqual(type(crow[3]), str)
+
+		for i in range(4):
+			self.failUnlessEqual(i, row.index_from_key('col' + str(i)))
+			self.failUnlessEqual('col' + str(i), row.key_from_index(i))
 
 	def testStatementFromId(self):
 		self.db.execute("PREPARE foo AS SELECT 1 AS colname;")
@@ -805,27 +903,57 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		)
 
 	def testPreparedTransactionCommit(self):
-		with self.db.xact(gid = 'commit_gid') as x:
-			with x:
-				self.db.execute("create table commit_gidtable as select 'foo'::text as t;")
+		with self.db.xact(gid='commit_gid') as x:
+			self.db.execute("create table commit_gidtable as select 'foo'::text as t;")
+			x.prepare()
+			# not committed yet, so it better fail.
 			self.failUnlessRaises(pg_exc.UndefinedTableError,
-				self.db.prepare("select * from commit_gidtable")
+				self.db.execute, "select * from commit_gidtable"
 			)
+		# now it's committed.
 		self.failUnlessEqual(
 			self.db.prepare("select * FROM commit_gidtable").first(),
 			'foo',
 		)
+		self.db.execute('drop table commit_gidtable;')
+
+	def testWithUnpreparedTransaction(self):
+		try:
+			with self.db.xact(gid='not-gonna-prepare-it') as x:
+				pass
+		except pg_exc.ActiveTransactionError:
+			# *must* be okay to query again.
+			self.failUnlessEqual(self.db.prepare('select 1').first(), 1)
+		else:
+			self.fail("commit with gid succeeded unprepared..")
+
+	def testWithPreparedException(self):
+		class TheFailure(Exception):
+			pass
+		try:
+			with self.db.xact(gid='yeah,weprepare') as x:
+				x.prepare()
+				raise TheFailure()
+		except TheFailure as err:
+			# __exit__ should have issued ROLLBACK PREPARED, so let's find out.
+			# *must* be okay to query again.
+			self.failUnlessEqual(self.db.prepare('select 1').first(), 1)
+			x = self.db.xact(gid='yeah,weprepare')
+			self.failUnlessRaises(pg_exc.UndefinedObjectError, x.recover)
+		else:
+			self.fail("failure exception was not raised")
 
 	def testUnPreparedTransactionCommit(self):
-		x = self.db.xact(gid = 'never_prepared')
+		x = self.db.xact(gid='never_prepared')
 		x.start()
-		self.failUnlessRaises(pg_exc.OperationError, x.commit)
-		self.failUnlessRaises(pg_exc.OperationError, x.commit)
+		self.failUnlessRaises(pg_exc.ActiveTransactionError, x.commit)
+		self.failUnlessRaises(pg_exc.InFailedTransactionError, x.commit)
 
 	def testPreparedTransactionRollback(self):
-		x = self.db.xact(gid = 'rollback_gid')
-		with x:
-			self.db.execute("create table gidtable as select 'foo'::text as t;")
+		x = self.db.xact(gid='rollback_gid')
+		x.start()
+		self.db.execute("create table gidtable as select 'foo'::text as t;")
+		x.prepare()
 		x.rollback()
 		self.failUnlessRaises(pg_exc.UndefinedTableError,
 			self.db.prepare("select * from gidtable")
@@ -833,8 +961,9 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 
 	def testPreparedTransactionRecovery(self):
 		x = self.db.xact(gid='recover dis')
-		with x:
-			self.db.execute("create table distable (i int);")
+		x.start()
+		self.db.execute("create table distable (i int);")
+		x.prepare()
 		del x
 		x = self.db.xact(gid='recover dis')
 		x.recover()
@@ -843,8 +972,9 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 
 	def testPreparedTransactionRecoveryAbort(self):
 		x = self.db.xact(gid='recover dis abort')
-		with x:
-			self.db.execute("create table distableabort (i int);")
+		x.start()
+		self.db.execute("create table distableabort (i int);")
+		x.prepare()
 		del x
 		x = self.db.xact(gid='recover dis abort')
 		x.recover()
