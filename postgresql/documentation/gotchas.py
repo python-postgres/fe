@@ -69,11 +69,11 @@ Types without binary support in the driver are unsupported in arrays and records
 When an array or composite type is identified, `postgresql.protocol.typio`
 ultimately chooses the binary format for the transfer of the column or
 parameter. When this is done, PostgreSQL will pack or expect *all* the values
-in binary format as well. If that binary format is not a ``client_encoding``
-string, it will fail to unpack the row or pack the appropriate data for the
-element or attribute.
+in binary format as well. If that binary format is not supported and the type
+is not an string, it will fail to unpack the row or pack the appropriate data for
+the element or attribute.
 
-In, most cases issues related to this can be avoided with exlicit casts to text.
+In most cases issues related to this can be avoided with exlicit casts to text.
 '''
 
 __docformat__ = 'reStructuredText'

@@ -38,7 +38,8 @@ Establishing a Connection
 =========================
 
 There are many ways to establish a `postgresql.api.Connection` to a
-PostgreSQL server. This section discusses those interfaces.
+PostgreSQL server using `postgresql.driver`. This section discusses those
+interfaces.
 
 
 `postgresql.open`
@@ -46,7 +47,7 @@ PostgreSQL server. This section discusses those interfaces.
 
 In the root package module, the ``open()`` function is provided for accessing
 databases using a single locator string. The string taken by `postgresql.open` is
-a URL:
+a URL whose components make up the client parameters::
 
 	>>> import postgresql
 	>>> db = postgresql.open("pq://localhost/postgres")
@@ -54,9 +55,9 @@ a URL:
 This will connect to the host, ``localhost`` and to the database named
 ``postgres`` via the ``pq`` protocol. open will inherit client parameters from
 the environment, so the user name given to the server will come from ``$PGUSER``
-or if that is unset, the result of ``getpass.getuser()``--the name of the user
-that executed the process. The user's "pgpassfile" will also be referenced if
-no password is given:
+or if that is unset, the result of `getpass.getuser`--the name of the user
+running the process. The user's "pgpassfile" will also be referenced if
+no password is given::
 
 	>>> db = postgresql.open("pq://username:password@localhost/postgres")
 
@@ -64,7 +65,7 @@ In this case, the password is given, so ``~/.pgpass`` would never be referenced.
 The ``user`` client parameter is also given, ``username``, so ``$PGUSER`` or
 `getpass.getuser` will not be given to the server.
 
-Settings can also be provided by the query portion of the URL:
+Settings can also be provided by the query portion of the URL::
 
 	>>> db = postgresql.open("pq://user@localhost/postgres?search_path=public&timezone=mst")
 
@@ -75,6 +76,12 @@ square-brackets, '[' and ']':
 
 	>>> db = postgresql.open("pq://user@localhost/postgres?[sslmode]=require&[connect_timeout]=5")
 
+The general structure of a PQ-locator is::
+
+	protocol://user:password@host:port/database?[driver_setting]=value&server_setting=value#schema
+
+For more information about environment variables, see `Environment Variables`_.
+For more information about the ``pgpassfile``, see `PostgreSQL Password File`_.
 
 `postgresql.driver.connect`
 ---------------------------
@@ -123,22 +130,22 @@ Connectors fit into the category of "connection creation interfaces", so
 connector creation takes the same parameters that the
 `postgresql.driver.connect` function takes.
 
-The driver, `postgresql.driver.default` provides a set connectors for making a
-connection:
+The driver, `postgresql.driver.default` provides a set of connectors for making
+a connection:
 
  ``Host``
   Provides a ``getaddrinfo()`` abstraction for establishing a connection.
 
  ``IP4``
-  Connect to a single, IPv4 addressed host.
+  Connect to a single IPv4 addressed host.
 
  ``IP6``
-  Connect to a single, IPv6 addressed host.
+  Connect to a single IPv6 addressed host.
 
  ``Unix``
-  Connect to a unix domain socket.
+  Connect to a single unix domain socket.
 
-``Host`` is usual connector used to establish a connection:
+``Host`` is the usual connector used to establish a connection:
 
 	>>> C = postgresql.driver.default.Host(
 	...  user = 'auser',
@@ -159,6 +166,12 @@ Additionally, ``db.connect()`` on ``db.__enter__()`` for with-statement support:
 	>>> db = C.create()
 	>>> with db:
 	...  ...
+
+
+Notably, connector configuration is constant, ultimately excepting ``Host``.
+For instance, connectors have no knowledge of service files or environment
+variables, so changes made will not be automatically reflected. Connectors
+*should* be viewed as read-only objects.
 
 
 Connection Keywords
@@ -217,6 +230,12 @@ Connection Failures
 If a connection cannot be established for a known reason, a
 `postgresql.exceptions.ClientCannotConnectError` will be raised by the
 connection creation interface.
+
+This exception carries the cause of the failures. However, in situations
+involving ``Host`` connectors and ``'prefer'`` or ``'allow'`` ``sslmode``'s,
+multiple attempts may be made before the exception is thrown. Therefore,
+multiple exception conditions may have contributed to the ultimate
+failure of the connection.
 
 
 Connections
@@ -1209,8 +1228,22 @@ Prepared transactions can be used with with-statements:
 
 Transactions always call ``commit()`` on exit. This requires transaction objects
 representing a prepared transaction to be prepared prior to the block's exit.
+If the transaction is not prepared, the attempt to ``COMMIT PREPARED`` is still
+made::
 
-When a prepared transaction is partially committed, the transaction should be
+	>>> with db.xact(gid='notprepared'):
+	...  pass
+	...
+	Traceback (most recent call last):
+	 ...
+	postgresql.exceptions.ActiveTransactionError: COMMIT PREPARED cannot run inside a transaction block
+	  CODE: 25001
+	  SEVERITY: ERROR
+	  INTERFACE: The prepared transaction was not prepared prior to the block's exit.
+	  LOCATION: File 'xact.c', line 2648, in PreventTransactionChain
+
+
+When a prepared transaction is prepared, the transaction should be
 rolled-back or committed at some point in time. It is possible
 for a transaction to be prepared, but the connection lost before the final
 commit or rollback. Cases where this occurs require a recovery operation to
@@ -1234,7 +1267,9 @@ PREPARED when the global identifier does not exist.
 
 	>>> gxact = db.xact(gid='a-non-existing-gid')
 	>>> gxact.recover()
-	postgresql.exceptions.UndefinedObjectError
+	Traceback (most recent call last):
+	 ...
+	postgresql.exceptions.UndefinedObjectError: ...
 
 This allows recovery operations to identify the existence of the prepared
 transaction. Global transaction managers should trap this exception in order to
@@ -1266,9 +1301,7 @@ Settings Interface Points
 -------------------------
 
 Manipulation of the connection's settings is achieved by using the standard
-`collections.MutableMapping` interfaces. It's very similar to using a dictionary
-object. However, there are some additional interfaces provided in order to
-accommodate for the remote nature of the finite map.
+`collections.MutableMapping` interfaces.
 
  ``db.settings[k]``
   Get the value of a single setting.
@@ -1299,10 +1332,10 @@ accommodate for the remote nature of the finite map.
 Settings Management
 -------------------
 
-`postgresql.api.Settings` objects provide context managers as well. This gives
-the user with the ability to specify sections of code that are to be ran with
-certain settings. The settings' context manager takes full advantage of keyword
-arguments in order to configure the context manager:
+`postgresql.api.Settings` objects can create context managers when called.
+This gives the user with the ability to specify sections of code that are to
+be ran with certain settings. The settings' context manager takes full
+advantage of keyword arguments in order to configure the context manager:
 
 	>>> with db.settings(search_path = 'local,public', timezone = 'mst'):
 	...  ...

@@ -3,7 +3,7 @@
 # http://python.projects.postgresql.org
 ##
 """
-Python command with a PG-API connection.
+Python command with a PG-API connection(``db``).
 """
 import os
 import sys
@@ -43,9 +43,9 @@ def command(argv = sys.argv):
 	connection = None
 	while connection is None:
 		try:
-			cond = clientparameters.standard(co = co, prompt_title = None)
+			cond = clientparameters.collect(parsed_options = co, prompt_title = None)
 			if need_prompt:
-				# authspec error thrown last time
+				# authspec error thrown last time, so force prompt.
 				cond['prompt_password'] = True
 			try:
 				clientparameters.resolve_password(cond, prompt_title = 'pg_python')

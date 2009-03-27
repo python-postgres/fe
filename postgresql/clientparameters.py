@@ -8,6 +8,27 @@ Collect client connection parameters from various sources.
 This module provides functions for collecting client parameters from various
 sources such as user relative defaults, environment variables, and even command
 line options.
+
+There are two primary data-structures that this module deals with: normalized
+parameters and denormalized parameters.
+
+Normalized parameters is a proper mapping object, dictionary, consisting of
+the parameters used to apply to a connection creation interface. The high-level
+interface, ``collect`` returns normalized parameters.
+
+Denormalized parameters is a sequence or iterable of key-value pairs. However,
+the key is always a tuple whose components make up the "key-path". This is used
+to support sub-dictionaries like settings::
+
+	>>> normal_params = {
+	 'user' : 'jwp',
+	 'host' : 'localhost',
+	 'settings' : {'default_statistics_target' : 200, 'search_path' : 'home,public'}
+	}
+
+Denormalized parameters are used to simplify the overriding of past parameters.
+For this to work with dictionaries in a general fashion, dictionary objects
+would need a "deep update" method.
 """
 import sys
 import os
@@ -182,7 +203,8 @@ def append_db_client_parameters(option, opt_str, value, parser):
 		((option.dest,), value)
 	)
 
-make_option = partial(optparse.make_option,
+make_option = partial(
+	optparse.make_option,
 	action = 'callback',
 	callback = append_db_client_parameters
 )
@@ -251,7 +273,7 @@ def append_db_client_x_parameters(option, opt_str, value, parser):
 make_x_option = partial(make_option, callback = append_db_client_x_parameters)
 
 option_iri = make_x_option('-I', '--iri',
-	help = 'database locator string [pq://user:password@host:port/database?setting=value]',
+	help = 'database locator string [pq://user:password@host:port/database?[driver_param]=valuesetting=value]',
 	type = 'str',
 	dest = 'pq_iri',
 )
@@ -378,9 +400,7 @@ def x_pg_service(service_name, config):
 	"""
 	Lookup service data using the `service_name`.
 
-	A service file is very close to the format supported by
-	`configparser.RawConfigParser`, so if more dynamic access is need, just use
-	it directly. But be sure to map 'dbname' to 'database'.
+	Be sure to map 'dbname' to 'database'.
 	"""
 	service_file = config.get('pg_service_file')
 	if service_file is None:
@@ -405,6 +425,8 @@ def x_pg_service(service_name, config):
 		elif k.lower() == 'pg_service':
 			# ignore
 			pass
+		elif k.lower() == 'dbname':
+			yield (('database',), v)
 		else:
 			yield ((k,), v)
 
@@ -420,7 +442,11 @@ default_x_callbacks = {
 
 def extrapolate(iter, config = None, callbacks = default_x_callbacks):
 	"""
-	Given an iterable of standardized
+	Given an iterable of standardized settings,
+
+		[((path0, path1, ..., pathN), value)]
+
+	Process any callbacks.
 	"""
 	config = config or {}
 	for item in iter:
@@ -479,15 +505,15 @@ def resolve_pg_service_file(
 		return os.path.join(sysconfdir, default_pg_service_filename)
 	return None
 
-def standard(
-	co : "options parsed using the `DefaultParser`" = None,
+def collect(
+	parsed_options : "options parsed using the `DefaultParser`" = None,
 	no_defaults : "Don't build-out defaults like 'user' from getpass.getuser()" = False,
 	environ : "environment variables to use, `None` to disable" = os.environ,
 	environ_prefix : "prefix to use for collecting environment variables" = 'PG',
 	default_pg_sysconfdir : "default 'PGSYSCONFDIR' to use" = None,
 	pg_service_file : "the pg-service file to actually use" = None,
 	prompt_title : "additional title to use if a prompt request is made" = '',
-	parameters : "base-client parameters to use(layers on top of defaults)" = (),
+	parameters : "base-client parameters to use(applied after defaults)" = (),
 ):
 	"""
 	Build a normalized client parameters dictionary for use with a connection
@@ -506,16 +532,19 @@ def standard(
 
 	if not no_defaults:
 		d_parameters.append(defaults(environ = environ))
-	d_parameters.extend(denormalize_parameters(dict(parameters)))
+
+	if parameters:
+		d_parameters.append(denormalize_parameters(dict(parameters)))
 
 	if environ is not None:
 		d_parameters.append(envvars(
 			environ = environ,
 			modifier = environ_prefix.__add__
 		))
-	cop = getattr(co, 'db_client_parameters', None)
+	cop = getattr(parsed_options, 'db_client_parameters', None)
 	if cop:
 		d_parameters.append(cop)
+
 	cpd = normalize(extrapolate(chain(*d_parameters)))
 	if prompt_title is not None:
 		resolve_password(cpd, prompt_title = prompt_title)
@@ -527,5 +556,5 @@ if __name__ == '__main__':
 		description = "print the clientparams dictionary for the environment"
 	)
 	(co, ca) = p.parse_args()
-	r = standard(co = co, prompt_title = 'custom_prompt_title')
+	r = collect(parsed_options = co, prompt_title = 'custom_prompt_title')
 	pprint.pprint(r)

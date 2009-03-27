@@ -36,19 +36,29 @@ __pkg_documentation__ = __project_id__ + '/v' + '.'.join([
 	str(x) for x in version_info[:2]
 ]) + '/'
 
-pg_iri = pg_driver = pg_cp = None
+pg_iri = pg_driver = pg_param = None
 def open(iri = None):
 	"""
 	Create a `postgresql.api.Connection` to the server referenced by the given
-	`iri` keyword.
+	`iri` keyword::
 
-	If the URL starts with an '&', return the connector.
+		>>> import postgresql
+		# General Format:
+		>>> db = postgresql.open('pq://user:password@host:port/database')
+
+		# Connect to 'postgres' at localhost.
+		>>> db = postgresql.open('localhost/postgres')
+
+	If the URL starts with an '&', a connector will be returned instead of a
+	connection.
+
+	(Note: "pq" is the name of the protocol used to communicate with PostgreSQL)
 	"""
-	global pg_iri, pg_driver, pg_cp
-	if None in (pg_iri, pg_driver, pg_cp):
+	global pg_iri, pg_driver, pg_param
+	if None in (pg_iri, pg_driver, pg_param):
 		import postgresql.iri as pg_iri
 		import postgresql.driver as pg_driver
-		import postgresql.clientparameters as pg_cp
+		import postgresql.clientparameters as pg_param
 
 	return_connector = False
 	if iri is not None:
@@ -60,12 +70,13 @@ def open(iri = None):
 	else:
 		iri_params = {}
 
-	std_params = pg_cp.standard(prompt_title = None)
-	params = pg_cp.normalize(
-		list(pg_cp.denormalize_parameters(std_params)) + \
-		list(pg_cp.denormalize_parameters(iri_params))
+	std_params = pg_param.collect(prompt_title = None)
+	params = pg_param.normalize(
+		list(pg_param.denormalize_parameters(std_params)) + \
+		list(pg_param.denormalize_parameters(iri_params))
 	)
-	pg_cp.resolve_password(params)
+	# Resolve the password, but never prompt.
+	pg_param.resolve_password(params, prompt_title = None)
 
 	if return_connector is True:
 		Ctype = pg_driver.default.select(
