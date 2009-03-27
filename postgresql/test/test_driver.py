@@ -295,6 +295,27 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				raise v
 		self.failUnlessRaises(pg_exc.QueryCanceledError, raise_exc, rl)
 
+	def testItsClosed(self):
+		ps = self.db.prepare("SELECT 1")
+		c = ps(scroll = True)
+		#
+		c.close()
+		self.failUnlessRaises(pg_exc.CursorNameError, c.read)
+		self.failUnlessEqual(ps.first(), 1)
+		#
+		ps.close()
+		self.failUnlessRaises(pg_exc.StatementNameError, ps.first)
+		#
+		self.db.close()
+		self.failUnlessRaises(
+			pg_exc.ConnectionDoesNotExistError,
+			self.db.execute, "foo"
+		)
+		# No errors, it's already closed.
+		ps.close()
+		c.close()
+		self.db.close()
+
 	def testStatementParameters(self):
 		# too few and takes one
 		ps = self.db.prepare("select $1::integer")

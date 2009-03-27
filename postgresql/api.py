@@ -789,18 +789,7 @@ class PreparedStatement(
 	@abstractmethod
 	def close(self) -> None:
 		"""
-		Close the prepraed statement releasing resources associated with it.
-		"""
-
-	@abstractmethod
-	def prepare(self) -> None:
-		"""
-		Prepare the statement for use.
-
-		If the query has already been prepared, not self.closed,
-		the implementation *must* prepare it again.
-
-		This can be useful for forcing the update of a plan.
+		Close the prepared statement releasing resources associated with it.
 		"""
 
 class StoredProcedure(

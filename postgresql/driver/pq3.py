@@ -1007,7 +1007,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self.database = database
 		self._pq_xact = None
 		self._pq_statement_id = None
-		self.closed = True
+		self.closed = None
 
 	def __repr__(self):
 		return '<{mod}.{name}[{ci}] {state}>'.format(
@@ -1030,22 +1030,22 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 	@property
 	def column_names(self):
-		if self.closed:
-			self.prepare()
+		if self.closed is None:
+			self._fini()
 		if self._output is not None:
 			return list(self.database.typio.decodes(self._output.keys()))
 
 	@property
 	def parameter_types(self):
-		if self.closed:
-			self.prepare()
+		if self.closed is None:
+			self._fini()
 		if self._input is not None:
 			return [self.database.typio.type_from_oid(x) for x in self._input]
 
 	@property
 	def column_types(self):
-		if self.closed:
-			self.prepare()
+		if self.closed is None:
+			self._fini()
 		if self._output is not None:
 			return [
 				self.database.typio.type_from_oid(x[3]) for x in self._output
@@ -1053,21 +1053,21 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 	@property
 	def pg_parameter_types(self):
-		if self.closed:
-			self.prepare()
+		if self.closed is None:
+			self._fini()
 		return self._input
 
 	@property
 	def pg_column_types(self):
-		if self.closed:
-			self.prepare()
+		if self.closed is None:
+			self._fini()
 		if self._output is not None:
 			return [x[3] for x in self._output]
 
 	@property
 	def sql_column_types(self):
-		if self.closed:
-			self.prepare()
+		if self.closed is None:
+			self._fini()
 		if self._output is not None:
 			return [
 				pg_types.oid_to_sql_name.get(x) or \
@@ -1077,8 +1077,8 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 	@property
 	def sql_parameter_types(self):
-		if self.closed:
-			self.prepare()
+		if self.closed is None:
+			self._fini()
 		if self._input is not None:
 			return [
 				pg_types.oid_to_sql_name.get(x) or \
@@ -1087,20 +1087,9 @@ class PreparedStatement(pg_api.PreparedStatement):
 			]
 
 	def close(self):
-		if not self.closed:
+		if not (self.closed is True):
 			self.database._closestatements.append(self._pq_statement_id)
 		self.closed = True
-		self._pq_statement_id = None
-		self._pq_xact = None
-
-	def prepare(self):
-		# If there's no _init_xact or the _init_xact is not the current
-		# transaction
-		if self._pq_xact is None \
-		or self._pq_xact is not self.database._pq_xact:
-			self._init()
-		# Finalize the statement for use. It should be ready.
-		self._fini()
 
 	def ife_snapshot_text(self):
 		s = ""
@@ -1202,8 +1191,8 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self._pq_xact = None
 
 	def __call__(self, *parameters, **kw):
-		if self.closed:
-			self.prepare()
+		if self.closed is None:
+			self._fini()
 		# Tuple output per the results of DescribeStatement.
 		##
 		cursor = Cursor.from_statement(parameters, self, **kw)
@@ -1213,8 +1202,8 @@ class PreparedStatement(pg_api.PreparedStatement):
 	__iter__ = __call__
 
 	def first(self, *parameters):
-		if self.closed:
-			self.prepare()
+		if self.closed is None:
+			self._fini()
 		# Parameters? Build em'.
 		c = self.database
 
@@ -1382,8 +1371,8 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 		In cases of ``COPY ... FROM STDIN``, iterable must be an iterable `bytes`.
 		"""
-		if self.closed:
-			self.prepare()
+		if self.closed is None:
+			self._fini()
 		if not self._input:
 			return self._copy_data_in(iterable, tps = tps)
 		else:
