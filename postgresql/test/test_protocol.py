@@ -5,15 +5,15 @@
 import unittest
 import struct
 import decimal
-import postgresql.protocol.element3 as e3
-import postgresql.protocol.xact3 as x3
-import postgresql.protocol.pbuffer as p_buffer_module
-import postgresql.protocol.typstruct as pg_typstruct
-import postgresql.protocol.typio as pg_typio
-import postgresql.types as pg_types
+from ..protocol import element3 as e3
+from ..protocol import xact3 as x3
+from ..protocol import pbuffer as p_buffer_module
+from ..protocol import typstruct as pg_typstruct
+from ..protocol import typio as pg_typio
+from .. import types as pg_types
 
 try:
-	import postgresql.protocol.cbuffer as c_buffer_module
+	from ..protocol import cbuffer as c_buffer_module
 except ImportError:
 	c_buffer_module = None
 
@@ -704,6 +704,34 @@ class test_typio(unittest.TestCase):
 						x, packed, unpacked
 					)
 				)
+
+
+try:
+	from ..protocol import optimized as protocol_optimized
+
+	class test_optimized(unittest.TestCase):
+		def test_parse_tuple_message(self):
+			'validate exceptions'
+			ptm = protocol_optimized.parse_tuple_message
+			self.failUnlessRaises(ValueError, ptm, tuple, b'')
+			self.failUnlessRaises(ValueError, ptm, tuple, b'0')
+
+			notenoughdata = struct.pack('!H', 2)
+			self.failUnlessRaises(ValueError, ptm, tuple, notenoughdata)
+
+			wraparound = \
+				struct.pack('!HL', 2, 10) + (b'0' * 10) + struct.pack('!L', 0xFFFFFFFE)
+			self.failUnlessRaises(ValueError, ptm, tuple, wraparound)
+
+			oneatt_notenough = \
+				struct.pack('!HL', 2, 10) + (b'0' * 10) + struct.pack('!L', 15)
+			self.failUnlessRaises(ValueError, ptm, tuple, oneatt_notenough)
+
+			toomuchdata = struct.pack('!HL', 1, 3) + (b'0' * 10)
+			self.failUnlessRaises(ValueError, ptm, tuple, toomuchdata)
+
+except ImportError:
+	pass
 
 if __name__ == '__main__':
 	from types import ModuleType

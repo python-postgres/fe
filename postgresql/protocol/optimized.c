@@ -24,8 +24,8 @@ parse_tuple_message(PyObject *self, PyObject *args)
 	const char *data;
 	uint16_t cnatt = 0, natts = 0;
 	uint32_t attsize = 0;
-	int position = 0;
-	int dlen = 0;
+	uint32_t position = 0;
+	Py_ssize_t dlen = 0;
 
 	if (PyArg_ParseTuple(args, "Oy#", &typ, &data, &dlen) < 0)
 		return(NULL);
@@ -64,6 +64,13 @@ parse_tuple_message(PyObject *self, PyObject *args)
 	}
 	natts = ntohs(*((uint16_t *) (data)));
 
+	/*
+	 * FEARME: A bit much for saving a reallocation/copy?
+	 *
+	 * This is expected to be used as a classmethod on a tuple subtype.
+	 * If the subtype has a custom __new__ routine, this could
+	 * be problematic, but it would probably only lead to AttributeErrors
+	 */
 	rob = ((PyTypeObject *) typ)->tp_alloc((PyTypeObject *) typ, natts); 
 	if (rob == NULL)
 	{
@@ -95,6 +102,20 @@ parse_tuple_message(PyObject *self, PyObject *args)
 		}
 		else
 		{
+			if ((position + attsize) < position)
+			{
+				/*
+				 * Likely a "limitation" over the pure-Python version, *but*
+				 * the message content size is limited to 0xFFFFFFFF-4 anyways,
+				 * so it is unexpected for an attsize to cause wrap-around.
+				 */
+				PyErr_Format(PyExc_ValueError,
+					"tuple data caused position (uint32_t) wrap-around on attribute %d",
+					cnatt
+				);
+				goto cleanup;
+			}
+
 			if (position + attsize > dlen)
 			{
 				PyErr_Format(PyExc_ValueError,
@@ -123,7 +144,7 @@ parse_tuple_message(PyObject *self, PyObject *args)
 	{
 		PyErr_Format(PyExc_ValueError,
 			"invalid tuple message, %d remaining "
-			"bytes after processing %d attriutes",
+			"bytes after processing %d attributes",
 			dlen - position, cnatt
 		);
 		goto cleanup;
