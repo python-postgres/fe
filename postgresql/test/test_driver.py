@@ -297,6 +297,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 
 	def testItsClosed(self):
 		ps = self.db.prepare("SELECT 1")
+		# If scroll is False it will pre-fetch, and no error will be thrown.
 		c = ps(scroll = True)
 		#
 		c.close()
