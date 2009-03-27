@@ -8,16 +8,12 @@ Application Programmer Interface specifications for PostgreSQL (ABCs).
 PG-API
 ======
 
-``postgresql.api`` is a Python API to the PostgreSQL DBMS. It is designed to take
+``postgresql.api`` is a Python API for the PostgreSQL DBMS. It is designed to take
 full advantage of PostgreSQL's features to provide the Python programmer with
 substantial convenience.
 
 This module is used to define the PG-API. It creates a set of ABCs
-that makes up the basic interfaces used to work with a PostgreSQL. PG-API is an
-extension of ``py-database``'s database.api.sql APIs.
-
-The `InterfaceElement` is the common ABC, the methods and attributes defined
-within that class can, should, be mostly ignored while extracting information.
+that makes up the basic interfaces used to work with a PostgreSQL.
 """
 import os
 import warnings
@@ -32,6 +28,9 @@ class Receptor(collections.Callable):
 	"""
 	A receptor is a type of callable used by `InterfaceElement`'s `ife_emit`
 	method.
+
+	This class is used to describe the signature of callables connected to an
+	InterfaceElement via `InterfaceElement.ife_connect`.
 	"""
 
 	@abstractmethod
@@ -62,27 +61,27 @@ class InterfaceElement(metaclass = ABCMeta):
 
 	This ancestry is important for PG-API as it provides the foundation for
 	collecting the information on the causes leading to an effect. Most notably,
-	a database error. When raised, it provides you with an error message; but,
-	this information gives you little clue as to what connection the exception
-	came from. While, it is possible for a given user to find out using a
-	debugger, it not possible to do so efficiently if fair amounts of
+	a database error. When raised, it provides the user with an error message;
+	but, this information gives you little clue as to what connection the
+	exception came from. While, it is possible for a given user to find out
+	using a debugger, it not possible to do so efficiently if fair amounts of
 	information about exception's lineage is required--consider a query's
 	execution where parameters ultimately caused the failure.
 
 	To save the user time, IFEs ancestry allows `postgresql.exceptions` to
-	include substantial information about an error. A printed exception has
-	the general structure::
-	
+	include substantial information about an error::
+
 		<Python Traceback>
 		postgresql.exceptions.Error: <message>
 		CURSOR: <cursor_id>
 			<parameters>
-		QUERY: <statement_id> <parameter info>
+		STATEMENT: <statement_id> <parameter info>
 			<query body>
 		CONNECTION: <connection_title> <backend_id> <socket information>
 			<settings, transaction state, connection state>
 		CONNECTOR: pq://user@localhost:5432/database
 		DRIVER: postgresql.driver.pq3
+
 
 	Receptors
 	---------
@@ -90,8 +89,8 @@ class InterfaceElement(metaclass = ABCMeta):
 	Reception is a faculty created to support PostgreSQL message and warning
 	propagation in a context specific way. For instance, the NOTICE emitted by
 	PostgreSQL when creating a table with a PRIMARY KEY might be unnecessary in
-	an program automating the creation of tables as it's expected. So,
-	providing a filter for these messages is useful to reducing noise.
+	a program automating the creation of tables as it's expected. Providing a
+	filter for these messages is useful to reducing noise.
 
 
 	WARNING
@@ -395,6 +394,7 @@ class Message(InterfaceElement):
 		return self.message + code + sevmsg + detailstr + locstr
 
 	def emit(self):
+		'Emit the message'
 		self.snapshot = self.ife_ancestry_snapshot_text()
 		self.ife_emit(self)
 
@@ -929,11 +929,10 @@ class Transaction(InterfaceElement):
 		"""
 		Commit the transaction.
 
-		If the transaction is configured with a `gid` and it has not been
-		prepared, raise a `postgresql.exceptions.OperationError`.
+		If the transaction is configured with a `gid` issue a COMMIT PREPARED
+		statement with the configured `gid`.
 
-		If the transaction is configured with a `gid` and has already been
-		prepared, issue a COMMIT PREPARED statement with the configured `gid`.
+		If the transaction is a block, issue a COMMIT statement.
 
 		If the transaction was started inside a transaction block, it should be
 		identified as a savepoint, and the savepoint should be released.
@@ -1009,10 +1008,14 @@ class Transaction(InterfaceElement):
 		unavailable, the `rollback` method should cause a
 		`postgresql.exceptions.ConnectionDoesNotExistError` exception to occur.
 
-		If the transaction is configured with a `gid` and the transaction has not
-		been prepared, run the `prepare` method.
+		Otherwise, run the transaction's `commit` method. If the commit fails,
+		a `gid` is configured, and the connection is still available, run the
+		transaction's `rollback` method.
 
-		Otherwise, run the transaction's `commit` method.
+		When the `commit` is ultimately unsuccessful or not ran at all, the purpose
+		of __exit__ is to resolve the error state of the database iff the
+		database is available(not closed) so that more commands can be after the
+		block's exit.
 		"""
 
 class Settings(
