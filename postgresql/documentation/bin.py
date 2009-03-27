@@ -8,13 +8,31 @@ Console Scripts
 
 This chapter discusses the usage of the available console scripts.
 
+
 ``pg_python``
 =============
 
 The ``pg_python`` command provides a simple way to write Python scripts against a
 single target database. It acts like the regular Python console command, but
 then takes standard PostgreSQL options as well to specify the client parameters
-to make the connection with.
+to make the connection with. The Python environment is then augmented with the
+following additional built-ins:
+
+ ``db``
+  The PG-API connection object.
+
+ ``xact``
+  ``db.xact``, the transaction creator.
+
+ ``settings``
+  ``db.settings``
+
+ ``prepare``
+  ``db.prepare``, the statement creator.
+
+ ``proc``
+  ``db.proc``
+
 
 pg_python Usage
 ---------------
@@ -47,29 +65,6 @@ Options:
   --help                show this help message and exit
 
 
-Python Environment
-------------------
-
-``pg_python`` creates a Python environment with an already established
-connection based on the given arguments. It provides the following additional
-built-ins:
-
- ``db``
-  The PG-API connection object.
-
- ``xact``
-  ``db.xact``
-
- ``settings``
-  ``db.settings``
-
- ``prepare``
-  ``db.prepare``
-
- ``proc``
-  ``db.proc``
-
-
 Interactive Console Backslash Commands
 --------------------------------------
 
@@ -84,6 +79,34 @@ Inspired by ``psql``::
 	  \i      Execute a Python script within the interpreter's context.
 	  \set    Configure environment variables. \set without arguments to show all
 	  \x      Execute the Python command within this process.
+
+
+pg_python Examples
+------------------
+
+Module execution taking advantage of the new built-ins::
+
+	$ pg_python -h localhost -W -m timeit "prepare('SELECT 1').first()"
+	Password for pg_python[pq://jwp@localhost:5432]:
+	1000 loops, best of 3: 1.35 msec per loop
+
+	$ pg_python -h localhost -W -m timeit -s "ps=prepare('SELECT 1')" "ps.first()"
+	Password for pg_python[pq://jwp@localhost:5432]:
+	1000 loops, best of 3: 442 usec per loop
+
+Simple interactive usage::
+
+	$ pg_python -h localhost -W
+	Password for pg_python[pq://jwp@localhost:5432]:
+	>>> ps = prepare('select 1')
+	>>> ps.first()
+	1
+	>>> c = ps()
+	>>> c.read()
+	[(1,)]
+	>>> ps.close()
+	>>> import sys
+	>>> sys.exit(0)
 
 
 ``pg_dotconf``
