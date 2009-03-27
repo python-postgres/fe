@@ -341,17 +341,30 @@ SQL command.
 
 The ``prepare`` entry point on the connection provides the standard method for
 creating a `postgersql.api.PreparedStatement` instance bound to the
-connection(``db``) from an SQL statement.
+connection(``db``) from an SQL statement string::
+
+	>>> ps = db.prepare("SELECT 1")
+	>>> ps().read()
+	[(1,)]
 
 Statement objects may also be created from a statement identifier using the
 ``statement_from_id`` method on the connection. When this method is used, the
 statement must have already been prepared or an error will be raised.
 
+	>>> db.execute("PREPARE a_statement_id AS SELECT 1;")
+	>>> ps = db.statement_from_id('a_statement_id')
+	>>> ps.read()
+	[(1,)]
+
+When a statement is executed, it binds any given parameters to a *new* cursor.
+This cursor is used to manage the result-set produced by that statement at that
+point-in-time.
+
 
 Prepared Statement Interface Points
 -----------------------------------
 
-Prepared statements are normally executed just like functions:
+Prepared statements can be executed just like functions:
 
 	>>> ps = db.prepare("SELECT 'hello, world!'")
 	>>> c = ps()
@@ -359,13 +372,13 @@ Prepared statements are normally executed just like functions:
 	[('hello, world!',)]
 
 ``c``, the object returned by the invocation of ``ps.__call__``, is a cursor
-object providing a `postgresql.api.Cursor` interface.
+object providing a `postgresql.api.Cursor` interface to the result-set.
 
 .. note::
  Don't confuse PG-API cursors with DB-API 2.0 cursors.
  PG-API cursors are single result-set SQL cursors and don't contain
  methods for executing more queries "within the cursor". They
- only provide interfaces to retrieving the results to that specific
+ only provide interfaces to retrieving the results of that specific
  invocation of the statement.
 
 Prepared statement objects have a few execution methods:
@@ -376,9 +389,12 @@ Prepared statement objects have a few execution methods:
   passing in `True` as the ``scroll`` keyword argument would return a scrollable
   cursor.
 
-  ``with_hold`` is subjective when `False`. If the connection is inside a
+  The given positional arguments, ``*parameters``, will be bound to the new
+  cursor.
+
+  ``with_hold`` is subjective when unspecified. If the connection is inside a
   transaction block, the cursor will not be bound ``WITH HOLD`` if the
-  ``with_hold`` keyword is `False`. However, if the connection is not in a
+  ``with_hold`` keyword is unspecified. However, if the connection is not in a
   transaction block, ``with_hold`` is implied to `True`. This is done because
   the cursor would disappear as soon as it was bound--autocommit means a new
   transaction, and a new transaction will close cursors not defined WITH HOLD.
@@ -414,6 +430,9 @@ Prepared statement objects have a few execution methods:
   The first, and only, row count.
    When DML--for instance, an INSERT-statement--is executed, ``first()`` will
    return the row count returned by the statement as an integer.
+
+   .. note::
+    DML that returns rows will not return a row count.
 
   The result set created by the statement determines what is actually returned.
   Naturally, a statement used with ``first()`` should be crafted with these
@@ -862,14 +881,16 @@ are seen as indexes and other objects are seen as keys::
  Attributes aren't used to provide access to values due to potential conflicts
  with existing method and property names.
 
+
 Row Interface Points
 --------------------
 
 Rows implement the `collections.Mapping` and `collections.Sequence` interfaces.
 Some of the interfaces overlap ultimately requiring the implementation to
-sacrifice some features. Notably, ``__contains__`` takes on the functionality of
-a mapping's implementation as column values in a row are not normally structures
-that are scanned.
+choose behaviour of one of the interfaces. Notably, ``__contains__`` takes on
+the behaviour of a mapping's implementation as column values in a row are
+not normally structures that are scanned, and ``__iter__`` takes on the
+behaviour of a sequence.
 
  ``row.keys()``
   An iterable producing the column names. Order is not guaranteed. See the
@@ -935,7 +956,7 @@ to another piece of code which requires an object of differring consistency.
 
 The ``transform`` method on row objects provides a means to create a new row
 object consisting of the old row's items, but with certain columns transformed
-using specified callables::
+using assigned callables::
 
 	>>> row = db.prepare("""
 	...  SELECT
@@ -949,7 +970,7 @@ using specified callables::
 	('XX9301423', '2', Decimal("4.92"))
 
 ``transform`` supports both positional and keyword arguments in order to
-specify the callable for a column's transformation::
+assign the callable for a column's transformation::
 
 	>>> from operator import methodcaller
 	>>> row.transform(methodcaller('strip', 'XX'))
@@ -1002,15 +1023,40 @@ create a reference to a stored procedure on the remote database.
 `postgresql.api.StoredProcedure` objects are used to represent the referenced
 SQL routine.
 
-This provides a direct interface to the function stored on the database. It
+This provides a direct interface to functions stored on the database. It
 leverages knowledge of the parameters and results of the function in order
 to provide the user with a natural interface to the procedure::
 
-	>>> get_version = db.proc('version()')
-	>>> get_version()
+	>>> func = db.proc('version()')
+	>>> func()
 	'PostgreSQL 8.3.6 on ...'
 
-Set-returning functions, SRFs, on the other hand, return a sequence::
+
+Stored Procedure Interface Points
+---------------------------------
+
+It's more-or-less a function, so there's only one interface point:
+
+ ``func(*args, **kw)`` (``__call__``)
+  Stored procedure objects are callable, executing a procedure will return an
+  object of suitable representation for a given procedure's type signature.
+
+  If it returns a single object, it will return the single object produced by
+  the procedure.
+
+  If it's a set returning function, it will return an *iterable* to the values
+  produced by the procedure.
+
+  In cases of multiple OUT-parameters, a cursor will be returned.
+
+
+Stored Procedure Type Support
+-----------------------------
+
+Stored procedures support most types of functions. "Function Types" being set
+returning functions, multiple-OUT parameters, and simple single-object returns.
+
+Set-returning functions, SRFs return a sequence::
 
 	>>> generate_series = db.proc('generate_series(int,int)')
 	>>> gs = generate_series(1, 20)
@@ -1023,7 +1069,7 @@ Set-returning functions, SRFs, on the other hand, return a sequence::
 
 For functions like ``generate_series()``, the driver is able to identify that
 the return is a sequence of *solitary* integer objects, so the result of the
-function is just that.
+function is just that, a sequence of integers.
 
 Functions returning composite types are recognized, and return row objects::
 
