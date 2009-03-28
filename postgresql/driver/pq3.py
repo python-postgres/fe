@@ -342,9 +342,48 @@ class Cursor(pg_api.Cursor):
 			)
 			self.closed = True
 
+	def _raise_parameter_tuple_error(self, procs, tup, itemnum):
+		# The element traceback will include the full list of parameters.
+		param = repr(tup[itemnum])
+		if len(param) > 80:
+			# Be sure not to fill screen with noise.
+			param = param[:75] + ' ...'
+		te = pg_exc.TupleError(
+			"failed to pack parameter for transfer",
+			details = {
+				'parameter': param,
+				'type' : self.statement.sql_parameter_types[itemnum],
+				'number' : itemnum,
+				'hint' : "Try casting parameter to 'text', then to the target type."
+			},
+		)
+		self.ife_descend(te)
+		te.raise_exception()
+
+	def _raise_column_tuple_error(self, procs, tup, itemnum):
+		'for column processing'
+		# The element traceback will include the full list of parameters.
+		coldata = repr(tup[itemnum])
+		if len(coldata) > 80:
+			# Be sure not to fill screen with noise.
+			coldata = coldata[:75] + ' ...'
+		te = pg_exc.TupleError(
+			"failed to unpack column from wire data",
+			details = {
+				'column': coldata,
+				'type' : self.sql_column_types[itemnum],
+				'name' : repr(self.column_names[itemnum]),
+				'number' : itemnum,
+				'hint' : "Try casting the column to 'text'."
+			},
+		)
+		self.ife_descend(te)
+		te.raise_exception()
+
 	def _pq_parameters(self):
 		return pg_typio.process_tuple(
 			self.statement._input_io, self.parameters,
+			self._raise_parameter_tuple_error
 		)
 
 	def _init(self):
@@ -642,10 +681,11 @@ class TupleCursor(ReadableCursor):
 		return self._last_increase
 
 	def _expansion(self):
+		cte = self._raise_column_tuple_error
 		return [
 			pg_types.Row(
 				pg_typio.process_tuple(
-					self._output_io, y,
+					self._output_io, y, cte
 				),
 				keymap = self._output_attmap
 			)
@@ -1003,6 +1043,8 @@ class PreparedStatement(pg_api.PreparedStatement):
 		return r
 
 	def __init__(self, statement_id, database):
+		if not statement_id:
+			raise ValueError("invalid statement identifier, " + repr(cursor_id))
 		self.statement_id = statement_id
 		self.database = database
 		self._pq_xact = None
@@ -1016,6 +1058,38 @@ class PreparedStatement(pg_api.PreparedStatement):
 			ci = self.database.connector._pq_iri,
 			state = self.state,
 		)
+
+	def _raise_parameter_tuple_error(self, procs, tup, itemnum):
+		te = pg_exc.TupleError(
+			"failed to pack parameter for transfer",
+			details = {
+				'parameter': tup[itemnum],
+				'type' : self.sql_parameter_types[itemnum],
+				'number' : itemnum,
+				'arguments' : tup,
+				'hint' : "Try casting the parameter to 'text', then to the target type."
+			},
+		)
+		self.ife_descend(te)
+		te.raise_exception()
+
+	def _raise_column_tuple_error(self, procs, tup, itemnum):
+		coldata = repr(tup[itemnum])
+		if len(coldata) > 80:
+			# Be sure not to fill screen with noise.
+			coldata = coldata[:75] + ' ...'
+		te = pg_exc.TupleError(
+			"failed to unpack column from wire data",
+			details = {
+				'column': coldata,
+				'type' : self.sql_column_types[itemnum],
+				'number' : itemnum,
+				'name' : repr(self.column_names[itemnum]),
+				'hint' : "Try casting the column to 'text'."
+			},
+		)
+		self.ife_descend(te)
+		te.raise_exception()
 
 	@property
 	def state(self) -> str:
@@ -1210,6 +1284,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		if self._input_io:
 			params = pg_typio.process_tuple(
 				self._input_io, parameters,
+				self._raise_parameter_tuple_error
 			)
 		else:
 			params = ()
@@ -1241,7 +1316,10 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 			if len(self._output_io) > 1:
 				return pg_types.Row(
-					pg_typio.process_tuple(self._output_io, xt),
+					pg_typio.process_tuple(
+						self._output_io, xt,
+						self._raise_column_tuple_error
+					),
 					keymap = self._output_attmap
 				)
 			else:
@@ -1327,12 +1405,15 @@ class PreparedStatement(pg_api.PreparedStatement):
 		tps = tps or 64
 		last = pq.element.FlushMessage
 		tupleseqiter = iter(tupleseq)
+		pte = self._raise_parameter_tuple_error
 		try:
 			while last is pq.element.FlushMessage:
 				c = 0
 				xm = []
 				for t in tupleseqiter:
-					params = pg_typio.process_tuple(self._input_io, tuple(t))
+					params = pg_typio.process_tuple(
+						self._input_io, tuple(t), pte
+					)
 					xm.extend((
 						pq.element.Bind(
 							b'',

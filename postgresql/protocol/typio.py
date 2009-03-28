@@ -421,12 +421,15 @@ oid_to_io = {
 	pg_types.CIRCLEOID : (circle_pack, circle_unpack),
 }
 
-def process_tuple(procs, tup):
+def process_tuple(procs, tup, exception_handler):
 	"""
 	Call each item in `procs` with the corresponding
 	item in `tup` returning the result as `type`.
 
 	If an item in `tup` is `None`, don't process it.
+
+	If a give transformation failes, call the given exception_handler which
+	*should* raise a postgresql.exceptions.TupleError [from current].
 	"""
 	i = len(procs)
 	if len(tup) != i:
@@ -434,11 +437,16 @@ def process_tuple(procs, tup):
 			"inconsistent items, %d processors and %d objects"
 		)
 	r = [None] * i
-	for i in range(i):
-		ob = tup[i]
-		if ob is None:
-			continue
-		r[i] = procs[i](ob)
+	try:
+		for i in range(i):
+			ob = tup[i]
+			if ob is None:
+				continue
+			r[i] = procs[i](ob)
+	except Exception:
+		# relying on python to imply [from current]
+		exception_handler(procs, tup, i)
+		raise RuntimeError("process_tuple exception handler failed to raise")
 	return r
 
 try:
@@ -521,6 +529,9 @@ def composite_typio(
 	cio : "sequence (pack,unpack) tuples corresponding to the",
 	typids : "sequence of type Oids; index must correspond to the composite's",
 	attmap : "mapping of column name to index number",
+	typnames : "sequence of sql type names in order",
+	attnames : "sequence of attribute names in order",
+	composite_name : "the name of the composite type",
 ):
 	"""
 	create the typio pair for the composite type metadata passed in.
@@ -528,11 +539,45 @@ def composite_typio(
 	fpack = tuple(map(get0, cio))
 	funpack = tuple(map(get1, cio))
 
+	def raise_pack_tuple_error(procs, tup, itemnum):
+		attdata = repr(tup[itemnum])
+		if len(attdata) > 80:
+			# Be sure not to fill screen with noise.
+			attdata = attdata[:75] + ' ...'
+		te = pg_exc.TupleError(
+			"failed to pack composite attribute for transfer",
+			details = {
+				'attribute': attdata,
+				'type' : typnames[itemnum],
+				'number' : itemnum,
+				'name' : repr(attnames[itemnum]),
+				'composite' : composite_name,
+			},
+		)
+		te.raise_exception()
+
+	def raise_unpack_tuple_error(procs, tup, itemnum):
+		attdata = repr(tup[itemnum])
+		if len(attdata) > 80:
+			# Be sure not to fill screen with noise.
+			attdata = attdata[:75] + ' ...'
+		te = pg_exc.TupleError(
+			"failed to unpack composite attribute from wire data",
+			details = {
+				'attribute': attdata,
+				'type' : typnames[itemnum],
+				'number' : itemnum,
+				'name' : repr(attnames[itemnum]),
+				'composite' : composite_name,
+			},
+		)
+		te.raise_exception()
+
 	def unpack_a_record(data):
 		data = tuple([x[1] for x in ts.record_unpack(data)])
 		return pg_types.Row(
-			process_tuple(funpack, data),
-			attribute_map = attmap
+			process_tuple(funpack, data, raise_unpack_tuple_error),
+			keymap = attmap
 		)
 
 	def pack_a_record(data):
@@ -541,7 +586,10 @@ def composite_typio(
 				data.get(k) for k,_ in sorted(attmap.items(), key = get1)
 			]
 		return ts.record_pack(
-			tuple(zip(typids, process_tuple(fpack, tuple(data))))
+			tuple(zip(
+				typids,
+				process_tuple(fpack, tuple(data), raise_pack_tuple_error)
+			))
 		)
 	return (pack_a_record, unpack_a_record)
 
@@ -741,16 +789,24 @@ class TypeIO(object, metaclass = ABCMeta):
 					attmap = {}
 					cio = []
 					typids = []
+					attnames = []
 					i = 0
 					for x in self.lookup_composite_type_info(typrelid):
 						attmap[x[1]] = i
+						attnames.append(x[1])
 						typids.append(x[0])
 						pack, unpack = self.resolve(
 							x[0], list(from_resolution_of) + [typid]
 						)
 						cio.append((pack or self.encode, unpack or self.decode))
 						i += 1
-					self._cache[typid] = typio = composite_typio(cio, typids, attmap)
+					self._cache[typid] = typio = composite_typio(
+						cio, typids, attmap, list(
+							map(self.sql_type_from_oid, typids)
+						), attnames,
+						pg_str.quote_ident(typnamespace) + '.' + \
+						pg_str.quote_ident(typname),
+					)
 				elif ae_typid is not None:
 					# Array Type
 					te = self.resolve(

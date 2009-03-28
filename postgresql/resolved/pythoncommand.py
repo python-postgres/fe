@@ -232,7 +232,12 @@ class ExtendedConsole(code.InteractiveConsole):
 
 	def interact(self, *args, **kw):
 		self.showhelp(None, None)
-		super().interact(*args,**kw)
+		return super().interact(*args,**kw)
+
+	def showtraceback(self):
+		e, v, tb = sys.exc_info()
+		sys.last_type, sys.last_value, sys.last_traceback = e, v, tb
+		print_exception(e, v, tb.tb_next or tb)
 
 	def register_backslash(self, bscmd, meth, doc):
 		self.bsc_map[bscmd] = (meth, doc)
@@ -386,9 +391,8 @@ def postmortem(funcpath):
 			yield None
 		except:
 			try:
-				sys.last_traceback = sys.exc_info()[2]
+				sys.last_type, sys.last_value, sys.last_traceback = sys.exc_info()
 				pmobject()
-				del sys.last_traceback
 			except:
 				sys.stderr.write(
 					"[Exception raised by Postmortem]" + os.linesep

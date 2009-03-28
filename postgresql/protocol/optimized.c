@@ -160,10 +160,10 @@ cleanup:
 static PyObject *
 process_tuple(PyObject *self, PyObject *args)
 {
-	PyObject *tup, *procs, *rob;
+	PyObject *tup, *procs, *fail, *rob;
 	Py_ssize_t len, i;
 
-	if (!PyArg_ParseTuple(args, "OO", &procs, &tup))
+	if (!PyArg_ParseTuple(args, "OOO", &procs, &tup, &fail))
 		return(NULL);
 
 	if (!PyObject_IsInstance(procs, (PyObject *) &PyTuple_Type))
@@ -201,6 +201,9 @@ process_tuple(PyObject *self, PyObject *args)
 	for (i = 0; i < len; ++i)
 	{
 		PyObject *p, *o, *ot, *r;
+		/*
+		 * If it's Py_None, that means it's NULL. No processing necessary.
+		 */
 		o = PyTuple_GET_ITEM(tup, i);
 		if (o == Py_None)
 		{
@@ -208,16 +211,61 @@ process_tuple(PyObject *self, PyObject *args)
 			PyTuple_SET_ITEM(rob, i, Py_None);
 			continue;
 		}
+
 		p = PyTuple_GET_ITEM(procs, i);
+		/*
+		 * Temp tuple for applying *args to p.
+		 */
 		ot = PyTuple_New(1);
 		PyTuple_SET_ITEM(ot, 0, o);
 		Py_INCREF(o);
+
 		r = PyObject_CallObject(p, ot);
 		Py_DECREF(ot);
 		if (r == NULL)
 		{
+			/*
+			 * Exception from p(*ot)
+			 */
 			Py_DECREF(rob);
 			rob = NULL;
+			if (PyErr_ExceptionMatches(PyExc_Exception))
+			{
+				PyObject *failargs, *failedat;
+				/*
+				 * It's *not* a BaseException.
+				 */
+				failedat = PyLong_FromSsize_t(i);
+				if (failedat != NULL)
+				{
+					failargs = PyTuple_New(3);
+					if (failargs != NULL)
+					{
+						PyTuple_SET_ITEM(failargs, 0, procs);
+						Py_INCREF(procs);
+						PyTuple_SET_ITEM(failargs, 1, tup);
+						Py_INCREF(tup);
+						PyTuple_SET_ITEM(failargs, 2, failedat);
+						r = PyObject_CallObject(fail, failargs);
+						Py_DECREF(failargs);
+						if (r != NULL)
+						{
+							PyErr_SetString(PyExc_RuntimeError,
+								"process_tuple exception handler failed to raise"
+							);
+							Py_DECREF(r);
+						}
+					}
+					else
+					{
+						Py_DECREF(failedat);
+					}
+				}
+			}
+
+			/*
+			 * Break out of loop to return(NULL);
+			 */
 			break;
 		}
 		PyTuple_SET_ITEM(rob, i, r);

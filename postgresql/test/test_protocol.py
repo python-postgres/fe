@@ -660,6 +660,27 @@ def testExpectIO(self, map, samples):
 			)
 
 class test_typio(unittest.TestCase):
+	def test_process_tuple(self):
+		pt = pg_typio.process_tuple
+		def funpass(procs, tup, col):
+			pass
+		self.failUnlessEqual(tuple(pt((),(), funpass)), ())
+		self.failUnlessEqual(tuple(pt((int,),("100",), funpass)), (100,))
+		self.failUnlessEqual(tuple(pt((int,int),("100","200"), funpass)), (100,200))
+		self.failUnlessEqual(tuple(pt((int,int),(None,"200"), funpass)), (None,200))
+		self.failUnlessEqual(tuple(pt((int,int,int),(None,None,"200"), funpass)), (None,None,200))
+		class ThisError(Exception):
+			pass
+		data = []
+		def funraise(procs, tup, col):
+			data.append((procs, tup, col))
+			raise ThisError
+		self.failUnlessRaises(ThisError, pt, (int,), ("foo",), funraise)
+		self.failUnlessEqual(data[0], ((int,), ("foo",), 0))
+		del data[0]
+		self.failUnlessRaises(ThisError, pt, (int,int), ("100","bar"), funraise)
+		self.failUnlessEqual(data[0], ((int,int), ("100","bar"), 1))
+
 	def testExpectations(self):
 		'IO tests where the pre-made expected serialized form is compared'
 		testExpectIO(self, pg_typstruct.oid_to_io, expectation_samples)
@@ -705,13 +726,11 @@ class test_typio(unittest.TestCase):
 					)
 				)
 
-
 try:
 	from ..protocol import optimized as protocol_optimized
 
 	class test_optimized(unittest.TestCase):
 		def test_parse_tuple_message(self):
-			'validate exceptions'
 			ptm = protocol_optimized.parse_tuple_message
 			self.failUnlessRaises(ValueError, ptm, tuple, b'')
 			self.failUnlessRaises(ValueError, ptm, tuple, b'0')
@@ -730,6 +749,15 @@ try:
 			toomuchdata = struct.pack('!HL', 1, 3) + (b'0' * 10)
 			self.failUnlessRaises(ValueError, ptm, tuple, toomuchdata)
 
+		def test_process_tuple(self):
+			def funpass(procs, tup, col):
+				pass
+			pt = protocol_optimized.process_tuple
+			# tuple() requirements
+			self.failUnlessRaises(TypeError, pt, "foo", "bar", funpass)
+			self.failUnlessRaises(TypeError, pt, (), "bar", funpass)
+			self.failUnlessRaises(TypeError, pt, "foo", (), funpass)
+			self.failUnlessRaises(ValueError, pt, (), ("foo",), funpass)
 except ImportError:
 	pass
 

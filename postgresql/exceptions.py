@@ -122,14 +122,19 @@ class AuthenticationMethodError(DriverError):
 	Server requested an authentication method that is not supported by the
 	driver.
 	"""
+class InsecurityError(DriverError):
+	"""
+	Error signifying a secure channel to a server cannot be established.
+	"""
+	source = 'DRIVER'
+class TupleError(DriverError):
+	"""
+	Driver failed to pack or unpack a tuple.
+	"""
+
 class OperationError(DriverError):
 	"""
 	An invalid operation on an interface element.
-
-	Usually this occurs in dynamically configured instances where the action is
-	not valid for the finalized type.
-
-	For instance, calling the seek() method on a cursor who's query is a COPY.
 	"""
 
 ##
@@ -147,12 +152,6 @@ class ClusterNotRunningError(ClusterError):
 	pass
 class ClusterTimeoutError(ClusterError):
 	pass
-
-class InsecurityError(Error):
-	"""
-	Error signifying a secure channel to a server cannot be established.
-	"""
-	source = 'DRIVER'
 
 class TransactionError(Error):
 	pass

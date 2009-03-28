@@ -545,15 +545,16 @@ The parameter, ``$1``, is given to the database as a string, which is then
 promptly cast into a date. Of course, without the explicit cast as text, the
 outcome would be different::
 
-	>>> ps = db.prepare("SELECT $1::text::date")
+	>>> ps = db.prepare("SELECT $1::date")
 	>>> ps.first('yesterday')
 	Traceback:
 	 ...
-	AttributeError: 'str' object has no attribute 'toordinal'
+	postgresql.exceptions.TupleError
 
 The function that processes the parameter expects a `datetime.date` object, and
 the given `str` object does not provide the necessary interfaces for the
-conversion.
+conversion, so the driver raises a TupleError from the original conversion
+exception.
 
 
 Inserting and DML
