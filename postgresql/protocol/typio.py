@@ -429,7 +429,7 @@ def process_tuple(procs, tup, exception_handler):
 	If an item in `tup` is `None`, don't process it.
 
 	If a give transformation failes, call the given exception_handler which
-	*should* raise a postgresql.exceptions.TupleError [from current].
+	*should* raise a postgresql.exceptions.TypeIOError [with context].
 	"""
 	i = len(procs)
 	if len(tup) != i:
