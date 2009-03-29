@@ -56,9 +56,9 @@ def open(iri = None):
 	"""
 	global pg_iri, pg_driver, pg_param
 	if None in (pg_iri, pg_driver, pg_param):
-		import postgresql.iri as pg_iri
-		import postgresql.driver as pg_driver
-		import postgresql.clientparameters as pg_param
+		from . import iri as pg_iri
+		from . import driver as pg_driver
+		from . import clientparameters as pg_param
 
 	return_connector = False
 	if iri is not None:
