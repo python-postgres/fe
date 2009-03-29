@@ -344,39 +344,47 @@ class Cursor(pg_api.Cursor):
 
 	def _raise_parameter_tuple_error(self, procs, tup, itemnum):
 		# The element traceback will include the full list of parameters.
-		param = repr(tup[itemnum])
-		if len(param) > 80:
+		data = repr(tup[itemnum])
+		if len(data) > 80:
 			# Be sure not to fill screen with noise.
-			param = param[:75] + ' ...'
-		te = pg_exc.TupleError(
-			"failed to pack parameter for transfer",
+			data = data[:75] + ' ...'
+		te = pg_exc.ParameterError(
+			"failed to pack parameter %s::%s for transfer" %(
+				('$' + str(itemnum + 1)),
+				self.database.typio.sql_type_from_oid(
+					self.statement.pg_parameter_types[itemnum]
+				) or '<unknown>',
+			),
 			details = {
-				'parameter': param,
-				'type' : self.statement.sql_parameter_types[itemnum],
-				'number' : itemnum,
+				'data': data,
 				'hint' : "Try casting parameter to 'text', then to the target type."
 			},
 		)
+		te.index = itemnum
 		self.ife_descend(te)
 		te.raise_exception()
 
 	def _raise_column_tuple_error(self, procs, tup, itemnum):
 		'for column processing'
 		# The element traceback will include the full list of parameters.
-		coldata = repr(tup[itemnum])
-		if len(coldata) > 80:
+		data = repr(tup[itemnum])
+		if len(data) > 80:
 			# Be sure not to fill screen with noise.
-			coldata = coldata[:75] + ' ...'
-		te = pg_exc.TupleError(
-			"failed to unpack column from wire data",
+			data = data[:75] + ' ...'
+		te = pg_exc.ColumnError(
+			"failed to unpack column %r, %s::%s, from wire data" %(
+				itemnum,
+				self.column_names[itemnum],
+				self.database.typio.sql_type_from_oid(
+					self.statement.pg_column_types[itemnum]
+				) or '<unknown>',
+			),
 			details = {
-				'column': coldata,
-				'type' : self.sql_column_types[itemnum],
-				'name' : repr(self.column_names[itemnum]),
-				'number' : itemnum,
+				'data': data,
 				'hint' : "Try casting the column to 'text'."
 			},
 		)
+		te.index = itemnum
 		self.ife_descend(te)
 		te.raise_exception()
 
@@ -1060,34 +1068,46 @@ class PreparedStatement(pg_api.PreparedStatement):
 		)
 
 	def _raise_parameter_tuple_error(self, procs, tup, itemnum):
-		te = pg_exc.TupleError(
-			"failed to pack parameter for transfer",
+		typ = self.database.typio.sql_type_from_oid(
+			self.pg_parameter_types[itemnum]
+		) or '<unknown>'
+
+		data = repr(tup[itemnum])
+		if len(data) > 80:
+			# Be sure not to fill screen with noise.
+			data = data[:75] + ' ...'
+		te = pg_exc.ParameterError(
+			"failed to pack parameter %s::%s for transfer" %(
+				('$' + str(itemnum + 1)), typ,
+			),
 			details = {
-				'parameter': tup[itemnum],
-				'type' : self.sql_parameter_types[itemnum],
-				'number' : itemnum,
-				'arguments' : tup,
+				'data': data,
 				'hint' : "Try casting the parameter to 'text', then to the target type."
 			},
 		)
+		te.index = itemnum
 		self.ife_descend(te)
 		te.raise_exception()
 
 	def _raise_column_tuple_error(self, procs, tup, itemnum):
-		coldata = repr(tup[itemnum])
-		if len(coldata) > 80:
+		typ = self.database.typio.sql_type_from_oid(
+			self.pg_column_types(itemnum)
+		) or '<unknown>'
+
+		data = repr(tup[itemnum])
+		if len(data) > 80:
 			# Be sure not to fill screen with noise.
-			coldata = coldata[:75] + ' ...'
-		te = pg_exc.TupleError(
-			"failed to unpack column from wire data",
+			data = data[:75] + ' ...'
+		te = pg_exc.ColumnError(
+			"failed to unpack column %r, %s::%s, from wire data" %(
+				itemnum, self.column_names[itemnum], typ
+			),
 			details = {
-				'column': coldata,
-				'type' : self.sql_column_types[itemnum],
-				'number' : itemnum,
-				'name' : repr(self.column_names[itemnum]),
+				'data': data,
 				'hint' : "Try casting the column to 'text'."
 			},
 		)
+		te.index = itemnum
 		self.ife_descend(te)
 		te.raise_exception()
 

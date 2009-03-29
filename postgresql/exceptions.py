@@ -108,6 +108,7 @@ class Error(PythonMessage, Exception):
 		"""
 		Raise the `Error`, `self`, *after* gettings a snapshot of the ancestry.
 		"""
+		# get the snapshot before raising to get an accurate view of the state
 		self.snapshot = self.ife_ancestry_snapshot_text()
 		if raise_from is None:
 			raise self
@@ -127,10 +128,14 @@ class InsecurityError(DriverError):
 	Error signifying a secure channel to a server cannot be established.
 	"""
 	source = 'DRIVER'
-class TupleError(DriverError):
+class TypeIOError(DriverError):
 	"""
 	Driver failed to pack or unpack a tuple.
 	"""
+class ParameterError(TypeIOError):
+	pass
+class ColumnError(TypeIOError):
+	pass
 
 class OperationError(DriverError):
 	"""

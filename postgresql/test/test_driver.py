@@ -838,31 +838,29 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			(tostr(foo), tostr(bar))
 		)
 
-	def testTupleError(self):
+	def testTypeIOError(self):
 		original = dict(self.db.typio._cache)
 		ps = self.db.prepare('SELECT $1::numeric')
-		self.failUnlessRaises(pg_exc.TupleError, ps, 'foo')
+		self.failUnlessRaises(pg_exc.ParameterError, ps, 'foo')
 		try:
 			self.db.execute('CREATE type test_tuple_error AS (n numeric);')
 			ps = self.db.prepare('SELECT $1::test_tuple_error AS the_column')
-			self.failUnlessRaises(pg_exc.TupleError, ps, ('foo',))
+			self.failUnlessRaises(pg_exc.ParameterError, ps, ('foo',))
 			try:
 				ps(('foo',))
-			except pg_exc.TupleError as err:
+			except pg_exc.ParameterError as err:
 				# 'foo' is not a valid Decimal.
 				# Expecting a double TupleError here, one from the composite pack
 				# and one from the row pack.
-				self.failUnless(isinstance(err.__context__, pg_exc.TupleError))
-				self.failUnlessEqual(err.details['number'], 0)
+				self.failUnless(isinstance(err.__context__, pg_exc.ColumnError))
+				self.failUnlessEqual(err.index, 0)
 				# attribute number that the failure occurred on
-				self.failUnlessEqual(err.__context__.details['number'], 0)
-				# name of attribute that failure occurred on
-				self.failUnlessEqual(err.__context__.details['name'], repr('n'))
+				self.failUnlessEqual(err.__context__.index, 0)
 			else:
 				self.fail("failed to raise TupleError")
 
 			# testing tuple error reception is a bit more difficult.
-			# to do this, we need to immitate failure as we can't rely that a
+			# to do this, we need to immitate failure as we can't rely that any
 			# causable failure will always exist.
 			class ThisError(Exception):
 				pass
@@ -872,34 +870,32 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			# remove any existing knowledge about "test_tuple_error"
 			self.db.typio._cache = original
 			self.db.typio._cache[pg_types.NUMERICOID] = (pack, raise_ThisError)
-			# Now, numeric_unpack will always raise "ThisError" causing a TupleError.
+			# Now, numeric_unpack will always raise "ThisError".
 			ps = self.db.prepare('SELECT $1::numeric as col')
 			self.failUnlessRaises(
-				pg_exc.TupleError, ps(decimal.Decimal("101")).read
+				pg_exc.ColumnError, ps(decimal.Decimal("101")).read
 			)
 			try:
 				ps(decimal.Decimal("101")).read()
-			except pg_exc.TupleError as err:
+			except pg_exc.ColumnError as err:
 				self.failUnless(isinstance(err.__context__, ThisError))
 				# might be too inquisitive....
-				self.failUnlessEqual(err.details['name'], repr('col'))
-				self.failUnlessEqual(err.details['number'], 0)
-				self.failUnlessEqual(err.details['type'], 'NUMERIC')
+				self.failUnlessEqual(err.index, 0)
+				self.failUnless('numeric' in err.message)
+				self.failUnless('col' in err.message)
 			else:
 				self.fail("failed to raise TupleError from reception")
 			ps = self.db.prepare('SELECT $1::test_tuple_error AS tte')
 			try:
 				c = ps((decimal.Decimal("101"),))
 				c.read()
-			except pg_exc.TupleError as err:
-				self.failUnless(isinstance(err.__context__, pg_exc.TupleError))
+			except pg_exc.ColumnError as err:
+				self.failUnless(isinstance(err.__context__, pg_exc.ColumnError))
 				self.failUnless(isinstance(err.__context__.__context__, ThisError))
 				# might be too inquisitive....
-				self.failUnlessEqual(err.details['name'], repr('tte'))
-				self.failUnlessEqual(err.details['number'], 0)
-				self.failUnlessEqual(err.__context__.details['name'], repr('n'))
-				self.failUnlessEqual(err.__context__.details['number'], 0)
-				self.failUnless('test_tuple_error' in err.details['type'])
+				self.failUnlessEqual(err.index, 0)
+				self.failUnlessEqual(err.__context__.index, 0)
+				self.failUnless('test_tuple_error' in err.message)
 			else:
 				self.fail("failed to raise TupleError from reception")
 		finally:

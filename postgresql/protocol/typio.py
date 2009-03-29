@@ -540,37 +540,41 @@ def composite_typio(
 	funpack = tuple(map(get1, cio))
 
 	def raise_pack_tuple_error(procs, tup, itemnum):
-		attdata = repr(tup[itemnum])
-		if len(attdata) > 80:
+		data = repr(tup[itemnum])
+		if len(data) > 80:
 			# Be sure not to fill screen with noise.
-			attdata = attdata[:75] + ' ...'
-		te = pg_exc.TupleError(
-			"failed to pack composite attribute for transfer",
+			data = data[:75] + ' ...'
+		te = pg_exc.ColumnError(
+			"failed to pack attribute %d, %s::%s, of composite %s for transfer" %(
+				itemnum,
+				attnames[itemnum],
+				typnames[itemnum],
+				composite_name,
+			),
 			details = {
-				'attribute': attdata,
-				'type' : typnames[itemnum],
-				'number' : itemnum,
-				'name' : repr(attnames[itemnum]),
-				'composite' : composite_name,
+				'data': data,
 			},
 		)
+		te.index = itemnum
 		te.raise_exception()
 
 	def raise_unpack_tuple_error(procs, tup, itemnum):
-		attdata = repr(tup[itemnum])
-		if len(attdata) > 80:
+		data = repr(tup[itemnum])
+		if len(data) > 80:
 			# Be sure not to fill screen with noise.
-			attdata = attdata[:75] + ' ...'
-		te = pg_exc.TupleError(
-			"failed to unpack composite attribute from wire data",
+			data = data[:75] + ' ...'
+		te = pg_exc.ColumnError(
+			"failed to unpack attribute %d, %s::%s, of composite %s from wire data" %(
+				itemnum,
+				attnames[itemnum],
+				typnames[itemnum],
+				composite_name,
+			),
 			details = {
-				'attribute': attdata,
-				'type' : typnames[itemnum],
-				'number' : itemnum,
-				'name' : repr(attnames[itemnum]),
-				'composite' : composite_name,
+				'data': data,
 			},
 		)
+		te.index = itemnum
 		te.raise_exception()
 
 	def unpack_a_record(data):
