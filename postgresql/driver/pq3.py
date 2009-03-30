@@ -14,7 +14,7 @@ import socket
 import ssl
 
 from operator import attrgetter, itemgetter, is_, is_not
-from itertools import repeat, chain, islice
+from itertools import repeat, islice
 from functools import partial
 
 from abc import abstractmethod, abstractproperty
@@ -1800,7 +1800,7 @@ class Transaction(pg_api.Transaction):
 					"invalid transaction block exit detected",
 					source = 'DRIVER',
 					details = {
-						'INTERFACE': \
+						'DRIVER': \
 							'Connection was in an error-state, ' \
 							'but no exception was raised.'
 					},
@@ -1833,7 +1833,7 @@ class Transaction(pg_api.Transaction):
 					#
 					# But the occurrence of this exception means it's not in an active
 					# transaction, which means no cleanup other than raise is necessary.
-					err.details['INTERFACE'] = \
+					err.details['DRIVER'] = \
 						"The prepared transaction was not " \
 						"prepared prior to the block's exit."
 					raise
@@ -1887,7 +1887,7 @@ class Transaction(pg_api.Transaction):
 			err = pg_exc.OperationError(
 				"transactions cannot be restarted",
 				details = {
-					'INTERFACE': \
+					'DRIVER': \
 					'Create a new transaction object instead of re-using an old one.'
 				}
 			)
@@ -1970,7 +1970,7 @@ class Transaction(pg_api.Transaction):
 			err = pg_exc.OperationError(
 				"commit attempted on transaction with unexpected state",
 				details = {
-					'INTERFACE': "Transaction was " + repr(self.state) + \
+					'DRIVER': "Transaction was " + repr(self.state) + \
 					" , but it must be 'prepared' or 'open' in order to commit."
 				}
 			)
@@ -1988,7 +1988,7 @@ class Transaction(pg_api.Transaction):
 				err = pg_exc.OperationError(
 					"savepoint configured with global identifier",
 					details = {
-						'INTERFACE': \
+						'DRIVER': \
 						"Don't configure savepoint transactions with global identifiers."
 					}
 				)
@@ -2881,9 +2881,6 @@ class Connector(pg_api.Connector):
 		sslkeyfile : "filepath" = None,
 		sslrootcrtfile : "filepath" = None,
 		sslrootcrlfile : "filepath" = None,
-
-		path : list = None,
-		role : str = None,
 		**kw
 	):
 		super().__init__(**kw)
@@ -2920,8 +2917,6 @@ class Connector(pg_api.Connector):
 		tnkw['user'] = self.user
 		if self.database is not None:
 			tnkw['database'] = self.database
-		## PostgreSQLs that don't recognize this will barf.
-		#tnkw['standard_conforming_strings'] = True
 
 		self._startup_parameters = tnkw
 # class Connector
@@ -2999,11 +2994,11 @@ class IP4(SocketConnector):
 		**kw
 	):
 		if ipv != self.ipv:
-			raise TypeError("`ipv` keyword must be `4`")
+			raise TypeError("'ipv' keyword must be '4'")
 		if host is None:
-			raise TypeError("`host` is a required keyword and cannot be `None`")
+			raise TypeError("'host' is a required keyword and cannot be 'None'")
 		if port is None:
-			raise TypeError("`port` is a required keyword and cannot be `None`")
+			raise TypeError("'port' is a required keyword and cannot be 'None'")
 		self.host = host
 		self.port = int(port)
 		# constant socket connector
@@ -3028,11 +3023,11 @@ class IP6(SocketConnector):
 		**kw
 	):
 		if ipv != self.ipv:
-			raise TypeError("`ipv` keyword must be `6`")
+			raise TypeError("'ipv' keyword must be '6'")
 		if host is None:
-			raise TypeError("`host` is a required keyword and cannot be `None`")
+			raise TypeError("'host' is a required keyword and cannot be 'None'")
 		if port is None:
-			raise TypeError("`port` is a required keyword and cannot be `None`")
+			raise TypeError("'port' is a required keyword and cannot be 'None'")
 		self.host = host
 		self.port = int(port)
 		# constant socket connector
@@ -3051,7 +3046,7 @@ class Unix(SocketConnector):
 
 	def __init__(self, unix = None, **kw):
 		if unix is None:
-			raise TypeError("`unix` is a required keyword and cannot be `None`")
+			raise TypeError("'unix' is a required keyword and cannot be 'None'")
 		self.unix = unix
 		# constant socket connector
 		self._socketcreator = SocketCreator(
@@ -3088,12 +3083,12 @@ class Host(SocketConnector):
 		**kw
 	):
 		if host is None:
-			raise TypeError("`host` is a required keyword")
+			raise TypeError("'host' is a required keyword")
 		if port is None:
-			raise TypeError("`port` is a required keyword")
+			raise TypeError("'port' is a required keyword")
 
 		if address_family is not None and ipv is not None:
-			raise TypeError("`ipv` and `address_family` on mutually exclusive")
+			raise TypeError("'ipv' and 'address_family' on mutually exclusive")
 
 		if ipv is None:
 			self._address_family = address_family or socket.AF_UNSPEC
@@ -3102,7 +3097,7 @@ class Host(SocketConnector):
 		elif ipv == 6:
 			self._address_family = socket.AF_INET6
 		else:
-			raise TypeError("unknown IP version selected: `ipv` = " + repr(ipv))
+			raise TypeError("unknown IP version selected: 'ipv' = " + repr(ipv))
 		self.host = host
 		self.port = port
 		super().__init__(**kw)
@@ -3127,13 +3122,13 @@ class Driver(pg_api.Driver):
 		"""
 		if unix is not None:
 			if host is not None:
-				raise TypeError("`unix` and `host` keywords are exclusive")
+				raise TypeError("'unix' and 'host' keywords are exclusive")
 			if port is not None:
-				raise TypeError("`unix` and `port` keywords are exclusive")
+				raise TypeError("'unix' and 'port' keywords are exclusive")
 			return self.Unix
 		else:
 			if host is None or port is None:
-				raise TypeError("`host` and `port`, or `unix` must be supplied")
+				raise TypeError("'host' and 'port', or 'unix' must be supplied")
 			# We have a host and a port.
 			# If it's an IP address, IP4 or IP6 should be selected.
 			if ':' in host:
@@ -3184,14 +3179,7 @@ class Driver(pg_api.Driver):
 			`postgresql.driver.pq3.Host`
 			 Keywords that apply to host-based connections(resolving connector).
 		"""
-		cid = list(kw.items())
-		cid.sort()
-		cid = tuple(cid)
-		if cid in self._connectors:
-			c = self._connectors[cid]
-		else:
-			c = self._connectors[cid] = self.create(**kw)
-		return c()
+		return self.create(**kw)()
 
 	def ife_snapshot_text(self):
 		return 'postgresql.driver.pq3'
@@ -3203,11 +3191,12 @@ class Driver(pg_api.Driver):
 
 	def print_messages(self, src, first, obj):
 		"use ife_sever() to stop this"
-		if isinstance(obj, pg_api.Message) and not isinstance(obj, pg_exc.Warning):
+		if not isinstance(obj, pg_exc.Warning) and isinstance(obj, pg_api.Message):
 			sys.stderr.write(str(obj))
 
 	def __init__(self, typio = TypeIO):
-		self._connectors = dict()
-		self.ife_connect(self.throw_warnings, self.print_messages)
 		self.typio = typio
-default = Driver()
+		self.ife_connect(
+			self.throw_warnings,
+			self.print_messages
+		)

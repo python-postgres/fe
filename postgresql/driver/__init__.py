@@ -7,7 +7,8 @@ Driver package for connecting to PostgreSQL via a data stream(sockets).
 """
 __all__ = ['IP4', 'IP6', 'Host', 'Unix', 'connect', 'default']
 
-from .pq3 import default
+from .pq3 import Driver
+default = Driver()
 
 IP4 = default.IP4
 IP6 = default.IP6
