@@ -45,6 +45,6 @@ def lookup_pgpass(d, passfile):
 	# using the config's criteria.
 	if os.path.exists(passfile):
 		return lookup_password_file(passfile, (
-			d['user'], d['host'], d['port'],
-			d.get('database', d['user'])
+			str(d['user']), str(d['host']), str(d['port']),
+			str(d.get('database', d['user']))
 		))
