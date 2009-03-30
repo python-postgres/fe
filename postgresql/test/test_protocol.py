@@ -669,6 +669,9 @@ class test_typio(unittest.TestCase):
 		self.failUnlessEqual(tuple(pt((int,int),("100","200"), funpass)), (100,200))
 		self.failUnlessEqual(tuple(pt((int,int),(None,"200"), funpass)), (None,200))
 		self.failUnlessEqual(tuple(pt((int,int,int),(None,None,"200"), funpass)), (None,None,200))
+		# The exception handler must raise.
+		self.failUnlessRaises(RuntimeError, pt, (int,), ("foo",), funpass)
+
 		class ThisError(Exception):
 			pass
 		data = []
