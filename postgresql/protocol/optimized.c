@@ -229,12 +229,20 @@ process_tuple(PyObject *self, PyObject *args)
 			 */
 			Py_DECREF(rob);
 			rob = NULL;
+
+			/*
+			 * Don't trap BaseException's.
+			 */
 			if (PyErr_ExceptionMatches(PyExc_Exception))
 			{
 				PyObject *failargs, *failedat;
-				/*
-				 * It's *not* a BaseException.
-				 */
+				PyObject *exc, *val, *tb;
+				PyObject *oldexc, *oldval, *oldtb;
+
+				/* Store exception to set context after handler. */
+				PyErr_Fetch(&oldexc, &oldval, &oldtb);
+				PyErr_NormalizeException(&oldexc, &oldval, &oldtb);
+
 				failedat = PyLong_FromSsize_t(i);
 				if (failedat != NULL)
 				{
@@ -260,6 +268,33 @@ process_tuple(PyObject *self, PyObject *args)
 					{
 						Py_DECREF(failedat);
 					}
+				}
+
+				PyErr_Fetch(&exc, &val, &tb);
+				PyErr_NormalizeException(&exc, &val, &tb);
+
+				/*
+				 * Reference BaseException here as the condition is merely
+				 * *validating* that SetContext can be used.
+				 */
+				if (val != NULL && PyObject_IsInstance(val, PyExc_BaseException))
+				{
+					/* Steals oldval reference */
+					PyException_SetContext(val, oldval);
+					Py_XDECREF(oldexc);
+					Py_XDECREF(oldtb);
+					PyErr_Restore(exc, val, tb);
+				}
+				else
+				{
+					/*
+					 * Fetch & NormalizeException failed somehow.
+					 * Use the old exception...
+					 */
+					PyErr_Restore(oldexc, oldval, oldtb);
+					Py_XDECREF(exc);
+					Py_XDECREF(val);
+					Py_XDECREF(tb);
 				}
 			}
 
