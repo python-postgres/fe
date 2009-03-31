@@ -398,7 +398,7 @@ class Message(InterfaceElement):
 		self.snapshot = self.ife_ancestry_snapshot_text()
 		self.ife_emit(self)
 
-class CursorChunks(
+class Chunks(
 	collections.Iterator,
 	collections.Iterable,
 ):
@@ -557,13 +557,6 @@ class Cursor(
 		request.
 
 		Cursor operation option.
-		"""
-
-	@propertydoc
-	@abstractproperty
-	def chunks(self) -> CursorChunks:
-		"""
-		Return a chunk iterator to the cursor.
 		"""
 
 	@abstractmethod
@@ -729,9 +722,9 @@ class PreparedStatement(
 
 	@abstractmethod
 	def __call__(self,
-		*args : "Positional Parameters",
+		*parameters : "Positional Parameters",
 		with_hold : \
-			"Whether or not to request 'WITH HOLD'" = True,
+			"Whether or not to request 'WITH HOLD'" = None,
 		scroll : \
 			"Whether or not to request 'SCROLL'" = False,
 		cursor_id : \
@@ -748,8 +741,26 @@ class PreparedStatement(
 		<postgresql.api.Cursor>
 		"""
 
+	@propertydoc
+	@abstractproperty
+	def chunks(self, *parameters, chunksize = None) -> Chunks:
+		"""
+		Return an iterator producing sequences of rows produced by the cursor
+		created from the statement bound with the given parameters.
+
+		Chunking iterators are *never* scrollable.
+
+		Supporting cursors will be WITH HOLD when outside of a transaction.
+
+		`chunks` is designed for the situations involving large data sets.
+
+		Each iteration returns sequences of rows *normally* of length(seq) ==
+		chunksize. If chunksize is unspecified, a default, positive integer will
+		be filled in.
+		"""
+
 	@abstractmethod
-	def first(self, *args) -> "'First' object that is yield by the query":
+	def first(self, *parameters) -> "'First' object that is yield by the query":
 		"""
 		Execute the prepared statement with the given arguments as parameters.
 		If the statement returns rows with multiple columns, return the first

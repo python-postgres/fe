@@ -178,7 +178,7 @@ class TypeIO(pg_typio.TypeIO):
 	def lookup_composite_type_info(self, typid):
 		return self.database.prepare(CompositeLookup)(typid)
 
-class CursorChunks(pg_api.CursorChunks):
+class Chunks(pg_api.Chunks):
 	cursor = None
 
 	def __init__(self, cursor):
@@ -315,10 +315,6 @@ class Cursor(pg_api.Cursor):
 			return 'closed'
 		else:
 			return 'open'
-
-	@property
-	def chunks(self):
-		return CursorChunks(self)
 
 	@property
 	def column_names(self):
@@ -1301,6 +1297,13 @@ class PreparedStatement(pg_api.PreparedStatement):
 		cursor._init()
 		return cursor
 	__iter__ = __call__
+
+	def chunks(self, *parameters, chunksize = 256):
+		if chunksize < 1:
+			raise ValueError("cannot create chunk iterator with chunksize < 1")
+		c = self(*parameters, scroll = False)
+		c.chunksize = chunksize
+		return Chunks(c)
 
 	def first(self, *parameters):
 		if self.closed is None:

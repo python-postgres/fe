@@ -24,6 +24,7 @@ class test_connect(pg_unittest.TestCaseWithCluster):
 
 	def __init__(self, *args, **kw):
 		super().__init__(*args,**kw)
+		# 8.4 nixed this.
 		self.do_crypt = self.cluster.installation.version_info < (8,4)
 
 	def configure_cluster(self):

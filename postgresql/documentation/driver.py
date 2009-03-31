@@ -469,6 +469,13 @@ Prepared statement objects have a few execution methods:
   Naturally, a statement used with ``first()`` should be crafted with these
   rules in mind.
 
+ ``ps.chunks(*parameters, chunksize = 256)``
+  This access point is designed for situations where rows are being streamed out
+  quickly. It is a method that returns a ``collections.Iterator`` that produces
+  *sequences* of rows. The size of the "chunks" produced is *normally* consistent
+  with the given ``chunksize`` keyword argument. This is the most efficient way
+  to get rows out of the cursor.
+
  ``ps.close()``
   Close the statement inhibiting further use.
 
@@ -702,13 +709,6 @@ those results:
  ``c.seek(position[, whence = 0])``
   When the cursor is scrollable, this seek interface can be used to move the
   position of the cursor. See `Scrollable Cursors`_ for more information.
-
- ``c.chunks``
-  This access point is designed for situations where rows are being streamed out
-  quickly. It is a property that provides an ``collections.Iterator`` that returns
-  *sequences* of rows. The size of the "chunks" produced is *normally* consistent
-  with the ``chunksize`` attribute on the cursor object itself. This is
-  the most efficient way to get rows out of the cursor.
 
  ``c.close()``
   For cursors opened using ``cursor_from_id()``, this method must be called in
