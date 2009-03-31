@@ -188,24 +188,32 @@ class CursorChunks(pg_api.CursorChunks):
 		return self
 
 	def __next__(self):
+		self.cursor._expand()
+
+		# Grab the whole thing.
 		if self.cursor._offset == 0:
 			chunk = self.cursor._buffer
 		else:
 			chunk = self.cursor._buffer[self.cursor._offset:]
+
+		self.cursor.__dict__.update({
+			'_offset': 0,
+			'_buffer': [],
+		})
+
 		if not chunk:
-			self.cursor._buffer_more(self.cursor.chunksize or 64, self.cursor.direction)
+			self.cursor._buffer_more(self.cursor.chunksize or 128, self.cursor.direction)
 			if not self.cursor._buffer \
 			and self.cursor._last_increase != self.cursor._last_reqsize:
 				raise StopIteration
 			# offset is expected to be zero.
 			chunk = self.cursor._buffer
-
-		self.cursor._offset = 0
-		self.cursor._buffer = []
-		self.cursor.__dict__.update({
-			'_offset': 0,
-			'_buffer': [],
-		})
+			self.cursor.__dict__.update({
+				'_offset': 0,
+				'_buffer': [],
+			})
+		else:
+			self.cursor._dispatch_for_more(self.cursor.direction)
 
 		return chunk
 
@@ -689,16 +697,15 @@ class TupleCursor(ReadableCursor):
 		return self._last_increase
 
 	def _expansion(self):
-		cte = self._raise_column_tuple_error
 		return [
-			pg_types.Row(
+			pg_types.Row.from_sequence(
+				self._output_attmap,
 				pg_typio.process_tuple(
-					self._output_io, y, cte
+					self._output_io, y, self._raise_column_tuple_error
 				),
-				keymap = self._output_attmap
 			)
 			for y in self._xact.messages_received()
-			if y.type == pq.element.Tuple.type
+			if y.type is pq.element.Tuple.type
 		]
 
 	def _pq_xp_move(self, position, whence):
@@ -1335,12 +1342,12 @@ class PreparedStatement(pg_api.PreparedStatement):
 				return None
 
 			if len(self._output_io) > 1:
-				return pg_types.Row(
+				return pg_types.Row.from_sequence(
+					self._output_attmap,
 					pg_typio.process_tuple(
 						self._output_io, xt,
 						self._raise_column_tuple_error
 					),
-					keymap = self._output_attmap
 				)
 			else:
 				if xt[0] is None:
@@ -1537,7 +1544,7 @@ class StoredProcedure(pg_api.StoredProcedure):
 			).first(int(ident))
 		else:
 			proctup = database.prepare(
-				ProcedureLookup + ' WHERE pg_proc.oid = $1::text::regprocedure',
+				ProcedureLookup + ' WHERE pg_proc.oid = regprocedurein($1)',
 				title = 'func_lookup_by_name'
 			).first(ident)
 		if proctup is None:
@@ -2308,12 +2315,12 @@ class Connection(pg_api.Connection):
 		if sslmode == 'allow':
 			# first, without ssl, then with. :)
 			socket_makers = list(interlace(
-				iter(without_ssl), iter(with_ssl)
+				without_ssl, with_ssl
 			))
 		elif sslmode == 'prefer':
 			# first, with ssl, then without. :)
 			socket_makers = list(interlace(
-				iter(with_ssl), iter(without_ssl)
+				with_ssl, without_ssl
 			))
 			# prefer is special, because it *may* be possible to
 			# skip the subsequent "without" in situations SSL is off.

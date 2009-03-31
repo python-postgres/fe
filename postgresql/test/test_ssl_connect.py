@@ -103,6 +103,7 @@ class test_ssl_connect(test_connect.test_connect):
 	Run test_connect, but with SSL.
 	"""
 	params = {'sslmode' : 'require'}
+	cluster_path_suffix = '_test_ssl_connect'
 
 	def configure_cluster(self):
 		super().configure_cluster()

@@ -718,16 +718,19 @@ class Array(object):
 class Row(tuple):
 	"Name addressable items tuple; mapping and sequence"
 	@classmethod
-	def from_mapping(typ, map, keymap = {}):
+	def from_mapping(typ, keymap, map):
 		iter = [
 			map.get(k) for k,_ in sorted(keymap.items(), key = get1)
 		]
-		return typ(iter, keymap)
+		r = typ(iter)
+		r.keymap = keymap
+		return r
 
-	def __new__(subtype, iter, keymap = {}):
-		rob = tuple.__new__(subtype, iter)
-		rob.keymap = keymap
-		return rob
+	@classmethod
+	def from_sequence(typ, keymap, seq):
+		r = typ(seq)
+		r.keymap = keymap
+		return r
 
 	def __getitem__(self, i):
 		if type(i) is int:
@@ -778,7 +781,7 @@ class Row(tuple):
 		Make a new Row after processing the values with the callables associated
 		with the values either by index, *args, or my column name, **kw.
 
-			>>> r=Row((1,'two'), keymap = {'col1':0,'col2':1})
+			>>> r=Row.from_sequence({'col1':0,'col2':1}, (1,'two'))
 			>>> r.transform(str)
 			('1','two')
 			>>> r.transform(col2 = str.upper)
@@ -805,7 +808,7 @@ class Row(tuple):
 				if i is None:
 					raise KeyError("row has no such key, " + repr(k))
 				r[i] = v(self[k])
-		return type(self)(r, keymap = self.keymap)
+		return type(self).from_sequence(self.keymap, r)
 
 # Python Representations of PostgreSQL Types
 oid_to_type = {

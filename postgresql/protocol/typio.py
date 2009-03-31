@@ -579,16 +579,15 @@ def composite_typio(
 
 	def unpack_a_record(data):
 		data = tuple([x[1] for x in ts.record_unpack(data)])
-		return pg_types.Row(
+		return pg_types.Row.from_sequence(
+			attmap,
 			process_tuple(funpack, data, raise_unpack_tuple_error),
-			keymap = attmap
 		)
 
+	sorted_atts = sorted(attmap.items(), key = get1)
 	def pack_a_record(data):
 		if isinstance(data, dict):
-			data = [
-				data.get(k) for k,_ in sorted(attmap.items(), key = get1)
-			]
+			data = [data.get(k) for k,_ in sorted_atts]
 		return ts.record_pack(
 			tuple(zip(
 				typids,
@@ -713,9 +712,13 @@ class TypeIO(object, metaclass = ABCMeta):
 			pg_types.NAMEOID : (None, None),
 			pg_types.BPCHAROID : (None, None),
 			pg_types.VARCHAROID : (None, None),
+			pg_types.CSTRINGOID : (None, None),
 			pg_types.TEXTOID : (None, None),
 			pg_types.CIDROID : (None, None),
 			pg_types.INETOID : (None, None),
+			pg_types.REGPROCEDUREOID : (None, None),
+			pg_types.REGTYPEOID : (None, None),
+			pg_types.REGPROCOID : (None, None),
 
 			pg_types.XMLOID : (
 				self.xml_pack, self.xml_unpack

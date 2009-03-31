@@ -163,16 +163,19 @@ class test_dbapi20(TestCaseWithCluster):
 		# driver author who is using this test suite, so it is enabled
 		# by default.
 		con = self._connect()
-		drv = self.driver
-		self.failUnless(con.Warning is drv.Warning)
-		self.failUnless(con.Error is drv.Error)
-		self.failUnless(con.InterfaceError is drv.InterfaceError)
-		self.failUnless(con.DatabaseError is drv.DatabaseError)
-		self.failUnless(con.OperationalError is drv.OperationalError)
-		self.failUnless(con.IntegrityError is drv.IntegrityError)
-		self.failUnless(con.InternalError is drv.InternalError)
-		self.failUnless(con.ProgrammingError is drv.ProgrammingError)
-		self.failUnless(con.NotSupportedError is drv.NotSupportedError)
+		try:
+			drv = self.driver
+			self.failUnless(con.Warning is drv.Warning)
+			self.failUnless(con.Error is drv.Error)
+			self.failUnless(con.InterfaceError is drv.InterfaceError)
+			self.failUnless(con.DatabaseError is drv.DatabaseError)
+			self.failUnless(con.OperationalError is drv.OperationalError)
+			self.failUnless(con.IntegrityError is drv.IntegrityError)
+			self.failUnless(con.InternalError is drv.InternalError)
+			self.failUnless(con.ProgrammingError is drv.ProgrammingError)
+			self.failUnless(con.NotSupportedError is drv.NotSupportedError)
+		finally:
+			con.close()
 
 	def test_commit(self):
 		con = self._connect()
@@ -186,11 +189,14 @@ class test_dbapi20(TestCaseWithCluster):
 		con = self._connect()
 		# If rollback is defined, it should either work or throw
 		# the documented exception
-		if hasattr(con,'rollback'):
-			try:
-				con.rollback()
-			except self.driver.NotSupportedError:
-				pass
+		try:
+			if hasattr(con,'rollback'):
+				try:
+					con.rollback()
+				except self.driver.NotSupportedError:
+					pass
+		finally:
+			con.close()
 
 	def test_cursor(self):
 		con = self._connect()

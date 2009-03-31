@@ -7,7 +7,12 @@ import sys
 import os
 from abc import abstractmethod
 from pprint import pformat
+from itertools import chain
+from operator import itemgetter
+get0 = itemgetter(0)
+get1 = itemgetter(1)
 
+from ..python.functools import Composition as compose
 from .. import api as pg_api
 from .. import exceptions as pg_exc
 from . import element3 as element
@@ -15,6 +20,7 @@ from . import element3 as element
 from hashlib import md5
 from ..resolved.crypt import crypt
 
+proctup = compose((get1, compose))
 Receiving = True
 Sending = False
 Complete = (None, None)
@@ -433,24 +439,23 @@ class Instruction(Transaction):
 
 	def asyncs(self):
 		"iterate over asynchronous messages received"
-		for x in self._asyncs:
-			for y in x[1]:
-				yield y
+		return chain.from_iterable(map(get1, self._asyncs))
 
 	def messages_received(self):
-		for x in self.completed:
-			for m in x[1]:
-				yield m
+		'Received and validate messages'
+		return chain.from_iterable(map(get1, self.completed))
 
 	def reverse(self):
 		"""
-		A generator that producing an iterator of completed messages in reverse
+		A iterator that producing the completed messages in reverse
 		order. Last in, first out.
 		"""
-		for x in range(len(self.completed) - 1, -1, -1):
-			c = self.completed[x][1]
-			for y in range(len(c) - 1, -1, -1):
-				yield c[y]
+		return chain.from_iterable(
+			map(
+				compose((get1, reversed)),
+				reversed(self.completed)
+			)
+		)
 
 	def standard_put(self, messages):
 		"""
@@ -598,7 +603,7 @@ class Instruction(Transaction):
 		In the context of a copy, `put_copydata` is used as a fast path for
 		storing `element.CopyData` messages. When a non-`element.CopyData.type`
 		message is received, it reverts the ``state`` attribute back to
-		`standard_put` to normally process the message..
+		`standard_put` to process the message..
 		"""
 		# "Fail" quickly if the last message is not copy data.
 		if messages[-1][0] is not element.CopyData.type:
@@ -634,12 +639,14 @@ class Instruction(Transaction):
 			self.state = (Receiving, self.standard_put)
 			return self.standard_put(messages)
 
+		p = element.Tuple.parse
 		tuplemessages = []
 		for x in messages:
 			if x[0] is not element.Tuple.type:
 				self.state = (Receiving, self.standard_put)
 				return self.standard_put(messages)
-			tuplemessages.append(element.Tuple.parse(x[1]))
+			tuplemessages.append(p(x[1]))
+		#tuplemessages = list(map(proctup, messages))
 
 		if not self.completed or self.completed[-1][0] != id(messages):
 			self.completed.append(((id(messages), tuplemessages)))

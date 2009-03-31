@@ -25,13 +25,12 @@ class TestCaseWithCluster(unittest.TestCase):
 		self.installation = pg_inn.Installation.default()
 		self.cluster_path = \
 			'py_unittest_postgresql_cluster_' \
-			+ str(os.getpid()) + '_' + type(self).__name__
+			+ str(os.getpid()) + getattr(self, 'cluster_path_suffix', '')
 
 		if self.installation is None:
 			sys.stderr.write("ERROR: cannot find 'default' pg_config\n")
 			sys.stderr.write(
-				"HINT: set the PGINSTALLATION environment " \
-				"variable to the `pg_config` path\n"
+				"HINT: set the PGINSTALLATION environment variable to the `pg_config` path\n"
 			)
 			sys.exit(1)
 
@@ -50,9 +49,9 @@ class TestCaseWithCluster(unittest.TestCase):
 			self.cluster.ife_descend(e)
 			e.raise_exception()
 		self.cluster.settings.update(dict(
-			port = str(self.cluster_port), # XXX: identify an available port and use it
-			max_connections = '8',
-			shared_buffers = '32',
+			port = str(self.cluster_port),
+			max_connections = '6',
+			shared_buffers = '24',
 			listen_addresses = 'localhost',
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',

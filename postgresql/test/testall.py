@@ -15,6 +15,8 @@ from .test_iri import *
 from .test_protocol import *
 from .test_configfile import *
 from .test_pgpassfile import *
+from .test_python import *
+
 from .test_cluster import *
 from .test_connect import *
 # No SSL? cluster initialization will fail.

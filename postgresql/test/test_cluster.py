@@ -12,7 +12,7 @@ from ..cluster import Cluster
 default_install = Installation.default()
 if default_install is None:
 	sys.stderr.write("ERROR: cannot find 'default' pg_config\n")
-	sys.stderr.write("HINT: set PGINSTALLATION to the `pg_config` path\n")
+	sys.stderr.write("HINT: set the PGINSTALLATION environment variable to the `pg_config` path\n")
 	sys.exit(1)
 
 class test_cluster(unittest.TestCase):

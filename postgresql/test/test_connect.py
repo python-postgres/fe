@@ -20,6 +20,11 @@ class test_connect(pg_unittest.TestCaseWithCluster):
 	ip4 = '127.0.0.1'
 	host = 'localhost'
 	params = {}
+	cluster_path_suffix = '_test_connect'
+
+	def __init__(self, *args, **kw):
+		super().__init__(*args,**kw)
+		self.do_crypt = self.cluster.installation.version_info < (8,4)
 
 	def configure_cluster(self):
 		super().configure_cluster()
@@ -27,7 +32,7 @@ class test_connect(pg_unittest.TestCaseWithCluster):
 		# Configure the hba file with the supported methods.
 		with open(self.cluster.hba_file, 'w') as hba:
 			hosts = ['0.0.0.0/0', '0::0/0',]
-			methods = ['md5', 'crypt', 'password']
+			methods = ['md5', 'password'] + (['crypt'] if self.do_crypt else [])
 			for h in hosts:
 				for m in methods:
 					# user and method are the same name.
@@ -74,13 +79,26 @@ CREATE USER trusted;
 			host = host, port = port,
 			**self.params
 		)
-		CRYPT = dbapi20.connect(
-			user = 'crypt',
-			database = 'test',
-			password = 'crypt_password',
-			host = host, port = port,
-			**self.params
+		self.failUnlessEqual(MD5.cursor().execute('select 1').fetchone()[0], 1)
+		MD5.close()
+		self.failUnlessRaises(pg_exc.ConnectionDoesNotExistError,
+			MD5.cursor().execute, 'select 1'
 		)
+
+		if self.do_crypt:
+			CRYPT = dbapi20.connect(
+				user = 'crypt',
+				database = 'test',
+				password = 'crypt_password',
+				host = host, port = port,
+				**self.params
+			)
+			self.failUnlessEqual(CRYPT.cursor().execute('select 1').fetchone()[0], 1)
+			CRYPT.close()
+			self.failUnlessRaises(pg_exc.ConnectionDoesNotExistError,
+				CRYPT.cursor().execute, 'select 1'
+			)
+
 		PASSWORD = dbapi20.connect(
 			user = 'password',
 			database = 'test',
@@ -88,6 +106,12 @@ CREATE USER trusted;
 			host = host, port = port,
 			**self.params
 		)
+		self.failUnlessEqual(PASSWORD.cursor().execute('select 1').fetchone()[0], 1)
+		PASSWORD.close()
+		self.failUnlessRaises(pg_exc.ConnectionDoesNotExistError,
+			PASSWORD.cursor().execute, 'select 1'
+		)
+
 		TRUST = dbapi20.connect(
 			user = 'trusted',
 			database = 'test',
@@ -95,16 +119,10 @@ CREATE USER trusted;
 			host = host, port = port,
 			**self.params
 		)
-		self.failUnlessEqual(MD5.cursor().execute('select 1').fetchone()[0], 1)
-		self.failUnlessEqual(CRYPT.cursor().execute('select 1').fetchone()[0], 1)
-		self.failUnlessEqual(PASSWORD.cursor().execute('select 1').fetchone()[0], 1)
 		self.failUnlessEqual(TRUST.cursor().execute('select 1').fetchone()[0], 1)
-		MD5.close()
-		CRYPT.close()
-		PASSWORD.close()
 		TRUST.close()
 		self.failUnlessRaises(pg_exc.ConnectionDoesNotExistError,
-			MD5.cursor().execute, 'select 1'
+			TRUST.cursor().execute, 'select 1'
 		)
 
 	def test_IP4_connect(self):
@@ -151,14 +169,15 @@ CREATE USER trusted;
 			self.failUnlessEqual(c.user, 'md5')
 
 	def test_crypt_connect(self):
-		c = self.cluster.connection(
-			user = 'crypt',
-			password = 'crypt_password',
-			database = 'test',
-			**self.params
-		)
-		with c:
-			self.failUnlessEqual(c.user, 'crypt')
+		if self.do_crypt:
+			c = self.cluster.connection(
+				user = 'crypt',
+				password = 'crypt_password',
+				database = 'test',
+				**self.params
+			)
+			with c:
+				self.failUnlessEqual(c.user, 'crypt')
 
 	def test_password_connect(self):
 		c = self.cluster.connection(

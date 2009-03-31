@@ -8,6 +8,21 @@
 #include <Python.h>
 #include <structmember.h>
 
+static PyObject *
+rsetattr(PyObject *self, PyObject *args)
+{
+	PyObject *ob, *attr, *val;
+
+	if (!PyArg_ParseTuple(args, "OOO", &attr, &val, &ob))
+		return(NULL);
+
+	if (PyObject_SetAttr(ob, attr, val) < 0)
+		return(NULL);
+
+	Py_INCREF(ob);
+	return(ob);
+}
+
 /*
  * Override the functools.Composition __call__.
  */
@@ -72,6 +87,11 @@ compose(PyObject *self, PyObject *args)
 }
 
 static PyMethodDef optimized_methods[] = {
+	{"rsetattr", rsetattr, METH_VARARGS,
+		PyDoc_STR(
+			"rsetattr(attr, val, ob) set the attribute to the value *and* return `ob`."
+		),
+	},
 	{"compose", compose, METH_VARARGS,
 		PyDoc_STR(
 			"given a sequence of callables, "
