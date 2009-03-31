@@ -6,6 +6,14 @@ import unittest
 import postgresql.exceptions as pg_exc
 
 class test_exceptions(unittest.TestCase):
+	def test_pg_code_lookup(self):
+		# in 8.4, pg started using the SQL defined error code for limits
+		# Users *will* get whatever code PG sends, but it's important
+		# that they have some way to abstract it. many-to-one map ftw.
+		self.failUnless(
+			pg_exc.ErrorLookup('22020') == pg_exc.LimitValueError
+		)
+
 	def test_error_lookup(self):
 		# An error code that doesn't exist yields pg_exc.Error
 		self.failUnless(

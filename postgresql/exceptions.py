@@ -266,6 +266,9 @@ class GrantorOperationError(GrantorError):
 class RoleSpecificationError(Error):
 	code = '0P000'
 
+class CaseNotFoundError(Error):
+	code = '20000'
+
 class CardinalityError(Error):
 	"Wrong number of rows returned"
 	code = '21000'
@@ -419,6 +422,12 @@ class InsufficientPrivilegeError(SEARVError):
 	code = '42501'
 class GroupingError(SEARVError):
 	code = '42803'
+
+class RecursionError(SEARVError):
+	code = '42P19'
+class WindowError(SEARVError):
+	code = '42P20'
+
 class SyntaxError(SEARVError):
 	code = '42601'
 
@@ -622,8 +631,13 @@ class TrimError(DataError):
 	code = '22027'
 class IndicatorParameterValueError(DataError):
 	code = '22010'
+
 class LimitValueError(DataError):
-	code = '22020'
+	code = '2201W'
+	pg_code = '22020'
+class OffsetValueError(DataError):
+	code = '2201X'
+
 class ParameterValueError(DataError):
 	code = '22023'
 class RegularExpressionError(DataError):
@@ -718,6 +732,10 @@ def map_errors_and_warnings(
 			# there are sub-Class types that share the Class code
 			# with the most general type. (See TypeError)
 			container[code] = obj
+			if hasattr(obj, 'pg_code'):
+				# If there's a PostgreSQL version of the code,
+				# map it as well for older servers.
+				container[obj.pg_code] = obj
 
 def code_lookup(
 	default : "The object to return when no code or class is found",
