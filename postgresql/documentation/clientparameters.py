@@ -6,6 +6,10 @@
 Client Parameters
 *****************
 
+There are various sources of parameters used by PostgreSQL client applications.
+The `postgresql.clientparameters` module provides a means for collecting and
+managing those parameters.
+
 Connection creation interfaces in `postgresql.driver` are purposefully simple.
 All parameters taken by those interfaces are keywords, and are taken
 literally; if a parameter is not given, it will effectively be `None`.
@@ -201,7 +205,7 @@ PostgreSQL Environment Variables
 
 The following is a list of environment variables that will be collected by the
 `postgresql.clientparameter.collect` function using "PG" as the
-``environ_prefix``:
+``environ_prefix`` and the keyword that it will be mapped to:
 
  ===================== ======================================
  Environment Variable  Keyword
@@ -240,13 +244,13 @@ The lines in the file must be in the following form::
 A single asterisk, ``*``, may be used to indicate that any value will match the
 field. However, this only effects fields other than ``password``.
 
-See http://www.postgresql.org/docs/8.3/static/libpq-pgpass.html for more
+See http://www.postgresql.org/docs/current/static/libpq-pgpass.html for more
 details.
 
 Client parameters produced by ``collect`` that have not been processed
 by ``resolve_password`` will include a ``'pgpassfile'`` key. This is the value
-that ``resolve_password`` will use to locate the pgpassfile to interrogate if it
-is not instructed to prompt for a password.
+that ``resolve_password`` will use to locate the pgpassfile to interrogate if a
+password key is not present and it is not instructed to prompt for a password.
 
 .. warning::
  Connection creation interfaces will *not* resolve ``'pgpassfile'``, so it is
