@@ -26,8 +26,9 @@ However, if you need to install for use with a particular version of python::
 
 	$ /usr/opt/bin/python3.0 ./setup.py install
 
-Under most POSIX systems, the above should work without problem. However, if it
-does fail, it is likely due to a C extension.
+Under most POSIX systems, the above should work without problem if the proper
+Python executable is referenced. However, if it does fail, it is likely due
+to a C extension's inability to compile.
 
 The building of C extensions can be disable using the ``PY_BUILD_EXTENSIONS``
 environment variable::
@@ -50,11 +51,13 @@ script::
 	C:\-> setenv PY_BUILD_EXTENSIONS 1
 	C:\-> c:\python30\python setup.py install
 
-Or more likely, compile using mingw32::
+Or, more likely, compile using mingw32::
 
 	C:\-> setenv PY_BUILD_EXTENSIONS 1
 	C:\-> c:\python30\python setup.py build_ext --compiler=mingw32
 	C:\-> c:\python30\python setup.py install
+
+See http://www.mingw.org/ to get the compiler.
 
 
 Environment

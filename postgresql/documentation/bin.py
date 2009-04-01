@@ -14,9 +14,9 @@ This chapter discusses the usage of the available console scripts.
 
 The ``pg_python`` command provides a simple way to write Python scripts against a
 single target database. It acts like the regular Python console command, but
-then takes standard PostgreSQL options as well to specify the client parameters
-to make the connection with. The Python environment is then augmented with the
-following additional built-ins:
+takes standard PostgreSQL options as well to specify the client parameters
+to make establish connection with. The Python environment is then augmented
+with the following built-ins:
 
  ``db``
   The PG-API connection object.
@@ -43,7 +43,6 @@ Options:
   --unix=UNIX           path to filesystem socket
   --ssl-mode=SSLMODE    SSL requirement for connectivity: require, prefer,
                         allow, disable
-  --role=ROLE           run operation as the role
   -s SETTINGS, --setting=SETTINGS
                         run-time parameters to set upon connecting
   -I PQ_IRI, --iri=PQ_IRI
@@ -112,12 +111,12 @@ Simple interactive usage::
 ``pg_dotconf``
 ==============
 
-pg_dotconf is used to safely modify a PostgreSQL cluster's configuration file.
+pg_dotconf is used to modify a PostgreSQL cluster's configuration file.
 It provides a means to apply settings specified from the command line and from a
 file referenced using the ``-f`` option.
 
 .. warning::
- ``include`` directives in configuration files are completely ignored. If
+ ``include`` directives in configuration files are *completely* ignored. If
  modification of an included file is desired, the command must be applied to
  that specific file.
 

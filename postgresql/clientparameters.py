@@ -86,7 +86,7 @@ default_envvar_map = {
 	'KRBSRVNAME' : 'kerberos5_service',
 
 	# Extensions
-	'ROLE' : 'role', # SET ROLE $PGROLE
+	#'ROLE' : 'role', # SET ROLE $PGROLE
 
 	# This keyword *should* never make it to a connect() function
 	# as `resolve_password` should be called to fill in the
@@ -143,8 +143,6 @@ def envvars(environ = os.environ, modifier : "environment variable key modifier"
 		PGREALM -> kerberos4_realm
 		PGKRBSVRNAME -> kerberos5_service
 		PGSSLKEY -> sslkey
-
-		PGROLE -> role (role to set when connected)
 
 		PGTZ -> settings['timezone']
 		PGDATESTYLE -> settings['datestyle']
@@ -262,12 +260,6 @@ option_sslmode = make_option('--ssl-mode',
 	type = 'choice',
 )
 
-option_role = make_option('--role',
-	dest = 'role',
-	help = 'run operation as the role',
-	type = 'str',
-)
-
 def append_db_client_x_parameters(option, opt_str, value, parser):
 	parser.values.db_client_parameters.append((option.dest, value))
 make_x_option = partial(make_option, callback = append_db_client_x_parameters)
@@ -313,7 +305,6 @@ class StandardParser(optparse.OptionParser):
 default_optparse_options = [
 	option_unix,
 	option_sslmode,
-	option_role,
 	option_settings,
 # Complex Options
 	option_iri,
@@ -323,7 +314,7 @@ default_optparse_options.extend(standard_optparse_options)
 class DefaultParser(StandardParser):
 	"""
 	Parser that includes a variety of connectivity options.
-	(IRI, sslmode, role(set role), settings)
+	(IRI, sslmode, settings)
 	"""
 	standard_option_list = default_optparse_options
 

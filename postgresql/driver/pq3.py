@@ -2056,16 +2056,6 @@ class Connection(pg_api.Connection):
 
 	_socketfactory = None
 
-	def user():
-		def fget(self):
-			return self.prepare('SELECT current_user').first()
-		def fset(self, val):
-			return self.execute('SET ROLE "%s"' %(val.replace('"', '""'),))
-		def fdel(self):
-			self.execute("RESET ROLE")
-		return locals()
-	user = property(**user())
-
 	_tracer = None
 	def tracer():
 		def fget(self):

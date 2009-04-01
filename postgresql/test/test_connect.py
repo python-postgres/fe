@@ -167,7 +167,7 @@ CREATE USER trusted;
 			**self.params
 		)
 		with c:
-			self.failUnlessEqual(c.user, 'md5')
+			self.failUnlessEqual(c.prepare('select current_user').first(), 'md5')
 
 	def test_crypt_connect(self):
 		if self.do_crypt:
@@ -178,7 +178,7 @@ CREATE USER trusted;
 				**self.params
 			)
 			with c:
-				self.failUnlessEqual(c.user, 'crypt')
+				self.failUnlessEqual(c.prepare('select current_user').first(), 'crypt')
 
 	def test_password_connect(self):
 		c = self.cluster.connection(
@@ -187,7 +187,7 @@ CREATE USER trusted;
 			database = 'test',
 		)
 		with c:
-			self.failUnlessEqual(c.user, 'password')
+			self.failUnlessEqual(c.prepare('select current_user').first(), 'password')
 
 	def test_trusted_connect(self):
 		c = self.cluster.connection(
@@ -197,7 +197,7 @@ CREATE USER trusted;
 			**self.params
 		)
 		with c:
-			self.failUnlessEqual(c.user, 'trusted')
+			self.failUnlessEqual(c.prepare('select current_user').first(), 'trusted')
 
 if __name__ == '__main__':
 	unittest.main()
