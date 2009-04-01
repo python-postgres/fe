@@ -64,7 +64,7 @@ class Warning(PythonMessage, Warning):
 
 class DriverWarning(Warning):
 	code = ''
-	source = 'DRIVER'
+	source = 'CLIENT'
 class IgnoredClientParameterWarning(DriverWarning):
 	'Warn the user of a valid, but ignored parameter.'
 class TypeConversionWarning(DriverWarning):
@@ -117,7 +117,7 @@ class Error(PythonMessage, Exception):
 
 class DriverError(Error):
 	"Errors originating in the driver's implementation."
-	source = 'DRIVER'
+	source = 'CLIENT'
 class AuthenticationMethodError(DriverError):
 	"""
 	Server requested an authentication method that is not supported by the
@@ -127,7 +127,7 @@ class InsecurityError(DriverError):
 	"""
 	Error signifying a secure channel to a server cannot be established.
 	"""
-	source = 'DRIVER'
+
 class TypeIOError(DriverError):
 	"""
 	Driver failed to pack or unpack a tuple.

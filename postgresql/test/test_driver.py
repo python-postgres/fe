@@ -1110,7 +1110,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 					pass
 			self.fail("__exit__ didn't identify failed transaction")
 		except pg_exc.InFailedTransactionError as err:
-			self.failUnlessEqual(err.source, 'DRIVER')
+			self.failUnlessEqual(err.source, 'CLIENT')
 
 	def testFailedSubtransactionBlock(self):
 		with self.db.xact():
@@ -1123,7 +1123,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				self.fail("__exit__ didn't identify failed transaction")
 			except pg_exc.InFailedTransactionError as err:
 				# driver should have released/aborted instead
-				self.failUnlessEqual(err.source, 'DRIVER')
+				self.failUnlessEqual(err.source, 'CLIENT')
 
 	def testCloseInSubTransactionBlock(self):
 		try:

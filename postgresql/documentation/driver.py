@@ -1262,7 +1262,7 @@ raised by the driver:
 	postgresql.exceptions.InFailedTransactionError: invalid block exit detected
 	CODE: 25P02
 	SEVERITY: ERROR
-	SOURCE: DRIVER
+	SOURCE: CLIENT
 
 Normally, if a ``COMMIT`` is issued on a failed transaction, the command implies a
 ``ROLLBACK`` without error. This is a very undesirable result for the CM's exit

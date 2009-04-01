@@ -298,7 +298,7 @@ class Message(InterfaceElement):
 	)
 	sources = (
 		'SERVER',
-		'DRIVER',
+		'CLIENT',
 	)
 
 	# What generated the message?
@@ -312,7 +312,7 @@ class Message(InterfaceElement):
 		message : "The primary information of the message",
 		code : "Message code to attach (SQL state)" = None,
 		details : "additional information associated with the message" = {},
-		source : "What generated the message(SERVER, DRIVER)" = None,
+		source : "What generated the message(SERVER, CLIENT)" = None,
 	):
 		self.message = message
 		self.details = details

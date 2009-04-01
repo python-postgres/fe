@@ -1543,12 +1543,10 @@ class StoredProcedure(pg_api.StoredProcedure):
 		if isinstance(ident, int):
 			proctup = database.prepare(
 				ProcedureLookup + ' WHERE pg_proc.oid = $1',
-				title = 'func_lookup_by_oid'
 			).first(int(ident))
 		else:
 			proctup = database.prepare(
 				ProcedureLookup + ' WHERE pg_proc.oid = regprocedurein($1)',
-				title = 'func_lookup_by_name'
 			).first(ident)
 		if proctup is None:
 			raise LookupError("no function with identifier %s" %(str(ident),))
@@ -1617,7 +1615,6 @@ class Settings(pg_api.Settings):
 			db = self.database
 			r = db.prepare(
 				"SELECT setting FROM pg_settings WHERE name = $1",
-				title = 'lookup_setting_by_name'
 			)(i).read()
 
 			if r:
@@ -1633,7 +1630,6 @@ class Settings(pg_api.Settings):
 
 		setas = self.database.prepare(
 			"SELECT set_config($1, $2, false)",
-			title = 'set_setting',
 		).first(i, v)
 		self.cache[i] = setas
 
@@ -1675,7 +1671,6 @@ class Settings(pg_api.Settings):
 		db = self.database
 		r = db.prepare(
 			"SELECT setting FROM pg_settings WHERE name = $1",
-			title = 'lookup_setting_by_name'
 		)(k).read()
 		if r:
 			v = r[0][0]
@@ -1697,7 +1692,6 @@ class Settings(pg_api.Settings):
 		if rkeys:
 			r = self.database.prepare(
 				"SELECT name, setting FROM pg_settings WHERE name = ANY ($1)",
-				title = 'lookup_settings_by_name'
 			)(rkeys).read()
 			self.cache.update(r)
 			setmap.update(r)
@@ -1709,7 +1703,6 @@ class Settings(pg_api.Settings):
 	def keys(self):
 		for x, in self.database.prepare(
 			"SELECT name FROM pg_settings ORDER BY name",
-			title = 'get_setting_names'
 		):
 			yield x
 	__iter__ = keys
@@ -1717,14 +1710,12 @@ class Settings(pg_api.Settings):
 	def values(self):
 		for x, in self.database.prepare(
 			"SELECT setting FROM pg_settings ORDER BY name",
-			title = 'get_setting_values'
 		):
 			yield x
 
 	def items(self):
 		return self.database.prepare(
 			"SELECT name, setting FROM pg_settings ORDER BY name",
-			title = 'get_settings'
 		)
 
 	def update(self, d):
@@ -1733,7 +1724,6 @@ class Settings(pg_api.Settings):
 			"SELECT ($1::text[][])[i][1] AS key, " \
 			"set_config(($1::text[][])[i][1], $1[i][2], false) AS value " \
 			"FROM generate_series(1, array_upper(($1::text[][]), 1)) g(i)",
-			title = 'update_settings'
 		)(kvl))
 
 	def _notify(self, msg):
@@ -1808,10 +1798,10 @@ class Transaction(pg_api.Transaction):
 			if self.database._pq_state == b'E':
 				err = pg_exc.InFailedTransactionError(
 					"invalid transaction block exit detected",
-					source = 'DRIVER',
+					source = 'CLIENT',
 					details = {
-						'DRIVER': \
-							'Connection was in an error-state, ' \
+						'cause': \
+							'Database was in an error-state, ' \
 							'but no exception was raised.'
 					},
 				)
@@ -1843,7 +1833,7 @@ class Transaction(pg_api.Transaction):
 					#
 					# But the occurrence of this exception means it's not in an active
 					# transaction, which means no cleanup other than raise is necessary.
-					err.details['DRIVER'] = \
+					err.details['cause'] = \
 						"The prepared transaction was not " \
 						"prepared prior to the block's exit."
 					raise
@@ -1897,7 +1887,7 @@ class Transaction(pg_api.Transaction):
 			err = pg_exc.OperationError(
 				"transactions cannot be restarted",
 				details = {
-					'DRIVER': \
+					'hint': \
 					'Create a new transaction object instead of re-using an old one.'
 				}
 			)
@@ -1916,7 +1906,7 @@ class Transaction(pg_api.Transaction):
 				err = pg_exc.OperationError(
 					"configured transaction used inside a transaction block",
 					details = {
-						'hint': 'A transaction block was already started.'
+						'cause': 'A transaction block was already started.'
 					}
 				)
 				self.ife_descend(err)
@@ -1968,7 +1958,7 @@ class Transaction(pg_api.Transaction):
 		else:
 			err = pg_exc.UndefinedObjectError(
 				"prepared transaction does not exist",
-				source = 'DRIVER',
+				source = 'CLIENT',
 			)
 			self.ife_descend(err)
 			err.raise_exception()
@@ -1978,11 +1968,7 @@ class Transaction(pg_api.Transaction):
 			return
 		if self.state not in ('prepared', 'open'):
 			err = pg_exc.OperationError(
-				"commit attempted on transaction with unexpected state",
-				details = {
-					'DRIVER': "Transaction was " + repr(self.state) + \
-					" , but it must be 'prepared' or 'open' in order to commit."
-				}
+				"commit attempted on transaction with unexpected state, " + repr(self.state),
 			)
 			self.ife_descend(err)
 			err.raise_exception()
@@ -1998,8 +1984,7 @@ class Transaction(pg_api.Transaction):
 				err = pg_exc.OperationError(
 					"savepoint configured with global identifier",
 					details = {
-						'DRIVER': \
-						"Don't configure savepoint transactions with global identifiers."
+						'cause': "Prepared transaction started inside transaction block?"
 					}
 				)
 				self.ife_descend(err)
@@ -2017,10 +2002,8 @@ class Transaction(pg_api.Transaction):
 			return
 		if self.state not in ('prepared', 'open'):
 			err = pg_exc.OperationError(
-				"aborted attempted on transaction with unexpected state",
-				details = {
-					'hint': "Transactions cannot be re-used."
-				}
+				"aborted attempted on transaction with unexpected state, " \
+				+ repr(self.state),
 			)
 			self.ife_descend(err)
 			err.raise_exception()
@@ -2192,7 +2175,6 @@ class Connection(pg_api.Connection):
 	def prepare(self,
 		sql_statement_string : str,
 		statement_id = None,
-		title = None,
 	) -> PreparedStatement:
 		ps = PreparedStatement.from_string(sql_statement_string, self)
 		self.ife_descend(ps)
@@ -2295,7 +2277,7 @@ class Connection(pg_api.Connection):
 				details = {
 					"severity" : "FATAL",
 				},
-				source = 'DRIVER'
+				source = 'CLIENT'
 			)
 			self.ife_descend(err)
 			err.database = self
@@ -2350,7 +2332,7 @@ class Connection(pg_api.Connection):
 						# probably not PQv3..
 						raise pg_exc.ProtocolError(
 							"server did not support SSL negotiation",
-							source = 'DRIVER',
+							source = 'CLIENT',
 							details = {
 								'hint' : \
 								'The server is probably not PostgreSQL.'
@@ -2361,7 +2343,7 @@ class Connection(pg_api.Connection):
 						raise pg_exc.InsecurityError(
 							"`sslmode` required a secure connection, " \
 							"but was unsupported by server",
-							source = 'DRIVER'
+							source = 'CLIENT'
 						)
 					if supported:
 						self.socket = self.connector.socket_secure(self.socket)
@@ -2414,7 +2396,7 @@ class Connection(pg_api.Connection):
 					"severity" : "FATAL",
 				},
 				# It's really a sequence of exceptions.
-				source = 'DRIVER'
+				source = 'CLIENT'
 			)
 			self.ife_descend(err)
 			err.database = self
