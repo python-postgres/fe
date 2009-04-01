@@ -16,13 +16,15 @@ Installation
 
 py-postgresql uses Python's standard distutils package to manage the
 build and installation process of the package. The normal entry point for
-this is the setup.py script contained in the root project directory.
+this is the ``setup.py`` script contained in the root project directory.
 
-Normally, installation is as simple as::
+After extracting the archive and changing the into the project's directory,
+installation is normally as simple as::
 
 	$ python3 ./setup.py install
 
-However, if you need to install for use with a particular version of python::
+However, if you need to install for use with a particular version of python,
+just use the path of the executable that should be used::
 
 	$ /usr/opt/bin/python3.0 ./setup.py install
 
