@@ -89,8 +89,10 @@ The general structure of a PQ-locator is::
 
 	protocol://user:password@host:port/database?[driver_setting]=value&server_setting=value#schema,public
 
-For more information about environment variables, see `Environment Variables`_.
-For more information about the ``pgpassfile``, see `PostgreSQL Password File`_.
+For more information about environment variables, see :doc:`Environment
+Variables</clientparameters>`.
+For more information about the ``pgpassfile``, see :doc:`PostgreSQL Password
+File</clientparameters>`.
 
 `postgresql.driver.connect`
 ---------------------------
@@ -661,8 +663,10 @@ appropriate encoding.
 Cursors
 =======
 
-When a prepared statement is declared, a `postgresql.api.Cursor` is created and
-returned.
+When a prepared statement is declared, ``ps.declare(...)``, a
+`postgresql.api.Cursor` is created and returned for random access to the rows in
+the result set. Direct use of cursors is primarily useful for applications that
+need to implement paging.
 
 Cursors can also be created directly from ``cursor_id``'s using the
 ``cursor_from_id`` method on connection objects::
@@ -678,17 +682,17 @@ must be explicitly closed in order to destroy the object on the server.
 Likewise, cursors created from statement invocations will be automatically
 released when they are no longer referenced.
 
+.. note::
+   PG-API cursors are a direct interface to single result-set SQL cursors. This
+	is in contrast with DB-API cursors, which have interfaces for dealing with
+   multiple result-sets. There is no execute method on PG-API cursors.
+
 
 Cursor Interface Points
 -----------------------
 
 For cursors that return row data, these interfaces are provided for accessing
 those results:
-
- ``next(c)``
-  This fetches the next row in the cursor object. Cursors support the iterator
-  protocol. While equivalent to ``cursor.read(1)[0]``, `StopIteration` is raised
-  if the returned sequence is empty. (``__next__()``)
 
  ``c.read(quantity = None, direction = None)``
   This method name is borrowed from `file` objects, and are semantically
@@ -704,6 +708,11 @@ those results:
  ``c.seek(position[, whence = 0])``
   When the cursor is scrollable, this seek interface can be used to move the
   position of the cursor. See `Scrollable Cursors`_ for more information.
+
+ ``next(c)``
+  This fetches the next row in the cursor object. Cursors support the iterator
+  protocol. While equivalent to ``cursor.read(1)[0]``, `StopIteration` is raised
+  if the returned sequence is empty. (``__next__()``)
 
  ``c.close()``
   For cursors opened using ``cursor_from_id()``, this method must be called in
@@ -808,7 +817,7 @@ direction keyword argument::
 
 
 Cursor Direction 
-^^^^^^^^^^^^^^^^
+----------------
 
 The ``direction`` property on the cursor states the default direction for read
 and seek operations. Normally, the direction is `True`, ``'FORWARD'``. When the
@@ -846,7 +855,7 @@ COPY
 ====
 
 `postgresql.driver` transparently supports PostgreSQL's COPY command. To the
-user, COPY will act exactly like other statements that produces tuples; COPY
+user, COPY will act exactly like other statements that produce tuples; COPY
 tuples, however, are `bytes` objects. The only distinction in usability is that
 the COPY *should* be completed before other actions take place on the
 connection--this is important when a COPY is invoked via ``rows()`` or

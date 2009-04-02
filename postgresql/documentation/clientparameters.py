@@ -124,6 +124,7 @@ received a ``-W`` option from the command line::
 	Password for [pq://jwp@localhost:5432]:
 	>>> p
 	{'host': 'localhost', 'user': 'jwp', 'password': 'secret', 'port': 5432}
+	>>>
 
 
 `postgresql.clientparameters.resolve_password`
@@ -131,7 +132,7 @@ received a ``-W`` option from the command line::
 
 Resolve the password for the given client parameters dictionary returned by
 ``collect``. By default, this function need not be used as ``collect`` will
-resolve the password by default. ``resolve_password accepts the following
+resolve the password by default. `resolve_password` accepts the following
 arguments:
 
  ``parameters``
