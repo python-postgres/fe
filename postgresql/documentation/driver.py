@@ -684,7 +684,7 @@ released when they are no longer referenced.
 
 .. note::
    PG-API cursors are a direct interface to single result-set SQL cursors. This
-	is in contrast with DB-API cursors, which have interfaces for dealing with
+   is in contrast with DB-API cursors, which have interfaces for dealing with
    multiple result-sets. There is no execute method on PG-API cursors.
 
 
