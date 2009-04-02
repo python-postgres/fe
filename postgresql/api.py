@@ -511,34 +511,6 @@ class Cursor(
 
 	@propertydoc
 	@abstractproperty
-	def insensitive(self) -> bool:
-		"""
-		Whether or not the cursor is insensitive. Extant versions of PostgreSQL
-		only support insensitive cursors.
-
-		Cursor declaration property.
-		"""
-
-	@propertydoc
-	@abstractproperty
-	def scroll(self) -> bool:
-		"""
-		Whether or not the cursor is scrollable.
-
-		Cursor declaration property.
-		"""
-
-	@propertydoc
-	@abstractproperty
-	def with_hold(self) -> bool:
-		"""
-		Whether or not the cursor will persist across transactions.
-
-		Cursor declaration property.
-		"""
-
-	@propertydoc
-	@abstractproperty
 	def direction(self) -> bool:
 		"""
 		The default `direction` argument for read().
@@ -721,16 +693,7 @@ class PreparedStatement(
 		"""
 
 	@abstractmethod
-	def __call__(self,
-		*parameters : "Positional Parameters",
-		with_hold : \
-			"Whether or not to request 'WITH HOLD'" = None,
-		scroll : \
-			"Whether or not to request 'SCROLL'" = False,
-		cursor_id : \
-			"If `None`, generate the cursor_id, " \
-			"otherwise use the given string" = None
-	) -> Cursor:
+	def __call__(self, *parameters : "Positional Parameters") -> ["Row"]:
 		"""
 		Execute the prepared statement with the given arguments as parameters.
 
@@ -738,11 +701,27 @@ class PreparedStatement(
 
 		>>> p=db.prepare("SELECT column FROM ttable WHERE key = $1")
 		>>> p('identifier')
-		<postgresql.api.Cursor>
+		[...]
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@abstractmethod
+	def rows(self, *parameters, chunksize = None) -> "Iterator(Row)":
+		"""
+		Return an iterator producing rows produced by the cursor
+		created from the statement bound with the given parameters.
+
+		Row iterators are never scrollable.
+
+		Supporting cursors will be WITH HOLD when outside of a transaction.
+
+		`rows` is designed for the situations involving large data sets.
+
+		Each iteration returns a single row. Arguably, best implemented:
+
+			return itertools.chain.from_iterable(self.chunks(*parameters))
+		"""
+
+	@abstractmethod
 	def chunks(self, *parameters, chunksize = None) -> Chunks:
 		"""
 		Return an iterator producing sequences of rows produced by the cursor
@@ -760,7 +739,14 @@ class PreparedStatement(
 		"""
 
 	@abstractmethod
-	def first(self, *parameters) -> "'First' object that is yield by the query":
+	def declare(self, *parameters) -> Cursor:
+		"""
+		Return a scrollable cursor with hold using the statement bound with the
+		given parameters.
+		"""
+
+	@abstractmethod
+	def first(self, *parameters) -> "'First' object that is returned by the query":
 		"""
 		Execute the prepared statement with the given arguments as parameters.
 		If the statement returns rows with multiple columns, return the first
@@ -1444,7 +1430,10 @@ class Driver(InterfaceElement):
 		"""
 		file = sys.stderr if not file else file
 		if file and not file.closed:
-			file.write(str(msg))
+			try:
+				file.write(str(msg))
+			except Exception as err:
+				sys.excepthook(*sys.exc_info())
 		else:
 			warnings.warn("sys.stderr unavailable for printing messages")
 

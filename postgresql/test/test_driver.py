@@ -9,7 +9,7 @@ import threading
 import time
 import datetime
 import decimal
-from itertools import chain
+from itertools import chain, islice
 from operator import itemgetter
 
 from ..python.datetime import FixedOffset
@@ -298,7 +298,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 	def testItsClosed(self):
 		ps = self.db.prepare("SELECT 1")
 		# If scroll is False it will pre-fetch, and no error will be thrown.
-		c = ps(scroll = True)
+		c = ps.declare()
 		#
 		c.close()
 		self.failUnlessRaises(pg_exc.CursorNameError, c.read)
@@ -316,6 +316,34 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		ps.close()
 		c.close()
 		self.db.close()
+
+	def testStatementCall(self):
+		ps = self.db.prepare("SELECT 1")
+		r = ps()
+		self.failUnless(isinstance(r, list))
+		self.failUnlessEqual(ps(), [(1,)])
+		ps = self.db.prepare("SELECT 1, 2")
+		self.failUnlessEqual(ps(), [(1,2)])
+		ps = self.db.prepare("SELECT 1, 2 UNION ALL SELECT 3, 4")
+		self.failUnlessEqual(ps(), [(1,2),(3,4)])
+
+	def testStatementRowsPersistence(self):
+		# validate that rows' cursor will persist beyond a transaction.
+		ps = self.db.prepare("SELECT i FROM generate_series($1::int, $2::int) AS g(i)")
+		# create the iterator inside the transaction
+		rows = ps.rows(0, 10000-1)
+		ps(0,1)
+		# validate the first half.
+		self.failUnlessEqual(
+			list(islice(map(itemgetter(0), rows), 5000)),
+			list(range(5000))
+		)
+		ps(0,1)
+		# and the second half.
+		self.failUnlessEqual(
+			list(map(itemgetter(0), rows)),
+			list(range(5000, 10000))
+		)
 
 	def testStatementParameters(self):
 		# too few and takes one
@@ -341,7 +369,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(tuple(ps.pg_parameter_types), (pg_types.INT4OID,))
 		self.failUnlessEqual(tuple(ps.parameter_types), (int,))
 		self.failUnlessEqual(tuple(ps.column_types), (int,))
-		c = ps(15)
+		c = ps.declare(15)
 		self.failUnlessEqual(tuple(c.column_names), ('my_int_column',))
 		self.failUnlessEqual(tuple(c.sql_column_types), ('INTEGER',))
 		self.failUnlessEqual(tuple(c.column_types), (int,))
@@ -353,7 +381,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(tuple(ps.pg_parameter_types), (pg_types.TEXTOID,))
 		self.failUnlessEqual(tuple(ps.column_types), (str,))
 		self.failUnlessEqual(tuple(ps.parameter_types), (str,))
-		c = ps('textdata')
+		c = ps.declare('textdata')
 		self.failUnlessEqual(tuple(c.column_names), ('my_text_column',))
 		self.failUnlessEqual(tuple(c.sql_column_types), ('text',))
 		self.failUnlessEqual(tuple(c.pg_column_types), (pg_types.TEXTOID,))
@@ -367,7 +395,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(tuple(ps.pg_column_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
 		self.failUnlessEqual(tuple(ps.parameter_types), (str,str))
 		self.failUnlessEqual(tuple(ps.column_types), (str,str))
-		c = ps('textdata', 'varchardata')
+		c = ps.declare('textdata', 'varchardata')
 		self.failUnlessEqual(tuple(c.column_names), ('my_column1','my_column2'))
 		self.failUnlessEqual(tuple(c.sql_column_types), ('text', 'CHARACTER VARYING'))
 		self.failUnlessEqual(tuple(c.pg_column_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
@@ -387,7 +415,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		)
 		self.failUnlessEqual(tuple(ps.parameter_types), (str,str,tuple))
 		self.failUnlessEqual(tuple(ps.column_types), (str,str,tuple))
-		c = ps('textdata', 'varchardata', (123,))
+		c = ps.declare('textdata', 'varchardata', (123,))
 		self.failUnlessEqual(tuple(c.column_names), ('my_column1','my_column2', 'my_column3'))
 		self.failUnlessEqual(tuple(c.sql_column_types), ('text', 'CHARACTER VARYING', 'public.myudt'))
 		self.failUnlessEqual(tuple(c.pg_column_types), (
@@ -462,7 +490,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.db.execute("PREPARE foo AS SELECT 1 AS colname;")
 		ps = self.db.statement_from_id('foo')
 		self.failUnlessEqual(ps.first(), 1)
-		self.failUnlessEqual(ps().read(), [(1,)])
+		self.failUnlessEqual(ps(), [(1,)])
 		self.failUnlessEqual(list(ps), [(1,)])
 		self.failUnlessEqual(tuple(ps.column_names), ('colname',))
 
@@ -491,6 +519,9 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			foo_content = set(copy_foo)
 			expected = set((str(i).encode('ascii') + b'\n' for i in range(500)))
 			self.failUnlessEqual(expected, foo_content)
+			self.failUnlessEqual(expected, set(copy_foo()))
+			self.failUnlessEqual(expected, set(chain.from_iterable(copy_foo.chunks())))
+			self.failUnlessEqual(expected, set(copy_foo.rows()))
 			self.db.execute("DROP TABLE foo")
 
 	def testCopyFromSTDIN(self):
@@ -541,13 +572,13 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 	def testNULL(self):
 		# Directly commpare (SELECT NULL) is None
 		self.failUnless(
-			next(self.db.prepare("SELECT NULL")())[0] is None,
+			self.db.prepare("SELECT NULL")()[0][0] is None,
 			"SELECT NULL did not return None"
 		)
 		# Indirectly compare (select NULL) is None
 		self.failUnless(
-			next(self.db.prepare("SELECT $1::text")(None))[0] is None,
-			"[SELECT $1::text](None) did not return None "
+			self.db.prepare("SELECT $1::text")(None)[0][0] is None,
+			"[SELECT $1::text](None) did not return None"
 		)
 
 	def testBool(self):
@@ -564,7 +595,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		# Test SELECT 1.
 		s1 = self.db.prepare("SELECT 1 as name")
 		p = s1()
-		tup = next(p)
+		tup = p[0]
 		self.failUnless(tup[0] == 1)
 
 		for tup in s1:
@@ -579,7 +610,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 
 	def testCursorRead(self):
 		ps = self.db.prepare("SELECT i FROM generate_series(0, (2^8)::int - 1) AS g(i)")
-		c = ps()
+		c = ps.declare()
 		self.failUnlessEqual(c.read(0), [])
 		self.failUnlessEqual(c.read(0), [])
 		self.failUnlessEqual(c.read(1), [(0,)])
@@ -615,7 +646,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			ps = self.db.prepare("SELECT i FROM generate_series(0, (2^16)::int) AS g(i)")
 		else:
 			ps = self.db.prepare("SELECT i FROM generate_series((2^16)::int, 0, -1) AS g(i)")
-		c = ps(scroll = True)
+		c = ps.declare()
 		c.direction = direction
 		if not direction:
 			c.seek(0)
@@ -658,7 +689,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 	def testWithHold(self):
 		with self.db.xact():
 			ps = self.db.prepare("SELECT 1")
-			c = ps(with_hold = True)
+			c = ps.declare()
 			cid = c.cursor_id
 		self.failUnlessEqual(c.read()[0][0], 1)
 		# make sure it's not cheating
@@ -666,20 +697,11 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		# check grabs beyond the default chunksize.
 		with self.db.xact():
 			ps = self.db.prepare("SELECT i FROM generate_series(0, 99) as g(i)")
-			c = ps(with_hold = True)
+			c = ps.declare()
 			cid = c.cursor_id
 		self.failUnlessEqual([x for x, in c.read()], list(range(100)))
 		# make sure it's not cheating
 		self.failUnlessEqual(c.cursor_id, cid)
-
-	def testNoHold(self):
-		with self.db.xact():
-			c = self.db.prepare("SELECT i from generate_series(0, 99) as g(i)")()
-			# no hold, no cursor after xact.
-		self.failUnlessRaises(
-			pg_exc.CursorNameError,
-			c.read
-		)
 
 	def testChunking(self):
 		gs = self.db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
@@ -724,22 +746,22 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			delete_t = self.db.prepare("DELETE FROM t WHERE i = $1")
 			delete_all_t = self.db.prepare("DELETE FROM t")
 			update_t = self.db.prepare("UPDATE t SET i = $2 WHERE i = $1")
-			self.failUnlessEqual(insert_t(1).count(), 1)
-			self.failUnlessEqual(delete_t(1).count(), 1)
-			self.failUnlessEqual(insert_t(2).count(), 1)
-			self.failUnlessEqual(insert_t(2).count(), 1)
-			self.failUnlessEqual(delete_t(2).count(), 2)
+			self.failUnlessEqual(insert_t(1)[1], 1)
+			self.failUnlessEqual(delete_t(1)[1], 1)
+			self.failUnlessEqual(insert_t(2)[1], 1)
+			self.failUnlessEqual(insert_t(2)[1], 1)
+			self.failUnlessEqual(delete_t(2)[1], 2)
 
-			self.failUnlessEqual(insert_t(3).count(), 1)
-			self.failUnlessEqual(insert_t(3).count(), 1)
-			self.failUnlessEqual(insert_t(3).count(), 1)
-			self.failUnlessEqual(delete_all_t().count(), 3)
+			self.failUnlessEqual(insert_t(3)[1], 1)
+			self.failUnlessEqual(insert_t(3)[1], 1)
+			self.failUnlessEqual(insert_t(3)[1], 1)
+			self.failUnlessEqual(delete_all_t()[1], 3)
 
-			self.failUnlessEqual(update_t(1, 2).count(), 0)
-			self.failUnlessEqual(insert_t(1).count(), 1)
-			self.failUnlessEqual(update_t(1, 2).count(), 1)
-			self.failUnlessEqual(delete_t(1).count(), 0)
-			self.failUnlessEqual(delete_t(2).count(), 1)
+			self.failUnlessEqual(update_t(1, 2)[1], 0)
+			self.failUnlessEqual(insert_t(1)[1], 1)
+			self.failUnlessEqual(update_t(1, 2)[1], 1)
+			self.failUnlessEqual(delete_t(1)[1], 0)
+			self.failUnlessEqual(delete_t(2)[1], 1)
 		finally:
 			self.db.execute("DROP TABLE t")
 
@@ -868,10 +890,10 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			# Now, numeric_unpack will always raise "ThisError".
 			ps = self.db.prepare('SELECT $1::numeric as col')
 			self.failUnlessRaises(
-				pg_exc.ColumnError, ps(decimal.Decimal("101")).read
+				pg_exc.ColumnError, ps, decimal.Decimal("101")
 			)
 			try:
-				ps(decimal.Decimal("101")).read()
+				ps(decimal.Decimal("101"))
 			except pg_exc.ColumnError as err:
 				self.failUnless(isinstance(err.__context__, ThisError))
 				# might be too inquisitive....
@@ -882,8 +904,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				self.fail("failed to raise TupleError from reception")
 			ps = self.db.prepare('SELECT $1::test_tuple_error AS tte')
 			try:
-				c = ps((decimal.Decimal("101"),))
-				c.read()
+				ps((decimal.Decimal("101"),))
 			except pg_exc.ColumnError as err:
 				self.failUnless(isinstance(err.__context__, pg_exc.ColumnError))
 				self.failUnless(isinstance(err.__context__.__context__, ThisError))

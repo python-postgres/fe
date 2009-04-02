@@ -14,7 +14,9 @@ import socket
 import ssl
 
 from operator import attrgetter, itemgetter, is_, is_not
-from itertools import repeat, islice
+get0 = itemgetter(0)
+get1 = itemgetter(1)
+from itertools import repeat, islice, chain
 from functools import partial
 
 from abc import abstractmethod, abstractproperty
@@ -188,6 +190,8 @@ class Chunks(pg_api.Chunks):
 		return self
 
 	def __next__(self):
+		if self.cursor._last_reqsize == 0xFFFFFFFF:
+			raise StopIteration
 		self.cursor._expand()
 
 		# Grab the whole thing.
@@ -246,11 +250,9 @@ class Cursor(pg_api.Cursor):
 		parameters,
 		statement,
 		scroll = False,
-		with_hold = False,
+		with_hold = None,
 		insensitive = True,
 	):
-		if statement.closed:
-			statement.prepare()
 		if statement._input is not None:
 			if len(parameters) != len(statement._input):
 				raise TypeError("statement requires %d parameters, given %d" %(
@@ -406,8 +408,6 @@ class Cursor(pg_api.Cursor):
 		if self.statement is not None:
 			# If the cursor comes from a statement object, always
 			# get the output information from it.
-			if self.statement.closed:
-				self.statement.prepare()
 			self._output = self.statement._output
 			self._output_formats = self.statement._output_formats
 			self._output_io = self.statement._output_io
@@ -424,7 +424,7 @@ class Cursor(pg_api.Cursor):
 				self.database._pq_complete()
 			##
 			# In auto-commit mode or with_hold is on?
-			if (self.database._pq_state == b'I' \
+			if ((self.database._pq_state == b'I' and self.with_hold is None)\
 			or self.with_hold is True or self.scroll is True) \
 			and self.statement.string is not None:
 				##
@@ -1287,7 +1287,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self.closed = False
 		self._pq_xact = None
 
-	def __call__(self, *parameters, **kw):
+	def _cursor(self, *parameters, **kw):
 		if self.closed is None:
 			self._fini()
 		# Tuple output per the results of DescribeStatement.
@@ -1296,14 +1296,28 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self.ife_descend(cursor)
 		cursor._init()
 		return cursor
-	__iter__ = __call__
+
+	def __call__(self, *parameters):
+		# get em' all!
+		c = self._cursor(*parameters, with_hold = False, scroll = False)
+		if isinstance(c, UtilityCursor):
+			return (c.command(), c.count())
+		else:
+			return c.read()
+
+	def declare(self, *parameters):
+		return self._cursor(*parameters, scroll = True, with_hold = True)
 
 	def chunks(self, *parameters, chunksize = 256):
 		if chunksize < 1:
 			raise ValueError("cannot create chunk iterator with chunksize < 1")
-		c = self(*parameters, scroll = False)
+		c = self._cursor(*parameters, scroll = False)
 		c.chunksize = chunksize
 		return Chunks(c)
+
+	def rows(self, *parameters):
+		return chain.from_iterable(self.chunks(*parameters))
+	__iter__ = rows
 
 	def first(self, *parameters):
 		if self.closed is None:
@@ -1405,19 +1419,12 @@ class PreparedStatement(pg_api.PreparedStatement):
 			x.ife_descend(e)
 			e.raise_exception()
 
-		if not isinstance(iterable, Cursor):
-			# each iteration == one row
-			iterable = iter(iterable)
-			while x.messages:
-				# Process any messages setup for sending.
-				while x.messages is not x.CopyFailSequence:
-					self.database._pq_step()
-				x.messages = [
-					pq.element.CopyData(l) for l in islice(iterable, tps)
-				]
-		else:
+		# Make a Chunks object.
+		if isinstance(iterable, CopyCursor):
+			iterable = Chunks(iterable)
+
+		if isinstance(iterable, Chunks):
 			# optimized, each iteration == row sequence
-			iterable = iterable.chunks
 			while x.messages:
 				while x.messages is not x.CopyFailSequence:
 					self.database._pq_step()
@@ -1428,6 +1435,16 @@ class PreparedStatement(pg_api.PreparedStatement):
 					])
 					if len(x.messages) > tps:
 						break
+		else:
+			# each iteration == one row
+			iterable = iter(iterable)
+			while x.messages:
+				# Process any messages setup for sending.
+				while x.messages is not x.CopyFailSequence:
+					self.database._pq_step()
+				x.messages = [
+					pq.element.CopyData(l) for l in islice(iterable, tps)
+				]
 		x.messages = x.CopyDoneSequence
 		self.database._pq_complete()
 
@@ -1512,7 +1529,7 @@ class StoredProcedure(pg_api.StoredProcedure):
 						self.name, k.message
 					)
 				)
-			word_idx.sort(key = itemgetter(1))
+			word_idx.sort(key = get1)
 			current_word = word_idx.pop(0)
 			for x in range(argc):
 				if x == current_word[1]:
@@ -1523,20 +1540,19 @@ class StoredProcedure(pg_api.StoredProcedure):
 		else:
 			input = args
 
-		r = self.statement(*input)
 		if self.srf is True:
 			if self.composite is True:
-				return r
+				return self.statement.rows(*input)
 			else:
 				# A generator expression is very appropriate here
 				# as SRFs returning large number of rows would require
 				# substantial amounts of memory.
-				return (x[0] for x in r)
+				return map(get0, self.statement.rows(*input))
 		else:
 			if self.composite is True:
-				return r.read(1)[0]
+				return self.statement(*input)[0]
 			else:
-				return r.read(1)[0][0]
+				return self.statement(*input)[0][0]
 
 	def __init__(self, ident, database, description = ()):
 		# Lookup pg_proc on database.
@@ -1615,7 +1631,7 @@ class Settings(pg_api.Settings):
 			db = self.database
 			r = db.prepare(
 				"SELECT setting FROM pg_settings WHERE name = $1",
-			)(i).read()
+			)(i)
 
 			if r:
 				v = r[0][0]
@@ -1659,7 +1675,7 @@ class Settings(pg_api.Settings):
 			if self.database.connector.path is not None:
 				self.path = self.database.connector.path
 			else:
-				self.database.prepare("RESET search_path")
+				self.database.execute("RESET search_path")
 		doc = 'structured search_path interface'
 		return locals()
 	path = property(**path())
@@ -1671,7 +1687,7 @@ class Settings(pg_api.Settings):
 		db = self.database
 		r = db.prepare(
 			"SELECT setting FROM pg_settings WHERE name = $1",
-		)(k).read()
+		)(k)
 		if r:
 			v = r[0][0]
 			self.cache[k] = v
@@ -1692,7 +1708,7 @@ class Settings(pg_api.Settings):
 		if rkeys:
 			r = self.database.prepare(
 				"SELECT name, setting FROM pg_settings WHERE name = ANY ($1)",
-			)(rkeys).read()
+			)(rkeys)
 			self.cache.update(r)
 			setmap.update(r)
 			rem = set(rkeys) - set([x['name'] for x in r])
@@ -1701,30 +1717,34 @@ class Settings(pg_api.Settings):
 		return setmap
 
 	def keys(self):
-		for x, in self.database.prepare(
-			"SELECT name FROM pg_settings ORDER BY name",
-		):
-			yield x
+		return map(
+			get0, self.database.prepare(
+				"SELECT name FROM pg_settings ORDER BY name",
+			).rows()
+		)
 	__iter__ = keys
 
 	def values(self):
-		for x, in self.database.prepare(
-			"SELECT setting FROM pg_settings ORDER BY name",
-		):
-			yield x
+		return map(
+			get0, self.database.prepare(
+				"SELECT setting FROM pg_settings ORDER BY name",
+			).rows()
+		)
 
 	def items(self):
 		return self.database.prepare(
 			"SELECT name, setting FROM pg_settings ORDER BY name",
-		)
+		).rows()
 
 	def update(self, d):
 		kvl = [list(x) for x in d.items()]
-		self.cache.update(self.database.prepare(
-			"SELECT ($1::text[][])[i][1] AS key, " \
-			"set_config(($1::text[][])[i][1], $1[i][2], false) AS value " \
-			"FROM generate_series(1, array_upper(($1::text[][]), 1)) g(i)",
-		)(kvl))
+		self.cache.update(
+			self.database.prepare(
+				"SELECT ($1::text[][])[i][1] AS key, " \
+				"set_config(($1::text[][])[i][1], $1[i][2], false) AS value " \
+				"FROM generate_series(1, array_upper(($1::text[][]), 1)) g(i)",
+			)(kvl)
+		)
 
 	def _notify(self, msg):
 		subs = getattr(self, '_subscriptions', {})

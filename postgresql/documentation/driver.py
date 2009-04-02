@@ -377,7 +377,7 @@ creating a `postgersql.api.PreparedStatement` instance bound to the
 connection(``db``) from an SQL statement string::
 
 	>>> ps = db.prepare("SELECT 1")
-	>>> ps().read()
+	>>> ps()
 	[(1,)]
 
 Statement objects may also be created from a statement identifier using the
@@ -386,12 +386,11 @@ statement must have already been prepared or an error will be raised.
 
 	>>> db.execute("PREPARE a_statement_id AS SELECT 1;")
 	>>> ps = db.statement_from_id('a_statement_id')
-	>>> ps.read()
+	>>> ps()
 	[(1,)]
 
-When a statement is executed, it binds any given parameters to a *new* cursor.
-This cursor is used to manage the result-set produced by that statement at that
-point-in-time.
+When a statement is executed, it binds any given parameters to a *new* cursor
+and the entire result-set is returned.
 
 Statements created using ``prepare()`` will leverage garbage collection in order
 to automatically close statements that are no longer referenced. However,
@@ -407,40 +406,26 @@ Prepared Statement Interface Points
 Prepared statements can be executed just like functions:
 
 	>>> ps = db.prepare("SELECT 'hello, world!'")
-	>>> c = ps()
-	>>> c.read()
+	>>> ps()
 	[('hello, world!',)]
 
-``c``, the object returned by the invocation of ``ps.__call__``, is a cursor
-object providing a `postgresql.api.Cursor` interface to the result-set.
-
-.. note::
- Don't confuse PG-API cursors with DB-API 2.0 cursors.
- PG-API cursors are single result-set SQL cursors and don't contain
- methods for executing more queries "within the cursor". They
- only provide interfaces to retrieving the results of that specific
- invocation of the statement.
+The default execution method, ``__call__``, produces the entire result set. It
+is the simplest form of statement execution. Statement objects can be executed in
+different ways to accommodate for the larger results or random access(scrollable
+cursors).
 
 Prepared statement objects have a few execution methods:
 
- ``ps(*parameters, scroll = False, with_hold = False)``
-  As shown before, statement objects can be simply invoked like a function to get a
-  cursor to the statement's results. By default, cursors are not scrollable, so
-  passing in `True` as the ``scroll`` keyword argument would return a scrollable
-  cursor.
+ ``ps(*parameters)``
+  As shown before, statement objects can be simply invoked like a function to get
+  the statement's results.
 
-  The given positional arguments, ``*parameters``, will be bound to the new
-  cursor.
-
-  ``with_hold`` is subjective when unspecified. If the connection is inside a
-  transaction block, the cursor will not be bound ``WITH HOLD`` if the
-  ``with_hold`` keyword is unspecified. However, if the connection is not in a
-  transaction block, ``with_hold`` is implied to `True`. This is done because
-  the cursor would disappear as soon as it was bound--autocommit means a new
-  transaction, and a new transaction will close cursors not defined WITH HOLD.
+ ``ps.rows(*parameters)``
+  Return a simple iterator to all the rows produced by the statement. This
+  method will stream rows in on demand, so it is ideal for large result-sets.
 
  ``iter(ps)``
-  Convenience interface that executes the ``__call__`` method without arguments.
+  Convenience interface that executes the ``rows()`` method without arguments.
   This enables the following syntax:
 
   >>> for table_name, in db.prepare("SELECT table_name FROM information_schema.tables"):
@@ -484,6 +469,11 @@ Prepared statement objects have a few execution methods:
   *sequences* of rows. The size of the "chunks" produced is *normally* consistent
   with the given ``chunksize`` keyword argument. This is the most efficient way
   to get rows out of the cursor.
+
+ ``ps.declare(*parameters)``
+  Create a scrollable cursor with hold. This returns a `postgresql.api.Cursor`
+  ready for accessing random rows in the result-set. Applications that use the
+  database to support paging should use this method to manage the view.
 
  ``ps.close()``
   Close the statement inhibiting further use.
@@ -545,8 +535,7 @@ a complete request. In order to do this, the statement must be defined using
 PostgreSQL's positional parameter notation. ``$1``, ``$2``, ``$3``, etc::
 
 	>>> ps = db.prepare("SELECT $1")
-	>>> c = ps('hello, world!')
-	>>> c.read()[0][0]
+	>>> ps('hello, world!')[0][0]
 	'hello, world!'
 
 PostgreSQL determines the type of the parameter based on the context of the
@@ -555,8 +544,7 @@ parameter's identifier::
 	>>> ps = db.prepare(
 	...  "SELECT * FROM information_schema.tables WHERE table_name = $1 LIMIT $2"
 	... )
-	>>> c = ps("tables", 1)
-	>>> c.read()
+	>>> ps("tables", 1)
 	[('postgres', 'information_schema', 'tables', 'VIEW', None, None, None, None, None, 'NO', 'NO', None)]
 
 Parameter ``$1`` in the above statement will take on the type of the
@@ -622,25 +610,24 @@ examples, a table definition is necessary for a complete illustration::
 
 Create an INSERT statement using ``prepare``::
 
-	>>> mk_employee = db.prepare("INSERT INTO employee VALUES ($1, $2, $3, $4)")
+	>>> mkemp = db.prepare("INSERT INTO employee VALUES ($1, $2, $3, $4)")
 
 And add "Mr. Johnson" to the table::
 
 	>>> import datetime
-	>>> dmlr = mk_employee(
+	>>> r = mkemp(
 	... 	"John Johnson",
 	... 	"92000",
 	... 	datetime.date(1950, 12, 10),
 	... 	datetime.date(1998, 4, 23)
 	... )
-	>>> print(dmlr.command())
+	>>> print(r[0])
 	INSERT
-	>>> print(dmlr.count())
+	>>> print(r[1])
 	1
 
-The execution of DML will return a utility cursor. Utility cursors are fully
-completed prior to returning control to the caller and any database error that
-occurs will be immediately raised regardless of the context.
+The execution of DML will return a tuple. This tuple contains the completed
+command name and the associated row count.
 
 Using the call interface is fine for making a single insert, but when multiple
 records need to be inserted, it's not the most efficient means to load data. For
@@ -648,10 +635,10 @@ multiple records, the ``ps.load([...])`` provides an efficient way to load large
 quantities of structured data::
 
 	>>> from datetime import date
-	>>> mk_employee.load([
+	>>> mkemp.load([
 	...  ("Jack Johnson", "85000", date(1962, 11, 23), date(1990, 3, 5)),
 	...  ("Debra McGuffer", "52000", date(1973, 3, 4), date(2002, 1, 14)),
-	...  ("Barbara Smitch", "86000", date(1965, 2, 24), date(2005, 7, 19)),
+	...  ("Barbara Smith", "86000", date(1965, 2, 24), date(2005, 7, 19)),
 	... ])
 
 While small, the above illustrates the ``ps.load()`` method taking an iterable of
@@ -674,9 +661,8 @@ appropriate encoding.
 Cursors
 =======
 
-When a prepared statement is called, a `postgresql.api.Cursor` is created and
-returned. The type of statement ultimately decides the kind of cursor used to
-manage the results.
+When a prepared statement is declared, a `postgresql.api.Cursor` is created and
+returned.
 
 Cursors can also be created directly from ``cursor_id``'s using the
 ``cursor_from_id`` method on connection objects::
@@ -733,14 +719,6 @@ during the use of the cursor:
   value of `False` will cause it to fetch backwards. ``'BACKWARD'`` and
   ``'FORWARD'`` can be used instead of `False` and `True`.
 
- ``c.chunksize``
-  The default number of rows to fetch when *fulfilling* a read request. For
-  cursors returning large rows, a small value may be wise in order to conserve
-  memory. This value defaults to ``64`` for ``NO SCROLL`` cursors.
-
-.. warning::
- Setting a non-zero ``chunksize`` on scrollable cursors is not supported.
-
 
 Cursor Metadata
 ---------------
@@ -774,11 +752,9 @@ a statement object:
 Scrollable Cursors
 ------------------
 
-By default, cursors are not scrollable. It is assumed, for performance reasons,
-that the user just wants the results in a linear fashion. However, scrollable
-cursors are supported for applications that need to implement paging. To create
-a scrollable cursor, call the statement with the ``scroll`` keyword
-argument set to `True`.
+Scrollable cursors are supported for applications that need to implement paging.
+When statements are invoked via the ``declare(...)`` method, the returned cursor
+is scrollable.
 
 .. note::
  Scrollable cursors never pre-fetch in order to provide guaranteed positioning.
@@ -816,7 +792,7 @@ Scrolling through employees::
 	... 	EXTRACT(years FROM AGE(employee_dob)) AS age
 	... ORDER BY age ASC
 	... """)
-	>>> snapshot = emps_by_age(scroll = True)
+	>>> snapshot = emps_by_age.declare()
 	>>> # seek to the end, ``2`` works as well.
 	>>> snapshot.seek(0, 'FROM_END')
 	>>> # scroll back one, ``1`` works as well.
@@ -840,8 +816,8 @@ property is set to ``'BACKWARD'`` or `False`, the read method will fetch
 backward by default, and seek operations will be inverted to simulate a
 reversely ordered cursor. The following example illustrates the effect::
 
-	>>> reverse_c = db.prepare('SELECT i FROM generate_series(99, 0, -1) AS g(i)')(scroll = True)
-	>>> c = db.prepare('SELECT i FROM generate_series(0, 99) AS g(i)')(scroll = True)
+	>>> reverse_c = db.prepare('SELECT i FROM generate_series(99, 0, -1) AS g(i)').declare()
+	>>> c = db.prepare('SELECT i FROM generate_series(0, 99) AS g(i)').declare()
 	>>> reverse_c.direction = 'BACKWARD'
 	>>> reverse_c.seek(0)
 	>>> c.read() == reverse_c.read()
@@ -866,13 +842,15 @@ And for relative seeks::
 	>>> c.read(10, 'BACKWARD') == reverse_c.read(10, 'BACKWARD')
 
 
-COPY Cursors
-------------
+COPY
+====
 
 `postgresql.driver` transparently supports PostgreSQL's COPY command. To the
-user, it will act exactly like a cursor that produces tuples; COPY tuples,
-however, are `bytes` objects. The only distinction in usability is that the
-cursor *should* be completed before other actions take place on the connection.
+user, COPY will act exactly like other statements that produces tuples; COPY
+tuples, however, are `bytes` objects. The only distinction in usability is that
+the COPY *should* be completed before other actions take place on the
+connection--this is important when a COPY is invoked via ``rows()`` or
+``chunks()``.
 
 In situations where other actions are invoked during a ``COPY TO STDOUT``, the
 entire result set of the COPY will be read. However, no error will be raised so
@@ -908,11 +886,11 @@ to send to the server::
 
 Copy cursors and the load interface was designed to be used together so that
 direct transfers from a source database to a destination database could be
-made::
+made in a streaming fashion::
 
 	>>> copyout = src.prepare('COPY atable TO STDOUT')
 	>>> copyin = dst.prepare('COPY atable FROM STDIN')
-	>>> copyin.load(copyout())
+	>>> copyin.load(copyout.chunks())
 
 
 Rows

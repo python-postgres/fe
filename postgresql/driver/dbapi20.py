@@ -102,7 +102,7 @@ class Cursor(object):
 				'$%d' %(x,) for x in range(1, len(args) + 1)
 			])
 		))
-		self.__portals.insert(0, p(*args))
+		self.__portals.insert(0, p._cursor(*args))
 		return args
 
 	def fetchone(self):
@@ -184,7 +184,7 @@ class Cursor(object):
 				)
 			)
 		ps = self.database.prepare(sql)
-		c = ps(*pxf(parameters))
+		c = ps._cursor(*pxf(parameters))
 		if ps._output is not None and len(ps._output) > 0:
 			# name, relationId, columnNumber, typeId, typlen, typmod, format
 			self.description = tuple([
