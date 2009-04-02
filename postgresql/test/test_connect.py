@@ -127,7 +127,7 @@ CREATE USER trusted;
 		)
 
 	def test_IP4_connect(self):
-		C = pg_driver.IP4(
+		C = pg_driver.default.ip4(
 			user = 'test',
 			host = '127.0.0.1',
 			database = 'test',
@@ -138,7 +138,7 @@ CREATE USER trusted;
 			self.failUnlessEqual(c.prepare('select 1').first(), 1)
 
 	def test_IP6_connect(self):
-		C = pg_driver.IP6(
+		C = pg_driver.default.ip6(
 			user = 'test',
 			host = '::1',
 			database = 'test',
@@ -149,7 +149,7 @@ CREATE USER trusted;
 			self.failUnlessEqual(c.prepare('select 1').first(), 1)
 
 	def test_Host_connect(self):
-		C = pg_driver.Host(
+		C = pg_driver.default.host(
 			user = 'test',
 			host = 'localhost',
 			database = 'test',

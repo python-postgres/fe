@@ -3086,19 +3086,35 @@ class Host(SocketConnector):
 
 class Driver(pg_api.Driver):
 	ife_ancestor = None
-	# Connectors
-	IP4 = IP4
-	IP6 = IP6
-	Host = Host
-	Unix = Unix
 
-	def select(self,
+	def ip4(self, **kw):
+		C = IP4(**kw)
+		self.ife_descend(C)
+		return C
+
+	def ip6(self, **kw):
+		C = IP6(**kw)
+		self.ife_descend(C)
+		return C
+
+	def host(self, **kw):
+		C = Host(**kw)
+		self.ife_descend(C)
+		return C
+
+	def unix(self, **kw):
+		C = Unix(**kw)
+		self.ife_descend(C)
+		return C
+
+	def fit(self,
 		unix = None,
 		host = None,
 		port = None,
+		**kw
 	) -> Connector:
 		"""
-		Select the appropriate `Connector` based on the parameters.
+		Create the appropriate `postgresql.api.Connector` based on the parameters.
 
 		This also protects against mutually exclusive parameters.
 		"""
@@ -3107,7 +3123,7 @@ class Driver(pg_api.Driver):
 				raise TypeError("'unix' and 'host' keywords are exclusive")
 			if port is not None:
 				raise TypeError("'unix' and 'port' keywords are exclusive")
-			return self.Unix
+			return self.unix(unix = unix, **kw)
 		else:
 			if host is None or port is None:
 				raise TypeError("'host' and 'port', or 'unix' must be supplied")
@@ -3117,7 +3133,7 @@ class Driver(pg_api.Driver):
 				# There's a ':' in host, good chance that it's IPv6.
 				try:
 					socket.inet_pton(socket.AF_INET6, host)
-					return self.IP6
+					return self.ip6(host = host, port = port, **kw)
 				except (socket.error, NameError):
 					pass
 
@@ -3125,26 +3141,12 @@ class Driver(pg_api.Driver):
 			try:
 				socket.inet_aton(host)
 				# It's IP4
-				return self.IP4
+				return self.ip4(host = host, port = port, **kw)
 			except socket.error:
 				pass
 
 			# neither host, nor port are None, probably a hostname.
-			return self.Host
-
-	def create(self,
-		unix = None,
-		host = None,
-		port = None,
-		**kw
-	) -> Connector:
-		C = self.select(unix = unix, host = host, port = port)
-		if C is self.Unix:
-			c = C(unix = unix, **kw)
-		# Everything else uses host and port.
-		c = C(host = host, port = port, **kw)
-		self.ife_descend(c)
-		return c
+			return self.host(host = host, port = port, **kw)
 
 	def connect(self, **kw) -> Connection:
 		"""
@@ -3161,7 +3163,9 @@ class Driver(pg_api.Driver):
 			`postgresql.driver.pq3.Host`
 			 Keywords that apply to host-based connections(resolving connector).
 		"""
-		return self.create(**kw)()
+		c = self.fit(**kw)()
+		c.connect()
+		return c
 
 	def ife_snapshot_text(self):
 		return 'postgresql.driver.pq3'

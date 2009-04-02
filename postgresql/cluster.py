@@ -401,7 +401,7 @@ class Cluster(pg_api.Cluster):
 		listen_addresses and port configuration in settings.
 		"""
 		host, port = self.address()
-		return pg_driver.default.create(
+		return pg_driver.default.fit(
 			host = host or 'localhost',
 			port = port or 5432,
 			**kw
@@ -411,7 +411,7 @@ class Cluster(pg_api.Cluster):
 		"""
 		Create a connection object to the cluster, but do not connect.
 		"""
-		return self.connector(**kw).create()
+		return self.connector(**kw)()
 
 	def connect(self, **kw):
 		"""
@@ -425,8 +425,7 @@ class Cluster(pg_api.Cluster):
 			)
 			self.ife_descend(e)
 			e.raise_exception()
-		c = self.connector(**kw)
-		return c()
+		return self.connection(**kw).connect()
 
 	def address(self):
 		"""

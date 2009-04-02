@@ -1342,23 +1342,12 @@ class Connector(InterfaceElement):
 		create the socket object. 
 		"""
 
-	def create(self, *args, **kw):
-		"""
-		Instantiate and return the connection class.
-
-		Must *not* execute the `connect` method on the created `Connection`
-		instance.
-		"""
-		return self.Connection(self, *args, **kw)
-
 	def __call__(self, *args, **kw):
 		"""
 		Create and connect. Arguments will be given to the `Connection` instance's
 		`connect` method.
 		"""
-		c = self.Connection(self)
-		c.connect(*args, **kw)
-		return c
+		return self.Connection(self)
 
 	def __init__(self,
 		user : "required keyword specifying the user name(str)" = None,
@@ -1368,7 +1357,7 @@ class Connector(InterfaceElement):
 	):
 		if user is None:
 			# sure, it's a "required" keyword, makes for better documentation
-			raise TypeError("`user` is a required keyword")
+			raise TypeError("'user' is a required keyword")
 		self.user = user
 		self.password = password
 		self.database = database
@@ -1424,7 +1413,6 @@ class Connection(Database):
 		`True` when `None`.
 		"""
 		self.close()
-		return typ is None
 
 	def __context__(self):
 		"""

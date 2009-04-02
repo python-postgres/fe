@@ -7,15 +7,20 @@ r'''
 Driver
 ******
 
-`postgresql.driver` implements PG-API, `postgresql.api`, using PQ version
-3.0 to communicate with PostgreSQL servers. It makes use of the protocol's
-extended features to provide binary datatype transmission and protocol level
-prepared statements for strongly typed parameters.
+`postgresql.driver` provides a PG-API, `postgresql.api`, interface to a
+PostgreSQL server using PQ version 3.0 to facilitate communication. It makes
+use of the protocol's extended features to provide binary datatype transmission
+and protocol level prepared statements for strongly typed parameters.
 
 `postgresql.driver` currently supports PostgreSQL servers as far back as 8.0.
 Prior versions are not tested. While any version of PostgreSQL supporting
 version 3.0 of the PQ protocol *should* work, many features may not work due to
 absent functionality in the remote end.
+
+.. note::
+   PostgreSQL versions 8.1 and earlier do not support standard conforming
+	strings. A warning will be raised whenever a connection is established to a
+	server that does not support standard conforming strings.
 
 The following identifiers are regularly used as shorthands for significant
 interface elements:
@@ -146,37 +151,38 @@ connector instantiation normally takes the same parameters that the
 The driver, `postgresql.driver.default` provides a set of connectors for making
 a connection:
 
- ``Host``
+ ``driver.host``
   Provides a ``getaddrinfo()`` abstraction for establishing a connection.
 
- ``IP4``
+ ``driver.ip4``
   Connect to a single IPv4 addressed host.
 
- ``IP6``
+ ``driver.ip6``
   Connect to a single IPv6 addressed host.
 
- ``Unix``
+ ``driver.unix``
   Connect to a single unix domain socket.
 
-``Host`` is the usual connector used to establish a connection:
+``host`` is the usual connector used to establish a connection::
 
-	>>> C = postgresql.driver.default.Host(
+	>>> C = postgresql.driver.default.host(
 	...  user = 'auser',
 	...  host = 'foo.com',
 	...  port = 5432)
-	>>> # now establish a connection
+	>>> # create
 	>>> db = C()
+	>>> # establish
+	>>> db.connect()
 
-Connectors can also create connections that have not been established.
-Sometimes, it is useful to have a reference to the connection prior to
-establishing it:
+If a constant internet address is used, ``ip4`` or ``ip6`` can be used::
 
-	>>> db = C.create()
+	>>> C = postgresql.driver.default.ip4(user='auser', host='127.0.0.1', port=5432)
+	>>> db = C()
 	>>> db.connect()
 
 Additionally, ``db.connect()`` on ``db.__enter__()`` for with-statement support:
 
-	>>> with C.create() as db:
+	>>> with C() as db:
 	...  ...
 
 Connectors are constant. They have no knowledge of PostgreSQL service files,
@@ -186,7 +192,7 @@ information from any of these sources is needed, a new connector needs to be
 created as the credentials have changed.
 
 .. note::
- ``Host`` connectors use ``getaddrinfo()``, so if DNS changes are made, 
+ ``host`` connectors use ``getaddrinfo()``, so if DNS changes are made, 
  new connections *will* use the latest information.
 
 
@@ -273,6 +279,9 @@ interface to a PostgreSQL server; specifically, a `postgresql.api.Connection`.
 Connections are one-time objects. Once, it is closed or lost, it can longer be
 used to interact with the database provided by the server. If further use of the
 server is desired, a new connection *must* be established.
+
+.. note::
+   Cannot connect failures, exceptions raised on ``connect()``, are also terminal.
 
 In cases where operations are performed on a closed connection, a
 `postgresql.exceptions.ConnectionDoesNotExistError` will be raised.

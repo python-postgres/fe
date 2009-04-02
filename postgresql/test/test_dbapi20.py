@@ -109,7 +109,9 @@ class test_dbapi20(TestCaseWithCluster):
 			con.close()
 
 	def _connect(self):
-		return self.driver.Connection(self.db.connector())
+		c = self.db.connector()
+		c.connect()
+		return self.driver.Connection(c)
 
 	def test_connect(self):
 		con = self._connect()

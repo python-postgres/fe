@@ -3,16 +3,13 @@
 # http://python.projects.postgresql.org
 ##
 """
-Driver package for connecting to PostgreSQL via a data stream(sockets).
+Driver package for providing an interface to a PostgreSQL database.
 """
-__all__ = ['IP4', 'IP6', 'Host', 'Unix', 'connect', 'default']
+__all__ = ['connect', 'default']
 
 from .pq3 import Driver
 default = Driver()
 
-IP4 = default.IP4
-IP6 = default.IP6
-Host = default.Host
-Unix = default.Unix
-
-connect = default.connect
+def connect(*args, **kw):
+	'Establish a connection using the default driver.'
+	return default.connect(*args, **kw)
