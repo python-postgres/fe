@@ -51,8 +51,9 @@ def command(argv = sys.argv):
 				clientparameters.resolve_password(cond, prompt_title = 'pg_python')
 			except EOFError:
 				raise SystemExit(1)
-			connector = pg_driver.create(**cond)
+			connector = pg_driver.fit(**cond)
 			connection = connector()
+			connection.connect()
 		except pg_exc.ClientCannotConnectError as err:
 			for (didssl, sc, cf) in err.connection_failures:
 				if isinstance(cf, pg_exc.AuthenticationSpecificationError):
