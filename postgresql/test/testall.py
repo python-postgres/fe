@@ -23,7 +23,7 @@ from .test_connect import *
 if Installation.default().ssl:
 	from .test_ssl_connect import *
 else:
-	warnings.warn("installation doesn't not support SSL")
+	warnings.warn("installation doesn't support SSL")
 from .test_driver import *
 from .test_dbapi20 import *
 
