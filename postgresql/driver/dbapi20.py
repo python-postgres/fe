@@ -11,11 +11,13 @@ apilevel = '2.0'
 
 from operator import itemgetter
 from functools import partial
+import datetime
+import time
 import re
-import postgresql.driver as pg_driver
-import postgresql.types as pg_type
-import postgresql.string as pg_str
-import datetime, time
+
+from .. import driver as pg_driver
+from .. import types as pg_type
+from .. import string as pg_str
 
 ##
 # Basically, is it a mapping, or is it a sequence?
