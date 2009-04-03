@@ -146,14 +146,15 @@ arguments:
  ``prompt_title``
   Additional title to use if a prompt is requested. This can also be specified
   in the ``parameters`` as the ``prompt_title`` key. This *augments* the IRI
-  display on the prompt. Defaults to ``''``.
+  display on the prompt. Defaults to an empty string, ``''``.
 
 The resolution process is effected by the contents of the given ``parameters``.
 Notable keywords:
 
  ``prompt_password``
   If present in the given parameters, the user will be prompted for the using
-  the given ``getpass`` function. This disables the pgpassfile lookup process.
+  the given ``getpass`` function. This disables the password file lookup
+  process.
 
  ``prompt_title``
   This states a default prompt title to use. If the ``prompt_title`` keyword

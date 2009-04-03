@@ -24,7 +24,7 @@ wire data into higher level Python objects(str).
 
 To avoid this problem from ever happening, set the `client_encoding` early.
 Furthermore, it is probably best to never change the `client_encoding` as the
-driver automatically makes the necessary tranformation to Python strings.
+driver automatically makes the necessary transformation to Python strings.
 
 
 The user and password is correct, but does it not work when using `postgresql.driver`
@@ -73,7 +73,7 @@ in binary format as well. If that binary format is not supported and the type
 is not an string, it will fail to unpack the row or pack the appropriate data for
 the element or attribute.
 
-In most cases issues related to this can be avoided with exlicit casts to text.
+In most cases issues related to this can be avoided with explicit casts to text.
 '''
 
 __docformat__ = 'reStructuredText'

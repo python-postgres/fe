@@ -1,7 +1,7 @@
 py-postgresql
 =============
 
-py-postgresql is a project dedicated to improving Python interfaces to
+py-postgresql is a project dedicated to improving the Python interfaces to
 PostgreSQL.
 
 At its core, py-postgresql provides a PG-API, `postgresql.api`, and
@@ -19,6 +19,7 @@ Contents
    clientparameters
    bin
    gotchas
+   changes
 
 
 Sample PG-API Code

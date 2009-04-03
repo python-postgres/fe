@@ -19,8 +19,8 @@ absent functionality in the remote end.
 
 .. note::
    PostgreSQL versions 8.1 and earlier do not support standard conforming
-	strings. A warning will be raised whenever a connection is established to a
-	server that does not support standard conforming strings.
+   strings. A warning will be raised whenever a connection is established to a
+   server that does not support standard conforming strings.
 
 The following identifiers are regularly used as shorthands for significant
 interface elements:
@@ -153,16 +153,16 @@ connector instantiation normally takes the same parameters that the
 The driver, `postgresql.driver.default` provides a set of connectors for making
 a connection:
 
- ``driver.host``
+ ``postgresql.driver.default.host(...)``
   Provides a ``getaddrinfo()`` abstraction for establishing a connection.
 
- ``driver.ip4``
+ ``postgresql.driver.default.ip4(...)``
   Connect to a single IPv4 addressed host.
 
- ``driver.ip6``
+ ``postgresql.driver.default.ip6(...)``
   Connect to a single IPv6 addressed host.
 
- ``driver.unix``
+ ``postgresql.driver.default.unix(...)``
   Connect to a single unix domain socket.
 
 ``host`` is the usual connector used to establish a connection::
@@ -255,20 +255,6 @@ interfaces:
 
  ``sslrootcrlfile``
   Revocation list file path. [Currently not checked.]
-
-
-Connection Failures
--------------------
-
-If a connection cannot be established, a
-`postgresql.exceptions.ClientCannotConnectError` will be raised.
-
-This exception carries the cause of the failures. However, in situations
-involving ``Host`` connectors and ``'prefer'`` or ``'allow'`` ``sslmode``'s,
-multiple attempts may be made before the exception is thrown. Therefore,
-multiple exception conditions may have contributed to the ultimate
-failure of the connection, and reliance on ``__context__`` or ``__cause__`` to
-provide this information is inappropriate.
 
 
 Connections
@@ -438,7 +424,7 @@ Prepared statement objects have a few execution methods:
   Consider the data contained in ``c`` from above, 'hello world!'. To get at this
   data directly from the ``__call__(...)`` method, it looks something like::
 
-	>>> ps().read()[0][0]
+	>>> ps()[0][0]
 
   To simplify access to simple data, the ``first`` method will simply return
   the "first" of the result set::
@@ -660,6 +646,77 @@ taking place. It is the user's obligation to make sure the row-data is in the
 appropriate encoding.
 
 
+COPY Statements
+---------------
+
+`postgresql.driver` transparently supports PostgreSQL's COPY command. To the
+user, COPY will act exactly like other statements that produce tuples; COPY
+tuples, however, are `bytes` objects. The only distinction in usability is that
+the COPY *should* be completed before other actions take place on the
+connection--this is important when a COPY is invoked via ``rows()`` or
+``chunks()``.
+
+In situations where other actions are invoked during a ``COPY TO STDOUT``, the
+entire result set of the COPY will be read. However, no error will be raised so
+long as there is enough memory available, so it is *very* desirable to avoid
+doing other actions on the connection while a COPY is active.
+
+In situations where other actions are invoked during a ``COPY FROM STDIN``, a
+COPY failure error will occur. The driver manages the connection state in such
+a way that will purposefully cause the error as the COPY was inappropriately
+interrupted. This not usually a problem as the ``load(...)`` method must
+complete the COPY command before returning.
+
+Copy data is always transferred using ``bytes`` objects. Even in cases where the
+COPY is not in ``BINARY`` mode. Any needed encoding transformations *must* be
+made the caller. This is done to avoid any unnecessary overhead by default::
+
+	>>> ps = db.prepare("COPY (SELECT i FROM generate_series(0, 99) AS g(i)) TO STDOUT")
+	>>> r = ps()
+	>>> len(r)
+	100
+	>>> r[0]
+	b'0\n'
+	>>> r[-1]
+	b'99\n'
+
+Of course, invoking a statement that way will ready the entire result-set into
+memory, which is not usually desirable for COPY. Using the ``chunks(...)``
+iterator is the fastest way to move data::
+
+	>>> ci = ps.chunks()
+	>>> import sys
+	>>> for rowset in ps.chunks():
+	...  sys.stdout.buffer.writelines(rowset)
+	...
+	<Lots of Data>
+
+``COPY FROM STDIN`` commands are supported via
+`postgresql.api.PreparedStatement.load`. Each invocation to ``load``
+is a single invocation of COPY. ``load`` takes an iterable of COPY lines
+to send to the server::
+
+	>>> db.execute("""
+	... CREATE TABLE sample_copy (
+	...	sc_number int,
+	...	sc_text text
+	... );
+	... """)
+	>>> copyin = db.prepare('COPY sample_copy FROM STDIN')
+	>>> copyin.load([
+	... 	b'123\tone twenty three\n',
+	... 	b'350\ttree fitty\n',
+	... ])
+
+The ``load()`` method is trained to identify chunk iterators so that direct
+transfers from a source database to a destination database could be
+made in a streaming fashion::
+
+	>>> copyout = src.prepare('COPY atable TO STDOUT')
+	>>> copyin = dst.prepare('COPY atable FROM STDIN')
+	>>> copyin.load(copyout.chunks())
+
+
 Cursors
 =======
 
@@ -801,19 +858,19 @@ Scrolling through employees::
 	... 	EXTRACT(years FROM AGE(employee_dob)) AS age
 	... ORDER BY age ASC
 	... """)
-	>>> snapshot = emps_by_age.declare()
+	>>> c = emps_by_age.declare()
 	>>> # seek to the end, ``2`` works as well.
-	>>> snapshot.seek(0, 'FROM_END')
+	>>> c.seek(0, 'FROM_END')
 	>>> # scroll back one, ``1`` works as well.
-	>>> snapshot.seek(-1, 'RELATIVE')
+	>>> c.seek(-1, 'RELATIVE')
 	>>> # and back to the beginning again
-	>>> snapshot.seek(0)
+	>>> c.seek(0)
 
 Additionally, scrollable cursors support backward fetches by specifying the
 direction keyword argument::
 
-	>>> snapshot.seek(0, 2)
-	>>> snapshot.read(1, 'BACKWARD')
+	>>> c.seek(0, 2)
+	>>> c.read(1, 'BACKWARD')
 
 
 Cursor Direction 
@@ -849,57 +906,6 @@ And for relative seeks::
 	>>> c.seek(-10, 1)
 	>>> reverse_c.seek(-10, 1)
 	>>> c.read(10, 'BACKWARD') == reverse_c.read(10, 'BACKWARD')
-
-
-COPY
-====
-
-`postgresql.driver` transparently supports PostgreSQL's COPY command. To the
-user, COPY will act exactly like other statements that produce tuples; COPY
-tuples, however, are `bytes` objects. The only distinction in usability is that
-the COPY *should* be completed before other actions take place on the
-connection--this is important when a COPY is invoked via ``rows()`` or
-``chunks()``.
-
-In situations where other actions are invoked during a ``COPY TO STDOUT``, the
-entire result set of the COPY will be read. However, no error will be raised so
-long as there is enough memory available, so it is *very* desirable to avoid
-doing other actions on the connection while a COPY is active.
-
-In situations where other actions are invoked during a ``COPY FROM STDIN``, a
-COPY failure error will occur. The driver manages the connection state in such
-a way that will purposefully cause the error as the COPY was inappropriately
-interrupted. This not usually a problem as the ``load(...)`` method must
-complete the COPY command before returning.
-
-Copy data is always transferred using ``bytes`` objects. Even in cases where the
-COPY is not in ``BINARY`` mode. Any needed encoding transformations *must* be
-made the caller. This is done to avoid any unnecessary overhead by default.
-
-``COPY FROM STDIN`` commands are supported via
-`postgresql.api.PreparedStatement.load`. Each invocation to ``load``
-is a single invocation of COPY. ``load`` takes an iterable of COPY lines
-to send to the server::
-
-	>>> db.execute("""
-	... CREATE TABLE sample_copy (
-	...	sc_number int,
-	...	sc_text text
-	... );
-	... """)
-	>>> copyin = db.prepare('COPY sample_copy FROM STDIN')
-	>>> copyin.load([
-	... 	b'123\tone twenty three\n',
-	... 	b'350\ttree fitty\n',
-	... ])
-
-Copy cursors and the load interface was designed to be used together so that
-direct transfers from a source database to a destination database could be
-made in a streaming fashion::
-
-	>>> copyout = src.prepare('COPY atable TO STDOUT')
-	>>> copyin = dst.prepare('COPY atable FROM STDIN')
-	>>> copyin.load(copyout.chunks())
 
 
 Rows
@@ -1146,13 +1152,11 @@ of the OUT parameters::
 	... $body$;
 	... """)
 	>>> srfcomposite = db.proc('srfcomposite()')
-	>>> c = srfcomposite()
-	>>> c
-	<postgresql.driver.pq3.DeclaredCursor object>
-	>>> c.read(1)
-	[(900, 'sample text')]
-	>>> r = c.read(1)[0]
-	>>> r['i'], r['t']
+	>>> r = srfcomposite()
+	>>> next(r)
+	(900, 'sample text')
+	>>> v = next(r)
+	>>> v['i'], v['t']
 	(450, 'more sample text')
 
 
@@ -1220,13 +1224,11 @@ These methods are primarily provided for applications that manage transactions
 in a way that cannot be formed around single, sequential blocks of code.
 Generally, using these methods require additional work to be performed by the
 code that is managing the transaction.
-If usage of these direct, instructional methods is necessary, there is one
-important factor to keep in mind:
-
- * If the database is in an error state when a block's commit() is executed,
-   an implicit rollback will occur. The transaction object will simply follow
-   instructions and issue the ``COMMIT`` statement, and it will succeed without
-   exception.
+If usage of these direct, instructional methods is necessary, it is important to
+note that if the database is in an error state when a *transaction block's*
+commit() is executed, an implicit rollback will occur. The transaction object
+will simply follow instructions and issue the ``COMMIT`` statement, and it will
+succeed without exception.
 
 
 Error Control
@@ -1325,9 +1327,9 @@ made::
 	Traceback (most recent call last):
 	 ...
 	postgresql.exceptions.ActiveTransactionError: COMMIT PREPARED cannot run inside a transaction block
+	  CAUSE: The prepared transaction was not prepared prior to the block's exit.
 	  CODE: 25001
 	  SEVERITY: ERROR
-	  INTERFACE: The prepared transaction was not prepared prior to the block's exit.
 	  LOCATION: File 'xact.c', line 2648, in PreventTransactionChain
 
 
@@ -1360,8 +1362,8 @@ PREPARED when the global identifier does not exist.
 	postgresql.exceptions.UndefinedObjectError: ...
 
 This allows recovery operations to identify the existence of the prepared
-transaction. Global transaction managers should trap this exception in order to
-identify how to proceed.
+transaction. Transaction managers should trap this exception in order to
+determine how to proceed.
 
 
 Settings
