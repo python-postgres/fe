@@ -62,6 +62,27 @@ pg_home_directory = '.postgresql'
 pg_appdata_directory = 'postgresql'
 pg_appdata_passfile = 'pgpass.conf'
 
+# In order to support pg_service.conf, it is
+# necessary to identify driver parameters, so
+# that database configuration parameters can
+# be placed in settings.
+pg_service_driver_parameters = set([
+	'user',
+	'host',
+	'database',
+	'port',
+	'password',
+
+	'sslcrtfile',
+	'sslkeyfile',
+	'sslrootcrtfile',
+	'sslrootkeyfile',
+
+	'sslmode',
+	'server_encoding',
+	'connect_timeout',
+])
+
 # environment variables that will be in the parameters' "settings" dictionary.
 default_envvar_settings_map = {
 	'TZ' : 'timezone',
@@ -411,13 +432,20 @@ def x_pg_service(service_name, config):
 		return
 
 	for (k, v) in s:
-		if k.lower() == 'ldap':
+		k = k.lower()
+		if k == 'ldap':
 			yield ('pg_ldap', ':'.join((k, v)))
-		elif k.lower() == 'pg_service':
+		elif k == 'pg_service':
 			# ignore
 			pass
-		elif k.lower() == 'dbname':
+		elif k == 'hostaddr':
+			# XXX: should yield ipv as well?
+			yield (('host',), v)
+		elif k == 'dbname':
 			yield (('database',), v)
+		elif k not in pg_service_driver_parameters:
+			# it's a GUC.
+			yield (('settings', k), v)
 		else:
 			yield ((k,), v)
 

@@ -11,6 +11,7 @@ from .. import unittest as pg_unittest
 
 from ..driver import dbapi20 as dbapi20
 from .. import driver as pg_driver
+from .. import open as pg_open
 
 class test_connect(pg_unittest.TestCaseWithCluster):
 	"""
@@ -70,6 +71,88 @@ CREATE USER password WITH
 CREATE USER trusted;
 				"""
 			)
+
+	def test_pg_open(self):
+		# postgresql.open
+		host, port = self.cluster.address()
+		# test simple locators..
+		with pg_open(
+			'pq://' + 'md5:' + 'md5_password@' + host + ':' + str(port) \
+			+ '/test'
+		) as db:
+			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
+		self.failUnless(db.closed)
+
+		with pg_open(
+			'pq://' + 'password:' + 'password_password@' + host + ':' + str(port) \
+			+ '/test'
+		) as db:
+			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
+		self.failUnless(db.closed)
+
+		with pg_open(
+			'pq://' + 'trusted@' + host + ':' + str(port) + '/test'
+		) as db:
+			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
+		self.failUnless(db.closed)
+
+		# test environment collection
+		pgenv = ('PGUSER', 'PGPORT', 'PGHOST', 'PGSERVICE', 'PGPASSWORD', 'PGDATABASE')
+		stored = list(map(os.environ.get, pgenv))
+		try:
+			os.environ.pop('PGSERVICE', None)
+			os.environ['PGUSER'] = 'md5'
+			os.environ['PGPASSWORD'] = 'md5_password'
+			os.environ['PGHOST'] = host
+			os.environ['PGPORT'] = str(port)
+			os.environ['PGDATABASE'] = 'test'
+			# No arguments, the environment provided everything.
+			with pg_open() as db:
+				self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
+				self.failUnlessEqual(db.prepare('select current_user').first(), 'md5')
+			self.failUnless(db.closed)
+		finally:
+			i = 0
+			for x in stored:
+				env = pgenv[i]
+				if x is None:
+					os.environ.pop(env, None)
+				else:
+					os.environ[env] = x
+
+		oldservice = os.environ.get('PGSERVICE')
+		oldsysconfdir = os.environ.get('PGSYSCONFDIR')
+		try:
+			with open('pg_service.conf', 'w') as sf:
+				sf.write('''
+[myserv]
+user = password
+password = password_password
+host = {host}
+port = {port}
+dbname = test
+search_path = public
+'''.format(host = host, port = port))
+				sf.flush()
+				try:
+					os.environ['PGSERVICE'] = 'myserv'
+					os.environ['PGSYSCONFDIR'] = os.getcwd()
+					with pg_open() as db:
+						self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
+						self.failUnlessEqual(db.prepare('select current_user').first(), 'password')
+						self.failUnlessEqual(db.settings['search_path'], 'public')
+				finally:
+					if oldservice is None:
+						os.environ.pop('PGSERVICE', None)
+					else:
+						os.environ['PGSERVICE'] = oldservice
+					if oldsysconfdir is None:
+						os.environ.pop('PGSYSCONFDIR', None)
+					else:
+						os.environ['PGSYSCONFDIR'] = oldsysconfdir
+		finally:
+			if os.path.exists('pg_service.conf'):
+				os.remove('pg_service.conf')
 
 	def test_dbapi_connect(self):
 		host, port = self.cluster.address()
