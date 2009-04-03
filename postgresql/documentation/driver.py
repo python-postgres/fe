@@ -1182,13 +1182,43 @@ of the connection when ``__exit__`` is called.
 **Using the with-statement syntax for managing transactions is strongly
 recommended.** By using the transaction's context manager, it allows for Python
 exceptions to be properly treated as fatal to the transaction as when an
-exception of any kind occurs within a transaction block, it is unlikely that
+uncaught exception of any kind occurs within the block, it is unlikely that
 the state of the transaction can be trusted. Additionally, the ``__exit__``
 method provides a safe-guard against invalid commits. This can occur if a
 database error is inappropriately caught within a block without being raised.
 
 The context manager interfaces are higher level interfaces to the explicit
 instruction methods provided by `postgresql.api.Transaction` objects.
+
+
+Transaction Configuration
+-------------------------
+
+Keyword arguments given to ``xact()`` provide the means for configuring the
+properties of the transaction. Only three points of configuration are available:
+
+ ``gid``
+  The global identifier to use. Identifies the transaction as using two-phase
+  commit. The ``prepare()`` method *must* be called prior to ``commit()`` or
+  ``__exit__()``.
+
+ ``isolation``
+  The isolation level of the transaction. This must be a string. It will be
+  interpolated directly into the START TRANSACTION statement. Normally,
+  'SERIALIZABLE' or 'READ COMMITTED':
+
+  	>>> with db.xact(isolation = 'SERIALIZABLE'):
+  	...  ...
+
+ ``mode``
+  A string, 'READ ONLY' or 'READ WRITE'. States the mutability of stored
+  information in the database. Like ``isolation``, this is interpolated
+  directly into the START TRANSACTION string.
+
+The specification of any of these transaction properties imply that the transaction
+is a block. Savepoints do not take configuration, so if a transaction identified
+as a block is started while another block is running, an exception will be
+raised.
 
 
 Transaction Interface Points
@@ -1267,33 +1297,6 @@ The driver intervenes here and raises the
 cases. This effect is consistent with savepoint releases that occur during an
 error state. The distinction between the two cases is made using the ``source``
 property on the raised exception.
-
-
-Transaction Configuration
--------------------------
-
-Keyword arguments given to ``xact()`` provide the means for configuring the
-properties of the transaction. Only three points of configuration are available:
-
- ``gid``
-  The global identifier to use. Identifies the transaction as using two-phase
-  commit. The ``prepare()`` method *must* be called prior to ``commit()`` or
-  ``__exit__()``.
-
- ``isolation``
-  The isolation level of the transaction. This must be a string. It will be
-  interpolated directly into the START TRANSACTION statement. Normally,
-  'SERIALIZABLE' or 'READ COMMITTED'.
-
- ``mode``
-  A string, 'READ ONLY' or 'READ WRITE'. States the mutability of stored
-  information in the database. Like ``isolation``, this is interpolated
-  directly into the START TRANSACTION string.
-
-The specification of any of these transaction properties imply that the transaction
-is a block. Savepoints do not take configuration, so if a transaction identified
-as a block is started while another block is running, an exception will be
-raised.
 
 
 Prepared Transactions
