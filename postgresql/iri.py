@@ -92,7 +92,7 @@ def construct_path(x, re = escape_path_re):
 def construct(x, obscure_password = False):
 	'Construct a RI dictionary from a clientparams dictionary'
 	# the rather exhaustive settings choreography is due to
-	# a desire to allow 
+	# a desire to allow the search_path to be appended in the fragment
 	settings = x.get('settings')
 	no_path_settings = None
 	search_path = None
@@ -157,7 +157,8 @@ def construct(x, obscure_password = False):
 			ri.escape_path_re.sub(path_comp, '/')
 			for path_comp in path
 		]),
-		None if no_path_settings is None else (
+		(ri.construct_query(driver_params) if driver_params else None)
+		if no_path_settings is None else (
 			ri.construct_query(
 				driver_params + no_path_settings
 			)

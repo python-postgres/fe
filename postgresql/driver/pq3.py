@@ -2835,7 +2835,7 @@ class Connector(pg_api.Connector):
 			{
 				k : v for k,v in self.__dict__.items()
 				if v is not None \
-				and k not in ('_startup_parameters', '_address_family', '_pq_iri')
+				and k not in ('_startup_parameters', '_address_family', '_pq_iri', 'ife_ancestor')
 			},
 			obscure_password = True
 		)
@@ -2843,7 +2843,7 @@ class Connector(pg_api.Connector):
 	def __repr__(self):
 		keywords = (',' + os.linesep + ' ').join([
 			'%s = %r' %(k, getattr(self, k, None)) for k in self.__dict__
-			if k not in ('_startup_parameters', '_address_family', '_pq_iri') \
+			if k not in ('_startup_parameters', '_address_family', '_pq_iri', 'ife_ancestor') \
 			and getattr(self, k, None) is not None
 		])
 		return '{mod}.{name}({keywords})'.format(
@@ -2926,7 +2926,7 @@ class Connector(pg_api.Connector):
 class SocketCreator(object):
 	def __call__(self, timeout = None):
 		s = socket.socket(*self.socket_create)
-		s.settimeout(timeout)
+		s.settimeout(float(timeout) if timeout is not None else None)
 		s.connect(self.socket_connect)
 		s.settimeout(None)
 		return s
