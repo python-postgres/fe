@@ -281,43 +281,46 @@ In cases where operations are performed on a closed connection, a
 Database Interface Points
 -------------------------
 
-After a connection is established, the primary interface points are ready for
-use. These entry points exist as properties and methods on the connection
-object:
+After a connection is established::
 
- ``prepare(sql_statement_string)``
+	>>> import postgresql
+	>>> db = postgresql.open(...)
+
+The methods and properties on the connection object are ready for use:
+
+ ``db.prepare(sql_statement_string)``
   Create a `postgresql.api.PreparedStatement` object for querying the database.
   This provides an "SQL statement template" that can be executed multiple times.
   See `Prepared Statements`_ for more information.
 
- ``proc(procedure_id)``
+ ``db.proc(procedure_id)``
   Create a `postgresql.api.StoredProcedure` object referring to a stored
   procedure on the database. The returned object will provide a
   `collections.Callable` interface to the stored procedure on the server. See
   `Stored Procedures`_ for more information.
 
- ``statement_from_id(statement_id)``
+ ``db.statement_from_id(statement_id)``
   Create a `postgresql.api.PreparedStatement` object from an existing statement
   identifier. This is used in cases where the statement was prepared on the
   server. See `Prepared Statements`_ for more information.
 
- ``cursor_from_id(cursor_id)``
+ ``db.cursor_from_id(cursor_id)``
   Create a `postgresql.api.Cursor` object from an existing cursor identifier.
   This is used in cases where the cursor was declared on the server. See
   `Cursors`_ for more information.
 
- ``execute(sql_statements_string)``
+ ``db.execute(sql_statements_string)``
   Run a block of SQL on the server. This method returns `None` unless an error
   occurs. If errors occur, the processing of the statements will stop and the
   the error will be raised.
 
- ``xact(gid = None, isolation = None, mode = None)``
+ ``db.xact(gid = None, isolation = None, mode = None)``
   The `postgresql.api.Transaction` constructor for creating transactions.
   This method creates a transaction reference. The transaction will not be
   started until it's instructed to do so. See `Transactions`_ for more
   information.
 
- ``settings``
+ ``db.settings``
   A property providing a `collections.MutableMapping` interface to the
   database's SQL settings. See `Settings`_ for more information.
 
@@ -329,26 +332,26 @@ When a connection is established, certain pieces of metadata are collected from
 the backend. The following are the attributes set on the connection object after
 the connection is made:
 
- ``version``
+ ``db.version``
   The results of ``SELECT version()``.
 
- ``version_info``
+ ``db.version_info``
   A ``sys.version_info`` form of the ``server_version`` setting. eg. ``(8, 1, 2,
   'final', 0)``.
 
- ``security``
+ ``db.security``
   `None` if no security. ``'ssl'`` if SSL is enabled.
 
- ``backend_id``
+ ``db.backend_id``
   The process-id of the backend process.
 
- ``backend_start``
+ ``db.backend_start``
   When backend was started. ``datetime.datetime`` instance.
 
- ``client_address``
+ ``db.client_address``
   The address of the client that the backend is communicating with.
 
- ``client_port``
+ ``db.client_port``
   The port of the client that the backend is communicating with.
 
 The latter three are collected from pg_stat_activity. If this information is
