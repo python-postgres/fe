@@ -25,8 +25,7 @@ More information about installation is available via::
 Basic Driver Usage
 ------------------
 
-Using PG-API is recommended as it provides more utility for the user. However, a
-DB-API 2.0 driver is provided: `postgresql.driver.dbapi20`.
+Using PG-API is recommended as it provides more utility for the user::
 
 	>>> import postgresql
 	>>> db = postgresql.open('pq://user:password@host:port/database')
@@ -35,16 +34,16 @@ DB-API 2.0 driver is provided: `postgresql.driver.dbapi20`.
 	>>>  print(x)
 	>>> print(get_table.first("tables"))
 
+However, a DB-API 2.0 driver is provided: `postgresql.driver.dbapi20`.
+
 
 Further Information
 -------------------
 
 The documentation package, `postgresql.documentation.index`, contains more
 detailed information on the modules herein, and HTML versions of the
-documentation can be found at::
-
+documentation can be found at:
 
 	http://python.projects.postgresql.org
-
 
 Or, you can read them in your pager: python -m postgresql.documentation.index
