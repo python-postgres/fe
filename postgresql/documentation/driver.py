@@ -333,7 +333,7 @@ the backend. The following are the attributes set on the connection object after
 the connection is made:
 
  ``db.version``
-  The results of ``SELECT version()``.
+  The result of ``SELECT version()``.
 
  ``db.version_info``
   A ``sys.version_info`` form of the ``server_version`` setting. eg. ``(8, 1, 2,
