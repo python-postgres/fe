@@ -16,6 +16,7 @@ This module is used to define the PG-API. It creates a set of ABCs
 that makes up the basic interfaces used to work with a PostgreSQL.
 """
 import os
+import sys
 import warnings
 import collections
 from abc import ABCMeta, abstractproperty, abstractmethod
@@ -354,8 +355,8 @@ class Message(InterfaceElement):
 
 		code = "" if not self.code or self.code == "00000" else '(' + self.code + ')'
 		return sev + code + ': ' + self.message + locstr + detailstr + \
-			os.linesep + '  ' + \
-			(os.linesep + '  ').join([': '.join(x[1:]) for x in ss]) + \
+			os.linesep + \
+			os.linesep.join([': '.join(x[1:]) for x in ss]) + \
 			os.linesep
 
 	@property
@@ -1432,10 +1433,12 @@ class Driver(InterfaceElement):
 		if file and not file.closed:
 			try:
 				file.write(str(msg))
-			except Exception as err:
-				sys.excepthook(*sys.exc_info())
-		else:
-			warnings.warn("sys.stderr unavailable for printing messages")
+			except Exception:
+				try:
+					sys.excepthook(*sys.exc_info())
+				except Exception:
+					# What more can be done?
+					pass
 
 	def handle_warnings_and_messages(self, source, this, obj):
 		"""

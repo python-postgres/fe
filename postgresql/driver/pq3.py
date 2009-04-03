@@ -3193,19 +3193,6 @@ class Driver(pg_api.Driver):
 	def ife_snapshot_text(self):
 		return 'postgresql.driver.pq3'
 
-	def throw_warnings(self, src, first, obj):
-		"use ife_sever() to stop this"
-		if isinstance(obj, pg_exc.Warning):
-			warnings.warn(obj)
-
-	def print_messages(self, src, first, obj):
-		"use ife_sever() to stop this"
-		if not isinstance(obj, pg_exc.Warning) and isinstance(obj, pg_api.Message):
-			sys.stderr.write(str(obj))
-
 	def __init__(self, typio = TypeIO):
 		self.typio = typio
-		self.ife_connect(
-			self.throw_warnings,
-			self.print_messages
-		)
+		super().__init__()
