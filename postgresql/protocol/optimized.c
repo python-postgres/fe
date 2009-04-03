@@ -18,18 +18,21 @@
 static PyObject *
 parse_tuple_message(PyObject *self, PyObject *args)
 {
-	PyObject *typ;
-	PyObject *ob;
 	PyObject *rob;
+	PyObject *ob;
+	PyObject *typ;
 	const char *data;
+	Py_ssize_t dlen = 0;
 	uint16_t cnatt = 0, natts = 0;
 	uint32_t attsize = 0;
 	uint32_t position = 0;
-	Py_ssize_t dlen = 0;
 
-	if (PyArg_ParseTuple(args, "Oy#", &typ, &data, &dlen) < 0)
+	if (!PyArg_ParseTuple(args, "Oy#", &typ, &data, &dlen))
 		return(NULL);
 
+	/*
+	 * Validate that the given "typ" is in fact a PyTuple_Type subtype.
+	 */
 	if (typ != Py_None)
 	{
 		if (!PyObject_IsSubclass(typ, (PyObject *) &PyTuple_Type))
@@ -67,9 +70,11 @@ parse_tuple_message(PyObject *self, PyObject *args)
 	/*
 	 * FEARME: A bit much for saving a reallocation/copy?
 	 *
-	 * This is expected to be used as a classmethod on a tuple subtype.
+	 * This is expected to be used as a classmethod on a tuple subtype that
+	 * has *no* additional attributes.
+	 *
 	 * If the subtype has a custom __new__ routine, this could
-	 * be problematic, but it would probably only lead to AttributeErrors
+	 * be problematic, but it *should* only lead to AttributeErrors.
 	 */
 	rob = ((PyTypeObject *) typ)->tp_alloc((PyTypeObject *) typ, natts); 
 	if (rob == NULL)
@@ -86,7 +91,10 @@ parse_tuple_message(PyObject *self, PyObject *args)
 		if (position + 4 > dlen)
 		{
 			PyErr_Format(PyExc_ValueError,
-				"not enough data for attribute %d", cnatt);
+				"not enough data available for attribute %d's size header: "
+				"needed %d bytes, but only %lu remain at position %lu",
+				cnatt, 4, dlen - position, position
+			);
 			goto cleanup;
 		}
 
@@ -110,8 +118,9 @@ parse_tuple_message(PyObject *self, PyObject *args)
 				 * so it is unexpected for an attsize to cause wrap-around.
 				 */
 				PyErr_Format(PyExc_ValueError,
-					"tuple data caused position (uint32_t) wrap-around on attribute %d",
-					cnatt
+					"tuple data caused position (uint32_t) "
+					"to wrap on attribute %d, position %lu + size %lu",
+					cnatt, position, attsize
 				);
 				goto cleanup;
 			}
@@ -119,12 +128,13 @@ parse_tuple_message(PyObject *self, PyObject *args)
 			if (position + attsize > dlen)
 			{
 				PyErr_Format(PyExc_ValueError,
-					"not enough data for attribute %d, size %d, "
-					"but only %d remaining bytes in message",
+					"not enough data for attribute %d, size %lu, "
+					"as only %lu bytes remain in message",
 					cnatt, attsize, dlen - position
 				);
 				goto cleanup;
 			}
+
 			ob = PyBytes_FromStringAndSize(data + position, attsize);
 			if (ob == NULL)
 			{
@@ -143,7 +153,7 @@ parse_tuple_message(PyObject *self, PyObject *args)
 	if (position != dlen)
 	{
 		PyErr_Format(PyExc_ValueError,
-			"invalid tuple message, %d remaining "
+			"invalid tuple message, %lu remaining "
 			"bytes after processing %d attributes",
 			dlen - position, cnatt
 		);
@@ -157,6 +167,10 @@ cleanup:
 	return(NULL);
 }
 
+/*
+ * process the tuple with the associated callables while
+ * calling the third object in cases of failure to generalize the exception.
+ */
 static PyObject *
 process_tuple(PyObject *self, PyObject *args)
 {
@@ -249,11 +263,13 @@ process_tuple(PyObject *self, PyObject *args)
 					failargs = PyTuple_New(3);
 					if (failargs != NULL)
 					{
+						/* args for the exception "handler" */
 						PyTuple_SET_ITEM(failargs, 0, procs);
 						Py_INCREF(procs);
 						PyTuple_SET_ITEM(failargs, 1, tup);
 						Py_INCREF(tup);
 						PyTuple_SET_ITEM(failargs, 2, failedat);
+
 						r = PyObject_CallObject(fail, failargs);
 						Py_DECREF(failargs);
 						if (r != NULL)

@@ -735,22 +735,33 @@ try:
 	class test_optimized(unittest.TestCase):
 		def test_parse_tuple_message(self):
 			ptm = protocol_optimized.parse_tuple_message
+			self.failUnlessRaises(TypeError, ptm, tuple, "stringzor")
+			self.failUnlessRaises(TypeError, ptm, tuple, 123)
 			self.failUnlessRaises(ValueError, ptm, tuple, b'')
 			self.failUnlessRaises(ValueError, ptm, tuple, b'0')
 
 			notenoughdata = struct.pack('!H', 2)
 			self.failUnlessRaises(ValueError, ptm, tuple, notenoughdata)
 
-			wraparound = \
-				struct.pack('!HL', 2, 10) + (b'0' * 10) + struct.pack('!L', 0xFFFFFFFE)
+			wraparound = struct.pack('!HL', 2, 10) + (b'0' * 10) + struct.pack('!L', 0xFFFFFFFE)
 			self.failUnlessRaises(ValueError, ptm, tuple, wraparound)
 
-			oneatt_notenough = \
-				struct.pack('!HL', 2, 10) + (b'0' * 10) + struct.pack('!L', 15)
+			oneatt_notenough = struct.pack('!HL', 2, 10) + (b'0' * 10) + struct.pack('!L', 15)
 			self.failUnlessRaises(ValueError, ptm, tuple, oneatt_notenough)
 
 			toomuchdata = struct.pack('!HL', 1, 3) + (b'0' * 10)
 			self.failUnlessRaises(ValueError, ptm, tuple, toomuchdata)
+
+			class faketup(tuple):
+				def __new__(subtype, geeze):
+					r = tuple.__new__(subtype, ())
+					r.foo = geeze
+					return r
+			zerodata = struct.pack('!H', 0)
+			r = ptm(tuple, zerodata)
+			self.failUnlessRaises(AttributeError, getattr, r, 'foo')
+			self.failUnlessRaises(AttributeError, setattr, r, 'foo', 'bar')
+			self.failUnlessEqual(len(r), 0)
 
 		def test_process_tuple(self):
 			def funpass(procs, tup, col):
