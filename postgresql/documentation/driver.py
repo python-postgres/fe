@@ -413,7 +413,8 @@ Prepared statement objects have a few execution methods:
 
  ``ps.rows(*parameters)``
   Return a simple iterator to all the rows produced by the statement. This
-  method will stream rows in on demand, so it is ideal for large result-sets.
+  method will stream rows on demand, so it is ideal for situations where
+  each individual row in a large result-set must be processed.
 
  ``iter(ps)``
   Convenience interface that executes the ``rows()`` method without arguments.
