@@ -14,7 +14,6 @@ __all__ = [
 	'__date__',
 	'__project__',
 	'__project_id__',
-	'__pkg_documentation__',
 	'__docformat__',
 	'__version__',
 	'version_info',
@@ -29,12 +28,6 @@ __project_id__ = 'http://python.projects.postgresql.org'
 
 __version__ = "0.8dev"
 version_info = (0, 8, 0, 'dev', 0)
-
-##
-# IRI to base reference documentation.
-__pkg_documentation__ = __project_id__ + '/docs/' + '.'.join([
-	str(x) for x in version_info[:2]
-]) + '/'
 
 pg_iri = pg_driver = pg_param = None
 def open(iri = None):
