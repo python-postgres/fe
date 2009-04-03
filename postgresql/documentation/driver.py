@@ -17,6 +17,9 @@ Prior versions are not tested. While any version of PostgreSQL supporting
 version 3.0 of the PQ protocol *should* work, many features may not work due to
 absent functionality in the remote end.
 
+For DB-API 2.0 users, the driver module is located at
+`postgresql.driver.dbapi20`.
+
 .. note::
    PostgreSQL versions 8.1 and earlier do not support standard conforming
    strings. A warning will be raised whenever a connection is established to a

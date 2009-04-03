@@ -43,6 +43,8 @@ The documentation package, `postgresql.documentation.index`, contains more
 detailed information on the modules herein, and HTML versions of the
 documentation can be found at::
 
+
 	http://python.projects.postgresql.org
+
 
 Or, you can read them in your pager: python -m postgresql.documentation.index
