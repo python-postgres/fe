@@ -777,7 +777,24 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		with self.db.xact():
 			self.testChunking()
 
-	def testDDL(self):
+	def testSimpleDML(self):
+		self.db.execute("CREATE TEMP TABLE emp(emp_name text, emp_age int)")
+		try:
+			mkemp = self.db.prepare("INSERT INTO emp VALUES ($1, $2)")
+			del_all_emp = self.db.prepare("DELETE FROM emp")
+			command, count = mkemp('john', 35)
+			self.failUnlessEqual(command, 'INSERT')
+			self.failUnlessEqual(count, 1)
+			command, count = mkemp('jane', 31)
+			self.failUnlessEqual(command, 'INSERT')
+			self.failUnlessEqual(count, 1)
+			command, count = del_all_emp()
+			self.failUnlessEqual(command, 'DELETE')
+			self.failUnlessEqual(count, 2)
+		finally:
+			self.db.execute("DROP TABLE emp")
+
+	def testDML(self):
 		self.db.execute("CREATE TEMP TABLE t(i int)")
 		try:
 			insert_t = self.db.prepare("INSERT INTO t VALUES ($1)")
@@ -803,11 +820,11 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		finally:
 			self.db.execute("DROP TABLE t")
 
-	def testDDLInXact(self):
+	def testDMLInXact(self):
 		with self.db.xact():
-			self.testDDL()
+			self.testDML()
 
-	def testBatchDDL(self):
+	def testBatchDML(self):
 		self.db.execute("CREATE TEMP TABLE t(i int)")
 		try:
 			insert_t = self.db.prepare("INSERT INTO t VALUES ($1)")
@@ -826,7 +843,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		finally:
 			self.db.execute("DROP TABLE t")
 
-	def testBatchDDLInXact(self):
+	def testBatchDMLInXact(self):
 		with self.db.xact():
 			self.testBatchDDL()
 
