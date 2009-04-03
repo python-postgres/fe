@@ -385,8 +385,8 @@ to automatically close statements that are no longer referenced. However,
 statements created from pre-existing identifiers, ``statement_from_id``, must
 be explicitly closed if the statement is to be discarded.
 
-Statement objects are one-time objects. Once closed, execution will cause a
-database error.
+Statement objects are one-time objects. Once closed, they can no longer be used.
+
 
 Prepared Statement Interface Points
 -----------------------------------
@@ -445,7 +445,7 @@ Prepared statement objects have a few execution methods:
    return the row count returned by the statement as an integer.
 
    .. note::
-    DML that returns rows will not return a row count.
+    DML that returns row data, RETURNING, will *not* return a row count.
 
   The result set created by the statement determines what is actually returned.
   Naturally, a statement used with ``first()`` should be crafted with these
@@ -689,7 +689,7 @@ iterator is the fastest way to move data::
 	>>> for rowset in ps.chunks():
 	...  sys.stdout.buffer.writelines(rowset)
 	...
-	<Lots of Data>
+	<lots of data>
 
 ``COPY FROM STDIN`` commands are supported via
 `postgresql.api.PreparedStatement.load`. Each invocation to ``load``
@@ -715,6 +715,9 @@ made in a streaming fashion::
 	>>> copyout = src.prepare('COPY atable TO STDOUT')
 	>>> copyin = dst.prepare('COPY atable FROM STDIN')
 	>>> copyin.load(copyout.chunks())
+
+Specifically, each chunk of row data produced by ``chunks()`` will be written in
+full by ``load()`` before getting another chunk to write.
 
 
 Cursors
