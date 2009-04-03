@@ -56,11 +56,15 @@ class PythonMessage(pg_api.Message):
 			': '.join((x[1], x[2])) for x in ss
 		]
 		this = self.ife_snapshot_text()
-		return this + (os.linesep + os.linesep.join(l) if l else "")
+		return this + (os.linesep + os.linesep.join(l) if l else '')
 
 class Warning(PythonMessage, Warning):
 	code = '01000'
 	ife_label = 'WARNING'
+
+	def __str__(self):
+		r = super().__str__()
+		return type(self).__name__ + ': ' + r + os.linesep
 
 class DriverWarning(Warning):
 	code = ''
