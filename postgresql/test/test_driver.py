@@ -432,6 +432,12 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		)
 		row = ps.first()
 		self.failUnlessEqual(tuple(row), data)
+
+		self.failUnless(1 in row)
+		self.failUnless('0' in row)
+		self.failUnless(decimal.Decimal('0.00') in row)
+		self.failUnless(datetime.datetime(1982,5,18,12,30,0) in row)
+
 		self.failUnlessEqual(
 			tuple(row.column_names),
 			tuple(['col' + str(i) for i in range(4)])
@@ -451,9 +457,6 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(keys, cnames)
 		self.failUnlessEqual(list(row.values()), list(data))
 		self.failUnlessEqual(list(row.items()), list(zip(ps.column_names, data)))
-		for x in ps.column_names:
-			# column name/key check, *not* values.
-			self.failUnless(x in row, repr(x) + " not in row, " + repr(row))
 
 		row_d = dict(row)
 		for x in ps.column_names:

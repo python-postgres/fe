@@ -935,11 +935,6 @@ Row Interface Points
 --------------------
 
 Rows implement the `collections.Mapping` and `collections.Sequence` interfaces.
-Some of the interfaces overlap ultimately requiring the implementation to
-choose behaviour of one of the interfaces. Notably, ``__contains__`` takes on
-the behaviour of a mapping's implementation as column values in a row are
-not normally structures that are scanned, and ``__iter__`` takes on the
-behaviour of a sequence.
 
  ``row.keys()``
   An iterable producing the column names. Order is not guaranteed. See the
@@ -955,12 +950,11 @@ behaviour of a sequence.
  ``row.items()``
   Iterable of key-value pairs. Ordered by index.
 
- ``k in row``
-  Whether the row has a column named ``k``.
-  (``__contains__``: **mapping behaviour**)
-
  ``iter(row)``
   Iterable to the values in index order.
+
+ ``value in row``
+  Whether or not the value exists in the row. (__contains__)
 
  ``row[key_or_index]``
   If ``key_or_index`` is an integer, return the value at that index. If the

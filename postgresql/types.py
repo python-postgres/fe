@@ -749,9 +749,6 @@ class Row(tuple):
 				return tuple.__getitem__(self, idx)
 		return None
 
-	def __contains__(self, k):
-		return k in self.keymap
-
 	def keys(self):
 		return self.keymap.keys()
 
