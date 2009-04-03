@@ -44,9 +44,9 @@ copyright = meta.__date__ + ', ' + meta.__author__
 # other places throughout the built documents.
 #
 # The short X.Y version.
-version = meta.__version__
+version = '.'.join(map(str, meta.version_info[:2]))
 # The full version, including alpha/beta/rc tags.
-release = '.'.join([str(x) for x in meta.version_info[:-2]]) + ''.join([str(x) for x in meta.version_info[-2:]])
+release = meta.__version__
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
