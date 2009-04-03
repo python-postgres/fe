@@ -32,7 +32,7 @@ version_info = (0, 8, 0, 'dev', 0)
 
 ##
 # IRI to base reference documentation.
-__pkg_documentation__ = __project_id__ + '/v' + '.'.join([
+__pkg_documentation__ = __project_id__ + '/docs/' + '.'.join([
 	str(x) for x in version_info[:2]
 ]) + '/'
 
@@ -40,7 +40,7 @@ pg_iri = pg_driver = pg_param = None
 def open(iri = None):
 	"""
 	Create a `postgresql.api.Connection` to the server referenced by the given
-	`iri` keyword::
+	`iri`::
 
 		>>> import postgresql
 		# General Format:

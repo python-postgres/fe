@@ -6,7 +6,7 @@ r"""
 Changes
 =======
 
-0.8.0 released on 2009-04-02
+0.8.0 released on 2009-04-03
 ----------------------------
 
 Differences from the original pg/python projects.
@@ -26,7 +26,9 @@ Differences from the original pg/python projects.
  * Conditionally DECLARE certain cursors WITH HOLD when outside of blocks.
  * Add typed support for fetches from db.cursor_from_id().
  * Change the test infrastructure to automatically create a cluster.
+ * More improvements than I can remember.
 """
+
 __docformat__ = 'reStructuredText'
 if __name__ == '__main__':
 	import sys
