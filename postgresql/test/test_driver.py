@@ -845,7 +845,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 
 	def testBatchDMLInXact(self):
 		with self.db.xact():
-			self.testBatchDDL()
+			self.testBatchDML()
 
 	def testTypes(self):
 		'test basic object I/O--input must equal output'
