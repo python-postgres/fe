@@ -739,6 +739,41 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		with self.db.xact():
 			self.testChunking()
 
+	def testChunkDetect(self):
+		gs = self.db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
+		self.failUnlessEqual(
+			list((x[0] for x in chain.from_iterable(gs.chunks()))),
+			list(range(1, 10001))
+		)
+		# exercise ``for x in chunks: dst.load(x)``
+		with self.db.connector() as db2:
+			db2.execute(
+				"""
+				CREATE TABLE chunking AS
+				SELECT i::text AS t, i::int AS i
+				FROM generate_series(1, 10000) g(i);
+				"""
+			)
+			read = self.db.prepare('select * FROM chunking').chunks(chunksize = 256)
+			write = db2.prepare('insert into chunking values ($1, $2)').load
+			with db2.xact():
+				write(read)
+			del read, write
+
+			self.failUnlessEqual(
+				self.db.prepare('select count(*) FROM chunking').first(),
+				20000
+			)
+			self.failUnlessEqual(
+				self.db.prepare('select count(DISTINCT i) FROM chunking').first(),
+				10000
+			)
+		self.db.execute('DROP TABLE chunking')
+
+	def testChunkDetectInXact(self):
+		with self.db.xact():
+			self.testChunking()
+
 	def testDDL(self):
 		self.db.execute("CREATE TEMP TABLE t(i int)")
 		try:

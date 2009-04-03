@@ -1450,9 +1450,12 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 	def _load_bulk_tuples(self, tupleseq, tps = None):
 		tps = tps or 64
-		last = pq.element.FlushMessage
-		tupleseqiter = iter(tupleseq)
+		if isinstance(tupleseq, Chunks):
+			tupleseqiter = chain.from_iterable(tupleseq)
+		else:
+			tupleseqiter = iter(tupleseq)
 		pte = self._raise_parameter_tuple_error
+		last = pq.element.FlushMessage
 		try:
 			while last is pq.element.FlushMessage:
 				c = 0
