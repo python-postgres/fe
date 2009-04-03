@@ -62,11 +62,11 @@ def open(iri = None):
 
 	return_connector = False
 	if iri is not None:
+		if iri.startswith('&'):
+			return_connector = True
+			iri = iri[1:]
 		iri_params = pg_iri.parse(iri)
 		iri_params.pop('path', None)
-		s = iri_params.pop('scheme', None) or 'pq'
-		if s.startswith('&'):
-			return_connector = True
 	else:
 		iri_params = {}
 
@@ -78,13 +78,12 @@ def open(iri = None):
 	# Resolve the password, but never prompt.
 	pg_param.resolve_password(params, prompt_title = None)
 
+	C = pg_driver.default.fit(**params)
 	if return_connector is True:
-		Ctype = pg_driver.default.select(
-			host = params.get('host'),
-			port = params.get('port')
-		)
-		return Ctype(**params)
+		return C
 	else:
-		return pg_driver.default.connect(**params)
+		c = C()
+		c.connect()
+		return c
 
 __docformat__ = 'reStructuredText'
