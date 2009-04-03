@@ -190,7 +190,7 @@ class ClientCannotConnectError(ConnectionError):
 		bottom = ""
 		if self.connection_failures:
 			count = 0
-			bottom = 'FAILURES: count of ' + \
+			bottom = 'ATTEMPTS: count of ' + \
 				str(len(self.connection_failures))
 			for x in self.connection_failures:
 				count += 1

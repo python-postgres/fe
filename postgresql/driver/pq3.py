@@ -2361,7 +2361,7 @@ class Connection(pg_api.Connection):
 					if not supported and sslmode == 'require':
 						# ssl is required..
 						raise pg_exc.InsecurityError(
-							"`sslmode` required a secure connection, " \
+							"sslmode required a secure connection, " \
 							"but was unsupported by server",
 							source = 'CLIENT'
 						)
