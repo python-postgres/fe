@@ -13,6 +13,8 @@ try:
 except ImportError:
 	pass
 
+from .message_types import message_types
+
 StringFormat = b'\x00\x00'
 BinaryFormat = b'\x00\x01'
 
@@ -115,8 +117,7 @@ def dict_message_repr(self):
 
 class WireMessage(Message):
 	def __init__(self, typ_data):
-		type = bytes(type)[0]
-		self.type = typ_data[0]
+		self.type = message_types[typ_data[0][0]]
 		self.data = typ_data[1]
 
 	def serialize(self):
@@ -131,7 +132,7 @@ class WireMessage(Message):
 					len(data), ulong.unpack(data[1:5])[0] + 1
 				)
 			)
-		return typ((data[0], data[5:]))
+		return typ((data[0:1], data[5:]))
 
 class EmptyMessage(Message):
 	'An abstract message that is always empty'
@@ -152,7 +153,7 @@ class EmptyMessage(Message):
 
 class Notify(Message):
 	'Asynchronous notification message'
-	type = b'A'
+	type = message_types[b'A'[0]]
 	__slots__ = ('pid', 'relation', 'parameter')
 
 	def __init__(self, pid, relation, parameter = b''):
@@ -174,7 +175,7 @@ class Notify(Message):
 class ShowOption(Message):
 	"""ShowOption(name, value)
 	GUC variable information from backend"""
-	type = b'S'
+	type = message_types[b'S'[0]]
 	__slots__ = ('name', 'value')
 
 	def __init__(self, name, value):
@@ -190,7 +191,7 @@ class ShowOption(Message):
 
 class Complete(StringMessage):
 	'Command completion message.'
-	type = b'C'
+	type = message_types[b'C'[0]]
 	__slots__ = ()
 
 	@classmethod
@@ -216,49 +217,49 @@ class Complete(StringMessage):
 
 class Null(EmptyMessage):
 	'Null command'
-	type = b'I'
+	type = message_types[b'I'[0]]
 	__slots__ = ()
 NullMessage = Message.__new__(Null)
 Null.SingleInstance = NullMessage
 
 class NoData(EmptyMessage):
 	'Null command'
-	type = b'n'
+	type = message_types[b'n'[0]]
 	__slots__ = ()
 NoDataMessage = Message.__new__(NoData)
 NoData.SingleInstance = NoDataMessage
 
 class ParseComplete(EmptyMessage):
 	'Parse reaction'
-	type = b'1'
+	type = message_types[b'1'[0]]
 	__slots__ = ()
 ParseCompleteMessage = Message.__new__(ParseComplete)
 ParseComplete.SingleInstance = ParseCompleteMessage
 
 class BindComplete(EmptyMessage):
 	'Bind reaction'
-	type = b'2'
+	type = message_types[b'2'[0]]
 	__slots__ = ()
 BindCompleteMessage = Message.__new__(BindComplete)
 BindComplete.SingleInstance = BindCompleteMessage
 
 class CloseComplete(EmptyMessage):
 	'Close statement or Portal'
-	type = b'3'
+	type = message_types[b'3'[0]]
 	__slots__ = ()
 CloseCompleteMessage = Message.__new__(CloseComplete)
 CloseComplete.SingleInstance = CloseCompleteMessage
 
 class Suspension(EmptyMessage):
 	'Portal was suspended, more tuples for reading'
-	type = b's'
+	type = message_types[b's'[0]]
 	__slots__ = ()
 SuspensionMessage = Message.__new__(Suspension)
 Suspension.SingleInstance = SuspensionMessage
 
 class Ready(Message):
 	'Ready for new query'
-	type = b'Z'
+	type = message_types[b'Z'[0]]
 	__slots__ = ('xact_state',)
 
 	def __init__(self, data):
@@ -269,7 +270,7 @@ class Ready(Message):
 
 class Notice(Message, dict):
 	"""Notification message"""
-	type = b'N'
+	type = message_types[b'N'[0]]
 	_dtm = {
 		b'S' : 'severity',
 		b'C' : 'code',
@@ -322,12 +323,12 @@ class Notice(Message, dict):
 
 class Error(Notice):
 	"""Incoming error"""
-	type = b'E'
+	type = message_types[b'E'[0]]
 	__slots__ = ()
 
 class FunctionResult(Message):
 	"""Function result value"""
-	type = b'V'
+	type = message_types[b'V'[0]]
 	__slots__ = ('result',)
 
 	def __init__(self, datum):
@@ -353,7 +354,7 @@ class FunctionResult(Message):
 
 class AttributeTypes(TupleMessage):
 	"""Tuple attribute types"""
-	type = b't'
+	type = message_types[b't'[0]]
 	__slots__ = ()
 
 	def serialize(self):
@@ -369,7 +370,7 @@ class AttributeTypes(TupleMessage):
 
 class TupleDescriptor(TupleMessage):
 	"""Tuple description"""
-	type = b'T'
+	type = message_types[b'T'[0]]
 	struct = Struct("!LhLhlh")
 	__slots__ = ()
 
@@ -401,7 +402,7 @@ class TupleDescriptor(TupleMessage):
 
 class Tuple(TupleMessage):
 	"""Incoming tuple"""
-	type = b'D'
+	type = message_types[b'D'[0]]
 	__slots__ = ()
 
 	def serialize(self):
@@ -437,7 +438,7 @@ class Tuple(TupleMessage):
 
 class KillInformation(Message):
 	'Backend cancellation information'
-	type = b'K'
+	type = message_types[b'K'[0]]
 	struct = Struct("!LL")
 	__slots__ = ('pid', 'key')
 
@@ -562,7 +563,7 @@ AuthNameMap = {
 
 class Authentication(Message):
 	"""Authentication(request, salt)"""
-	type = b'R'
+	type = message_types[b'R'[0]]
 	__slots__ = ('request', 'salt')
 
 	def __init__(self, request, salt):
@@ -578,38 +579,38 @@ class Authentication(Message):
 
 class Password(StringMessage):
 	'Password supplement'
-	type = b'p'
+	type = message_types[b'p'[0]]
 	__slots__ = ('data',)
 
 class Disconnect(EmptyMessage):
 	'Close the connection'
-	type = b'X'
+	type = message_types[b'X'[0]]
 	__slots__ = ()
 DisconnectMessage = Message.__new__(Disconnect)
 Disconnect.SingleInstance = DisconnectMessage
 
 class Flush(EmptyMessage):
 	'Flush'
-	type = b'H'
+	type = message_types[b'H'[0]]
 	__slots__ = ()
 FlushMessage = Message.__new__(Flush)
 Flush.SingleInstance = FlushMessage
 
 class Synchronize(EmptyMessage):
 	'Synchronize'
-	type = b'S'
+	type = message_types[b'S'[0]]
 	__slots__ = ()
 SynchronizeMessage = Message.__new__(Synchronize)
 Synchronize.SingleInstance = SynchronizeMessage
 
 class Query(StringMessage):
 	"""Execute the query with the given arguments"""
-	type = b'Q'
+	type = message_types[b'Q'[0]]
 	__slots__ = ('data',)
 
 class Parse(Message):
 	"""Parse a query with the specified argument types"""
-	type = b'P'
+	type = message_types[b'P'[0]]
 	__slots__ = ('name', 'statement', 'argtypes')
 
 	def __init__(self, name, statement, argtypes):
@@ -645,7 +646,7 @@ class Bind(Message):
 		rformats,  # Result formats; Sequence of BinaryFormat or StringFormat.
 	)
 	"""
-	type = b'B'
+	type = message_types[b'B'[0]]
 	__slots__ = ('name', 'statement', 'aformats', 'arguments', 'rformats')
 
 	def __init__(self, name, statement, aformats, arguments, rformats):
@@ -704,7 +705,7 @@ class Bind(Message):
 
 class Execute(Message):
 	"""Fetch results from the specified Portal"""
-	type = b'E'
+	type = message_types[b'E'[0]]
 	__slots__ = ('name', 'max')
 
 	def __init__(self, name, max = 0):
@@ -721,7 +722,7 @@ class Execute(Message):
 
 class Describe(StringMessage):
 	"""Describe a Portal or Prepared Statement"""
-	type = b'D'
+	type = message_types[b'D'[0]]
 	__slots__ = ('data',)
 
 	def serialize(self):
@@ -738,16 +739,16 @@ class Describe(StringMessage):
 		return super().parse(data[1:])
 
 class DescribeStatement(Describe):
-	subtype = b'S'
+	subtype = message_types[b'S'[0]]
 	__slots__ = ('data',)
 
 class DescribePortal(Describe):
-	subtype = b'P'
+	subtype = message_types[b'P'[0]]
 	__slots__ = ('data',)
 
 class Close(StringMessage):
 	"""Generic Close"""
-	type = b'C'
+	type = message_types[b'C'[0]]
 	__slots__ = ()
 
 	def serialize(self):
@@ -765,17 +766,17 @@ class Close(StringMessage):
 
 class CloseStatement(Close):
 	"""Close the specified Statement"""
-	subtype = b'S'
+	subtype = message_types[b'S'[0]]
 	__slots__ = ()
 
 class ClosePortal(Close):
 	"""Close the specified Portal"""
-	subtype = b'P'
+	subtype = message_types[b'P'[0]]
 	__slots__ = ()
 
 class Function(Message):
 	"""Execute the specified function with the given arguments"""
-	type = b'F'
+	type = message_types[b'F'[0]]
 	__slots__ = ('oid', 'aformats', 'arguments', 'rformat')
 
 	def __init__(self, oid, aformats, args, rformat = StringFormat):
@@ -847,16 +848,16 @@ class CopyBegin(Message):
 
 class CopyToBegin(CopyBegin):
 	"""Begin copying to"""
-	type = b'H'
+	type = message_types[b'H'[0]]
 	__slots__ = ('format', 'formats')
 
 class CopyFromBegin(CopyBegin):
 	"""Begin copying from"""
-	type = b'G'
+	type = message_types[b'G'[0]]
 	__slots__ = ('format', 'formats')
 
 class CopyData(Message):
-	type = b'd'
+	type = message_types[b'd'[0]]
 	__slots__ = ('data',)
 
 	def __init__(self, data):
@@ -870,11 +871,11 @@ class CopyData(Message):
 		return typ(data)
 
 class CopyFail(StringMessage):
-	type = b'f'
+	type = message_types[b'f'[0]]
 	__slots__ = ('data',)
 
 class CopyDone(EmptyMessage):
-	type = b'c'
+	type = message_types[b'c'[0]]
 	__slots__ = ('data',)
 CopyDoneMessage = Message.__new__(CopyDone)
 CopyDone.SingleInstance = CopyDoneMessage

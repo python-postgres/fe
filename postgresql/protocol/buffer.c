@@ -17,6 +17,8 @@
 #include <Python.h>
 #include <structmember.h>
 
+static PyObject *message_types = NULL;
+
 struct p_list
 {
 	PyObject *data; /* PyString pushed onto the buffer */
@@ -304,12 +306,16 @@ p_build_tuple(struct p_place *p)
 		p_seek(p, copy_amount);
 	}
 
-	mt = PyBytes_FromStringAndSize(header, 1);
+	mt = PyTuple_GET_ITEM(message_types, (int) header[0]);
 	if (mt == NULL)
 	{
+		/*
+		 * With message_types, this is nearly a can't happen.
+		 */
 		if (body != NULL) free(body);
 		return(NULL);
 	}
+	Py_INCREF(mt);
 
 	md = PyBytes_FromStringAndSize(body, (Py_ssize_t) msg_length);
 	if (body != NULL)
@@ -581,6 +587,8 @@ PyMODINIT_FUNC
 PyInit_cbuffer(void)
 {
 	PyObject *mod;
+	PyObject *msgtypes;
+	PyObject *fromlist, *fromstr;
 
 	mod = PyModule_Create(&cbuffermodule);
 	if (mod == NULL)
@@ -592,6 +600,31 @@ PyInit_cbuffer(void)
 	if (PyModule_AddObject(mod, "pq_message_stream",
 			(PyObject *) &pq_message_stream_Type) < 0)
 		goto cleanup;
+
+	/*
+	 * Get the message_types tuple to type "instantiation".
+	 */
+	fromlist = PyList_New(1);
+	fromstr = PyUnicode_FromString("message_types");
+	PyList_SetItem(fromlist, 0, fromstr);
+	msgtypes = PyImport_ImportModuleLevel(
+		"message_types",
+		PyModule_GetDict(mod),
+		PyModule_GetDict(mod),
+		fromlist, 1
+	);
+	Py_DECREF(fromlist);
+	if (msgtypes == NULL)
+		goto cleanup;
+	message_types = PyObject_GetAttrString(msgtypes, "message_types");
+	Py_DECREF(msgtypes);
+
+	if (!PyObject_IsInstance(message_types, (PyObject *) (&PyTuple_Type)))
+	{
+		PyErr_SetString(PyExc_RuntimeError,
+			"local protocol.message_types.message_types is not a tuple object");
+		goto cleanup;
+	}
 
 	return(mod);
 

@@ -6,8 +6,9 @@ __all__ = ['pq_message_stream']
 
 from io import BytesIO
 import struct
+from .message_types import message_types
 
-cl_unpack = struct.Struct('!cL').unpack_from
+xl_unpack = struct.Struct('!xL').unpack_from
 
 class pq_message_stream(object):
 	'provide a message stream from a data stream'
@@ -56,7 +57,7 @@ class pq_message_stream(object):
 		header = self._strio.read(5)
 		if len(header) < 5:
 			return False
-		typ, length = cl_unpack(header)
+		length, = xl_unpack(header)
 		if length < 4:
 			raise ValueError("invalid message size '%d'" %(length,))
 		self._strio.seek(0, 2)
@@ -72,7 +73,8 @@ class pq_message_stream(object):
 			rpos += 5
 			if len(header) < 5:
 				break
-			typ, length = cl_unpack(header)
+			length, = xl_unpack(header)
+			typ = message_types[header[0]]
 			rpos += length - 4
 
 			if length < 4:
@@ -88,7 +90,8 @@ class pq_message_stream(object):
 		header = self._strio.read(5)
 		if len(header) < 5:
 			return
-		typ, length = cl_unpack(header)
+		length, = xl_unpack(header)
+		typ = message_types[header[0]]
 
 		if length < 4:
 			raise ValueError("invalid message size '%d'" %(length,))

@@ -133,7 +133,7 @@ class Negotiation(Transaction):
 			redo_messages = []
 			for xs in self.received:
 				for x in xs:
-					if x[0] == element.Error.type:
+					if x[0] is element.Error.type:
 						if self.fatal is None:
 							self.error_message = element.Error.parse(x[1])
 							self.fatal = True
@@ -149,7 +149,7 @@ class Negotiation(Transaction):
 		try:
 			for x in messages:
 				count += 1
-				if x[0] == element.Error.type:
+				if x[0] is element.Error.type:
 					if self.fatal is None:
 						self.error_message = element.Error.parse(x[1])
 						self.fatal = True
@@ -176,7 +176,7 @@ class Negotiation(Transaction):
 		"""
 		x = (yield (self.startup_message,))
 
-		if x[0] != element.Authentication.type:
+		if x[0] is not element.Authentication.type:
 			raise pg_exc.ProtocolError(
 				"received message of type {mt}, but expected {et}".format(
 					repr(x[0]),
@@ -485,7 +485,7 @@ class Instruction(Transaction):
 
 			if path is None:
 				# No path for message type, could be a protocol error.
-				if x[0] == element.Error.type:
+				if x[0] is element.Error.type:
 					em = element.Error.parse(x[1])
 					fatal = em['severity'].upper() in (b'FATAL', b'PANIC')
 					if fatal or not hasattr(self, 'error_message'):
@@ -586,11 +586,11 @@ class Instruction(Transaction):
 			last = processed[-1]
 			if type(last) is bytes:
 				self.state = (Receiving, self.put_copydata)
-			elif last.type == element.CopyToBegin.type:
+			elif last.type is element.CopyToBegin.type:
 				self.state = (Receiving, self.put_copydata)
 			elif last.type is element.Tuple.type:
 				self.state = (Receiving, self.put_tupledata)
-			elif last.type == element.CopyFromBegin.type:
+			elif last.type is element.CopyFromBegin.type:
 				self.CopyFailSequence = (self.CopyFailMessage,) + \
 					self.commands[offset+1:]
 				self.CopyDoneSequence = (element.CopyDoneMessage,) + \
