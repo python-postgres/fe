@@ -57,7 +57,7 @@ def testSpeed(tuples = 50000 * 3):
 		Q = prepare("COPY _copy TO STDOUT")
 		start = time.time()
 		c = 0
-		for rows in Q().chunks:
+		for rows in Q.chunks():
 			c += len(rows)
 		duration = time.time() - start
 		sys.stderr.write(
