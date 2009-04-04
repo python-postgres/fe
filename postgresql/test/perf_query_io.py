@@ -36,11 +36,11 @@ def insertSamples(count, insert_records):
 		)
 	)
 
-def timeTupleRead(portal):
+def timeTupleRead(ps):
 	loops = 0
 	tuples = 0
 	genesis = time.time()
-	for x in portal.chunks:
+	for x in ps.chunks():
 		loops += 1
 		tuples += len(x)
 	finalis = time.time()
@@ -68,7 +68,7 @@ def main(count):
 	select_records = prepare("SELECT * FROM samples")
 	try:
 		insertSamples(count, insert_records)
-		timeTupleRead(select_records())	
+		timeTupleRead(select_records)	
 	finally:
 		execute("DROP TABLE samples")
 
