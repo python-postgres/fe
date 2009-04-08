@@ -6,6 +6,11 @@ r"""
 Changes
 =======
 
+0.8.1
+-----
+
+ * Fix encoding normalization.
+
 0.8.0 released on 2009-04-03
 ----------------------------
 

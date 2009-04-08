@@ -72,6 +72,18 @@ CREATE USER trusted;
 				"""
 			)
 
+	def test_pg_open_SQL_ASCII(self):
+		# postgresql.open
+		host, port = self.cluster.address()
+		# test simple locators..
+		with pg_open(
+			'pq://' + 'md5:' + 'md5_password@' + host + ':' + str(port) \
+			+ '/test?client_encoding=SQL_ASCII'
+		) as db:
+			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
+			self.failUnlessEqual(db.settings['client_encoding'], 'SQL_ASCII')
+		self.failUnless(db.closed)
+
 	def test_pg_open(self):
 		# postgresql.open
 		host, port = self.cluster.address()
