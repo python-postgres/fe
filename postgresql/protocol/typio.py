@@ -746,8 +746,8 @@ class TypeIO(object, metaclass = ABCMeta):
 		return typ
 
 	def set_encoding(self, value):
-		self.encoding = value.lower()
-		enc = pg_enc_aliases.postgres_to_python.get(value, value)
+		self.encoding = value.lower().strip()
+		enc = pg_enc_aliases.postgres_to_python.get(self.encoding, value)
 		ci = codecs.lookup(enc)
 		self._encode = ci[0]
 		self._decode = ci[1]
