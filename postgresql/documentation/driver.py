@@ -687,7 +687,7 @@ made the caller. This is done to avoid any unnecessary overhead by default::
 	>>> r[-1]
 	b'99\n'
 
-Of course, invoking a statement that way will ready the entire result-set into
+Of course, invoking a statement that way will read the entire result-set into
 memory, which is not usually desirable for COPY. Using the ``chunks(...)``
 iterator is the fastest way to move data::
 
