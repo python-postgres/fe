@@ -84,6 +84,47 @@ CREATE USER trusted;
 			self.failUnlessEqual(db.settings['client_encoding'], 'SQL_ASCII')
 		self.failUnless(db.closed)
 
+	def test_pg_open_keywords(self):
+		host, port = self.cluster.address()
+		# straight test, no IRI
+		with pg_open(
+			user = 'md5',
+			password = 'md5_password',
+			host = host,
+			port = port,
+			database = 'test'
+		) as db:
+			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
+		self.failUnless(db.closed)
+		# composite test
+		with pg_open(
+			"pq://md5:md5_password@",
+			host = host,
+			port = port,
+			database = 'test'
+		) as db:
+			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
+		# override test
+		with pg_open(
+			"pq://md5:foobar@",
+			password = 'md5_password',
+			host = host,
+			port = port,
+			database = 'test'
+		) as db:
+			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
+		# and, one with some settings
+		with pg_open(
+			"pq://md5:foobar@?search_path=ieeee",
+			password = 'md5_password',
+			host = host,
+			port = port,
+			database = 'test',
+			settings = {'search_path' : 'public'}
+		) as db:
+			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
+			self.failUnlessEqual(db.settings['search_path'], 'public')
+
 	def test_pg_open(self):
 		# postgresql.open
 		host, port = self.cluster.address()

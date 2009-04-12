@@ -54,8 +54,9 @@ connection creation, interfaces.
 -----------------
 
 In the root package module, the ``open()`` function is provided for accessing
-databases using a single locator string. The string taken by `postgresql.open` is
-a URL whose components make up the client parameters::
+databases using a locator string and optional connection keywords. The string
+taken by `postgresql.open` is a URL whose components make up the client
+parameters::
 
 	>>> import postgresql
 	>>> db = postgresql.open("pq://localhost/postgres")
@@ -64,14 +65,14 @@ This will connect to the host, ``localhost`` and to the database named
 ``postgres`` via the ``pq`` protocol. open will inherit client parameters from
 the environment, so the user name given to the server will come from
 ``$PGUSER``, or if that is unset, the result of `getpass.getuser`--the username
-of the user running the process. The user's "pgpassfile" will also be
+of the user running the process. The user's "pgpassfile" will even be
 referenced if no password is given::
 
 	>>> db = postgresql.open("pq://username:password@localhost/postgres")
 
-In this case, the password is given, so ``~/.pgpass`` would never be referenced.
-The ``user`` client parameter is also given, ``username``, so ``$PGUSER`` or
-`getpass.getuser` will not be given to the server.
+In this case, the password *is* given, so ``~/.pgpass`` would never be
+referenced. The ``user`` client parameter is also given, ``username``, so
+``$PGUSER`` or `getpass.getuser` will not be given to the server.
 
 Settings can also be provided by the query portion of the URL::
 
@@ -92,10 +93,29 @@ The general structure of a PQ-locator is::
 
 	protocol://user:password@host:port/database?[driver_setting]=value&server_setting=value#schema,public
 
-For more information about environment variables, see :doc:`Environment
+Optionally, connection keyword arguments can be used to override anything given
+in the locator::
+
+	>>> db = postgresql.open("pq://user:secret@host", password = "thE_real_sekrat")
+
+Or, if the locator is not desired, individual keywords can be used exclusively::
+
+	>>> db = postgresql.open(user = 'user', host = 'localhost', port = 6543)
+
+In fact, all arguments to `postgresql.open` are optional as all arguments are
+keywords; ``iri`` is merely the first keyword argument taken by
+`postgresql.open`. If the environment has all the necessary parameters for a
+successful connection, there is no need to pass anything to open::
+
+	>>> db = postgresql.open()
+
+For a complete list of keywords that `postgresql.open` can accept, see
+`Connection Keywords`_.
+For more information about the environment variables, see :doc:`Environment
 Variables</clientparameters>`.
 For more information about the ``pgpassfile``, see :doc:`PostgreSQL Password
 File</clientparameters>`.
+
 
 `postgresql.driver.connect`
 ---------------------------

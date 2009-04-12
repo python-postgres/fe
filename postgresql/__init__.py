@@ -30,7 +30,7 @@ __version__ = "0.9.0dev"
 version_info = (0, 9, 0, 'dev', 0)
 
 pg_iri = pg_driver = pg_param = None
-def open(iri = None):
+def open(iri = None, **kw):
 	"""
 	Create a `postgresql.api.Connection` to the server referenced by the given
 	`iri`::
@@ -48,7 +48,7 @@ def open(iri = None):
 	(Note: "pq" is the name of the protocol used to communicate with PostgreSQL)
 	"""
 	global pg_iri, pg_driver, pg_param
-	if None in (pg_iri, pg_driver, pg_param):
+	if pg_iri is None:
 		from . import iri as pg_iri
 		from . import driver as pg_driver
 		from . import clientparameters as pg_param
@@ -66,7 +66,8 @@ def open(iri = None):
 	std_params = pg_param.collect(prompt_title = None)
 	params = pg_param.normalize(
 		list(pg_param.denormalize_parameters(std_params)) + \
-		list(pg_param.denormalize_parameters(iri_params))
+		list(pg_param.denormalize_parameters(iri_params)) + \
+		list(pg_param.denormalize_parameters(kw))
 	)
 	# Resolve the password, but never prompt.
 	pg_param.resolve_password(params, prompt_title = None)
