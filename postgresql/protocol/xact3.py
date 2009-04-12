@@ -5,7 +5,7 @@
 'PQ version 3.0 client transactions'
 import sys
 import os
-from abc import abstractmethod
+from abc import ABCMeta, abstractmethod
 from pprint import pformat
 from itertools import chain
 from operator import itemgetter
@@ -13,7 +13,6 @@ get0 = itemgetter(0)
 get1 = itemgetter(1)
 
 from ..python.functools import Composition as compose
-from .. import api as pg_api
 from .. import exceptions as pg_exc
 from . import element3 as element
 
@@ -34,26 +33,35 @@ AsynchronousMap = {
 def return_arg(x):
 	return x
 
-class Transaction(pg_api.InterfaceElement):
-	ife_label = 'PROTOCOL'
-	ife_ancestor = None
-	_ife_exclude_snapshot = True
-
+class Transaction(object, metaclass = ABCMeta):
 	@abstractmethod
 	def messages_received(self):
 		"""
 		Return an iterable to the messages received.
 		"""
 
-	def ife_snapshot_text(self):
-		s = os.linesep
-		s += repr(self)
-		s += os.linesep*2 + '   [Received]' + os.linesep*2
-		s += pformat(list(self.messages_received()))
-		if hasattr(self, 'error_message'):
-			s += os.linesep*2 + '   [Error Message]' + os.linesep*2
-			s += repr(self.error_message)
-		return s
+class ClosedConnection(Transaction):
+	"""
+	This class is used to represent a closed connection.
+	"""
+	state = Complete
+	fatal = True
+	def asyncs(self):
+		return ()
+	def messages_received(self):
+		return ()
+	error_message = element.Error(
+		# pg_exc.ConnectionDoesNotExistError.code.encode('ascii')
+		code = b"08003",
+		severity = b'FATAL',
+		message = "operation on closed connection".encode('utf-8'),
+		hint = \
+			"A new connection needs to be "\
+			"created in order to use the server.".encode('utf-8'),
+	)
+	def __new__(typ):
+		return Closed
+Closed = Transaction.__new__(ClosedConnection)
 
 class Negotiation(Transaction):
 	"""
@@ -181,7 +189,8 @@ class Negotiation(Transaction):
 				"received message of type {mt}, but expected {et}".format(
 					repr(x[0]),
 					element.Authentication.type
-				)
+				),
+				source = 'CLIENT'
 			)
 
 		self.authtype = element.Authentication.parse(x[1])
@@ -208,7 +217,8 @@ class Negotiation(Transaction):
 					details = {
 						'hint' : \
 							"'postgresql.protocol' supports: MD5, crypt, plaintext, and trust."
-					}
+					},
+					source = 'CLIENT'
 				)
 			x = (yield (element.Password(pw),))
 			if x[0] != element.Authentication.type:
@@ -226,7 +236,8 @@ class Negotiation(Transaction):
 					"message, but received {1}({2}) instead".format(
 						element.AuthNameMap.get(self.authok.request, '<unknown>'),
 						str(self.authok.request),
-					)
+					),
+					source = 'CLIENT'
 				)
 		else:	
 			self.authok = self.authtype
@@ -238,17 +249,20 @@ class Negotiation(Transaction):
 				"received message of type {1}, but expected {2}".format(
 					repr(x[0]),
 					element.KillInformation.type
-				)
+				),
+				source = 'CLIENT'
 			)
 		self.killinfo = element.KillInformation.parse(x[1])
 
 		x = (yield None)
 		if x[0] != element.Ready.type:
 			raise pg_exc.ProtocolError(
-				"received message of type {1}, but expected {2}".format(
-					repr(x[0]),
-					element.Ready.type
-				)
+				"unexpected message received",
+				details = {
+					'received': x[0],
+					'expected': element.Ready.type,
+				},
+				source = 'CLIENT'
 			)
 		self.last_ready = element.Ready.parse(x[1])
 
@@ -258,19 +272,19 @@ class Instruction(Transaction):
 	It provides the messages to be sent and takes the response messages for order
 	and integrity validation:
 
-		Instruction([postgresql.protocol.element3.Message(), ..])
+		Instruction([.element3.Message(), ..])
 
 	A message must be one of:
 
-		* `postgresql.protocol.element3.Query`
-		* `postgresql.protocol.element3.Function`
-		* `postgresql.protocol.element3.Parse`
-		* `postgresql.protocol.element3.Bind`
-		* `postgresql.protocol.element3.Describe`
-		* `postgresql.protocol.element3.Close`
-		* `postgresql.protocol.element3.Execute`
-		* `postgresql.protocol.element3.Synchronize`
-		* `postgresql.protocol.element3.Flush`
+		* `.element3.Query`
+		* `.element3.Function`
+		* `.element3.Parse`
+		* `.element3.Bind`
+		* `.element3.Describe`
+		* `.element3.Close`
+		* `.element3.Execute`
+		* `.element3.Synchronize`
+		* `.element3.Flush`
 	"""
 	state = None
 	fatal = None
@@ -393,15 +407,15 @@ class Instruction(Transaction):
 
 		Commands are `postgresql.protocol.element3.Message` instances:
 
-		 * `postgresql.protocol.element3.Query`
-		 * `postgresql.protocol.element3.Function`
-		 * `postgresql.protocol.element3.Parse`
-		 * `postgresql.protocol.element3.Bind`
-		 * `postgresql.protocol.element3.Describe`
-		 * `postgresql.protocol.element3.Close`
-		 * `postgresql.protocol.element3.Execute`
-		 * `postgresql.protocol.element3.Synchronize`
-		 * `postgresql.protocol.element3.Flush`
+		 * `.element3.Query`
+		 * `.element3.Function`
+		 * `.element3.Parse`
+		 * `.element3.Bind`
+		 * `.element3.Describe`
+		 * `.element3.Close`
+		 * `.element3.Execute`
+		 * `.element3.Synchronize`
+		 * `.element3.Flush`
 		"""
 		# Commands are accessed by index.
 		self.commands = tuple(commands)
@@ -523,13 +537,11 @@ class Instruction(Transaction):
 						"but received %r instead" % (
 							tuple(paths[current_step].keys()), x[0]
 						),
-						source = 'DRIVER',
+						source = 'CLIENT',
 						details = {
 							'severity': 'FATAL',
-						}
-					)
-					self.ife_descend(err)
-					err.raise_exception()
+						},
+					).raise_exception()
 			else:
 				# Valid message
 				r = path(x[1])
@@ -613,12 +625,12 @@ class Instruction(Transaction):
 		# Build a sequence of raw copy data.
 		lines = []
 		for x in messages:
-			# While this case should probably never happen as protection
-			# against this it for valid clients is employed directly above,
-			# it's important that we switch back to `standard_put`
-			# if something other than `CopyData` is received as `put_copydata`
-			# cannot handle anything other than `CopyData`
+			# XXX: Optimize this out using a C function.
 			if x[0] is not element.CopyData.type:
+				# This is extremely unlikely to happen as the
+				# last message in the list was copydata.
+				# However, if something did manage to sneak in,
+				# handle it properly.
 				self.state = (Receiving, self.standard_put)
 				return self.standard_put(messages)
 			lines.append(x[1])

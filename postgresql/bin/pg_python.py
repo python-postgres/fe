@@ -55,11 +55,13 @@ def command(argv = sys.argv):
 			connection = connector()
 			connection.connect()
 		except pg_exc.ClientCannotConnectError as err:
-			for (didssl, sc, cf) in err.connection_failures:
-				if isinstance(cf, pg_exc.AuthenticationSpecificationError):
-					sys.stderr.write(os.linesep + cf.message + (os.linesep*2))
+			for att in connection.attempt:
+				exc = att.exception
+				if isinstance(exc, pg_exc.AuthenticationSpecificationError):
+					sys.stderr.write(os.linesep + exc.message + (os.linesep*2))
 					# keep prompting the user
 					need_prompt = True
+					connection = None
 					break
 			else:
 				# no invalid password failures..

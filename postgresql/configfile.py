@@ -216,17 +216,14 @@ class ConfigFile(pg_api.Settings):
 	Every action will cause the file to be wholly read, so using `update` to make
 	multiple changes is desirable.
 	"""
-	ife_ancestor = None
-	ife_label = 'CONFIGFILE'
+	_e_factors = ('path',)
+	_e_label = 'CONFIGFILE'
 
-	def ife_snapshot_text(self):
-		s = (os.linesep+' ').join(
-			k + ' = ' + v for k,v in self.items()
-		)
-		return self._path + (os.linesep+' ' + s if s else '')
+	def _e_metas(self):
+		yield (None, len(self.keys()))
 
 	def __init__(self, path, open = open):
-		self._path = path
+		self.path = path
 		self._open = open
 		self._store = []
 		self._restore = {}
@@ -235,22 +232,22 @@ class ConfigFile(pg_api.Settings):
 		return "%s.%s(%r)" %(
 			type(self).__module__,
 			type(self).__name__,
-			self._path
+			self.path
 		)
 
 	def _save(self, lines : [str]):
-		with self._open(self._path, 'w') as cf:
+		with self._open(self.path, 'w') as cf:
 			for l in lines:
 				cf.write(l)
 
 	def __delitem__(self, k):
-		with self._open(self._path) as cf:
+		with self._open(self.path) as cf:
 			lines = alter_config({k : None}, cf)
 		self._save()
 
 	def __getitem__(self, k):
 		return read_config(
-			self._open(self._path),
+			self._open(self.path),
 			selector = k.__eq__
 		)[k]
 
@@ -282,39 +279,26 @@ class ConfigFile(pg_api.Settings):
 		self._restored.clear()
 		return exc is None
 
-	def path():
-		def fget(self):
-			return pg_str.split_ident(self["search_path"])
-		def fset(self, value):
-			self['search_path'] = ','.join([
-				'"%s"' %(x.replace('"', '""'),) for x in value
-			])
-		def fdel(self):
-			self['search_path'] = None
-		doc = 'structured search_path interface'
-		return locals()
-	path = property(**path())
-
 	def get(self, k, alt = None):
 		return read_config(
-			self._open(self._path), selector = k.__eq__
+			self._open(self.path), selector = k.__eq__
 		).get(k, alt)
 
 	def keys(self):
-		return read_config(self._open(self._path)).keys()
+		return read_config(self._open(self.path)).keys()
 
 	def values(self):
-		return read_config(self._open(self._path)).values()
+		return read_config(self._open(self.path)).values()
 
 	def items(self):
-		return read_config(self._open(self._path)).items()
+		return read_config(self._open(self.path)).items()
 
 	def update(self, keyvals):
 		"""
 		Given a dictionary of settings, apply them to the cluster's
 		postgresql.conf.
 		"""
-		with self._open(self._path) as cf:
+		with self._open(self.path) as cf:
 			lines = alter_config(keyvals, cf)
 		self._save(lines)
 
@@ -325,7 +309,7 @@ class ConfigFile(pg_api.Settings):
 		"""
 		keys = set(keys)
 		cfg = read_config(
-			self._open(self._path),
+			self._open(self.path),
 			selector = keys.__contains__
 		)
 		for x in (keys - set(cfg.keys())):

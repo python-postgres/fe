@@ -285,10 +285,9 @@ class Connection(object):
 		if self.database.closed:
 			err = Error(
 				"connection already closed",
-				source = 'DRIVER',
-			)
-			self.database.ife_descend(err)
-			err.raise_exception()
+				source = 'CLIENT',
+				creator = self.database
+			).raise_exception()
 		self.database.close()
 
 	def cursor(self):
@@ -298,13 +297,12 @@ class Connection(object):
 		if self._xact is None:
 			err = InterfaceError(
 				"commit on connection in autocommit mode",
-				source = 'DRIVER',
+				source = 'CLIENT',
 				details = {
 					'hint': 'The "autocommit" property on the connection was set to True.'
-				}
-			)
-			self.database.ife_descend(err)
-			err.raise_exception()
+				},
+				creator = self.database
+			).raise_exception()
 		self._xact.commit()
 		self._xact = self.database.xact()
 		self._xact.start()
@@ -316,10 +314,9 @@ class Connection(object):
 				source = 'DRIVER',
 				details = {
 					'hint': 'The "autocommit" property on the connection was set to True.'
-				}
-			)
-			self.database.ife_descend(err)
-			err.raise_exception()
+				},
+				creator = self.database
+			).raise_exception()
 		self._xact.rollback()
 		self._xact = self.database.xact()
 		self._xact.start()

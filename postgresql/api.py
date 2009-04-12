@@ -12,281 +12,40 @@ PG-API
 full advantage of PostgreSQL's features to provide the Python programmer with
 substantial convenience.
 
-This module is used to define the PG-API. It creates a set of ABCs
-that makes up the basic interfaces used to work with a PostgreSQL.
+This module is used to define PG-API. It creates a set of ABCs
+that makes up the basic interfaces used to work with a PostgreSQL server.
 """
 import os
 import sys
 import warnings
 import collections
-from abc import ABCMeta, abstractproperty, abstractmethod
-from operator import methodcaller, itemgetter
+from abc import abstractproperty, abstractmethod
+from operator import itemgetter
 
+from . import sys as pg_sys
+from .python.element import Element, prime_factor
 from .python.doc import Doc
 from .python.decorlib import propertydoc
 
-class Receptor(collections.Callable):
-	"""
-	A receptor is a type of callable used by `InterfaceElement`'s `ife_emit`
-	method.
+__all__ = [
+	'Message',
+	'PreparedStatement',
+	'Cursor',
+	'Connector',
+	'Database',
+	'Connection',
+	'Transaction',
+	'Settings',
+	'StoredProcedure',
+	'Driver',
+	'Installation',
+	'Cluster',
+]
 
-	This class is used to describe the signature of callables connected to an
-	InterfaceElement via `InterfaceElement.ife_connect`.
-	"""
-
-	@abstractmethod
-	def __call__(self,
-		source_ife : "The element whose `ife_emit` method was called.",
-		receiving_ife : "The element that included the `Receptor` was placed on.",
-		obj : "The object that was given to `ife_emit`"
-	) -> bool:
-		"""
-		This is the type signature of receptor capable functions.
-
-		If the receptor returns `True`, further propagation will be halted if the
-		`allow_consumption` parameter given to `ife_emit` is `True`(default).
-		"""
-
-class InterfaceElement(metaclass = ABCMeta):
-	"""
-	IFE - InterFace Element
-	=======================
-
-	The purpose of the IFE ABC is to provide a general mechanism for specifying
-	the ancestry of a given object. Ancestry in this case is referring to the
-	instances that ultimately lead to the creation of another instance; or more
-	appropriately, the elements that ultimately lead to the creation another
-	element. Elements tend to the high-level programmer interfaces to database
-	elements. For instance, prepared statements, cursors, transactions,
-	connections, etc.
-
-	This ancestry is important for PG-API as it provides the foundation for
-	collecting the information on the causes leading to an effect. Most notably,
-	a database error. When raised, it provides the user with an error message;
-	but, this information gives you little clue as to what connection the
-	exception came from. While, it is possible for a given user to find out
-	using a debugger, it not possible to do so efficiently if fair amounts of
-	information about exception's lineage is required--consider a query's
-	execution where parameters ultimately caused the failure.
-
-	To save the user time, IFEs ancestry allows `postgresql.exceptions` to
-	include substantial information about an error::
-
-		<Python Traceback>
-		postgresql.exceptions.Error: <message>
-		CURSOR: <cursor_id>
-			<parameters>
-		STATEMENT: <statement_id> <parameter info>
-			<query body>
-		CONNECTION: <connection_title> <backend_id> <socket information>
-			<settings, transaction state, connection state>
-		CONNECTOR: pq://user@localhost:5432/database
-		DRIVER: postgresql.driver.pq3
-
-
-	Receptors
-	---------
-
-	Reception is a faculty created to support PostgreSQL message and warning
-	propagation in a context specific way. For instance, the NOTICE emitted by
-	PostgreSQL when creating a table with a PRIMARY KEY might be unnecessary in
-	a program automating the creation of tables as it's expected. Providing a
-	filter for these messages is useful to reducing noise.
-
-
-	WARNING
-	-------
-
-	Many of these APIs are used to support features that users are *not*
-	expected to use directly. Almost everything on `InterfaceElement` is subject
-	to deprecation.
-	"""
-	ife_object_title = "<untitled>"
-
-	@propertydoc
-	@abstractproperty
-	def ife_ancestor(self):
-		"""
-		The element that created this element.
-
-		Uses:
-
-			. Propagate emitted messages(objects) to source objects.
-			. State acquisition on error for lineage reporting.
-		"""
-
-	@propertydoc
-	@abstractproperty
-	def ife_label(self) -> str:
-		"""
-		ife_label is a string that identifies the kind of element.
-		It should be used in messages to provide a more concise name for a
-		particular piece of context.
-
-		For instance, `PreparedStatement`'s ife_label is 'QUERY'.
-
-		Usually, this is set directly on the ABC itself.
-		"""
-
-	@abstractmethod
-	def ife_snapshot_text(self) -> str:
-		"""
-		Return a string describing the element.
-
-		For instance, a `PreparedStatement` would likely return the query string,
-		information about its parameters, and the statement identifier.
-
-		The returned string should *not* be prefixed with `ife_label`.
-		"""
-
-	def ife_ancestry(self) -> "Sequence of IFE ancestors":
-		"""
-		Collect all the ancestor elements that led up to the existence of this
-		element in a list and return it.
-
-		Useful in cases where the lineage of a given element needs to be
-		presented. (exceptions, warnings, etc)
-		"""
-		ancestors = []
-		ife = self.ife_ancestor
-		while ife is not None:
-			if ife in ancestors or ife is self:
-				raise TypeError("recursive element ancestry detected")
-			if isinstance(ife, InterfaceElement):
-				ancestors.append(ife)
-			else:
-				break
-			ife = getattr(ife, 'ife_ancestor', None)
-		return ancestors
-
-	def ife_ancestry_snapshot_text(self) -> [(object, str, str)]:
-		"""
-		Return a snapshot of this `InterfaceElement`'s ancestry.
-
-		Returns a sequence of tuples consisting of the `InterfaceElement`s in this
-		element's ancestry their associated `ife_label`, and the result of their
-		`ife_snapshot_text` method::
-			[
-				(`InterfaceElement`,
-				 `InterfaceElement`.`ife_label`,
-				 `InterfaceElement`.`ife_snapshot_text`()),
-				...
-			]
-
-		This gives a full snapshot while allowing for later filtering.
-		"""
-		a = self.ife_ancestry()
-		l = [
-			(
-				x, getattr(x, 'ife_label', type(x).__name__),
-				(x.ife_snapshot_text() if hasattr(x, 'ife_snapshot_text') else str(x))
-			) for x in a
-			if getattr(x, '_ife_exclude_snapshot', False) is not True
-		]
-		return l
-
-	def ife_generations(self : "ancestor", ife : "descendent") -> (int, None):
-		"""
-		The number of ancestors between `self` and `ife` (the descendent).
-
-		`None` if `ife` is not a descendent of `self`.
-		"""
-		ancestors = []
-		while ife is not None and ife is not self:
-			if ife in ancestors:
-				raise TypeError("recursive element ancestry detected")
-			if isinstance(ife, InterfaceElement):
-				stack.append(ife)
-			else:
-				break
-			ife = getattr(ife, 'ife_ancestor', None)
-		return None if ife is None else len(ancestors)
-
-	def ife_descend(self,
-		*args : "`InterfaceElement`'s descending from `self`"
-	) -> None:
-		"""
-		Set the `ife_ancestor` attribute on the arguments to `self`.
-
-		That is, specify the `InterfaceElement`s in `args` directly descend
-		from `self`.
-		"""
-		for x in args:
-			x.ife_ancestor = self
-
-	def ife_emit(self,
-		obj : "object to emit",
-		allow_consumption : "whether or not receptors are allowed to stop further propagation" = True,
-	) -> (False, (collections.Callable)):
-		"""
-		Send an arbitrary object through the ancestry.
-
-		This is used in situations where the effects of an element result in an
-		object that is not returned by the element's interaction(method call,
-		property get, etc).
-
-		To handle these additional results, the object is passed up through the
-		ancestry. Any ancestor that has receptors will see the object.
-
-		If `obj` was consumed by a receptor, the receptor that consumed it will be
-		returned.
-		"""
-		# Don't include ancestors without receptors.
-		a = [
-			x for x in self.ife_ancestry()
-			if getattr(x, '_ife_receptors', None) is not None
-		]
-		if getattr(self, '_ife_receptors', None) is not None:
-			a.insert(0, self)
-
-		for ife in a:
-			for recep in ife._ife_receptors:
-				# (emit source element, reception element, object)
-				r = recep(self, ife, obj)
-				if r is True and allow_consumption:
-					# receptor indicated halt
-					return (recep, ife)
-		# if went unstopped
-		return False
-
-	def ife_connect(self,
-		*args : (Receptor,)
-	) -> None:
-		"""
-		Add the `Receptor`s to the element. "Connecting" a receptor allows it to
-		receive objects "emitted" by descendent elements.
-
-		Whenever an object is given to `ife_emit`, the given `Receptor`s will be
-		called with the `obj`.
-
-		NOTE: The given objects do *not* have to instances of `Receptor`, rather,
-		they must merely support the call's type signature.
-		"""
-		if not hasattr(self, '_ife_receptors'):
-			self._ife_receptors = list(args)
-			return
-		# Prepend the list. Newer receptors are given priority.
-		new = list(args)
-		new.extend(self._ife_receptors)
-		self._ife_receptors = new
-
-	def ife_sever(self,
-		*args : (Receptor,)
-	) -> None:
-		"""
-		Remove the `Receptor`s from the element.
-		"""
-		if hasattr(self, '_ife_receptors'):
-			for x in args:
-				if x in self._ife_receptors:
-					self._ife_receptors.remove(x)
-			if not self._ife_receptors:
-				del self._ife_receptors
-
-class Message(InterfaceElement):
+class Message(Element):
 	"A message emitted by PostgreSQL"
-	ife_label = 'MESSAGE'
-	ife_ancestor = None
+	_e_label = property(lambda x: getattr(x, 'details', None).get('severity', 'MESSAGE'))
+	_e_factors = ('creator',)
 
 	severities = (
 		'DEBUG',
@@ -313,17 +72,19 @@ class Message(InterfaceElement):
 		message : "The primary information of the message",
 		code : "Message code to attach (SQL state)" = None,
 		details : "additional information associated with the message" = {},
-		source : "What generated the message(SERVER, CLIENT)" = None,
+		source : "Which side generated the message(SERVER, CLIENT)" = None,
+		creator : "The interface element that called for instantiation" = None,
 	):
 		self.message = message
 		self.details = details
+		self.creator = creator
 		if code is not None and self.code != code:
 			self.code = code
 		if source is not None and self.source != source:
 			self.source = source
 
 	def __repr__(self):
-		return "{mod}.{typname}({message!r}{code}{details}{source})".format(
+		return "{mod}.{typname}({message!r}{code}{details}{source}{creator})".format(
 			mod = self.__module__,
 			typname = self.__class__.__name__,
 			message = self.message,
@@ -338,26 +99,12 @@ class Message(InterfaceElement):
 			source = (
 				"" if self.source is None
 				else ", source = " + repr(self.source)
+			),
+			creator = (
+				"" if self.creator is None
+				else ", creator = " + repr(self.creator)
 			)
 		)
-
-	def __str__(self):
-		ss = getattr(self, 'snapshot', None)
-		if ss is None:
-			ss = obj.ife_ancestry_snapshot_text()
-		sev = self.details.get('severity', self.ife_label).upper()
-		detailstr = self.details_string
-		if detailstr:
-			detailstr = os.linesep + detailstr
-		locstr = self.location_string
-		if locstr:
-			locstr = os.linesep + '  LOCATION: ' + locstr
-
-		code = "" if not self.code or self.code == "00000" else '(' + self.code + ')'
-		return sev + code + ': ' + self.message + locstr + detailstr + \
-			os.linesep + \
-			os.linesep.join([': '.join(x[1:]) for x in ss]) + \
-			os.linesep
 
 	@property
 	def location_string(self):
@@ -371,68 +118,71 @@ class Message(InterfaceElement):
 			"line {1!s}, in {2!s}".format(*loc)
 		)
 
-	@property
-	def details_string(self):
-		return os.linesep.join((
-			': '.join(('  ' + k.upper(), str(v)))
-			for k, v in sorted(self.details.items(), key = itemgetter(0))
-			if k not in ('message', 'severity', 'file', 'function', 'line')
-		))
+	# keys to filter in .details
+	standard_detail_coverage = frozenset(['message', 'severity', 'file', 'function', 'line',])
 
-	def ife_snapshot_text(self):
-		details = self.details
-		code = (os.linesep + "  CODE: " + self.code) if self.code else ""
-		sev = details.get('severity')
-		sevmsg = ""
-		if sev:
-			sevmsg = os.linesep + "  SEVERITY: " + sev.upper()
-		detailstr = self.details_string
-		if detailstr:
-			detailstr = os.linesep + detailstr
+	def _e_metas(self):
+		yield (None, self.message)
+		yield ('FROM', self.source.upper())
+		if self.code and self.code != "00000":
+			yield ('CODE', self.code)
 		locstr = self.location_string
 		if locstr:
-			locstr = os.linesep + "  LOCATION: " + locstr
-		return self.message + code + sevmsg + detailstr + locstr
+			yield ('LOCATION', locstr)
+		for k, v in sorted(self.details.items(), key = itemgetter(0)):
+			if k not in self.standard_detail_coverage:
+				yield (k.upper(), str(v))
 
-	def emit(self):
-		'Emit the message'
-		self.snapshot = self.ife_ancestry_snapshot_text()
-		self.ife_emit(self)
+	def raise_message(self, starting_point = None):
+		"""
+		Take the given message object and hand it to all the primary
+		factors(creator) with a trap_message callable.
+		"""
+		if starting_point is not None:
+			current = starting_point
+		else:
+			current = self.creator
+
+		while current is not None:
+			if getattr(current, 'trap_message', None) is not None:
+				if f.trap_message(self):
+					# the trap returned a nonzero value,
+					# so don't continue raising.
+					return current
+			current = prime_factor(current)
+		# if the next primary factor is without a raise or does not exist,
+		# send the message to postgresql.sys.msghook
+		pg_sys.msghook(self)
 
 class Chunks(
 	collections.Iterator,
 	collections.Iterable,
 ):
 	"""
-	A `CursorChunks` object is an interface to an iterator of row-sets produced
-	by a cursor. Normally, a chunks object is created by the user accessing the
-	`chunks` property on a given cursor.
+	A `Chunks` object is an interface to an iterator of row-sets produced
+	by a cursor.
 	"""
 
-	@propertydoc
-	@abstractproperty
-	def cursor(self) -> "Cursor":
-		"""
-		The cursor the iterator is bound to.
-
-		This is the object where the chunks iterator gets its rows from.
-		"""
+	def __iter__(self):
+		return self
 
 class Cursor(
-	InterfaceElement,
+	Element,
 	collections.Iterator,
 	collections.Iterable,
 ):
 	"""
 	A `Cursor` object is an interface to a sequence of tuples(rows). A result
-	set. Cursors publish a file-like interface for reading tuples from the
-	database.
+	set. Cursors publish a file-like interface for reading tuples from a cursor
+	declared on the database.
 
-	`Cursor` objects are created by invoking `PreparedStatement` objects or by
-	direct name-based instantation(`cursor` method on `Connection` objects).
+	`Cursor` objects are created by invoking the `PreparedStatement.declare`
+	method or by opening a cursor using an identifier via the
+	`Database.cursor_from_id` method.
 	"""
-	ife_label = 'CURSOR'
-	ife_ancestor = None
+	_e_label = 'CURSOR'
+	_e_factors = ('statement', 'parameters')
+
 	_seek_whence_map = {
 		0 : 'ABSOLUTE',
 		1 : 'RELATIVE',
@@ -498,9 +248,10 @@ class Cursor(
 	@abstractproperty
 	def parameters(self) -> (tuple, None):
 		"""
-		The parameters bound to the cursor. `None`, if unknown.
+		The parameters bound to the cursor. `None`, if unknown and an empty tuple
+		`()`, if no parameters were given.
 
-		These *should* be the original parameters given to the invoked statement.
+		These should be the *original* parameters given to the invoked statement.
 		"""
 
 	@propertydoc
@@ -518,16 +269,6 @@ class Cursor(
 
 		When `True` reads are FORWARD.
 		When `False` reads are BACKWARD.
-
-		Cursor operation option.
-		"""
-
-	@propertydoc
-	@abstractproperty
-	def chunksize(self) -> int:
-		"""
-		Cursor configuration for determining how many rows to fetch with each
-		request.
 
 		Cursor operation option.
 		"""
@@ -580,7 +321,7 @@ class Cursor(
 		"""
 
 class PreparedStatement(
-	InterfaceElement,
+	Element,
 	collections.Callable,
 	collections.Iterable,
 ):
@@ -595,7 +336,8 @@ class PreparedStatement(
 		>>> for x in db.prepare('select * FROM table'):
 		...  pass
 	"""
-	ife_label = 'STATEMENT'
+	_e_label = 'STATEMENT'
+	_e_factors = ('database', 'statement_id', 'string',)
 
 	@propertydoc
 	@abstractproperty
@@ -791,14 +533,14 @@ class PreparedStatement(
 		"""
 
 class StoredProcedure(
-	InterfaceElement,
+	Element,
 	collections.Callable,
 ):
 	"""
 	A function stored on the database.
 	"""
-	ife_label = 'FUNCTION'
-	ife_ancestor = None
+	_e_label = 'FUNCTION'
+	_e_factors = ('database',)
 
 	@abstractmethod
 	def __call__(self, *args, **kw) -> (object, Cursor, collections.Iterable):
@@ -824,7 +566,7 @@ class StoredProcedure(
 # type of the transaction. However, this capability is not completely absent
 # from the current interface as the configuration parameters, or lack thereof,
 # help imply the expectations.
-class Transaction(InterfaceElement):
+class Transaction(Element):
 	"""
 	A `Tranaction` is an element that represents a transaction in the session.
 	Once created, it's ready to be started, and subsequently committed or
@@ -859,7 +601,8 @@ class Transaction(InterfaceElement):
 	performed where state of the transaction is unexpected, an exception should
 	occur.
 	"""
-	ife_label = 'XACT'
+	_e_label = 'XACT'
+	_e_factors = ('database',)
 
 	@propertydoc
 	@abstractproperty
@@ -986,11 +729,11 @@ class Transaction(InterfaceElement):
 	@abstractmethod
 	def __enter__(self):
 		"""
-		Synonym for `start` returning self.
+		Run the `start` method and return self.
 		"""
 
 	def __context__(self):
-		'Return self'
+		'Return self.'
 		return self
 
 	@abstractmethod
@@ -1017,7 +760,7 @@ class Transaction(InterfaceElement):
 		"""
 
 class Settings(
-	InterfaceElement,
+	Element,
 	collections.MutableMapping
 ):
 	"""
@@ -1026,7 +769,7 @@ class Settings(
 	not be quoted specially as the implementation must do that work for the
 	user.
 	"""
-	ife_label = 'SETTINGS'
+	_e_label = 'SETTINGS'
 
 	@abstractmethod
 	def __getitem__(self, key):
@@ -1092,12 +835,12 @@ class Settings(
 		Return an iterator to all of the setting value pairs.
 		"""
 
-class Database(InterfaceElement):
+class Database(Element):
 	"""
 	The interface to an individual database. `Connection` objects inherit from
 	this
 	"""
-	ife_label = 'DATABASE'
+	_e_label = 'DATABASE'
 
 	@propertydoc
 	@abstractproperty
@@ -1163,17 +906,10 @@ class Database(InterfaceElement):
 		"""
 
 	@abstractmethod
-	def prepare(self,
-		sql : str, title : str = None, statement_id : str = None,
-	) -> PreparedStatement:
+	def prepare(self, sql : str) -> PreparedStatement:
 		"""
 		Create a new `PreparedStatement` instance bound to the connection
 		using the given SQL.
-
-		The ``title`` keyword argument is only used to help identify queries.
-		The given value *must* be set to the PreparedStatement's
-		'ife_object_title' attribute.
-		It is analogous to a function name.
 
 		>>> s = db.prepare("SELECT 1")
 		>>> c = s()
@@ -1184,7 +920,6 @@ class Database(InterfaceElement):
 	@abstractmethod
 	def statement_from_id(self,
 		statement_id : "The statement's identification string.",
-		title : "The query's name, used in tracebacks when available" = None
 	) -> PreparedStatement:
 		"""
 		Create a `PreparedStatement` object that was already prepared on the
@@ -1192,8 +927,6 @@ class Database(InterfaceElement):
 		must be explicitly closed if it is no longer desired, and it is
 		instantiated using the statement identifier as opposed to the SQL
 		statement itself.
-
-		If no ``title`` keyword is given, it will default to the statement_id.
 		"""
 
 	@abstractmethod
@@ -1248,7 +981,7 @@ class Database(InterfaceElement):
 		is being recycled.
 		"""
 
-class Connector(InterfaceElement):
+class Connector(Element):
 	"""
 	A connector is a "bookmark" object and an abstraction layer for the
 	employed communication mechanism. `Connector` types should exist for each
@@ -1260,14 +993,8 @@ class Connector(InterfaceElement):
 	facilitate negotiation; once negotiation is complete, the connection is
 	made.
 	"""
-	ife_label = 'CONNECTOR'
-
-	@propertydoc
-	@abstractproperty
-	def Connection(self) -> "`Connection`":
-		"""
-		The default `Connection` class that is used.
-		"""
+	_e_label = 'CONNECTOR'
+	_e_factors = ('driver',)
 
 	@propertydoc
 	@abstractproperty
@@ -1334,7 +1061,7 @@ class Connector(InterfaceElement):
 		Create and connect. Arguments will be given to the `Connection` instance's
 		`connect` method.
 		"""
-		return self.Connection(self)
+		return self.driver.connection(self)
 
 	def __init__(self,
 		user : "required keyword specifying the user name(str)" = None,
@@ -1356,7 +1083,8 @@ class Connection(Database):
 	`Database` interface with the additional connection management tools that
 	are particular to using a remote database.
 	"""
-	ife_label = 'CONNECTION'
+	_e_label = 'CONNECTION'
+	_e_factors = ('connector',)
 
 	@propertydoc
 	@abstractproperty
@@ -1393,74 +1121,47 @@ class Connection(Database):
 		Does nothing if the connection is already closed.
 		"""
 
-	__enter__ = methodcaller('connect')
+	@abstractmethod
+	def __enter__(self):
+		"""
+		Establish the connection and return self.
+		"""
+
+	@abstractmethod
 	def __exit__(self, typ, obj, tb):
 		"""
 		Closes the connection and returns `False` when an exception is passed in,
 		`True` when `None`.
 		"""
-		self.close()
 
+	@abstractmethod
 	def __context__(self):
 		"""
-		Returns the connection object.
+		Returns the connection object, self.
 		"""
-		return self
 
-class Driver(InterfaceElement):
+class Driver(Element):
 	"""
 	The `Driver` element provides the `Connector` and other information
 	pertaining to the implementation of the driver. Information about what the
 	driver supports is available in instances.
 	"""
-	ife_label = "DRIVER"
-	ife_ancestor = None
+	_e_label = "DRIVER"
+	_e_factors = ()
 
 	@abstractmethod
 	def connect(**kw):
 		"""
 		Create a connection using the given parameters for the Connector.
-
-		This should cache the `Connector` instance for re-use when the same
-		parameters are given again.
 		"""
 
-	def print_message(self, msg, file = None):
-		"""
-		Standard message printer.
-		"""
-		file = sys.stderr if not file else file
-		if file and not file.closed:
-			try:
-				file.write(str(msg))
-			except Exception:
-				try:
-					sys.excepthook(*sys.exc_info())
-				except Exception:
-					# What more can be done?
-					pass
-
-	def handle_warnings_and_messages(self, source, this, obj):
-		"""
-		Send warnings to `warnings.warn` and print `Message`s to standard error.
-		"""
-		if isinstance(obj, Message):
-			self.print_message(obj)
-		elif isinstance(obj, warnings.Warning):
-			warnings.warn(obj)
-
-	def __init__(self):
-		"""
-		The driver, by default will emit warnings and messages.
-		"""
-		self.ife_connect(self.handle_warnings_and_messages)
-
-class Installation(InterfaceElement):
+class Installation(Element):
 	"""
 	Interface to a PostgreSQL installation. Instances would provide various
 	information about an installation of PostgreSQL accessible by the Python 
 	"""
-	ife_label = "INSTALLATION"
+	_e_label = "INSTALLATION"
+	_e_factors = ('pg_config_path',)
 
 	@propertydoc
 	@abstractproperty
@@ -1494,19 +1195,26 @@ class Installation(InterfaceElement):
 		Whether the installation supports SSL.
 		"""
 
-class Cluster(InterfaceElement):
+class Cluster(Element):
 	"""
 	Interface to a PostgreSQL cluster--a data directory. An implementation of
 	this provides a means to control a server.
 	"""
-	ife_label = 'CLUSTER'
-	ife_ancestor = None
+	_e_label = 'CLUSTER'
+	_e_factors = ('installation', 'data_directory')
 
 	@propertydoc
 	@abstractproperty
 	def installation(self) -> Installation:
 		"""
 		The installation used by the cluster.
+		"""
+
+	@propertydoc
+	@abstractproperty
+	def data_directory(self) -> str:
+		"""
+		The path to the data directory of the cluster.
 		"""
 
 	@abstractmethod
@@ -1612,6 +1320,6 @@ class Cluster(InterfaceElement):
 
 __docformat__ = 'reStructuredText'
 if __name__ == '__main__':
-	help('postgresql.api')
+	help(__package__ + '.api')
 ##
 # vim: ts=3:sw=3:noet:

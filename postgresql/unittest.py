@@ -43,11 +43,10 @@ class TestCaseWithCluster(unittest.TestCase):
 	def configure_cluster(self):
 		self.cluster_port = find_available_port()
 		if self.cluster_port is None:
-			e = pg_exc.ClusterError(
-				'failed to find a port for the test cluster on localhost'
-			)
-			self.cluster.ife_descend(e)
-			e.raise_exception()
+			pg_exc.ClusterError(
+				'failed to find a port for the test cluster on localhost',
+				creator = self.cluster
+			).raise_exception()
 		self.cluster.settings.update(dict(
 			port = str(self.cluster_port),
 			max_connections = '6',

@@ -10,7 +10,30 @@ import socket
 import math
 import errno
 
-__all__ = ['find_available_port']
+__all__ = ['find_available_port', 'SocketCreator']
+
+class SocketCreator(object):
+	"""
+	Object used to create a socket and connect it.
+
+	This is, more or less, a specialized partial() for socket creation.
+	"""
+	def __call__(self, timeout = None):
+		s = socket.socket(*self.socket_create)
+		s.settimeout(float(timeout) if timeout is not None else None)
+		s.connect(self.socket_connect)
+		s.settimeout(None)
+		return s
+
+	def __init__(self,
+		socket_create : "positional parameters given to socket.socket()",
+		socket_connect : "parameter given to socket.connect()",
+	):
+		self.socket_create = socket_create
+		self.socket_connect = socket_connect
+
+	def __str__(self):
+		return 'socket' + repr(self.socket_connect)
 
 def find_available_port(
 	interface : "attempt to bind to interface" = 'localhost',

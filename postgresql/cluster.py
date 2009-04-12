@@ -57,17 +57,23 @@ class Cluster(pg_api.Cluster):
 	accommodate for a particular purpose.
 	"""
 	installation = None
+	data_directory = None
 	DEFAULT_CLUSTER_ENCODING = DEFAULT_CLUSTER_ENCODING
 	DEFAULT_CONFIG_FILENAME = DEFAULT_CONFIG_FILENAME
 	DEFAULT_PID_FILENAME = DEFAULT_PID_FILENAME
 	DEFAULT_HBA_FILENAME = DEFAULT_HBA_FILENAME
 
-	ife_ancestor = property(attrgetter('installation'))
-	def ife_snapshot_text(self):
-		return self.data_directory + ' [' + (
-			'running: ' + str(self.pid)
-			if self.running() else 'not running'
-		) + ']'
+	@property
+	def state(self):
+		if self.running():
+			return 'running'
+		return 'not running'
+
+	def _e_metas(self):
+		state = self.state
+		yield (None, '[' + state + ']')
+		if state == 'running':
+			yield ('pid', self.state)
 
 	@property
 	def daemon_path(self):
@@ -169,9 +175,9 @@ class Cluster(pg_api.Cluster):
 			if initdb is None:
 				e = pg_exc.ClusterInitializationError(
 					"unable to find `initdb` executable for installation: " + \
-					repr(self.installation)
+					repr(self.installation),
+					creator = self
 				)
-				self.ife_descend(e)
 				e.raise_exception()
 
 		# Transform keyword options into command options for the executable.
@@ -231,15 +237,14 @@ class Cluster(pg_api.Cluster):
 				msg = os.linesep.join([
 					repr(x)[2:-1] for x in r.splitlines()
 				])
-			e = pg_exc.InitDBError(
+			pg_exc.InitDBError(
 				msg,
 				details = {
 					'COMMAND': cmd,
 					'RESULT': rc,
-				}
-			)
-			self.ife_descend(e)
-			e.raise_exception()
+				},
+				creator = self
+			).raise_exception()
 
 	def drop(self):
 		"""
@@ -254,14 +259,13 @@ class Cluster(pg_api.Cluster):
 				try:
 					self.wait_until_stopped()
 				except pg_exc.ClusterTimeoutError:
-					w = pg_exc.ClusterWarning(
+					pg_exc.ClusterWarning(
 						'cluster failed to shutdown after kill',
 						details = {
 							'hint' : 'Shared memory may be leaked.'
-						}
-					)
-					self.ife_descend(w)
-					w.emit()
+						},
+						creator = self
+					).raise_message()
 		# Really, using rm -rf would be the best, but use this for portability.
 		for root, dirs, files in os.walk(self.data_directory, topdown = False):
 			for name in files:
@@ -307,9 +311,10 @@ class Cluster(pg_api.Cluster):
 			self.stop()
 			self.wait_until_stopped(timeout = timeout)
 		if self.running():
-			e = pg_exc.ClusterError("failed to shutdown cluster")
-			self.ife_descend(e)
-			e.raise_exception()
+			pg_exc.ClusterError(
+				"failed to shutdown cluster",
+				creator = self
+			).raise_exception()
 		self.start(logfile = logfile, settings = settings)
 		self.wait_until_started(timeout = timeout)
 
@@ -420,11 +425,10 @@ class Cluster(pg_api.Cluster):
 		Cluster must be running.
 		"""
 		if not self.running():
-			e = ClusterNotRunningError(
-				"cannot connect if cluster is not running"
-			)
-			self.ife_descend(e)
-			e.raise_exception()
+			ClusterNotRunningError(
+				"cannot connect if cluster is not running",
+				creator = self
+			).raise_exception()
 		return self.connection(**kw).connect()
 
 	def address(self):
@@ -469,7 +473,8 @@ class Cluster(pg_api.Cluster):
 				sslmode = 'disable',
 			).close()
 		except pg_exc.ClientCannotConnectError as err:
-			for (ssltried, sockc, x) in err.connection_failures:
+			for attempt in err.database.attempt:
+				x = attempt.exception
 				if self.installation.version_info[:2] < (8,1):
 					if isinstance(x, (
 						pg_exc.UndefinedObjectError,
@@ -515,16 +520,14 @@ class Cluster(pg_api.Cluster):
 							details = {
 								'RESULT' : r,
 								'COMMAND' : self.daemon_command,
-							}
-						)
-						self.ife_descend(e)
-						e.raise_exception()
+							},
+							creator = self
+						).raise_exception()
 				else:
-					e = pg_exc.ClusterNotRunningError(
-						"postgresql daemon has not been started"
-					)
-					self.ife_descend(e)
-					return e.raise_exception()
+					pg_exc.ClusterNotRunningError(
+						"postgresql daemon has not been started",
+						creator = self
+					).raise_exception()
 			r = self.ready_for_connections()
 
 			checkpoint = time.time()
@@ -537,9 +540,10 @@ class Cluster(pg_api.Cluster):
 				# condition, rather it's *still* starting up.
 				if r is not None and isinstance(r, pg_exc.ServerNotReadyError):
 					raise r
-				e = pg_exc.ClusterTimeoutError('timeout on startup')
-				self.ife_descend(e)
-				return e.raise_exception(
+				return pg_exc.ClusterTimeoutError(
+					'timeout on startup',
+					creator = self
+				).raise_exception(
 					raise_from = r if r not in (True,False) else None
 				)
 			time.sleep(delay)
@@ -562,9 +566,10 @@ class Cluster(pg_api.Cluster):
 			if self.daemon_process is not None:
 				self.last_exit_code = self.daemon_process.poll()
 			if time.time() - start >= timeout:
-				e = pg_exc.ClusterTimeoutError('timeout on shutdown')
-				self.ife_descend(e)
-				e.raise_exception()
+				pg_exc.ClusterTimeoutError(
+					'timeout on shutdown',
+					creator = self,
+				).raise_exception()
 			time.sleep(delay)
 ##
 # vim: ts=3:sw=3:noet:

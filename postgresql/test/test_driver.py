@@ -973,52 +973,59 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			self.db.execute('drop type test_tuple_error;')
 
 	def testSyntaxError(self):
-		self.failUnlessRaises(
-			pg_exc.SyntaxError,
-			self.db.prepare("SELEKT 1")
-		)
+		try:
+			self.db.prepare("SELEKT 1")()
+		except pg_exc.SyntaxError:
+			return
+		self.fail("SyntaxError was not raised")
 
 	def testSchemaNameError(self):
-		self.failUnlessRaises(
-			pg_exc.SchemaNameError,
-			self.db.prepare("SELECT * FROM sdkfldasjfdskljZknvson.foo")
-		)
+		try:
+			self.db.prepare("SELECT * FROM sdkfldasjfdskljZknvson.foo")()
+		except pg_exc.SchemaNameError:
+			return
+		self.fail("SchemaNameError was not raised")
 
 	def testUndefinedTableError(self):
-		self.failUnlessRaises(
-			pg_exc.UndefinedTableError,
-			self.db.prepare("SELECT * FROM public.lkansdkvsndlvksdvnlsdkvnsdlvk")
-		)
+		try:
+			self.db.prepare("SELECT * FROM public.lkansdkvsndlvksdvnlsdkvnsdlvk")()
+		except pg_exc.UndefinedTableError:
+			return
+		self.fail("UndefinedTableError was not raised")
 
 	def testUndefinedColumnError(self):
-		self.failUnlessRaises(
-			pg_exc.UndefinedColumnError,
-			self.db.prepare("SELECT x____ysldvndsnkv FROM information_schema.tables")
-		)
+		try:
+			self.db.prepare("SELECT x____ysldvndsnkv FROM information_schema.tables")()
+		except pg_exc.UndefinedColumnError:
+			return
+		self.fail("UndefinedColumnError was not raised")
 
 	def testSEARVError_avgInWhere(self):
-		self.failUnlessRaises(
-			pg_exc.SEARVError,
-			self.db.prepare("SELECT 1 WHERE avg(1) = 1")
-		)
+		try:
+			self.db.prepare("SELECT 1 WHERE avg(1) = 1")()
+		except pg_exc.SEARVError:
+			return
+		self.fail("SEARVError was not raised")
 
 	def testSEARVError_groupByAgg(self):
-		self.failUnlessRaises(
-			pg_exc.SEARVError,
-			self.db.prepare("SELECT 1 GROUP BY avg(1)")
-		)
+		try:
+			self.db.prepare("SELECT 1 GROUP BY avg(1)")()
+		except pg_exc.SEARVError:
+			return
+		self.fail("SEARVError was not raised")
 
 	def testTypeMismatchError(self):
-		self.failUnlessRaises(
-			pg_exc.TypeMismatchError,
-			self.db.prepare("SELECT 1 WHERE 1")
-		)
+		try:
+			self.db.prepare("SELECT 1 WHERE 1")()
+		except pg_exc.TypeMismatchError:
+			return
+		self.fail("TypeMismatchError was not raised")
 
 	def testUndefinedObjectError(self):
 		try:
 			self.failUnlessRaises(
 				pg_exc.UndefinedObjectError,
-				self.db.prepare("CREATE TABLE lksvdnvsdlksnv(i intt___t)")
+				self.db.prepare, "CREATE TABLE lksvdnvsdlksnv(i intt___t)"
 			)
 		except:
 			# newer versions throw the exception on execution
@@ -1041,7 +1048,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.db.execute("DROP TABLE withfoo")
 		self.failUnlessRaises(
 			pg_exc.UndefinedTableError,
-			self.db.prepare("SELECT * FROM withfoo")
+			self.db.execute, "SELECT * FROM withfoo"
 		)
 
 	def testTransactionAbort(self):
@@ -1055,7 +1062,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			pass
 		self.failUnlessRaises(
 			pg_exc.UndefinedTableError,
-			self.db.prepare("SELECT * FROM withfoo")
+			self.db.execute, "SELECT * FROM withfoo"
 		)
 
 	def testPreparedTransactionCommit(self):
@@ -1111,8 +1118,9 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.db.execute("create table gidtable as select 'foo'::text as t;")
 		x.prepare()
 		x.rollback()
-		self.failUnlessRaises(pg_exc.UndefinedTableError,
-			self.db.prepare("select * from gidtable")
+		self.failUnlessRaises(
+			pg_exc.UndefinedTableError,
+			self.db.execute, "select * from gidtable"
 		)
 
 	def testPreparedTransactionRecovery(self):
@@ -1135,8 +1143,9 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		x = self.db.xact(gid='recover dis abort')
 		x.recover()
 		x.rollback()
-		self.failUnlessRaises(pg_exc.UndefinedTableError,
-			self.db.prepare("select * from distableabort")
+		self.failUnlessRaises(
+			pg_exc.UndefinedTableError,
+			self.db.execute, "select * from distableabort"
 		)
 
 	def testPreparedTransactionFailedRecovery(self):

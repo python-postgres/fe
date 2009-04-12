@@ -106,7 +106,6 @@ class Installation(pg_api.Installation):
 	"""
 	Class providing a Python interface to PostgreSQL installation metadata.
 	"""
-	ife_ancestor = None
 	version = None
 	version_info = None
 	type = None
@@ -157,18 +156,17 @@ class Installation(pg_api.Installation):
 		'sysconfdir',
 	)
 
-	def ife_snapshot_text(self):
+	def _e_metas(self):
 		l = list(self.configure_options.items())
 		l.sort(key = itemgetter(0))
-		return "{ver}{confopt}".format(
-			ver = self.version,
-			confopt = (os.linesep + ' [CONFIGURED]' + os.linesep + ' ' + \
-				(os.linesep + ' ').join((
+		yield ('version', self.version)
+		if l:
+			yield ('configure_options',
+				(os.linesep).join((
 					k if v is True else k + '=' + v
 					for k,v in l
 				))
-			) if l else ''
-		)
+			)
 
 	def __repr__(self):
 		return "{mod}.{name}({path!r})".format(
@@ -267,7 +265,5 @@ class Installation(pg_api.Installation):
 
 if __name__ == '__main__':
 	i = Installation(pg_config_path = sys.argv[1])
-	print(repr(i))
-	print(i.ife_label + ': ' + i.ife_snapshot_text())
-	pprint.pprint(i.paths)
-	print(dir(i))
+	from .python.element import format_element
+	print(format_element(i))
