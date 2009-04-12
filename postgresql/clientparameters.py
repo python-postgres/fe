@@ -359,31 +359,30 @@ def resolve_password(
 	Finally, remove the pgpassfile key as the password has been resolved for the
 	given parameters.
 	"""
-	if 'prompt_password' in parameters:
-		if parameters['prompt_password'] is True:
-			if sys.stdin.isatty():
-				prompt = prompt_title or parameters.pop('prompt_title', '')
-				prompt += '[' + pg_iri.serialize(parameters, obscure_password = True) + ']'
-				parameters['password'] = getpass("Password for " + prompt +": ")
-			else:
-				# getpass will throw an exception if it's not a tty,
-				# so just take the next line.
-				pw = sys.stdin.readline()
-				# try to clean it up..
-				if pw.endswith(os.linesep):
-					pw = pw[:len(pw)-len(os.linesep)]
-				parameters['password'] = pw
-		del parameters['prompt_password']
+	prompt_for_password = parameters.pop('prompt_password', False)
+	pgpassfile = parameters.pop('pgpassfile', None)
+	prompt_title = parameters.pop('prompt_title', None)
+	if prompt_for_password is True:
+		# it's a prompt
+		if sys.stdin.isatty():
+			prompt = prompt_title or parameters.pop('prompt_title', '')
+			prompt += '[' + pg_iri.serialize(parameters, obscure_password = True) + ']'
+			parameters['password'] = getpass("Password for " + prompt +": ")
+		else:
+			# getpass will throw an exception if it's not a tty,
+			# so just take the next line.
+			pw = sys.stdin.readline()
+			# try to clean it up..
+			if pw.endswith(os.linesep):
+				pw = pw[:len(pw)-len(os.linesep)]
+			parameters['password'] = pw
 	else:
 		if parameters.get('password') is None:
 			# No password? Look in the pgpassfile.
-			passfile = parameters.get('pgpassfile')
-			if passfile is not None:
-				parameters['password'] = pg_pass.lookup_pgpass(parameters, passfile)
+			if pgpassfile is not None:
+				parameters['password'] = pg_pass.lookup_pgpass(parameters, pgpassfile)
 	# Don't need the pgpassfile parameter anymore as the password
 	# has been resolved.
-	parameters.pop('pgpassfile', None)
-	parameters.pop('prompt_title', None)
 
 def x_settings(sdict, config):
 	d=dict(sdict)
