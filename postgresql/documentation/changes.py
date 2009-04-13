@@ -6,6 +6,14 @@ r"""
 Changes
 =======
 
+0.9.0
+-----
+
+ * Extend `postgresql.open` to take keyword arguments.
+ * Refactor `postgresql.api.InterfaceElement`.
+ * Optimizations.
+ * Fix encoding normalization.
+
 0.8.1
 -----
 
