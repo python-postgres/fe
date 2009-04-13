@@ -43,8 +43,12 @@ __all__ = [
 ]
 
 class Message(Element):
-	"A message emitted by PostgreSQL"
-	_e_label = property(lambda x: getattr(x, 'details', None).get('severity', 'MESSAGE'))
+	"""
+	A message emitted by PostgreSQL. This element is universal, so
+	`postgresql.api.Message` is a complete implementation for representing a
+	message. Any interface should produce these objects.
+	"""
+	_e_label = property(lambda x: getattr(x, 'details').get('severity', 'MESSAGE'))
 	_e_factors = ('creator',)
 
 	severities = (
@@ -154,44 +158,17 @@ class Message(Element):
 		# send the message to postgresql.sys.msghook
 		pg_sys.msghook(self)
 
-class Chunks(
-	collections.Iterator,
-	collections.Iterable,
-):
+class Result(Element):
 	"""
-	A `Chunks` object is an interface to an iterator of row-sets produced
-	by a cursor.
+	A result is an object managing the results of a prepared statement.
+
+	These objects represent a binding of parameters to a given statement object.
+
+	For results that were constructed on the server and a reference passed back
+	to the client, parameters may be None.
 	"""
-
-	def __iter__(self):
-		return self
-
-class Cursor(
-	Element,
-	collections.Iterator,
-	collections.Iterable,
-):
-	"""
-	A `Cursor` object is an interface to a sequence of tuples(rows). A result
-	set. Cursors publish a file-like interface for reading tuples from a cursor
-	declared on the database.
-
-	`Cursor` objects are created by invoking the `PreparedStatement.declare`
-	method or by opening a cursor using an identifier via the
-	`Database.cursor_from_id` method.
-	"""
-	_e_label = 'CURSOR'
-	_e_factors = ('statement', 'parameters')
-
-	_seek_whence_map = {
-		0 : 'ABSOLUTE',
-		1 : 'RELATIVE',
-		2 : 'FROM_END',
-	}
-	_direction_map = {
-		True : 'FORWARD',
-		False : 'BACKWARD',
-	}
+	_e_label = 'RESULT'
+	_e_factors = ('statement', 'parameters', 'cursor_id')
 
 	@propertydoc
 	@abstractproperty
@@ -252,6 +229,9 @@ class Cursor(
 		`()`, if no parameters were given.
 
 		These should be the *original* parameters given to the invoked statement.
+
+		This should only be `None` when the cursor is created from an identifier,
+		`postgresql.api.Database.cursor_from_id`.
 		"""
 
 	@propertydoc
@@ -259,7 +239,50 @@ class Cursor(
 	def statement(self) -> ("PreparedStatement", None):
 		"""
 		The query object used to create the cursor. `None`, if unknown.
+
+		This should only be `None` when the cursor is created from an identifier,
+		`postgresql.api.Database.cursor_from_id`.
 		"""
+
+class Chunks(
+	collections.Iterator,
+	collections.Iterable,
+):
+	"""
+	A `Chunks` object is an interface to an iterator of row-sets produced
+	by a cursor.
+	"""
+	def __iter__(self):
+		return self
+
+class Cursor(
+	Result,
+	collections.Iterator,
+	collections.Iterable,
+):
+	"""
+	A `Cursor` object is an interface to a sequence of tuples(rows). A result
+	set. Cursors publish a file-like interface for reading tuples from a cursor
+	declared on the database.
+
+	`Cursor` objects are created by invoking the `PreparedStatement.declare`
+	method or by opening a cursor using an identifier via the
+	`Database.cursor_from_id` method.
+	"""
+	_e_label = 'CURSOR'
+
+	_seek_whence_map = {
+		0 : 'ABSOLUTE',
+		1 : 'RELATIVE',
+		2 : 'FROM_END',
+	}
+	_direction_map = {
+		True : 'FORWARD',
+		False : 'BACKWARD',
+	}
+
+	def __iter__(self):
+		return self
 
 	@propertydoc
 	@abstractproperty
