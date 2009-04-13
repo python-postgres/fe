@@ -2267,7 +2267,6 @@ class Connection(pg_api.Connection):
 				creator = self
 			)
 			err.database = self
-			err.set_connection_failures(connection_failures)
 			err.raise_exception(raise_from = exc)
 
 		# resolve when to do SSL.
