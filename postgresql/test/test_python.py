@@ -30,6 +30,10 @@ class test_functools(unittest.TestCase):
 		self.failUnlessEqual("100", simple("100"))
 		timesfour_fourtimes = compose((methodcaller('__mul__', 4),)*4)
 		self.failUnlessEqual(4*(4*4*4*4), timesfour_fourtimes(4))
+		nothing = compose(())
+		self.failUnlessEqual(nothing("100"), "100")
+		self.failUnlessEqual(nothing(100), 100)
+		self.failUnlessEqual(nothing(None), None)
 
 	def testRSetAttr(self):
 		class anob(object):
