@@ -40,4 +40,6 @@ class method(object):
 	def __init__(self, callable):
 		self.callable = callable
 	def __get__(self, val, typ):
-		return types.MethodType(self.callable, val or typ)
+		if val is None:
+			return self.callable
+		return types.MethodType(self.callable, val)
