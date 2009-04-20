@@ -151,9 +151,9 @@ CREATE USER sslonly;
 			)
 			self.fail("successful connection to nossl user when sslmode = 'require'")
 		except pg_exc.ClientCannotConnectError as err:
-			for att in err.database.attempt:
-				x = att.exception
-				dossl = att.ssl_negotiation
+			for pq in err.database.failures:
+				x = pq.error
+				dossl = pq.ssl_negotiation
 				if isinstance(x, pg_exc.AuthenticationSpecificationError) and dossl is True:
 					break
 			else:
@@ -183,10 +183,9 @@ CREATE USER sslonly;
 			)
 			self.fail("successful connection to sslonly user with sslmode = 'disable'")
 		except pg_exc.ClientCannotConnectError as err:
-			for att in err.database.attempt:
-				x = att.exception
-				dossl = att.ssl_negotiation
-				if isinstance(x, pg_exc.AuthenticationSpecificationError) and dossl is False:
+			for pq in err.database.failures:
+				x = pq.error
+				if isinstance(x, pg_exc.AuthenticationSpecificationError) and not hasattr(pq, 'ssl_negotiation'):
 					# looking for an authspec error...
 					break
 			else:

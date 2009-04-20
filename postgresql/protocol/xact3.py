@@ -34,34 +34,45 @@ def return_arg(x):
 	return x
 
 class Transaction(object, metaclass = ABCMeta):
+	"""
+	If the fatal attribute is not None, an error occurred, and the
+	`error_message` attribute should be set to a element3.Error instance.
+	"""
+	fatal = None
+
 	@abstractmethod
 	def messages_received(self):
 		"""
-		Return an iterable to the messages received.
+		Return an iterable to the messages received that have been processed.
 		"""
 
-class ClosedConnection(Transaction):
+class Closing(Transaction):
 	"""
-	This class is used to represent a closed connection.
+	Send the disconnect message and mark the connection as closed.
 	"""
-	state = Complete
-	fatal = True
-	def asyncs(self):
-		return ()
+	error_message = element.ClientError(
+		# pg_exc.ConnectionDoesNotExistError.code
+		code = '08003',
+		severity = 'FATAL',
+		message = 'operation on closed connection',
+		hint = "A new connection needs to be "\
+			"created in order to query the server.",
+	)
+
 	def messages_received(self):
 		return ()
-	error_message = element.Error(
-		# pg_exc.ConnectionDoesNotExistError.code.encode('ascii')
-		code = b"08003",
-		severity = b'FATAL',
-		message = "operation on closed connection".encode('utf-8'),
-		hint = \
-			"A new connection needs to be "\
-			"created in order to use the server.".encode('utf-8'),
-	)
-	def __new__(typ):
-		return Closed
-Closed = Transaction.__new__(ClosedConnection)
+
+	def sent(self):
+		"""
+		Empty messages and mark complete.
+		"""
+		self.messages = ()
+		self.fatal = True
+		self.state = Complete
+
+	def __init__(self):
+		self.messages = (element.DisconnectMessage,)
+		self.state = (Sending, self.sent)
 
 class Negotiation(Transaction):
 	"""
@@ -76,8 +87,6 @@ class Negotiation(Transaction):
 	state.
 	"""
 	state = None
-	asynchook = AsynchronousMap
-	fatal = None
 
 	def __init__(self,
 		startup_message : "startup message to send",
@@ -85,8 +94,8 @@ class Negotiation(Transaction):
 	):
 		self.startup_message = startup_message
 		self.password = password
-		self._asyncs = []
 		self.received = [()]
+		self.asyncs = []
 		self.authtype = None
 		self.killinfo = None
 		self.authok = None
@@ -100,23 +109,8 @@ class Negotiation(Transaction):
 		s += pformat((self.startup_message, self.password)).lstrip()
 		return s
 
-	def reset(self):
-		self.authtype = None
-		self.killinfo = None
-		self.last_ready = None
-		self.authok = None
-		self._asyncs.clear()
-		self.received.clear()
-		self.machine = self.state_machine()
-		self.messages = next(self.machine)
-		self.state = (Sending, self.sent)
-
-	def asyncs(self):
-		"iterate over asynchronous messages received"
-		return self._asyncs
-
 	def messages_received(self):
-		return self.received
+		return self.processed
 
 	def sent(self):
 		"""
@@ -134,23 +128,7 @@ class Negotiation(Transaction):
 		if messages is not self.received[-1]:
 			self.received.append(messages)
 		else:
-			# looks like an interrupt occurred, redo everything.
-			self._asyncs.clear()
-			self.machine = self.state_machine()
-			out_messages = next(self.machine)
-			redo_messages = []
-			for xs in self.received:
-				for x in xs:
-					if x[0] is element.Error.type:
-						if self.fatal is None:
-							self.error_message = element.Error.parse(x[1])
-							self.fatal = True
-							self.state = Complete
-							return 0
-					elif x[0] in self.asynchook:
-						self._asyncs.append(self.asynchook[x[0]](x[1]))
-					else:
-						out_messages = self.machine.send(x)
+			raise RuntimeError("negotiation was interrupted")
 
 		# if an Error message was found, complete and leave.
 		count = 0
@@ -162,9 +140,11 @@ class Negotiation(Transaction):
 						self.error_message = element.Error.parse(x[1])
 						self.fatal = True
 						self.state = Complete
-						return 0
-				elif x[0] in self.asynchook:
-					self._asyncs.append(self.asynchook[x[0]](x[1]))
+						return count
+				elif x[0] in AsynchronousMap:
+					self.asyncs.append(
+						AsynchronousMap[x[0]](x[1])
+					)
 				else:
 					out_messages = self.machine.send(x)
 					if out_messages:
@@ -173,10 +153,24 @@ class Negotiation(Transaction):
 			# generator is complete, negotiation is complete..
 			self.state = Complete
 			return count
+
 		if out_messages:
 			self.messages = out_messages
 			self.state = (Sending, self.sent)
 		return count
+
+	def unsupported_auth_request(self, req):
+		self.fatal = True
+		self.error_message = element.ClientError(
+			"unsupported authentication request %r(%d)" %(
+				element.AuthNameMap.get(req, '<unknown>'), req,
+			),
+			code = "--AUT",
+			hint = \
+				"'postgresql.protocol' only supports: " \
+				"MD5, crypt, plaintext, and trust."
+		)
+		self.state = Complete
 
 	def state_machine(self):
 		"""
@@ -185,15 +179,20 @@ class Negotiation(Transaction):
 		x = (yield (self.startup_message,))
 
 		if x[0] is not element.Authentication.type:
-			raise pg_exc.ProtocolError(
-				"received message of type {mt}, but expected {et}".format(
-					repr(x[0]),
-					element.Authentication.type
-				),
-				source = 'CLIENT'
+			self.fatal = True
+			self.error_message = element.ClientError(
+				message = \
+					"received message of type %s, " \
+					"but expected %s" %(
+						repr(x[0]),
+						repr(element.Authentication.type)
+					),
+				code = '08P01',
 			)
+			return
 
 		self.authtype = element.Authentication.parse(x[1])
+
 		req = self.authtype.request
 		if req != element.AuthRequest_OK:
 			if req == element.AuthRequest_Cleartext:
@@ -206,64 +205,60 @@ class Negotiation(Transaction):
 			else:
 				##
 				# Not going to work. Sorry :(
-				# The many authentication types supported by PostgreSQL are not easy
-				# to implement, especially when implementations for the type don't exist
-				# for Python.
-				# Worse yet, some of them may want control of the wire..
-				raise pg_exc.AuthenticationMethodError(
-						"unsupported authentication request %r(%d)" %(
-						element.AuthNameMap.get(req, '<unknown>'), req,
-					),
-					details = {
-						'hint' : \
-							"'postgresql.protocol' supports: MD5, crypt, plaintext, and trust."
-					},
-					source = 'CLIENT'
-				)
+				# The many authentication types supported by PostgreSQL are not
+				# easy to implement, especially when implementations for the
+				# type don't exist for Python.
+				self.unsupported_auth_request(req)
+				return
 			x = (yield (element.Password(pw),))
-			if x[0] != element.Authentication.type:
-				raise pg_exc.ProtocolError(
-					"received message of type {1}, but expected {2}".format(
-						repr(x[0]),
-						element.Authentication.type
-					)
-				)
-			self.authok = element.Authentication.parse(x[1])
 
+			self.authok = element.Authentication.parse(x[1])
 			if self.authok.request != element.AuthRequest_OK:
-				raise pg_exc.ProtocolError(
-					"expected an OK from the authentication " \
-					"message, but received {1}({2}) instead".format(
-						element.AuthNameMap.get(self.authok.request, '<unknown>'),
-						str(self.authok.request),
-					),
-					source = 'CLIENT'
+				self.fatal = True
+				self.error_message = element.ClientError(
+					message = \
+						"expected an OK from the authentication " \
+						"message, but received %s(%s) instead" %(
+							repr(element.AuthNameMap.get(
+								self.authok.request, '<unknown>'
+							)),
+							repr(self.authok.request),
+						),
+					code = "08P01"
 				)
+				return
 		else:	
 			self.authok = self.authtype
 
 		# Done authenticating, pick up the killinfo and the ready message.
 		x = (yield None)
 		if x[0] != element.KillInformation.type:
-			raise pg_exc.ProtocolError(
-				"received message of type {1}, but expected {2}".format(
-					repr(x[0]),
-					element.KillInformation.type
-				),
-				source = 'CLIENT'
+			self.fatal = True
+			self.error_message = element.ClientError(
+				message = \
+					"received message of type %s, " \
+					"but expected %s" %(
+						repr(x[0]),
+						element.KillInformation.type
+					),
+				code = "08P01"
 			)
+			return
 		self.killinfo = element.KillInformation.parse(x[1])
 
 		x = (yield None)
 		if x[0] != element.Ready.type:
-			raise pg_exc.ProtocolError(
-				"unexpected message received",
-				details = {
-					'received': x[0],
-					'expected': element.Ready.type,
-				},
-				source = 'CLIENT'
+			self.fatal = True
+			self.error_message = element.ClientError(
+				message = \
+					"received message of type %s, " \
+					"but expected %s" %(
+						repr(x[0]),
+						repr(element.Ready.type)
+					),
+				code = "08P01"
 			)
+			return
 		self.last_ready = element.Ready.parse(x[1])
 
 class Instruction(Transaction):
@@ -287,7 +282,6 @@ class Instruction(Transaction):
 		* `.element3.Flush`
 	"""
 	state = None
-	fatal = None
 	CopyFailMessage = element.CopyFail(b"invalid termination")
 
 	# The hook is the dictionary that provides the path for the
@@ -392,16 +386,13 @@ class Instruction(Transaction):
 		element.Flush.type : None,
 	}
 
-	# This map provides parsers for asynchronous messages
-	asynchook = AsynchronousMap
-
 	initial_state = (
 		(),     # last messages,
 		(0, 0), # request position, response position
 		(0, 0), # last request position, last response position
 	)
 
-	def __init__(self, commands):
+	def __init__(self, commands, asynchook = return_arg):
 		"""
 		Initialize an `Instruction` instance using the given commands.
 
@@ -419,13 +410,18 @@ class Instruction(Transaction):
 		"""
 		# Commands are accessed by index.
 		self.commands = tuple(commands)
+		self.asynchook = asynchook
+		self.completed = []
+		self.last = self.initial_state
+		self.messages = self.commands
+		self.state = (Sending, self.standard_sent)
+		self.fatal = None
 
 		for cmd in self.commands:
 			if cmd.type not in self.hook:
 				raise TypeError(
 					"unknown message type for PQ 3.0 protocol", cmd.type
 				)
-		self.reset()
 
 	def __repr__(self):
 		return '%s.%s(%s%s)' %(
@@ -434,26 +430,6 @@ class Instruction(Transaction):
 			os.linesep,
 			pformat(self.commands)
 		)
-
-	def reset(self):
-		"""
-		Reset the `Transaction` instance to its initial state.
-		"""
-		self.completed = []
-		self._asyncs = []
-		self.last = self.initial_state
-		self.messages = self.commands
-		if self.messages:
-			self.state = (Sending, self.standard_sent)
-		self.fatal = None
-		if hasattr(self, 'error_message'):
-			del self.error_message
-		if hasattr(self, 'last_ready'):
-			del self.last_ready
-
-	def asyncs(self):
-		"iterate over asynchronous messages received"
-		return chain.from_iterable(map(get1, self._asyncs))
 
 	def messages_received(self):
 		'Received and validate messages'
@@ -483,12 +459,14 @@ class Instruction(Transaction):
 		# so go ahead and reprocess it.
 		if messages is self.last[0]:
 			offset, current_step = self.last[1]
+			# don't clear the asyncs. they have already been process by the hook.
 		else:
 			offset, current_step = self.last[2]
+			# it's a new set, so we can clear the asyncs record.
+			self._asyncs = []
 		cmd = self.commands[offset]
 		paths = self.hook[cmd.type]
 		processed = []
-		asyncs = []
 		count = 0
 
 		for x in messages:
@@ -502,9 +480,12 @@ class Instruction(Transaction):
 				if x[0] is element.Error.type:
 					em = element.Error.parse(x[1])
 					fatal = em['severity'].upper() in (b'FATAL', b'PANIC')
-					if fatal or not hasattr(self, 'error_message'):
-						self.error_message = em
-						self.fatal = fatal
+					self.error_message = em
+					self.fatal = fatal
+					if fatal is True:
+						# can't sync up if it's fatal.
+						self.state = Complete
+						return count
 					# Error occurred, so sync up with backend if
 					# the current command is not 'Q' or 'F' as they
 					# imply a sync message.
@@ -527,21 +508,31 @@ class Instruction(Transaction):
 					# On a new command, setup the new step.
 					current_step = 0
 					continue
-				elif x[0] in self.asynchook:
-					asyncs.append(self.asynchook[x[0]](x[1]))
+				elif x[0] in AsynchronousMap:
+					if x not in self._asyncs:
+						msg = AsynchronousMap[x[0]](x[1])
+						try:
+							self.asynchook(msg)
+						except Exception as err:
+							# exception thrown by async message handler?
+							# notify the user, but continue...
+							sys.excepthook(*sys.exc_info())
+						# it's been processed, so don't process it again.
+						self._asyncs.append(x)
 				else:
 					##
-					# Procotol violation
-					err = pg_exc.ProtocolError(
+					# Procotol violation.
+					self.error_message = element.ClientError(
 						"expected message of types %r, " \
 						"but received %r instead" % (
 							tuple(paths[current_step].keys()), x[0]
 						),
-						source = 'CLIENT',
-						details = {
-							'severity': 'FATAL',
-						},
-					).raise_exception()
+						code = '08P01',
+						severity = 'FATAL',
+					)
+					self.fatal = True
+					self.state = Complete
+					return count
 			else:
 				# Valid message
 				r = path(x[1])
@@ -578,12 +569,6 @@ class Instruction(Transaction):
 		# have not been put there already.
 		if not self.completed or self.completed[-1][0] != id(messages):
 			self.completed.append((id(messages), processed))
-		if not self._asyncs or self._asyncs[-1][0] != id(messages):
-			self._asyncs.append((id(messages), asyncs or ()))
-			# Remove empty async items before the last
-			if len(self._asyncs) > 1:
-				if not self._asyncs[-2][1]:
-					del self._asyncs[-2]
 
 		# Store the state for the next transition.
 		self.last = (messages, self.last[2], (offset, current_step),)
@@ -615,7 +600,7 @@ class Instruction(Transaction):
 		In the context of a copy, `put_copydata` is used as a fast path for
 		storing `element.CopyData` messages. When a non-`element.CopyData.type`
 		message is received, it reverts the ``state`` attribute back to
-		`standard_put` to process the message..
+		`standard_put` to process the message-sequence.
 		"""
 		# "Fail" quickly if the last message is not copy data.
 		if messages[-1][0] is not element.CopyData.type:
@@ -680,13 +665,13 @@ class Instruction(Transaction):
 		"""
 		The state method for sending copy data.
 
-		After each call to `sent_from_stdin`, the `messages` attribute is set to a
-		`CopyFailSequence`. This sequence of messages assures that the COPY will be
-		properly terminated.
+		After each call to `sent_from_stdin`, the `messages` attribute is set
+		to a `CopyFailSequence`. This sequence of messages assures that the
+		COPY will be properly terminated.
 
 		If new copy data is not provided, or `messages` is *not* set to
-		`CopyDoneSequence`, the transaction will instruct the remote end to cause
-		the COPY to fail.
+		`CopyDoneSequence`, the transaction will instruct the remote end to
+		cause the COPY to fail.
 		"""
 		if self.messages is self.CopyDoneSequence or \
 		self.messages is self.CopyFailSequence:

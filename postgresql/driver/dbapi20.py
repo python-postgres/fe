@@ -283,11 +283,11 @@ class Connection(object):
 
 	def close(self):
 		if self.database.closed:
-			err = Error(
+			raise Error(
 				"connection already closed",
 				source = 'CLIENT',
 				creator = self.database
-			).raise_exception()
+			)
 		self.database.close()
 
 	def cursor(self):
@@ -295,28 +295,28 @@ class Connection(object):
 
 	def commit(self):
 		if self._xact is None:
-			err = InterfaceError(
+			raise InterfaceError(
 				"commit on connection in autocommit mode",
 				source = 'CLIENT',
 				details = {
 					'hint': 'The "autocommit" property on the connection was set to True.'
 				},
 				creator = self.database
-			).raise_exception()
+			)
 		self._xact.commit()
 		self._xact = self.database.xact()
 		self._xact.start()
 
 	def rollback(self):
 		if self._xact is None:
-			err = InterfaceError(
+			raise InterfaceError(
 				"rollback on connection in autocommit mode",
 				source = 'DRIVER',
 				details = {
 					'hint': 'The "autocommit" property on the connection was set to True.'
 				},
 				creator = self.database
-			).raise_exception()
+			)
 		self._xact.rollback()
 		self._xact = self.database.xact()
 		self._xact.start()

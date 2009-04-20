@@ -260,9 +260,16 @@ Suspension.SingleInstance = SuspensionMessage
 class Ready(Message):
 	'Ready for new query'
 	type = message_types[b'Z'[0]]
+	possible_states = (
+		message_types[b'I'[0]],
+		message_types[b'E'[0]],
+		message_types[b'T'[0]],
+	)
 	__slots__ = ('xact_state',)
 
 	def __init__(self, data):
+		if data not in self.possible_states:
+			raise ValueError("invalid state for Ready message: " + repr(data))
 		self.xact_state = data
 
 	def serialize(self):
@@ -321,10 +328,30 @@ class Notice(Message, dict):
 				kw[typ._dtm[frag[0:1]]] = frag[1:]
 		return typ(**kw)
 
+class ClientNotice(Notice):
+	__slots__ = ()
+
+	def serialize(self):
+		raise RuntimeError("cannot serialize ClientNotice")
+
+	@classmethod
+	def parse(self):
+		raise RuntimeError("cannot parse ClientNotice")
+
 class Error(Notice):
 	"""Incoming error"""
 	type = message_types[b'E'[0]]
 	__slots__ = ()
+
+class ClientError(Error):
+	__slots__ = ()
+
+	def serialize(self):
+		raise RuntimeError("cannot serialize ClientError")
+
+	@classmethod
+	def parse(self):
+		raise RuntimeError("cannot serialize ClientError")
 
 class FunctionResult(Message):
 	"""Function result value"""

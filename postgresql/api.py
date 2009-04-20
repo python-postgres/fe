@@ -127,12 +127,13 @@ class Message(Element):
 
 	def _e_metas(self):
 		yield (None, self.message)
-		yield ('FROM', self.source.upper())
 		if self.code and self.code != "00000":
 			yield ('CODE', self.code)
 		locstr = self.location_string
 		if locstr:
-			yield ('LOCATION', locstr)
+			yield ('LOCATION', locstr + ' from ' + self.source)
+		else:
+			yield ('LOCATION', self.source)
 		for k, v in sorted(self.details.items(), key = itemgetter(0)):
 			if k not in self.standard_detail_coverage:
 				yield (k.upper(), str(v))
@@ -1004,21 +1005,7 @@ class Database(Element):
 		is being recycled.
 		"""
 
-class Connector(Element):
-	"""
-	A connector is a "bookmark" object and an abstraction layer for the
-	employed communication mechanism. `Connector` types should exist for each
-	mode of addressing. This allows for easier type checking and cleaner
-	implementation.
-
-	`Connector` implementations supply the tools to make a connected socket.
-	Sockets produced by the `Connector` are used by the `Connection` to
-	facilitate negotiation; once negotiation is complete, the connection is
-	made.
-	"""
-	_e_label = 'CONNECTOR'
-	_e_factors = ('driver',)
-
+class SocketFactory(object):
 	@propertydoc
 	@abstractproperty
 	def fatal_exception(self) -> Exception:
@@ -1078,6 +1065,21 @@ class Connector(Element):
 		Return a sequence of `SocketCreator`s that `Connection` objects will use to
 		create the socket object. 
 		"""
+
+class Connector(Element):
+	"""
+	A connector is a "bookmark" object and an abstraction layer for the
+	employed communication mechanism. `Connector` types should exist for each
+	mode of addressing. This allows for easier type checking and cleaner
+	implementation.
+
+	`Connector` implementations supply the tools to make a connected socket.
+	Sockets produced by the `Connector` are used by the `Connection` to
+	facilitate negotiation; once negotiation is complete, the connection is
+	made.
+	"""
+	_e_label = 'CONNECTOR'
+	_e_factors = ('driver',)
 
 	def __call__(self, *args, **kw):
 		"""

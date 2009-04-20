@@ -835,11 +835,8 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				(2,), (2,), (3,), (4,), (5,),
 			)
 			insert_t.load(mset)
-			self.failUnlessEqual(mset, tuple([
-				tuple(x) for x in self.db.prepare(
-					"SELECT * FROM t ORDER BY 1 ASC"
-				)
-			]))
+			content = self.db.prepare("SELECT * FROM t ORDER BY 1 ASC")
+			self.failUnlessEqual(mset, tuple(content()))
 		finally:
 			self.db.execute("DROP TABLE t")
 

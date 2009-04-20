@@ -173,12 +173,11 @@ class Cluster(pg_api.Cluster):
 		if initdb is None:
 			initdb = self.installation.initdb
 			if initdb is None:
-				e = pg_exc.ClusterInitializationError(
+				raise pg_exc.ClusterInitializationError(
 					"unable to find `initdb` executable for installation: " + \
 					repr(self.installation),
 					creator = self
 				)
-				e.raise_exception()
 
 		# Transform keyword options into command options for the executable.
 		kw.setdefault('encoding', self.DEFAULT_CLUSTER_ENCODING)
@@ -237,14 +236,14 @@ class Cluster(pg_api.Cluster):
 				msg = os.linesep.join([
 					repr(x)[2:-1] for x in r.splitlines()
 				])
-			pg_exc.InitDBError(
+			raise pg_exc.InitDBError(
 				msg,
 				details = {
 					'COMMAND': cmd,
 					'RESULT': rc,
 				},
 				creator = self
-			).raise_exception()
+			)
 
 	def drop(self):
 		"""
@@ -311,10 +310,10 @@ class Cluster(pg_api.Cluster):
 			self.stop()
 			self.wait_until_stopped(timeout = timeout)
 		if self.running():
-			pg_exc.ClusterError(
+			raise pg_exc.ClusterError(
 				"failed to shutdown cluster",
 				creator = self
-			).raise_exception()
+			)
 		self.start(logfile = logfile, settings = settings)
 		self.wait_until_started(timeout = timeout)
 
@@ -425,10 +424,10 @@ class Cluster(pg_api.Cluster):
 		Cluster must be running.
 		"""
 		if not self.running():
-			ClusterNotRunningError(
+			raise ClusterNotRunningError(
 				"cannot connect if cluster is not running",
 				creator = self
-			).raise_exception()
+			)
 		return self.connection(**kw).connect()
 
 	def address(self):
@@ -473,8 +472,8 @@ class Cluster(pg_api.Cluster):
 				sslmode = 'disable',
 			).close()
 		except pg_exc.ClientCannotConnectError as err:
-			for attempt in err.database.attempt:
-				x = attempt.exception
+			for attempt in err.database.failures:
+				x = attempt.error
 				if self.installation.version_info[:2] < (8,1):
 					if isinstance(x, (
 						pg_exc.UndefinedObjectError,
@@ -515,19 +514,19 @@ class Cluster(pg_api.Cluster):
 				if self.daemon_process is not None:
 					r = self.daemon_process.returncode
 					if r is not None and r != 0:
-						e = pg_exc.ClusterStartupError(
+						raise pg_exc.ClusterStartupError(
 							"postgresql daemon exited with non-zero status",
 							details = {
 								'RESULT' : r,
 								'COMMAND' : self.daemon_command,
 							},
 							creator = self
-						).raise_exception()
+						)
 				else:
-					pg_exc.ClusterNotRunningError(
+					raise pg_exc.ClusterNotRunningError(
 						"postgresql daemon has not been started",
 						creator = self
-					).raise_exception()
+					)
 			r = self.ready_for_connections()
 
 			checkpoint = time.time()
@@ -540,12 +539,13 @@ class Cluster(pg_api.Cluster):
 				# condition, rather it's *still* starting up.
 				if r is not None and isinstance(r, pg_exc.ServerNotReadyError):
 					raise r
-				return pg_exc.ClusterTimeoutError(
+				e = pg_exc.ClusterTimeoutError(
 					'timeout on startup',
 					creator = self
-				).raise_exception(
-					raise_from = r if r not in (True,False) else None
 				)
+				if r not in (True,False):
+					raise e from r
+				raise e
 			time.sleep(delay)
 
 	def wait_until_stopped(self,
@@ -566,10 +566,10 @@ class Cluster(pg_api.Cluster):
 			if self.daemon_process is not None:
 				self.last_exit_code = self.daemon_process.poll()
 			if time.time() - start >= timeout:
-				pg_exc.ClusterTimeoutError(
+				raise pg_exc.ClusterTimeoutError(
 					'timeout on shutdown',
 					creator = self,
-				).raise_exception()
+				)
 			time.sleep(delay)
 ##
 # vim: ts=3:sw=3:noet:

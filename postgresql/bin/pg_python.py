@@ -55,8 +55,8 @@ def command(argv = sys.argv):
 			connection = connector()
 			connection.connect()
 		except pg_exc.ClientCannotConnectError as err:
-			for att in connection.attempt:
-				exc = att.exception
+			for att in connection.failures:
+				exc = att.error
 				if isinstance(exc, pg_exc.AuthenticationSpecificationError):
 					sys.stderr.write(os.linesep + exc.message + (os.linesep*2))
 					# keep prompting the user

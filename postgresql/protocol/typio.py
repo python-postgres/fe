@@ -556,7 +556,7 @@ def composite_typio(
 			},
 		)
 		te.index = itemnum
-		te.raise_exception()
+		raise te
 
 	def raise_unpack_tuple_error(procs, tup, itemnum):
 		data = repr(tup[itemnum])
@@ -575,7 +575,7 @@ def composite_typio(
 			},
 		)
 		te.index = itemnum
-		te.raise_exception()
+		raise te
 
 	def unpack_a_record(data):
 		data = tuple([x[1] for x in ts.record_unpack(data)])

@@ -5,12 +5,23 @@
 import unittest
 import struct
 import decimal
+import socket
+import time
+from threading import Thread
+
 from ..protocol import element3 as e3
 from ..protocol import xact3 as x3
+from ..protocol import client3 as c3
 from ..protocol import pbuffer as p_buffer_module
 from ..protocol import typstruct as pg_typstruct
 from ..protocol import typio as pg_typio
 from .. import types as pg_types
+from ..python.socket import find_available_port, SocketFactory
+
+def pair(msg):
+	return (msg.type, msg.serialize())
+def pairs(*msgseq):
+	return list(map(pair, msgseq))
 
 try:
 	from ..protocol import cbuffer as c_buffer_module
@@ -343,6 +354,201 @@ class test_xact3(unittest.TestCase):
 					rec.append(z)
 			self.failUnlessEqual(xres, tuple(rec))
 
+	def testClosing(self):
+		c = x3.Closing()
+		self.failUnlessEqual(c.messages, (e3.DisconnectMessage,))
+		c.state[1]()
+		self.failUnlessEqual(c.fatal, True)
+		self.failUnlessEqual(c.error_message.__class__, e3.ClientError)
+		self.failUnlessEqual(c.error_message['code'], '08003')
+
+	def testNegotiation(self):
+		# simple successful run
+		n = x3.Negotiation({}, b'')
+		n.state[1]()
+		n.state[1](
+			pairs(
+				e3.Notice(message = b"foobar"),
+				e3.Authentication(e3.AuthRequest_OK, b''),
+				e3.KillInformation(0,0),
+				e3.ShowOption(b'name', b'val'),
+				e3.Ready(b'I'),
+			)
+		)
+		self.failUnlessEqual(n.state, x3.Complete)
+		self.failUnlessEqual(n.last_ready.xact_state, b'I')
+		# no killinfo.. should cause protocol error...
+		n = x3.Negotiation({}, b'')
+		n.state[1]()
+		n.state[1](
+			pairs(
+				e3.Notice(message = b"foobar"),
+				e3.Authentication(e3.AuthRequest_OK, b''),
+				e3.ShowOption(b'name', b'val'),
+				e3.Ready(b'I'),
+			)
+		)
+		self.failUnlessEqual(n.state, x3.Complete)
+		self.failUnlessEqual(n.last_ready, None)
+		self.failUnlessEqual(n.error_message["code"], '08P01')
+		# killinfo twice.. must cause protocol error...
+		n = x3.Negotiation({}, b'')
+		n.state[1]()
+		n.state[1](
+			pairs(
+				e3.Notice(message = b"foobar"),
+				e3.Authentication(e3.AuthRequest_OK, b''),
+				e3.ShowOption(b'name', b'val'),
+				e3.KillInformation(0,0),
+				e3.KillInformation(0,0),
+				e3.Ready(b'I'),
+			)
+		)
+		self.failUnlessEqual(n.state, x3.Complete)
+		self.failUnlessEqual(n.last_ready, None)
+		self.failUnlessEqual(n.error_message["code"], '08P01')
+		# start with ready message..
+		n = x3.Negotiation({}, b'')
+		n.state[1]()
+		n.state[1](
+			pairs(
+				e3.Notice(message = b"foobar"),
+				e3.Ready(b'I'),
+				e3.Authentication(e3.AuthRequest_OK, b''),
+				e3.ShowOption(b'name', b'val'),
+			)
+		)
+		self.failUnlessEqual(n.state, x3.Complete)
+		self.failUnlessEqual(n.last_ready, None)
+		self.failUnlessEqual(n.error_message["code"], '08P01')
+		# unsupported authreq
+		n = x3.Negotiation({}, b'')
+		n.state[1]()
+		n.state[1](
+			pairs(
+				e3.Authentication(255, b''),
+			)
+		)
+		self.failUnlessEqual(n.state, x3.Complete)
+		self.failUnlessEqual(n.last_ready, None)
+		self.failUnlessEqual(n.error_message["code"], '--AUT')
+
+	def testInstructionAsynchook(self):
+		l = []
+		def hook(data):
+			l.append(data)
+		x = x3.Instruction([
+			e3.Query(b"NOTHING")
+		], asynchook = hook)
+		a1 = e3.Notice(message = b"m1")
+		a2 = e3.Notify(0, b'relation', b'parameter')
+		a3 = e3.ShowOption(b'optname', b'optval')
+		# "send" the query message
+		x.state[1]()
+		# "receive" the tuple
+		x.state[1]([(a1.type, a1.serialize()),])
+		a2l = [(a2.type, a2.serialize()),]
+		x.state[1](a2l)
+		# validate that the hook is not fed twice because
+		# it's the exact same message set. (later assertion will validate)
+		x.state[1](a2l)
+		x.state[1]([(a3.type, a3.serialize()),])
+		# we only care about validating that l got everything.
+		self.failUnlessEqual([a1,a2,a3], l)
+		self.failUnlessEqual(x.state[0], x3.Receiving)
+		# validate that the asynchook exception is trapped.
+		class Nee(Exception):
+			pass
+		def ehook(msg):
+			raise Nee("this should **not** be part of the summary")
+		x = x3.Instruction([
+			e3.Query(b"NOTHING")
+		], asynchook = ehook)
+		a1 = e3.Notice(message = b"m1")
+		x.state[1]()
+		import sys
+		v = None
+		def exchook(typ, val, tb):
+			nonlocal v
+			v = val
+		seh = sys.excepthook
+		sys.excepthook = exchook
+		# we only care about validating that the exchook got called.
+		x.state[1]([(a1.type, a1.serialize())])
+		sys.excepthook = seh
+		self.failUnless(isinstance(v, Nee))
+
+class test_client3(unittest.TestCase):
+	def test_timeout(self):
+		portnum = find_available_port()
+		servsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		servsock.bind(('localhost', portnum))
+		pc = c3.Connection(
+			SocketFactory(
+				(socket.AF_INET, socket.SOCK_STREAM),
+				('localhost', portnum)
+			),
+			{}
+		)
+		pc.connect(timeout = 1)
+		self.failUnlessEqual(pc.xact.fatal, True)
+		self.failUnlessEqual(type(pc.xact), x3.Negotiation)
+		servsock.close()
+
+	def test_SSL_failure(self):
+		portnum = find_available_port()
+		servsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		servsock.bind(('localhost', portnum))
+		pc = c3.Connection(
+			SocketFactory(
+				(socket.AF_INET, socket.SOCK_STREAM),
+				('localhost', portnum)
+			),
+			{}
+		)
+		exc = None
+		def client_thread():
+			pc.connect(ssl = True)
+		client = Thread(target = client_thread)
+		client.start()
+		servsock.listen(1)
+		c, addr = servsock.accept()
+		c.send(b'S')
+		c.sendall(b'0000000000000000000000')
+		c.close()
+		servsock.close()
+		client.join()
+		self.failUnlessEqual(pc.xact.fatal, True)
+		self.failUnlessEqual(pc.xact.__class__, x3.Negotiation)
+		self.failUnlessEqual(pc.xact.error_message.__class__, e3.ClientError)
+		self.failUnless(hasattr(pc.xact, 'exception'))
+
+	def test_bad_negotiation(self):
+		portnum = find_available_port()
+		servsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		servsock.bind(('localhost', portnum))
+		pc = c3.Connection(
+			SocketFactory(
+				(socket.AF_INET, socket.SOCK_STREAM),
+				('localhost', portnum)
+			),
+			{}
+		)
+		exc = None
+		def client_thread():
+			pc.connect()
+		client = Thread(target = client_thread)
+		client.start()
+		servsock.listen(1)
+		c, addr = servsock.accept()
+		c.close()
+		time.sleep(0.25)
+		client.join()
+		servsock.close()
+		self.failUnlessEqual(pc.xact.fatal, True)
+		self.failUnlessEqual(pc.xact.__class__, x3.Negotiation)
+		self.failUnlessEqual(pc.xact.error_message.__class__, e3.ClientError)
+		self.failUnlessEqual(pc.xact.error_message["code"], '08006')
 
 # this must pack to that, and
 # that must unpack to this

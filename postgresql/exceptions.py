@@ -40,17 +40,22 @@ class Exception(Exception):
 	'Base PostgreSQL exception class'
 	pass
 
+class Disconnection(Exception):
+	'Exception identifying errors that result in disconnection'
+
 class Warning(pg_api.Message):
 	code = '01000'
 	_e_label = property(attrgetter('__class__.__name__'))
 
 class DriverWarning(Warning):
-	code = ''
+	code = '01-00'
 	source = 'CLIENT'
 class IgnoredClientParameterWarning(DriverWarning):
 	'Warn the user of a valid, but ignored parameter.'
+	code = '01-CP'
 class TypeConversionWarning(DriverWarning):
 	'Report a potential issue with a conversion.'
+	code = '01-TP'
 
 class ClusterWarning(Warning):
 	code = ''
@@ -79,7 +84,7 @@ class NoMoreSetsReturned(NoDataWarning):
 class Error(pg_api.Message, Exception):
 	'A PostgreSQL Error'
 	_e_label = 'ERROR'
-	code = ""
+	code = ''
 
 	def __str__(self):
 		it = self._e_metas()
@@ -98,43 +103,40 @@ class Error(pg_api.Message, Exception):
 		f = self.details.get('severity')
 		return None if f is None else f in ('PANIC', 'FATAL')
 
-	def raise_exception(self, raise_from = None):
-		"""
-		Raise the `Error`, `self`, *after* gettings a snapshot of the ancestry.
-		"""
-		# get the snapshot before raising to get an accurate view of the state
-		if raise_from is None:
-			raise self
-		else:
-			raise self from raise_from
-
 class DriverError(Error):
 	"Errors originating in the driver's implementation."
 	source = 'CLIENT'
-class AuthenticationMethodError(DriverError):
+	code = '--000'
+class AuthenticationMethodError(DriverError, Disconnection):
 	"""
 	Server requested an authentication method that is not supported by the
 	driver.
 	"""
-class InsecurityError(DriverError):
+	code = '--AUT'
+class InsecurityError(DriverError, Disconnection):
 	"""
 	Error signifying a secure channel to a server cannot be established.
 	"""
+	code = '--SEC'
+class ConnectTimeoutError(DriverError, Disconnection):
+	'Client was unable to esablish a connection in the given time'
+	code = '--TOE'
 
 class TypeIOError(DriverError):
 	"""
 	Driver failed to pack or unpack a tuple.
 	"""
+	code = '--TIO'
 class ParameterError(TypeIOError):
-	pass
+	code = '--PIO'
 class ColumnError(TypeIOError):
-	pass
+	code = '--CIO'
 
 class OperationError(DriverError):
 	"""
 	An invalid operation on an interface element.
 	"""
-
+	code = '--OPE'
 ##
 # Exceptions pertinent to cluster initialization and management
 ##
@@ -157,7 +159,7 @@ class TransactionError(Error):
 class SQLNotYetCompleteError(Error):
 	code = '03000'
 
-class ConnectionError(Error):
+class ConnectionError(Error, Disconnection):
 	code = '08000'
 class ConnectionDoesNotExistError(ConnectionError):
 	"""
@@ -173,9 +175,6 @@ class ClientCannotConnectError(ConnectionError):
 	Client was unable to establish a connection to the server.
 	"""
 	code = '08001'
-
-class ClientConnectTimeoutError(ClientCannotConnectError):
-	'Client was unable to esablish a connection in the given time'
 
 class ConnectionRejectionError(ConnectionError):
 	code = '08004'
@@ -217,7 +216,7 @@ class CardinalityError(Error):
 class TriggeredDataChangeViolation(Error):
 	code = '27000'
 
-class AuthenticationSpecificationError(Error):
+class AuthenticationSpecificationError(Error, Disconnection):
 	code = '28000'
 
 class DPDSEError(Error):
@@ -615,11 +614,11 @@ class OIError(Error):
 	code = '57000'
 class QueryCanceledError(OIError):
 	code = '57014'
-class AdminShutdownError(OIError):
+class AdminShutdownError(OIError, Disconnection):
 	code = '57P01'
-class CrashShutdownError(OIError):
+class CrashShutdownError(OIError, Disconnection):
 	code = '57P02'
-class ServerNotReadyError(OIError):
+class ServerNotReadyError(OIError, Disconnection):
 	'Thrown when a connection is established to a server that is still starting up.'
 	code = '57P03'
 
