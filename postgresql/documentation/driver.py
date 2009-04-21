@@ -312,7 +312,7 @@ The methods and properties on the connection object are ready for use:
  ``db.execute(sql_statements_string)``
   Run a block of SQL on the server. This method returns `None` unless an error
   occurs. If errors occur, the processing of the statements will stop and the
-  the error will be raised.
+  error will be raised.
 
  ``db.xact(gid = None, isolation = None, mode = None)``
   The `postgresql.api.Transaction` constructor for creating transactions.
