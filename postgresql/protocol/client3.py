@@ -45,7 +45,7 @@ class Connection(object):
 		"""
 		if self.xact is not None:
 			self.complete()
-		x = pq.Instruction((element.SynchronizeMessage,))
+		x = xact.Instruction((element.SynchronizeMessage,))
 		self.xact = x
 		self.complete()
 
