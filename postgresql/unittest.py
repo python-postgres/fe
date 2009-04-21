@@ -54,6 +54,7 @@ class TestCaseWithCluster(unittest.TestCase):
 			listen_addresses = 'localhost',
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',
+			silent_mode = 'off',
 		))
 
 	def initialize_database(self):
