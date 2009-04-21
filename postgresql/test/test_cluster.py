@@ -32,7 +32,8 @@ class test_cluster(unittest.TestCase):
 		self.cluster.settings.update({
 			'max_connections' : '8',
 			'listen_addresses' : 'localhost',
-			'port' : '6543'
+			'port' : '6543',
+			'silent_mode' : 'off',
 		})
 
 	def testSuperPassword(self):
