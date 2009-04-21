@@ -382,7 +382,15 @@ class Cluster(pg_api.Cluster):
 		"""
 		if self.daemon_process is not None:
 			r = self.daemon_process.poll()
-			return r is None
+			if r is not None:
+				pid = self.get_pid_from_file()
+				if pid is not None:
+					# daemon process does not exist, but there's a pidfile.
+					self.daemon_process = None
+					return self.running()
+				return False
+			else:
+				return True
 		else:
 			pid = self.get_pid_from_file()
 			if pid is None:
