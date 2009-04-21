@@ -25,7 +25,7 @@ class test_cluster(unittest.TestCase):
 
 	def start_cluster(self):
 		self.cluster.start(logfile = None)
-		self.cluster.wait_until_started(timeout = 30)
+		self.cluster.wait_until_started(timeout = 10)
 
 	def init(self, *args, **kw):
 		self.cluster.init(*args, **kw)
@@ -35,6 +35,12 @@ class test_cluster(unittest.TestCase):
 			'port' : '6543',
 			'silent_mode' : 'off',
 		})
+
+	def testSilentMode(self):
+		self.init(logfile = None)
+		self.cluster.settings['silent_mode'] = 'on'
+		# if it fails to start(ClusterError), silent_mode is not working properly.
+		self.start_cluster()
 
 	def testSuperPassword(self):
 		self.init(
