@@ -11,6 +11,7 @@ Changes
 
  * Fix encoding normalization.
  * Fix "method" decorator to return callable when val is None.
+ * Fix startup of clusters in silent mode.
 
 0.8.0 released on 2009-04-03
 ----------------------------
