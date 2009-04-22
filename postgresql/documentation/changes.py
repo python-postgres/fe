@@ -9,10 +9,10 @@ Changes
 0.9.0
 -----
 
+ * Optimizations.
  * Extend `postgresql.open` to take keyword arguments.
  * Refactor `postgresql.api.InterfaceElement`.
- * Optimizations.
- * Fix encoding normalization.
+ * Refactor driver.pq3.Connection to use protocol.client3.Connection.
 
 0.8.1
 -----
