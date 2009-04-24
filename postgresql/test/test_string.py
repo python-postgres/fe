@@ -227,6 +227,26 @@ class test_strings(unittest.TestCase):
 			"""'\\foo''bar\\'"""
 		)
 		self.failUnlessEqual(
+			pg_str.quote_ident("foo"),
+			"foo"
+		)
+		self.failUnlessEqual(
+			pg_str.quote_ident("0foo"),
+			'"0foo"'
+		)
+		self.failUnlessEqual(
+			pg_str.quote_ident("foo0"),
+			'foo0'
+		)
+		self.failUnlessEqual(
+			pg_str.quote_ident("_"),
+			'_'
+		)
+		self.failUnlessEqual(
+			pg_str.quote_ident("_9"),
+			'_9'
+		)
+		self.failUnlessEqual(
 			pg_str.quote_ident('''\\foo'bar\\'''),
 			'''"\\foo'bar\\"'''
 		)

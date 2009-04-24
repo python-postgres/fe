@@ -30,10 +30,12 @@ def escape_ident(text):
 
 def quote_ident(text):
 	"""
-	If needed, replace every instance of " with "" *and* place " on each end
-	Otherwise, just return the text.
+	If needed, replace every instance of '"' with '""' *and* place '"' on each
+	end. Otherwise, just return the text.
 	"""
-	if not text.isalpha():
+	if not text or text[0].isdecimal() or (
+		not text.replace('_', 'a').isalnum()
+	):
 		return '"' + text.replace('"', '""') + '"'
 	return text
 
