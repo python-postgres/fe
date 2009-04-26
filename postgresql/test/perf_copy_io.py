@@ -23,10 +23,11 @@ def testSpeed(tuples = 50000 * 3):
 	"(i int, t text, mt text, ts text, ty text, tx text);")
 	try:
 		Q = prepare("COPY _copy FROM STDIN")
-		size = [0]
+		size = 0
 		def incsize(data):
 			'count of bytes'
-			size[0] += len(data)
+			nonlocal size
+			size += len(data)
 			return data
 		sys.stderr.write("preparing data(%d tuples)...\n" %(tuples,))
 
@@ -48,9 +49,9 @@ def testSpeed(tuples = 50000 * 3):
 			"average tuple size(bytes): %f\n " \
 			"average KB per second: %f\n " \
 			"average tuples per second: %f\n" %(
-				tuples, size[0], duration,
-				size[0] / tuples,
-				size[0] / 1024 / duration,
+				tuples, size, duration,
+				size / tuples,
+				size / 1024 / duration,
 				tuples / duration, 
 			)
 		)
@@ -67,7 +68,7 @@ def testSpeed(tuples = 50000 * 3):
 			"average KB per second: %f\n " \
 			"average tuples per second: %f\n " %(
 				c, duration,
-				size[0] / 1024 / duration,
+				size / 1024 / duration,
 				tuples / duration, 
 			)
 		)
