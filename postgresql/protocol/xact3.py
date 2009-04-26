@@ -637,12 +637,14 @@ class Instruction(Transaction):
 			return self.standard_put(messages)
 
 		p = element.Tuple.parse
+		t = element.Tuple.type
 		tuplemessages = []
-		for x in messages:
-			if x[0] is not element.Tuple.type:
+		a = tuplemessages.append
+		for (TYP,DATA) in messages:
+			if TYP is not t:
 				self.state = (Receiving, self.standard_put)
 				return self.standard_put(messages)
-			tuplemessages.append(p(x[1]))
+			a(p(DATA))
 		#tuplemessages = list(map(proctup, messages))
 
 		if not self.completed or self.completed[-1][0] != id(messages):
