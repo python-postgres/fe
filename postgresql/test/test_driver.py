@@ -721,7 +721,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				FROM generate_series(1, 10000) g(i);
 				"""
 			)
-			read = self.db.prepare('select * FROM chunking').chunks(chunksize = 256)
+			read = self.db.prepare('select * FROM chunking').chunks()
 			write = db2.prepare('insert into chunking values ($1, $2)').load
 			with db2.xact():
 				for rows in read:
@@ -757,7 +757,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				FROM generate_series(1, 10000) g(i);
 				"""
 			)
-			read = self.db.prepare('select * FROM chunking').chunks(chunksize = 256)
+			read = self.db.prepare('select * FROM chunking').chunks()
 			write = db2.prepare('insert into chunking values ($1, $2)').load
 			with db2.xact():
 				write(read)

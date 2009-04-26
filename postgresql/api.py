@@ -30,6 +30,8 @@ from .python.decorlib import propertydoc
 __all__ = [
 	'Message',
 	'PreparedStatement',
+	'Chunks',
+	'Rows',
 	'Cursor',
 	'Connector',
 	'Database',
@@ -166,10 +168,16 @@ class Result(Element):
 	These objects represent a binding of parameters to a given statement object.
 
 	For results that were constructed on the server and a reference passed back
-	to the client, parameters may be None.
+	to the client, statement and parameters may be None.
 	"""
 	_e_label = 'RESULT'
 	_e_factors = ('statement', 'parameters', 'cursor_id')
+
+	@abstractmethod
+	def close(self) -> None:
+		"""
+		Close the Result handle.
+		"""
 
 	@propertydoc
 	@abstractproperty
@@ -246,15 +254,11 @@ class Result(Element):
 		"""
 
 class Chunks(
+	Result,
 	collections.Iterator,
 	collections.Iterable,
 ):
-	"""
-	A `Chunks` object is an interface to an iterator of row-sets produced
-	by a cursor.
-	"""
-	def __iter__(self):
-		return self
+	pass
 
 class Cursor(
 	Result,
@@ -309,12 +313,9 @@ class Cursor(
 		`direction` can be used to override the default configured direction.
 
 		This alters the cursor's position.
-		"""
 
-	@abstractmethod
-	def close(self) -> None:
-		"""
-		Close the cursor.
+		Read does not directly correlate to FETCH. If zero is given as the
+		quantity, an empty sequence *must* be returned.
 		"""
 
 	@abstractmethod
@@ -472,7 +473,7 @@ class PreparedStatement(
 		"""
 
 	@abstractmethod
-	def rows(self, *parameters, chunksize = None) -> "Iterator(Row)":
+	def rows(self, *parameters) -> collections.Iterable:
 		"""
 		Return an iterator producing rows produced by the cursor
 		created from the statement bound with the given parameters.
@@ -489,7 +490,7 @@ class PreparedStatement(
 		"""
 
 	@abstractmethod
-	def chunks(self, *parameters, chunksize = None) -> Chunks:
+	def chunks(self, *parameters) -> collections.Iterable:
 		"""
 		Return an iterator producing sequences of rows produced by the cursor
 		created from the statement bound with the given parameters.

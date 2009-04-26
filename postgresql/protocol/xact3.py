@@ -413,7 +413,7 @@ class Instruction(Transaction):
 		self.asynchook = asynchook
 		self.completed = []
 		self.last = self.initial_state
-		self.messages = self.commands
+		self.messages = list(self.commands)
 		self.state = (Sending, self.standard_sent)
 		self.fatal = None
 

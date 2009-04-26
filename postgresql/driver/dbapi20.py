@@ -81,6 +81,44 @@ def dbapi_type(typid):
 	elif typid == pg_type.OIDOID:
 		return ROWID
 
+class Portal(object):
+	def __init__(self, chunks):
+		self.chunks = chunks
+		self.buf = []
+		self.pos = 0
+
+	def __next__(self):
+		try:
+			r = self.buf[self.pos]
+			self.pos += 1
+			return r
+		except IndexError:
+			self.buf = next(self.chunks)
+			self.pos = 0
+			return self.__next__()
+
+	def readall(self):
+		self.buf = self.buf[self.pos:]
+		self.pos = 0
+		for x in self.chunks:
+			self.buf.extend(x)
+		r = self.buf
+		self.buf = []
+		return r
+
+	def read(self, amount):
+		try:
+			while (len(self.buf) - self.pos) < amount:
+				self.buf.extend(next(self.chunks))
+			end = self.pos + amount
+		except StopIteration:
+			end = len(self.buf)
+
+		r = self.buf[self.pos:end]
+		del self.buf[:end]
+		self.pos = 0
+		return r
+
 class Cursor(object):
 	rowcount = -1
 	arraysize = 1
@@ -91,6 +129,25 @@ class Cursor(object):
 		self.database = C.database
 		self.description = ()
 		self.__portals = []
+
+	# Describe the "real" cursor as a "portal".
+	# This should keep ambiguous terminology out of adaptor.
+	def _portal():
+		def fget(self):
+			if self.__portals is None:
+				raise Error("access on closed cursor")
+			try:
+				p = self.__portals[0]
+			except IndexError:
+				raise InterfaceError("no portal on stack")
+			return p
+		def fdel(self):
+			try:
+				del self.__portals[0]
+			except IndexError:
+				raise InterfaceError("no portal on stack")
+		return locals()
+	_portal = property(**_portal())
 
 	def setinputsizes(self, sizes):
 		pass
@@ -104,7 +161,7 @@ class Cursor(object):
 				'$%d' %(x,) for x in range(1, len(args) + 1)
 			])
 		))
-		self.__portals.insert(0, p._cursor(*args))
+		self.__portals.insert(0, Portal(p.chunks(*args)))
 		return args
 
 	def fetchone(self):
@@ -123,7 +180,7 @@ class Cursor(object):
 		return self._portal.read(arraysize or self.arraysize or 1)
 
 	def fetchall(self):
-		return self._portal.read()
+		return self._portal.readall()
 
 	def nextset(self):
 		del self._portal
@@ -186,7 +243,7 @@ class Cursor(object):
 				)
 			)
 		ps = self.database.prepare(sql)
-		c = ps._cursor(*pxf(parameters))
+		c = ps.chunks(*pxf(parameters))
 		if ps._output is not None and len(ps._output) > 0:
 			# name, relationId, columnNumber, typeId, typlen, typmod, format
 			self.description = tuple([
@@ -194,9 +251,10 @@ class Cursor(object):
 				None, None, None, None, None)
 				for x in ps._output
 			])
-			self.__portals.insert(0, c)
+			self.__portals.insert(0, Portal(c))
 		else:
 			self.description = None
+			# execute bumps any current portal
 			if self.__portals:
 				del self._portal
 		return self
@@ -216,25 +274,6 @@ class Cursor(object):
 		if self.__portals is not None:
 			self.__portals = None
 			for p in ps: p.close()
-
-	# Describe the "real" cursor as a "portal".
-	# This should keep ambiguous terminology out of adaptor.
-	def _portal():
-		def fget(self):
-			if self.__portals is None:
-				raise Error("access on closed cursor")
-			try:
-				p = self.__portals[0]
-			except IndexError:
-				raise InterfaceError("no portal on stack")
-			return p
-		def fdel(self):
-			try:
-				del self.__portals[0]
-			except IndexError:
-				raise InterfaceError("no portal on stack")
-		return locals()
-	_portal = property(**_portal())
 
 class Connection(object):
 	"""

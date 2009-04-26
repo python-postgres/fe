@@ -13,6 +13,7 @@ Changes
  * Extend `postgresql.open` to take keyword arguments.
  * Refactor `postgresql.api.InterfaceElement`.
  * Refactor driver.pq3.Connection to use protocol.client3.Connection.
+ * Refactor driver.pq3.Cursor into types selected by PreparedStatements.
 
 0.8.1
 -----

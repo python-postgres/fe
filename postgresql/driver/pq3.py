@@ -8,6 +8,7 @@ PG-API interface for PostgreSQL that support the PQ version 3.0 protocol.
 import sys
 import os
 import warnings
+import collections
 
 import errno
 import socket
@@ -16,7 +17,7 @@ from traceback import format_exception
 from operator import itemgetter
 get0 = itemgetter(0)
 get1 = itemgetter(1)
-from itertools import repeat, islice, chain
+from itertools import repeat, islice, chain, count
 from functools import partial
 
 from abc import abstractmethod, abstractproperty
@@ -134,6 +135,25 @@ def ID(s, title = None):
 	'generate an id for a client statement or cursor'
 	return IDNS %(hex(id(s)),)
 
+def declare_statement_string(
+	cursor_id,
+	statement_string,
+	insensitive = True,
+	scroll = True,
+	hold = True
+):
+	s = 'DECLARE ' + cursor_id
+	if insensitive is True:
+		s += ' INSENSITIVE'
+	if scroll is True:
+		s += ' SCROLL'
+	s += ' CURSOR'
+	if hold is True:
+		s += ' WITH HOLD'
+	else:
+		s += ' WITHOUT HOLD'
+	return s + ' FOR ' + statement_string
+
 def direction_str_to_bool(str):
 	s = str.upper()
 	if s == 'FORWARD':
@@ -162,105 +182,50 @@ class TypeIO(pg_typio.TypeIO):
 	def lookup_composite_type_info(self, typid):
 		return self.database.prepare(CompositeLookup)(typid)
 
-class Chunks(pg_api.Chunks):
-	def __init__(self, cursor):
-		self.cursor = cursor
-
-	def __iter__(self):
-		return self
-
-	def __next__(self):
-		if self.cursor._last_reqsize == 0xFFFFFFFF:
-			raise StopIteration
-		self.cursor._expand()
-
-		# Grab the whole thing.
-		if self.cursor._offset == 0:
-			chunk = self.cursor._buffer
-		else:
-			chunk = self.cursor._buffer[self.cursor._offset:]
-
-		self.cursor.__dict__.update({
-			'_offset': 0,
-			'_buffer': [],
-		})
-
-		if not chunk:
-			self.cursor._buffer_more(self.cursor.chunksize or 128, self.cursor.direction)
-			if not self.cursor._buffer \
-			and self.cursor._last_increase != self.cursor._last_reqsize:
-				self.cursor.close()
-				raise StopIteration
-			# offset is expected to be zero.
-			chunk = self.cursor._buffer
-			self.cursor.__dict__.update({
-				'_offset': 0,
-				'_buffer': [],
-			})
-		else:
-			self.cursor._dispatch_for_more(self.cursor.direction)
-
-		return chunk
-
-##
-# Base Cursor class and cursor creation entry points.
-class Cursor(pg_api.Cursor):
-	closed = None
-	cursor_id = None
-	statement = None
-	parameters = None
-
-	with_hold = None
-	scroll = None
-	insensitive = None
-
-	chunksize = 64
-
+class Output(object):
 	_output = None
 	_output_io = None
 	_output_formats = None
 	_output_attmap = None
 
+	closed = False
+	cursor_id = None
+	statement = None
+	parameters = None
+
 	_complete_message = None
 
-	def _e_metas(self):
-		yield ('direction', 'FORWARD' if self.direction else 'BACKWORD')
+	@abstractmethod
+	def _init(self):
+		"""
+		Bind a cursor based on the configured parameters.
+		"""
 
-	@classmethod
-	def from_statement(
-		typ,
-		parameters,
-		statement,
-		scroll = False,
-		with_hold = None,
-		insensitive = True,
-	):
-		if statement._input is not None:
-			if len(parameters) != len(statement._input):
-				raise TypeError("statement requires %d parameters, given %d" %(
-					len(statement._input), len(parameters)
-				))
-		c = super().__new__(typ)
-		c.parameters = parameters
-		c.statement = statement
-		c.with_hold = with_hold
-		c.scroll = scroll
-		c.insensitive = insensitive
-		c.__init__(ID(c), statement.database)
-		return c
+	def __init__(self, cursor_id):
+		if self.statement is not None:
+			self._output = self.statement._output
+			self._output_io = self.statement._output_io
+			self._output_formats = self.statement._output_formats or ()
+			self._output_attmap = self.statement._output_attmap
 
-	def __init__(self, cursor_id, database):
-		self.closed = True
-		self.__dict__['direction'] = True
-		if not cursor_id:
-			# Driver uses the empty id(b'').
-			##
-			raise ValueError("invalid cursor identifier, " + repr(cursor_id))
-		self.cursor_id = str(cursor_id)
+		self.cursor_id = cursor_id
 		self._quoted_cursor_id = '"' + self.cursor_id.replace('"', '""') + '"'
-		self.database = database
-		self._ah = partial(self.database._receive_async, controller = self)
-		self._pq_cursor_id = database.typio.encode(self.cursor_id)
+		self._pq_cursor_id = self.database.typio.encode(self.cursor_id)
+		self._ins = partial(
+			xact.Instruction,
+			asynchook = partial(self.database._receive_async, controller = self)
+		)
+		self._init()
+
+	def __iter__(self):
+		return self
+
+	def close(self):
+		if self.closed is False:
+			self.database.pq.garbage_cursors.append(
+				self.database.typio.encode(self.cursor_id)
+			)
+			self.closed = True
 
 	def __del__(self):
 		if not self.closed and ID(self) == self.cursor_id:
@@ -268,31 +233,136 @@ class Cursor(pg_api.Cursor):
 				self.database.typio.encode(self.cursor_id)
 			)
 
-	def __iter__(self):
-		return self
+	def _pq_xp_describe(self):
+		return (element.DescribePortal(self._pq_cursor_id),)
 
-	def get_direction(self):
-		return self.__dict__['direction']
-	def set_direction(self, value):
-		self.__dict__['direction'] = direction_to_bool(value)
-	direction = property(
-		fget = get_direction,
-		fset = set_direction,
-	)
-	del get_direction, set_direction
+	def _pq_xp_bind(self):
+		return (
+			element.Bind(
+				self._pq_cursor_id,
+				self.statement._pq_statement_id,
+				self.statement._input_formats,
+				self.statement._pq_parameters(self.parameters),
+				self._output_formats,
+			),
+		)
 
-	def _which_way(self, direction):
-		if direction is not None:
-			direction = direction_to_bool(direction)
-			# -1 * -1 = 1, -1 * 1 = -1, 1 * 1 = 1
-			return not ((not self.direction) ^ (not direction))
+	def _pq_xp_fetchall(self):
+		return (
+			element.Bind(
+				b'',
+				self.statement._pq_statement_id,
+				self.statement._input_formats,
+				self.statement._pq_parameters(self.parameters),
+				self._output_formats,
+			),
+			element.Execute(b'', 0xFFFFFFFF),
+		)
+
+	def _pq_xp_declare(self):
+		return (
+			element.Parse(b'', self.database.typio.encode(
+					declare_statement_string(
+						str(self._quoted_cursor_id),
+						str(self.statement.string)
+					)
+				), ()
+			),
+			element.Bind(
+				b'', b'', self.statement._input_formats,
+				self.statement._pq_parameters(self.parameters), ()
+			),
+			element.Execute(b'', 1),
+		)
+
+	def _pq_xp_execute(self, quantity):
+		return (
+			element.Execute(self._pq_cursor_id, quantity),
+		)
+
+	def _pq_xp_fetch(self, direction, quantity):
+		##
+		# It's an SQL declared cursor, manually construct the fetch commands.
+		qstr = "FETCH " + ("FORWARD " if direction else "BACKWARD ")
+		if quantity is None:
+			qstr = qstr + "ALL IN " + self._quoted_cursor_id
 		else:
-			return self.direction
+			qstr = qstr \
+				+ str(quantity) + " IN " + self._quoted_cursor_id
+		return (
+			element.Parse(b'', self.database.typio.encode(qstr), ()),
+			element.Bind(b'', b'', (), (), self._output_formats),
+			# The "limit" is defined in the fetch query.
+			element.Execute(b'', 0xFFFFFFFF),
+		)
 
-	def _statement_string(self):
-		if self.statement:
-			return self.statement.string
-		return None
+	def _pq_xp_move(self, position, whence):
+		'make a command sequence for a MOVE single command'
+		return (
+			element.Parse(b'',
+				b'MOVE ' + whence + b' ' + position + b' IN ' + \
+				self.database.typio.encode(self._quoted_cursor_id),
+				()
+			),
+			element.Bind(b'', b'', (), (), ()),
+			element.Execute(b'', 1),
+		)
+
+	def _process_copy_chunk(self, x):
+		if x:
+			if x[0].__class__ is not bytes or x[-1].__class__ is not bytes:
+				return [
+					y for y in x if y.__class__ is bytes
+				]
+		return x
+
+	def _process_tuple_chunk_Row(self, x):
+		"""
+		Process the Tuple messages in `x`.
+		"""
+		return [
+			pg_types.Row.from_sequence(
+				self._output_attmap,
+				pg_typio.process_tuple(
+					self._output_io, y,
+					self._raise_column_tuple_error
+				),
+			) for y in x
+		]
+
+	def _process_tuple_chunk(self, x):
+		"""
+		Process the Tuple messages in `x`.
+		"""
+		return [
+			pg_typio.process_tuple(
+				self._output_io, y, self._raise_column_tuple_error
+			) for y in x
+		]
+
+	def _raise_column_tuple_error(self, procs, tup, itemnum):
+		'for column processing'
+		# The element traceback will include the full list of parameters.
+		data = repr(tup[itemnum])
+		if len(data) > 80:
+			# Be sure not to fill screen with noise.
+			data = data[:75] + ' ...'
+		te = pg_exc.ColumnError(
+			"failed to unpack column %r, %s::%s, from wire data" %(
+				itemnum,
+				self.column_names[itemnum],
+				self.database.typio.sql_type_from_oid(
+					self.statement.pg_column_types[itemnum]
+				) or '<unknown>',
+			),
+			details = {
+				'data': data,
+				'hint' : "Try casting the column to 'text'."
+			},
+			creator = self
+		)
+		te.index = itemnum
+		raise te
 
 	@property
 	def state(self):
@@ -324,116 +394,6 @@ class Cursor(pg_api.Cursor):
 			for x in self.pg_column_types
 		]
 
-	def close(self):
-		if self.closed is False:
-			self.database.pq.garbage_cursors.append(
-				self.database.typio.encode(self.cursor_id)
-			)
-			self.closed = True
-
-	def _raise_parameter_tuple_error(self, procs, tup, itemnum):
-		# The element traceback will include the full list of parameters.
-		data = repr(tup[itemnum])
-		if len(data) > 80:
-			# Be sure not to fill screen with noise.
-			data = data[:75] + ' ...'
-		te = pg_exc.ParameterError(
-			"failed to pack parameter %s::%s for transfer" %(
-				('$' + str(itemnum + 1)),
-				self.database.typio.sql_type_from_oid(
-					self.statement.pg_parameter_types[itemnum]
-				) or '<unknown>',
-			),
-			details = {
-				'data': data,
-				'hint' : "Try casting parameter to 'text', then to the target type."
-			},
-			creator = self
-		)
-		te.index = itemnum
-		raise te
-
-	def _raise_column_tuple_error(self, procs, tup, itemnum):
-		'for column processing'
-		# The element traceback will include the full list of parameters.
-		data = repr(tup[itemnum])
-		if len(data) > 80:
-			# Be sure not to fill screen with noise.
-			data = data[:75] + ' ...'
-		te = pg_exc.ColumnError(
-			"failed to unpack column %r, %s::%s, from wire data" %(
-				itemnum,
-				self.column_names[itemnum],
-				self.database.typio.sql_type_from_oid(
-					self.statement.pg_column_types[itemnum]
-				) or '<unknown>',
-			),
-			details = {
-				'data': data,
-				'hint' : "Try casting the column to 'text'."
-			},
-			creator = self
-		)
-		te.index = itemnum
-		raise te
-
-	def _pq_parameters(self):
-		return pg_typio.process_tuple(
-			self.statement._input_io, self.parameters,
-			self._raise_parameter_tuple_error
-		)
-
-	def _init(self):
-		"""
-		Based on the cursor parameters and the current transaction state,
-		select a cursor strategy for managing the response from the server.
-		"""
-		if self.statement is not None:
-			# If the cursor comes from a statement object, always
-			# get the output information from it.
-			self._output = self.statement._output
-			self._output_formats = self.statement._output_formats
-			self._output_io = self.statement._output_io
-			self._output_attmap = self.statement._output_attmap
-
-			if self._output is None:
-				self.__class__ = UtilityCursor
-				return self._init()
-
-			##
-			# Finish any outstanding transactions to identify
-			# the current transaction state.
-			if self.database.pq.xact is not None:
-				self.database._pq_complete()
-			##
-			# In auto-commit mode or with_hold is on?
-			if ((self.database.pq.state == b'I' and self.with_hold is None)\
-			or self.with_hold is True or self.scroll is True) \
-			and self.statement.string is not None:
-				##
-				# with_hold or scroll require a DeclaredCursor.
-				self.__class__ = DeclaredCursor
-			else:
-				self.__class__ = ProtocolCursor
-		else:
-			# If there's no statement, it's probably a server declared cursor.
-			# Treat it as an SQL declared cursor with special initialization.
-			self.__class__ = ServerDeclaredCursor
-		return self._init()
-
-	def _fini(self):
-		##
-		# Mark the Cursor as open.
-		self.closed = False
-
-	def _operation_error_(self, *args, **kw):
-		e = pg_exc.OperationError(
-			"cursor type does not support that operation",
-			creator = self
-		)
-		raise e
-	__next__ = read = seek = _operation_error_
-
 	def command(self):
 		"The completion message's command identifier"
 		if self._complete_message is not None:
@@ -444,257 +404,230 @@ class Cursor(pg_api.Cursor):
 		if self._complete_message is not None:
 			return self._complete_message.extract_count()
 
-class CursorStrategy(Cursor):
-	"""
-	It's a stretch to call this a strategy as the strategy selection occurs
-	after instantiation and by the Cursor class itself, not the caller.
+class Chunks(Output, pg_api.Chunks):
+	chunksize = 128
+	def _e_metas(self):
+		yield ('chunksize', self.chunksize)
+		yield ('type', type(self).__name__)
 
-	It's more like a union-class where the ob_type is the current "selection".
-	"""
-	def __init__(self, *args, **kw):
-		raise TypeError("cannot instantiate CursorStrategy-types directly")
+	def __init__(self, statement, parameters, cursor_id):
+		self.statement = statement
+		self.parameters = parameters
+		self.database = statement.database
+		Output.__init__(self, cursor_id or ID(self))
 
-class ReadableCursor(CursorStrategy):
+class SingleXact(Chunks):
 	def _init(self):
-		self._offset = 0
-		self._buffer = []
-		self._this_reqsize = -1
-		self._this_direction = None
-		self._last_reqsize = 0
-		self._last_increase = 0
-		self._last_direction = self.direction
-		self._xact = None
-
-	@abstractmethod
-	def _expansion(self):
-		"""
-		Return a sequence of the new data provided by the transaction
-		_xact. "the expansion of data for the buffer"
-		"""
-
-	@abstractmethod
-	def _expand(self):
-		"""
-		For a given state, extract the data from the transaction and
-		append it to the buffer.
-		"""
-
-	def _contract(self):
-		"reduce the number of items in the buffer"
-		# when chunksize is zero, it will trim the entire buffer.
-		maxtrim = self._offset - self.chunksize
-		trim = self.chunksize or maxtrim
-		if trim >= self.chunksize:
-			self.__dict__.update({
-				'_offset' : self._offset - trim,
-				'_buffer' : self._buffer[trim:]
-			})
-
-	def _maintain(self, direction):
-		if self._last_direction is not None and direction is not self._last_direction:
-			# change in direction, reset buffer.
-			if self._xact is not None:
-				if self._xact.state is not xact.Complete \
-				and self._xact is self.database.pq.xact:
+		expect = self._expect
+		self._xact = self._ins(
+			self._pq_xp_fetchall() + (element.SynchronizeMessage,)
+		)
+		self.database._pq_push(self._xact, self)
+		while self._xact.state != xact.Complete:
+			self.database._pq_step()
+			for x in self._xact.messages_received():
+				if x.type is element.Null.type:
 					self.database._pq_complete()
-			self.__dict__.update({
-				'_offset' : 0,
-				'_buffer' : [],
-				'_last_increase' : 0,
-				'_last_reqsize' : 0,
-				# Don't identify a direction change again.
-				'_last_direction' : direction,
-				'_this_direction' : None,
-				'_xact' : None,
-				'_this_reqsize' : 0,
-			})
-			return
-		# Reduce the buffer, if need be.
-		if self._offset >= self.chunksize and len(self._buffer) >= (3 * self.chunksize):
-			self._contract()
-		# Expand it if reading-ahead,
-		# and the offset is nearing the end of the chunksize.
-		if self._xact is not None and \
-		(len(self._buffer) - self._offset) > (self.chunksize // 8):
-			# Transaction ready, but only attempt expanding if it
-			# will be needed soon.
-			##
-			self._expand()
+					self._xact = None
+					return
+				elif x.type is element.Complete.type:
+					self._complete_message = x
+					self.database._pq_complete()
+					self._xact = None
+					return
+				elif x.type is expect:
+					# no need to step once this is seen
+					return
+				elif x.type in (
+					element.BindComplete.type, element.ParseComplete.type
+				):
+					pass
+				else:
+					self.database._pq_complete()
+					if self._xact.fatal is None:
+						self._xact.fatal = False
+						self._xact.error_message = element.ClientError(
+							code = "--000",
+							message = "unexpected message type " + repr(x.type)
+						)
+						self.database._raise_pq_error(self._xact)
+					return
 
 	def __next__(self):
-		self._maintain(self.direction)
+		x = self._xact
+		if x is None:
+			raise StopIteration
 
-		if self._offset >= len(self._buffer):
-			if self._last_increase != self._last_reqsize \
-			or not (self._buffer_more(1, self.direction) > 0):
+		while x.state is not xact.Complete and not x.completed:
+			self.database._pq_step()
+		if x.fatal is not None:
+			self.database._raise_pq_error(x)
+
+		if not x.completed:
+			# Transaction has been cleaned out of completed? iterator is done.
+			self._xact = None
+			self.closed = True
+			raise StopIteration
+
+		chunk = x.completed[0][1]
+		r = self._process_chunk(chunk)
+		del x.completed[0]
+		return r
+
+class SingleXactCopy(SingleXact):
+	_expect = element.CopyToBegin.type
+	_process_chunk = SingleXact._process_copy_chunk
+
+class SingleXactFetch(SingleXact):
+	_expect = element.Tuple.type
+	_process_chunk_ = SingleXact._process_tuple_chunk_Row
+	def _process_chunk(self, x):
+		return self._process_chunk_((
+			y for y in x if y.type is element.Tuple.type
+		))
+
+class MultiXactStream(Chunks):
+	# only tuple streams
+	_process_chunk = Chunks._process_tuple_chunk_Row
+
+	@abstractmethod
+	def _bind(self):
+		"""
+		Generate the commands needed to bind the cursor.
+		"""
+
+	@abstractmethod
+	def _fetch(self):
+		"""
+		Generate the commands needed to bind the cursor.
+		"""
+
+	def _init(self):
+		self._command = self._fetch()
+		self._xact = self._ins(self._bind() + self._command)
+		self.database._pq_push(self._xact, self)
+
+	def __next__(self):
+		x = self._xact
+		if x is None:
+			raise StopIteration
+
+		if self.database.pq.xact is x:
+			self.database._pq_complete()
+
+		chunk = [
+			y for y in x.messages_received() if y.type is element.Tuple.type
+		]
+		if len(chunk) == self.chunksize:
+			# there may be more, dispatch the request for the next chunk
+			self._xact = self._ins(self._command)
+			self.database._pq_push(self._xact, self)
+		else:
+			# it's done.
+			self.close()
+			self._xact = None
+			if not chunk:
 				raise StopIteration
+		chunk = self._process_chunk(chunk)
+		return chunk
 
-		t = self._buffer[self._offset]
-		self._offset = self._offset + 1
-		return t
+class MultiXactInsideBlock(MultiXactStream):
+	_bind = MultiXactStream._pq_xp_bind
+	def _fetch(self):
+		return self._pq_xp_execute(self.chunksize) + \
+			(element.SynchronizeMessage,)
+
+class MultiXactOutsideBlock(MultiXactStream):
+	_bind = MultiXactStream._pq_xp_declare
+	def _fetch(self):
+		return self._pq_xp_fetch(True, self.chunksize) + \
+			(element.SynchronizeMessage,)
+##
+# Base Cursor class and cursor creation entry points.
+class Cursor(Output, pg_api.Cursor):
+	_process_tuple = Output._process_tuple_chunk_Row
+	def _e_metas(self):
+		yield ('direction', 'FORWARD' if self.direction else 'BACKWORD')
+		yield ('type', 'Cursor')
+
+	def __init__(self, statement, parameters, database, cursor_id):
+		self.database = database or statement.database
+		self.statement = statement
+		self.parameters = parameters
+		self.__dict__['direction'] = True
+		if self.statement is None:
+			self._e_factors = ('database', 'cursor_id')
+		Output.__init__(self, cursor_id or ID(self))
+
+	def get_direction(self):
+		return self.__dict__['direction']
+	def set_direction(self, value):
+		self.__dict__['direction'] = direction_to_bool(value)
+	direction = property(
+		fget = get_direction,
+		fset = set_direction,
+	)
+	del get_direction, set_direction
+
+	def _which_way(self, direction):
+		if direction is not None:
+			direction = direction_to_bool(direction)
+			# -1 * -1 = 1, -1 * 1 = -1, 1 * 1 = 1
+			return not ((not self.direction) ^ (not direction))
+		else:
+			return self.direction
+
+	def _init(self):
+		"""
+		Based on the cursor parameters and the current transaction state,
+		select a cursor strategy for managing the response from the server.
+		"""
+		if self.statement is not None:
+			x = self._ins(self._pq_xp_declare() + (element.SynchronizeMessage,))
+			self.database._pq_push(x, self)
+			self.database._pq_complete()
+		else:
+			x = self._ins(self._pq_xp_describe() + (element.SynchronizeMessage,))
+			self.database._pq_push(x, self)
+			self.database._pq_complete()
+			for m in x.messages_received():
+				if m.type is element.TupleDescriptor.type:
+					self._output = m
+					self._output_attmap = \
+						self.database.typio.attribute_map(self._output)
+					# tuple output
+					self._output_io = self.database.typio.resolve_descriptor(
+						self._output, 1 # (input, output)[1]
+					)
+					self._output_formats = [
+						element.StringFormat
+						if x is None
+						else element.BinaryFormat
+						for x in self._output_io
+					]
+					self._output_io = tuple([
+						x or self.database.typio.decode for x in self._output_io
+					])
+
+	def __next__(self):
+		return self._fetch(self.direction, 1)
 
 	def read(self, quantity = None, direction = None):
+		if quantity == 0:
+			return []
 		dir = self._which_way(direction)
-		self._maintain(dir)
+		return self._fetch(dir, quantity)
 
-		if quantity is None:
-			# Read all in the direction.
-			##
-			while self._last_increase == self._last_reqsize:
-				self._buffer_more(None, dir)
-			quantity = len(self._buffer) - self._offset
-		else:
-			# Read some.
-			##
-			left_to_read = (quantity - (len(self._buffer) - self._offset))
-			expanded = 0
-			while left_to_read > 0 and self._last_increase == self._last_reqsize:
-				# In scroll situations, there's no concern
-				# about reading already requested data as
-				# there is no pre-fetching going on.
-				expanded = self._buffer_more(left_to_read, dir)
-				left_to_read -= expanded
-			quantity = min(len(self._buffer) - self._offset, quantity)
-
-		end_of_block = self._offset + quantity
-		t = self._buffer[self._offset:end_of_block]
-		self._offset = end_of_block
-		return t
-
-class TupleCursor(ReadableCursor):
-	def _init(self, setup):
-		super()._init()
-		##
-		# chunksize determines whether or not to pre-fetch.
-		# If the cursor is not scrollable, use the default.
-		if self.scroll:
-			# This restriction on scroll was set to insure
-			# any needed consistency with the cursor position.
-			# If this was not done, than compensation would need
-			# to be made when direction changes occur.
-			##
-			self.chunksize = 0
-			more = ()
-		else:
-			more = self._pq_xp_fetchmore(self.chunksize, self.direction)
-
-		x = xact.Instruction(
-			setup + more + (element.SynchronizeMessage,),
-			asynchook = self._ah
+	def _fetch(self, direction, quantity):
+		x = self._ins(
+			self._pq_xp_fetch(direction, quantity) + \
+			(element.SynchronizeMessage,)
 		)
-		self.__dict__.update({
-			'_xact' : x,
-			'_this_reqsize' : self.chunksize
-		})
-		self.database._pq_push(self._xact, self)
-		self._fini()
-
-	def _dispatch_for_more(self, direction):
-		if self._xact:
-			# didn't expand
-			raise RuntimeError("invalid state for dispatch")
-		more = self._pq_xp_fetchmore(self.chunksize, direction)
-		x = more + (element.SynchronizeMessage,)
-		x = xact.Instruction(x, asynchook = self._ah)
-		self.__dict__.update({
-			'_xact' : x,
-			'_this_reqsize' : self.chunksize,
-			'_this_direction' : direction,
-		})
-		self.database._pq_push(self._xact, self)
-
-	def _expand(self):
-		"""
-		[internal] Expand the _buffer using the data in _xact
-		"""
-		if self._xact is not None:
-			# complete the _xact
-			if self._xact.state is not xact.Complete:
-				self.database._pq_push(self._xact, self)
-				if self._xact.state is not xact.Complete:
-					self.database._pq_complete()
-			expansion = self._expansion()
-			self.__dict__.update({
-				'_buffer' : self._buffer + expansion,
-				'_xact' : None,
-				'_last_increase' : len(expansion),
-				'_last_reqsize' : self._this_reqsize,
-				'_last_direction' : self._this_direction,
-				'_this_reqsize' : None,
-				'_this_direction' : None,
-			})
-
-	def _buffer_more(self, quantity, direction):
-		"""
-		Expand the buffer with more tuples. Does *not* alter offset.
-		"""
-		##
-		# The final fallback of 64 is to handle scrollable cursors
-		# where read(None) is invoked.
-		rquantity = self.chunksize or quantity or 64
-		if rquantity < 0:
-			raise RuntimeError("cannot buffer negative quantities")
-
-		if self._xact is None:
-			# No previous transaction started, so make one.
-			##
-			##
-			# Use chunksize if it's non-zero. This will allow the cursor to
-			# complete the transaction and process the rows while more are
-			# coming in.
-			more = self._pq_xp_fetchmore(rquantity, direction)
-			x = xact.Instruction(
-				more + (element.SynchronizeMessage,),
-				asynchook = self._ah
-			)
-			self.__dict__.update({
-				'_xact' : x,
-				'_this_reqsize' : rquantity,
-				'_this_direction' : direction,
-			})
-			self.database._pq_push(x, self)
-
-		self._expand()
-
-		if self.scroll is False and (
-			self._last_increase == self._last_reqsize \
-			and (
-				(len(self._buffer) - self._offset) >= (self.chunksize // 4) \
-				or quantity > rquantity
-			)
-		):
-			# If not scrolling and
-			# The last buffer increase was the same as the request and
-			# A quarter of the chunksize remains, dispatch for another.
-			#  or, if the quantity is greater than the rquantity.
-			##
-			self._dispatch_for_more(direction)
-
-		return self._last_increase
-
-	def _expansion(self):
-		return [
-			pg_types.Row.from_sequence(
-				self._output_attmap,
-				pg_typio.process_tuple(
-					self._output_io, y, self._raise_column_tuple_error
-				),
-			)
-			for y in self._xact.messages_received()
-			if y.type is element.Tuple.type
-		]
-
-	def _pq_xp_move(self, position, whence):
-		'make a command sequence for a MOVE single command'
-		return (
-			element.Parse(b'',
-				b'MOVE ' + whence + b' ' + position + b' IN ' + \
-				self.database.typio.encode(self._quoted_cursor_id),
-				()
-			),
-			element.Bind(b'', b'', (), (), ()),
-			element.Execute(b'', 1),
-		)
+		self.database._pq_push(x, self)
+		self.database._pq_complete()
+		return self._process_tuple((
+			y for y in x.messages_received() if y.type is element.Tuple.type
+		))
 
 	def seek(self, offset, whence = 'ABSOLUTE'):
 		rwhence = self._seek_whence_map.get(whence, whence)
@@ -730,291 +663,9 @@ class TupleCursor(ReadableCursor):
 				self._pq_xp_move(b'', b'NEXT') + \
 				self._pq_xp_move(str(offset).encode('ascii'), b'BACKWARD')
 
-		x = xact.Instruction(
-			cmd + (element.SynchronizeMessage,),
-			asynchook = self._ah
-		)
-		# moves are a full reset
-		self.__dict__.update({
-			'_offset' : 0,
-			'_buffer' : [],
-			'_xact' : x,
-			'_this_reqsize' : 0,
-			'_this_direction' : None,
-			'_last_reqsize' : 0,
-			'_last_increase' : 0,
-			'_last_direction' : None,
-		})
+		x = self._ins(cmd + (element.SynchronizeMessage,),)
 		self.database._pq_push(x, self)
-
-class ProtocolCursor(TupleCursor):
-	cursor_type = 'protocol'
-
-	def _init(self):
-		# Protocol-bound cursor.
-		##
-		if self.scroll:
-			# That doesn't work.
-			##
-			e = pg_exc.OperationError(
-				"cannot bind cursor scroll = True",
-				creator = self,
-			)
-			raise e
-		if self.with_hold:
-			# That either.
-			##
-			e = pg_exc.OperationError(
-				"cannot bind cursor with_hold = True",
-				creator = self
-			)
-			raise e
-
-		if self.database.pq.state == b'I':
-			# have to fetch them all. as soon as the next sync occurs, the
-			# cursor will be dropped.
-			self.chunksize = 0xFFFFFFFF
-
-		return super()._init((
-			element.Bind(
-				self._pq_cursor_id,
-				self.statement._pq_statement_id,
-				self.statement._input_formats,
-				self._pq_parameters(),
-				self._output_formats,
-			),
-		))
-
-	def _pq_xp_fetchmore(self, quantity, direction):
-		if direction is not True:
-			err = pg_exc.OperationError(
-				"cannot read backwards with protocol cursors",
-				creator = self
-			)
-			raise err
-		return (
-			element.Execute(self._pq_cursor_id, quantity),
-		)
-
-class DeclaredCursor(TupleCursor):
-	cursor_type = 'declared'
-
-	def _statement_string(self):
-		qstr = super()._statement_string()
-		return 'DECLARE {name}{insensitive} {scroll} '\
-			'CURSOR {hold} FOR {source}'.format(
-				name = self._quoted_cursor_id,
-				insensitive = ' INSENSITIVE' if self.insensitive else '',
-				scroll = 'SCROLL' if (self.scroll is True) else 'NO SCROLL',
-				hold = 'WITH HOLD' if (self.with_hold is True) else 'WITHOUT HOLD',
-				source = qstr
-			)
-
-	def _init(self):
-		##
-		# Force with_hold as there is no transaction block.
-		# If this were not forced, the cursor would disappear
-		# before the user had a chance to read rows from it.
-		# Of course, the alternative is to read all the rows like ProtocolCursor
-		# does. :(
-		if self.database.pq.state == b'I':
-			self.with_hold = True
-
-		return super()._init((
-			element.Parse(b'', self.database.typio.encode(self._statement_string()), ()),
-			element.Bind(
-				b'', b'', self.statement._input_formats, self._pq_parameters(), ()
-			),
-			element.Execute(b'', 1),
-		))
-
-	def _pq_xp_fetchmore(self, quantity, direction):
-		##
-		# It's an SQL declared cursor, manually construct the fetch commands.
-		qstr = "FETCH " + ("FORWARD " if direction else "BACKWARD ")
-		if quantity is None:
-			qstr = qstr + "ALL IN " + self._quoted_cursor_id
-		else:
-			qstr = qstr \
-				+ str(quantity) + " IN " + self._quoted_cursor_id
-		return (
-			element.Parse(b'', self.database.typio.encode(qstr), ()),
-			element.Bind(b'', b'', (), (), self._output_formats),
-			# The "limit" is defined in the fetch query.
-			element.Execute(b'', 0xFFFFFFFF),
-		)
-
-class ServerDeclaredCursor(DeclaredCursor):
-	cursor_type = 'server'
-
-	def _init(self):
-		# scroll and hold are unknown, so assume them to be true.
-		# This means that fetch-ahead is disabled.
-		self.scroll = True
-		self.with_hold = True
-		self.chunksize = 0
-		##
-		# The portal description is needed, so get it.
-		return TupleCursor._init(
-			self, (element.DescribePortal(self._pq_cursor_id),)
-		)
-
-	def _fini(self):
-		if self._xact.state is not xact.Complete:
-			if self.database.pq.xact is not self._xact:
-				self.database._pq_push(self._xact, self)
-			self.database._pq_complete()
-		for m in self._xact.messages_received():
-			if m.type is element.TupleDescriptor.type:
-				self._output = m
-				self._output_attmap = \
-					self.database.typio.attribute_map(self._output)
-				# tuple output
-				self._output_io = self.database.typio.resolve_descriptor(
-					self._output, 1 # (input, output)[1]
-				)
-				self._output_formats = [
-					element.StringFormat
-					if x is None
-					else element.BinaryFormat
-					for x in self._output_io
-				]
-				self._output_io = tuple([
-					x or self.database.typio.decode for x in self._output_io
-				])
-				super()._fini()
-		# Done with the first transaction.
-		self._xact = None
-		if self.closed:
-			e = pg_exc.OperationError(
-				"failed to discover cursor output",
-				creator = self
-			)
-			raise e
-
-class UtilityCursor(CursorStrategy):
-	cursor_type = 'utility'
-
-	def __del__(self):
-		# utility cursors must be finished immediately,
-		# so the cursor_id goes unused.
-		pass
-
-	def _init(self):
-		self._xact = xact.Instruction((
-				element.Bind(
-					b'',
-					self.statement._pq_statement_id,
-					self.statement._input_formats,
-					self._pq_parameters(),
-					(),
-				),
-				element.Execute(b'', 1),
-				element.SynchronizeMessage,
-			),
-			asynchook = self._ah
-		)
-
-		self.database._pq_push(self._xact, self)
-		while self._xact.state != xact.Complete:
-			# in case it's a copy
-			self.database._pq_step()
-			for x in self._xact.messages_received():
-				if x.type is element.CopyToBegin.type:
-					self.__class__ = CopyCursor
-					return self._init()
-					# The COPY TO STDOUT transaction terminates the loop
-					# *without* finishing the transaction.
-					# Buffering all of the COPY data would be a bad idea(tm).
-					##
-				elif x.type in element.Null.type:
-					break
-				elif x.type is element.Complete.type:
-					self._complete_message = x
-		self._fini()
-
-class CopyCursor(ReadableCursor):
-	cursor_type = 'copy'
-
-	def _init(self):
-		x = self._xact
-		super()._init()
-		self._xact = x
-		self._last_extension = None
-		self._last_direction = True
-		self._this_direction = True
-		self._fini()
-
-	def _expansion(self):
-		ms = self._xact.completed[0][1]
-		if ms:
-			if type(ms[0]) is bytes and type(ms[-1]) is bytes:
-				return ms
-		return [
-			y for y in ms if type(y) is bytes
-		]
-
-	def _expand(self):
-		if self._xact.completed:
-			if self._last_extension is self._xact.completed[0]:
-				del self._xact.completed[0]
-				if not self._xact.completed:
-					return
-			expansions = self._expansion()
-			if self._buffer:
-				buffer = self._buffer + expansions
-			else:
-				buffer = expansions
-			l = len(expansions)
-			# There is no reqsize, so reveal the end of the
-			# copy when the last_increase is zero *and*
-			# the transaction is over.
-			self.__dict__.update({
-				'_buffer' : buffer,
-				'_last_extension' : self._xact.completed[0],
-				'_last_increase' : l,
-				'_last_reqsize' : \
-					-1 if l == 0 and self._xact.state is xact.Complete else l
-			})
-
-	def _dispatch_for_more(self, direction):
-		# nothing to do for copies
-		pass
-
-	def _buffer_more(self, quantity, direction):
-		"""
-		[internal] helper function to put more copy data onto the buffer for
-		reading. This function will only append to the buffer and never
-		set the offset.
-
-		Used to support ``COPY ... TO STDOUT ...;``
-		"""
-		if direction is not True:
-			e = pg_exc.OperationError(
-				"cannot read COPY backwards",
-				creator = self
-			)
-			raise e
-
-		while self.database.pq.xact is self._xact and not self._xact.completed:
-			self.database._pq_step()
-
-		# Find the Complete message when pq.xact is done
-		if self._xact.state is xact.Complete and self._complete_message is None:
-			i = self._xact.reverse()
-			ready = next(i)
-			complete = next(i)
-			self._complete_message = complete
-
-		if not self._xact.completed:
-			# completed list depleted, can't buffer more
-			self._last_increase = 0
-			return 0
-
-		bufsize = len(self._buffer)
-		self._expand()
-		newbufsize = len(self._buffer)
-		return newbufsize - bufsize
+		self.database._pq_complete()
 
 class PreparedStatement(pg_api.PreparedStatement):
 	string = None
@@ -1045,26 +696,10 @@ class PreparedStatement(pg_api.PreparedStatement):
 		elif ct is not None:
 			yield ('sql_column_types', ct)
 
-	@classmethod
-	def from_string(
-		typ,
-		string : "SQL statement to prepare",
-		database : "database reference to bind the statement to",
-		statement_id : "statement_id to use instead of generating one" = None
-	) -> "PreparedStatement instance":
-		"""
-		Create a PreparedStatement from a query string.
-		"""
-		r = super().__new__(typ)
-		r.string = string
-		r.__init__(statement_id or ID(r), database)
-		return r
-
-	def __init__(self, statement_id, database):
-		if not statement_id:
-			raise ValueError("invalid statement identifier, " + repr(cursor_id))
-		self.statement_id = statement_id
+	def __init__(self, database, statement_id, string):
 		self.database = database
+		self.statement_id = statement_id or ID(self)
+		self.string = string
 		self._ah = partial(self.database._receive_async, controller = self)
 		self._pq_xact = None
 		self._pq_statement_id = None
@@ -1076,6 +711,12 @@ class PreparedStatement(pg_api.PreparedStatement):
 			name = type(self).__name__,
 			ci = self.database.connector._pq_iri,
 			state = self.state,
+		)
+
+	def _pq_parameters(self, parameters):
+		return pg_typio.process_tuple(
+			self._input_io, parameters,
+			self._raise_parameter_tuple_error
 		)
 
 	def _raise_parameter_tuple_error(self, procs, tup, itemnum):
@@ -1092,7 +733,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				('$' + str(itemnum + 1)), typ,
 			),
 			details = {
-				'data': data,
+				'detail': data,
 				'hint' : "Try casting the parameter to 'text', then to the target type."
 			},
 			creator = self
@@ -1228,10 +869,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				element.SynchronizeMessage,
 			)
 		)
-		self._xact = xact.Instruction(
-			cmd,
-			asynchook = self._ah
-		)
+		self._xact = xact.Instruction(cmd, asynchook = self._ah)
 		self.database._pq_push(self._xact, self)
 
 	def _fini(self):
@@ -1290,42 +928,70 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self.closed = False
 		self._xact = None
 
-	def _cursor(self, *parameters, **kw):
-		if self.closed is None:
-			self._fini()
-		# Tuple output per the results of DescribeStatement.
-		##
-		cursor = Cursor.from_statement(parameters, self, **kw)
-		cursor._init()
-		return cursor
-
 	def __call__(self, *parameters):
+		if self._input is not None:
+			if len(parameters) != len(self._input):
+				raise TypeError("statement requires %d parameters, given %d" %(
+					len(self._input), len(parameters)
+				))
 		# get em' all!
-		c = self._cursor(*parameters, with_hold = False, scroll = False)
-		if isinstance(c, UtilityCursor):
+		if self._output is None:
+			# might be a copy.
+			c = SingleXactCopy(self, parameters, None)
+		else:
+			c = SingleXactFetch(self, parameters, None)
+
+		# iff output is None, it's not a tuple returning query.
+		# however, if it's a copy, detect that fact by SingleXactCopy's
+		# immediate return after finding the copy begin message(no complete).
+		if self._output is None and c.command() is not None:
 			return (c.command(), c.count())
 		else:
-			r = c.read()
-			c.close()
+			r = []
+			for x in c:
+				r.extend(x)
 			return r
 
 	def declare(self, *parameters):
-		return self._cursor(*parameters, scroll = True, with_hold = True)
+		if self.closed is None:
+			self._fini()
+		if self._input is not None:
+			if len(parameters) != len(self._input):
+				raise TypeError("statement requires %d parameters, given %d" %(
+					len(self._input), len(parameters)
+				))
+		return Cursor(self, parameters, self.database, None)
 
-	def chunks(self, *parameters, chunksize = 256):
-		if chunksize < 1:
-			raise ValueError("cannot create chunk iterator with chunksize < 1")
-		c = self._cursor(*parameters, scroll = False)
-		c.chunksize = chunksize
-		return Chunks(c)
-
-	def rows(self, *parameters):
-		return chain.from_iterable(self.chunks(*parameters))
+	def rows(self, *parameters, **kw):
+		return chain.from_iterable(self.chunks(*parameters, **kw))
 	__iter__ = rows
+
+	def chunks(self, *parameters):
+		if self.closed is None:
+			self._fini()
+		if self._input is not None:
+			if len(parameters) != len(self._input):
+				raise TypeError("statement requires %d parameters, given %d" %(
+					len(self._input), len(parameters)
+				))
+		if self._output is None:
+			return SingleXactCopy(self, parameters, None)
+		if self.database.pq.state == b'I':
+			if self.string is not None:
+				return MultiXactOutsideBlock(self, parameters, None)
+			else:
+				return SingleXactFetch(self, parameters, None)
+		else:
+			return MultiXactInsideBlock(self, parameters, None)
 
 	def first(self, *parameters):
 		if self.closed is None:
 			self._fini()
+		if self._input is not None:
+			if len(parameters) != len(self._input):
+				raise TypeError("statement requires %d parameters, given %d" %(
+					len(self._input), len(parameters)
+				))
 		# Parameters? Build em'.
 		c = self.database
 
@@ -1424,10 +1090,6 @@ class PreparedStatement(pg_api.PreparedStatement):
 				creator = self
 			)
 			raise e
-
-		# Make a Chunks object.
-		if isinstance(iterable, CopyCursor):
-			iterable = Chunks(iterable)
 
 		if isinstance(iterable, Chunks):
 			# optimized, each iteration == row sequence
@@ -2120,13 +1782,13 @@ class Connection(pg_api.Connection):
 		sql_statement_string : str,
 		statement_id = None,
 	) -> PreparedStatement:
-		ps = PreparedStatement.from_string(sql_statement_string, self)
+		ps = PreparedStatement(self, statement_id, sql_statement_string)
 		ps._init()
 		ps._fini()
 		return ps
 
 	def statement_from_id(self, statement_id : str) -> PreparedStatement:
-		ps = PreparedStatement(statement_id, self)
+		ps = PreparedStatement(self, statement_id, None)
 		ps._init()
 		ps._fini()
 		return ps
@@ -2136,7 +1798,7 @@ class Connection(pg_api.Connection):
 		return sp
 
 	def cursor_from_id(self, cursor_id : str) -> Cursor:
-		c = Cursor(cursor_id, self)
+		c = Cursor(None, None, self, cursor_id)
 		c._init()
 		return c
 
