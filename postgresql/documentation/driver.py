@@ -478,12 +478,11 @@ Prepared statement objects have a few execution methods:
   Naturally, a statement used with ``first()`` should be crafted with these
   rules in mind.
 
- ``ps.chunks(*parameters, chunksize = 256)``
+ ``ps.chunks(*parameters)``
   This access point is designed for situations where rows are being streamed out
   quickly. It is a method that returns a ``collections.Iterator`` that produces
-  *sequences* of rows. The size of the "chunks" produced is *normally* consistent
-  with the given ``chunksize`` keyword argument. This is the most efficient way
-  to get rows out of the cursor.
+  *sequences* of rows. This is the most efficient way to get rows from the
+  database.
 
  ``ps.declare(*parameters)``
   Create a scrollable cursor with hold. This returns a `postgresql.api.Cursor`
