@@ -804,7 +804,7 @@ class ProtocolCursor(TupleCursor):
 			err = pg_exc.OperationError(
 				"cannot read backwards with protocol cursors"
 			)
-			self.ife_descent(err)
+			self.ife_descend(err)
 			err.raise_exception()
 		return (
 			pq.element.Execute(self._pq_cursor_id, quantity),
