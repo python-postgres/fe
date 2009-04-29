@@ -211,10 +211,6 @@ class Output(object):
 		self.cursor_id = cursor_id
 		self._quoted_cursor_id = '"' + self.cursor_id.replace('"', '""') + '"'
 		self._pq_cursor_id = self.database.typio.encode(self.cursor_id)
-		self._ins = partial(
-			xact.Instruction,
-			asynchook = partial(self.database._receive_async, controller = self)
-		)
 		self._init()
 
 	def __iter__(self):
@@ -232,6 +228,12 @@ class Output(object):
 			self.database.pq.garbage_cursors.append(
 				self.database.typio.encode(self.cursor_id)
 			)
+
+	def _asynchook(self, *args):
+		self.database._receive_async(*args, controller = self)
+
+	def _ins(self, *args):
+		return xact.Instruction(*args, asynchook = self._asynchook)
 
 	def _pq_xp_describe(self):
 		return (element.DescribePortal(self._pq_cursor_id),)
@@ -450,7 +452,7 @@ class SingleXact(Chunks):
 							code = "--000",
 							message = "unexpected message type " + repr(x.type)
 						)
-						self.database._raise_pq_error(self._xact)
+						self.database._raise_pq_error(self._xact, controller = self)
 					return
 
 	def __next__(self):
@@ -461,7 +463,7 @@ class SingleXact(Chunks):
 		while x.state is not xact.Complete and not x.completed:
 			self.database._pq_step()
 		if x.fatal is not None:
-			self.database._raise_pq_error(x)
+			self.database._raise_pq_error(x, controller = self)
 
 		if not x.completed:
 			# Transaction has been cleaned out of completed? iterator is done.
@@ -700,10 +702,12 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self.database = database
 		self.statement_id = statement_id or ID(self)
 		self.string = string
-		self._ah = partial(self.database._receive_async, controller = self)
 		self._pq_xact = None
 		self._pq_statement_id = None
 		self.closed = None
+
+	def _receive_async(self, *args):
+		return self.database._receive_async(*args, controller = self)
 
 	def __repr__(self):
 		return '<{mod}.{name}[{ci}] {state}>'.format(
@@ -869,7 +873,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				element.SynchronizeMessage,
 			)
 		)
-		self._xact = xact.Instruction(cmd, asynchook = self._ah)
+		self._xact = xact.Instruction(cmd, asynchook = self._receive_async)
 		self.database._pq_push(self._xact, self)
 
 	def _fini(self):
@@ -1015,7 +1019,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				element.Execute(b'', 0xFFFFFFFF),
 				element.SynchronizeMessage
 			),
-			asynchook = self._ah
+			asynchook = self._receive_async
 		)
 		c._pq_push(x, self)
 		c._pq_complete()
@@ -1074,7 +1078,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				element.Execute(b'', 1),
 				element.SynchronizeMessage,
 			),
-			asynchook = self._ah
+			asynchook = self._receive_async
 		)
 		self.database._pq_push(x, self)
 
@@ -1149,7 +1153,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 					last = element.SynchronizeMessage
 				xm.append(last)
 				self.database._pq_push(
-					xact.Instruction(xm, asynchook = self._ah),
+					xact.Instruction(xm, asynchook = self._receive_async),
 					self
 				)
 			self.database._pq_complete()
@@ -2022,7 +2026,8 @@ class Connection(pg_api.Connection):
 		if x is not None:
 			self.pq.complete()
 			self._raise_pq_error(x)
-		xact.controller = controller or self
+		if controller is not None:
+			self._controller = controller
 		self.pq.push(xact)
 
 	def _pq_complete(self):
@@ -2030,6 +2035,7 @@ class Connection(pg_api.Connection):
 		if self.pq.xact is not None:
 			self.pq.complete()
 			self._raise_pq_error(x)
+			del self._controller
 
 	def _pq_step(self):
 		x = self.pq.xact
@@ -2037,8 +2043,9 @@ class Connection(pg_api.Connection):
 			self.pq.step()
 			if x.state is xact.Complete:
 				self._raise_pq_error(x)
+				del self._controller
 
-	def _raise_pq_error(self, xact = None):
+	def _raise_pq_error(self, xact = None, controller = None):
 		if xact is not None:
 			x = xact
 		else:
@@ -2048,7 +2055,8 @@ class Connection(pg_api.Connection):
 			return
 		err = self._error_lookup(x.error_message)
 		fromexc = getattr(x, 'exception', None)
-		fromcontroller = getattr(x, 'controller', self)
+		if controller is None:
+			fromcontroller = getattr(self, '_controller', self)
 		err.creator = fromcontroller
 		if fromexc is not None:
 			err.__cause__ = fromexc
