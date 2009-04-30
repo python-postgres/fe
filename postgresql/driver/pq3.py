@@ -8,6 +8,7 @@ PG-API interface for PostgreSQL that support the PQ version 3.0 protocol.
 import sys
 import os
 import warnings
+import weakref
 
 import errno
 import socket
@@ -278,11 +279,12 @@ class Cursor(pg_api.Cursor):
 		self._quoted_cursor_id = '"' + self.cursor_id.replace('"', '""') + '"'
 		self.database = database
 		self._pq_cursor_id = database.typio.encode(self.cursor_id)
-
-	def __del__(self):
-		if not self.closed and ID(self) == self.cursor_id:
-			self.database._closeportals.append(
-				self.database.typio.encode(self.cursor_id)
+		if ID(self) == self.cursor_id:
+			addgarbage = self.database._closeportals.append
+			typio = self.database.typio
+			curid = self.cursor_id
+			self._del = weakref.ref(
+				self, lambda _: addgarbage(typio.encode(curid))
 			)
 
 	def __iter__(self):
@@ -346,7 +348,9 @@ class Cursor(pg_api.Cursor):
 			self.database._closeportals.append(
 				self.database.typio.encode(self.cursor_id)
 			)
-			self.closed = True
+		self.closed = True
+		if hasattr(self, '_del'):
+			del self._del
 
 	def _raise_parameter_tuple_error(self, procs, tup, itemnum):
 		# The element traceback will include the full list of parameters.
@@ -907,11 +911,6 @@ class ServerDeclaredCursor(DeclaredCursor):
 class UtilityCursor(CursorStrategy):
 	cursor_type = 'utility'
 
-	def __del__(self):
-		# utility cursors must be finished immediately,
-		# so the cursor_id goes unused.
-		pass
-
 	def _init(self):
 		self._xact = pq.Instruction((
 			pq.element.Bind(
@@ -1061,6 +1060,13 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self._pq_xact = None
 		self._pq_statement_id = None
 		self.closed = None
+		if ID(self) == self.statement_id:
+			addgarbage = self.database._closestatements.append
+			typio = self.database.typio
+			sid = self.statement_id
+			self._del = weakref.ref(
+				self, lambda _: addgarbage(typio.encode(curid))
+			)
 
 	def __repr__(self):
 		return '<{mod}.{name}[{ci}] {state}>'.format(
@@ -1187,6 +1193,8 @@ class PreparedStatement(pg_api.PreparedStatement):
 		if not (self.closed is True):
 			self.database._closestatements.append(self._pq_statement_id)
 		self.closed = True
+		if hasattr(self, '_del'):
+			del self._del
 
 	def ife_snapshot_text(self):
 		s = ""
@@ -1198,15 +1206,6 @@ class PreparedStatement(pg_api.PreparedStatement):
 			str(self.string).split(os.linesep)
 		) + os.linesep
 		return s
-
-	def __del__(self):
-		# Only close statements that have generated IDs as the ones
-		# with explicitly created
-		if not self.closed and ID(self) == self.statement_id:
-			# Always close CPSs as the way the statement_id is generated
-			# might cause a conflict if Python were to reuse the previously
-			# used id()[it can and has happened]. - jwp 2007
-			self.close()
 
 	def _init(self):
 		"""
