@@ -9,7 +9,8 @@ Changes
 0.8.1
 -----
 
- * Fix encoding normalization.
+ * Fix memory leak due to circular references and __del__. [Reported by Valentine Gogichashvili]
+ * Fix encoding normalization. [Reported by Marc Silver]
  * Fix "method" decorator to return callable when val is None.
  * Fix startup of clusters in silent mode.
 
