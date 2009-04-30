@@ -1065,7 +1065,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			typio = self.database.typio
 			sid = self.statement_id
 			self._del = weakref.ref(
-				self, lambda _: addgarbage(typio.encode(curid))
+				self, lambda _: addgarbage(typio.encode(sid))
 			)
 
 	def __repr__(self):
