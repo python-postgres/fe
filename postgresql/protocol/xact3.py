@@ -19,7 +19,6 @@ from . import element3 as element
 from hashlib import md5
 from ..resolved.crypt import crypt
 
-proctup = compose((get1, compose))
 Receiving = True
 Sending = False
 Complete = (None, None)
@@ -645,7 +644,6 @@ class Instruction(Transaction):
 				self.state = (Receiving, self.standard_put)
 				return self.standard_put(messages)
 			a(p(DATA))
-		#tuplemessages = list(map(proctup, messages))
 
 		if not self.completed or self.completed[-1][0] != id(messages):
 			self.completed.append(((id(messages), tuplemessages)))
