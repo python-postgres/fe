@@ -14,6 +14,8 @@ Changes
  * Refactor `postgresql.api.InterfaceElement`.
  * Refactor driver.pq3.Connection to use protocol.client3.Connection.
  * Refactor driver.pq3.Cursor into types selected by PreparedStatements.
+ * Fix memory leak due to circular references and __del__. [Reported by Valentine Gogichashvili]
+   Additionally, try to avoid circular references at that level.
 
 0.8.1
 -----
