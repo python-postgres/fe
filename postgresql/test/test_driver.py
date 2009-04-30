@@ -5,6 +5,7 @@
 import sys
 import os
 import unittest
+import gc
 import threading
 import time
 import datetime
@@ -316,6 +317,27 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		ps.close()
 		c.close()
 		self.db.close()
+
+	def testGarbage(self):
+		ps = self.db.prepare('select 1')
+		sid = ps.statement_id
+		ci = ps.chunks()
+		ci_id = ci.cursor_id
+		c = ps.declare()
+		cid = c.cursor_id
+		# make sure there are no remaining xact references..
+		self.db._pq_complete()
+		# ci and c both hold references to ps, so they must
+		# be removed before we can observe the effects __del__
+		del c
+		gc.collect()
+		self.failUnless(self.db.typio.encode(cid) in self.db.pq.garbage_cursors)
+		del ci
+		gc.collect()
+		self.failUnless(self.db.typio.encode(ci_id) in self.db.pq.garbage_cursors)
+		del ps
+		gc.collect()
+		self.failUnless(self.db.typio.encode(sid) in self.db.pq.garbage_statements)
 
 	def testStatementCall(self):
 		ps = self.db.prepare("SELECT 1")

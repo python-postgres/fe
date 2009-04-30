@@ -7,6 +7,7 @@ PG-API interface for PostgreSQL that support the PQ version 3.0 protocol.
 """
 import sys
 import os
+import weakref
 import warnings
 import collections
 
@@ -202,13 +203,19 @@ class Output(object):
 		"""
 
 	def __init__(self, cursor_id):
+		self.cursor_id = cursor_id
 		if self.statement is not None:
 			self._output = self.statement._output
 			self._output_io = self.statement._output_io
 			self._output_formats = self.statement._output_formats or ()
 			self._output_attmap = self.statement._output_attmap
 
-		self.cursor_id = cursor_id
+		if self.cursor_id == ID(self):
+			addgarbage = self.database.pq.garbage_cursors.append
+			typio = self.database.typio
+			self._del = weakref.ref(
+				self, lambda x: addgarbage(typio.encode(cursor_id))
+			)
 		self._quoted_cursor_id = '"' + self.cursor_id.replace('"', '""') + '"'
 		self._pq_cursor_id = self.database.typio.encode(self.cursor_id)
 		self._init()
@@ -221,19 +228,12 @@ class Output(object):
 			self.database.pq.garbage_cursors.append(
 				self.database.typio.encode(self.cursor_id)
 			)
-			self.closed = True
-
-	def __del__(self):
-		if not self.closed and ID(self) == self.cursor_id:
-			self.database.pq.garbage_cursors.append(
-				self.database.typio.encode(self.cursor_id)
-			)
-
-	def _asynchook(self, *args):
-		self.database._receive_async(*args, controller = self)
+		self.closed = True
+		if hasattr(self, '_del'):
+			del self._del
 
 	def _ins(self, *args):
-		return xact.Instruction(*args, asynchook = self._asynchook)
+		return xact.Instruction(*args, asynchook = self.database._receive_async)
 
 	def _pq_xp_describe(self):
 		return (element.DescribePortal(self._pq_cursor_id),)
@@ -435,6 +435,9 @@ class SingleXact(Chunks):
 				elif x.type is element.Complete.type:
 					self._complete_message = x
 					self.database._pq_complete()
+					# If this was a select/copy cursor,
+					# the data messages would have caused an earlier
+					# return.
 					self._xact = None
 					return
 				elif x.type is expect:
@@ -468,7 +471,6 @@ class SingleXact(Chunks):
 		if not x.completed:
 			# Transaction has been cleaned out of completed? iterator is done.
 			self._xact = None
-			self.closed = True
 			raise StopIteration
 
 		chunk = x.completed[0][1]
@@ -526,7 +528,6 @@ class MultiXactStream(Chunks):
 			self.database._pq_push(self._xact, self)
 		else:
 			# it's done.
-			self.close()
 			self._xact = None
 			if not chunk:
 				raise StopIteration
@@ -706,8 +707,13 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self._pq_statement_id = None
 		self.closed = None
 
-	def _receive_async(self, *args):
-		return self.database._receive_async(*args, controller = self)
+		if not statement_id:
+			addgarbage = database.pq.garbage_statements.append
+			typio = database.typio
+			sid = self.statement_id
+			self._del = weakref.ref(
+				self, lambda x: addgarbage(typio.encode(sid))
+			)
 
 	def __repr__(self):
 		return '<{mod}.{name}[{ci}] {state}>'.format(
@@ -837,18 +843,11 @@ class PreparedStatement(pg_api.PreparedStatement):
 			]
 
 	def close(self):
-		if not (self.closed is True):
+		if self.closed is False:
 			self.database.pq.garbage_statements.append(self._pq_statement_id)
 		self.closed = True
-
-	def __del__(self):
-		# Only close statements that have generated IDs as the ones
-		# with explicitly created
-		if not self.closed and ID(self) == self.statement_id:
-			# Always close CPSs as the way the statement_id is generated
-			# might cause a conflict if Python were to reuse the previously
-			# used id()[it can and has happened]. - jwp 2007
-			self.close()
+		if hasattr(self, '_del'):
+			del self._del
 
 	def _init(self):
 		"""
@@ -873,7 +872,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				element.SynchronizeMessage,
 			)
 		)
-		self._xact = xact.Instruction(cmd, asynchook = self._receive_async)
+		self._xact = xact.Instruction(cmd, asynchook = self.database._receive_async)
 		self.database._pq_push(self._xact, self)
 
 	def _fini(self):
@@ -886,7 +885,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		if self._xact is self.database.pq.xact:
 			try:
 				self.database._pq_complete()
-			except:
+			except Exception:
 				self.closed = True
 				raise
 
@@ -997,7 +996,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 					len(self._input), len(parameters)
 				))
 		# Parameters? Build em'.
-		c = self.database
+		db = self.database
 
 		if self._input_io:
 			params = pg_typio.process_tuple(
@@ -1019,10 +1018,10 @@ class PreparedStatement(pg_api.PreparedStatement):
 				element.Execute(b'', 0xFFFFFFFF),
 				element.SynchronizeMessage
 			),
-			asynchook = self._receive_async
+			asynchook = db._receive_async
 		)
-		c._pq_push(x, self)
-		c._pq_complete()
+		db._pq_push(x, self)
+		db._pq_complete()
 
 		if self._output_io:
 			##
@@ -1078,7 +1077,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				element.Execute(b'', 1),
 				element.SynchronizeMessage,
 			),
-			asynchook = self._receive_async
+			asynchook = self.database._receive_async
 		)
 		self.database._pq_push(x, self)
 
@@ -1153,7 +1152,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 					last = element.SynchronizeMessage
 				xm.append(last)
 				self.database._pq_push(
-					xact.Instruction(xm, asynchook = self._receive_async),
+					xact.Instruction(xm, asynchook = self.database._receive_async),
 					self
 				)
 			self.database._pq_complete()
@@ -2119,7 +2118,7 @@ class Connection(pg_api.Connection):
 		return err
 
 	def _receive_async(self, msg, controller = None):
-		c = controller or self
+		c = controller or getattr(self, '_controller', self)
 		if msg.type is element.ShowOption.type:
 			if msg.name == b'client_encoding':
 				self.typio.set_encoding(msg.value.decode('ascii'))
