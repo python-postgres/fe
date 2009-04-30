@@ -407,7 +407,7 @@ class Output(object):
 			return self._complete_message.extract_count()
 
 class Chunks(Output, pg_api.Chunks):
-	chunksize = 128
+	chunksize = 256
 	def _e_metas(self):
 		yield ('chunksize', self.chunksize)
 		yield ('type', type(self).__name__)
