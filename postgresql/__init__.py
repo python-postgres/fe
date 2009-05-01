@@ -21,12 +21,12 @@ __all__ = [
 ]
 
 __author__ = "James William Pye <x@jwp.name>"
-__date__ = "2009-01-19 21:15:00-07"
+__date__ = "2009-04-30 17:34:00-07"
 
 __project__ = 'py-postgresql'
 __project_id__ = 'http://python.projects.postgresql.org'
 
-__version__ = "0.8.0"
+__version__ = "0.8.1"
 version_info = (0, 8, 0, 'final', 0)
 
 pg_iri = pg_driver = pg_param = None
