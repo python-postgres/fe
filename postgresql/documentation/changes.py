@@ -6,8 +6,8 @@ r"""
 Changes
 =======
 
-0.8.1
------
+0.8.1 released on 2009-04-30
+----------------------------
 
  * Fix memory leak due to circular references and __del__. [Reported by Valentine Gogichashvili]
  * Fix encoding normalization. [Reported by Marc Silver]
