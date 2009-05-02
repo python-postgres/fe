@@ -3,7 +3,7 @@
 # http://python.projects.postgresql.org
 ##
 """
-PG-API interface for PostgreSQL that support the PQ version 3.0 protocol.
+PG-API interface for PostgreSQL using PQ version 3.0.
 """
 import sys
 import os
@@ -407,18 +407,19 @@ class Output(object):
 			return self._complete_message.extract_count()
 
 class Chunks(Output, pg_api.Chunks):
-	chunksize = 256
+	pass
+
+class FetchAll(Chunks):
+	_e_factors = ('statement', 'parameters',)
 	def _e_metas(self):
-		yield ('chunksize', self.chunksize)
 		yield ('type', type(self).__name__)
 
-	def __init__(self, statement, parameters, cursor_id):
+	def __init__(self, statement, parameters):
 		self.statement = statement
 		self.parameters = parameters
 		self.database = statement.database
-		Output.__init__(self, cursor_id or ID(self))
+		Output.__init__(self, '')
 
-class SingleXact(Chunks):
 	def _init(self):
 		expect = self._expect
 		self._xact = self._ins(
@@ -478,21 +479,32 @@ class SingleXact(Chunks):
 		del x.completed[0]
 		return r
 
-class SingleXactCopy(SingleXact):
+class SingleXactCopy(FetchAll):
 	_expect = element.CopyToBegin.type
-	_process_chunk = SingleXact._process_copy_chunk
+	_process_chunk = FetchAll._process_copy_chunk
 
-class SingleXactFetch(SingleXact):
+class SingleXactFetch(FetchAll):
 	_expect = element.Tuple.type
-	_process_chunk_ = SingleXact._process_tuple_chunk_Row
+	_process_chunk_ = FetchAll._process_tuple_chunk_Row
 	def _process_chunk(self, x):
 		return self._process_chunk_((
 			y for y in x if y.type is element.Tuple.type
 		))
 
 class MultiXactStream(Chunks):
+	chunksize = 256
 	# only tuple streams
-	_process_chunk = Chunks._process_tuple_chunk_Row
+	_process_chunk = Output._process_tuple_chunk_Row
+
+	def _e_metas(self):
+		yield ('chunksize', self.chunksize)
+		yield ('type', type(self).__name__)
+
+	def __init__(self, statement, parameters, cursor_id):
+		self.statement = statement
+		self.parameters = parameters
+		self.database = statement.database
+		Output.__init__(self, cursor_id or ID(self))
 
 	@abstractmethod
 	def _bind(self):
@@ -940,9 +952,9 @@ class PreparedStatement(pg_api.PreparedStatement):
 		# get em' all!
 		if self._output is None:
 			# might be a copy.
-			c = SingleXactCopy(self, parameters, None)
+			c = SingleXactCopy(self, parameters)
 		else:
-			c = SingleXactFetch(self, parameters, None)
+			c = SingleXactFetch(self, parameters)
 
 		# iff output is None, it's not a tuple returning query.
 		# however, if it's a copy, detect that fact by SingleXactCopy's
@@ -978,12 +990,13 @@ class PreparedStatement(pg_api.PreparedStatement):
 					len(self._input), len(parameters)
 				))
 		if self._output is None:
-			return SingleXactCopy(self, parameters, None)
+			return SingleXactCopy(self, parameters)
 		if self.database.pq.state == b'I':
 			if self.string is not None:
 				return MultiXactOutsideBlock(self, parameters, None)
 			else:
-				return SingleXactFetch(self, parameters, None)
+				# statement source unknown, so it can't be DECLARE'd.
+				return SingleXactFetch(self, parameters)
 		else:
 			return MultiXactInsideBlock(self, parameters, None)
 
