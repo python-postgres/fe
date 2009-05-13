@@ -1,8 +1,9 @@
 Primary Developers:
-	James William Pye <x@jwp.name>
+ James William Pye <x@jwp.name>
 
 Contributors:
  William Grzybowski [subjective paramstyle]
+
 
 Further Credits
 ===============
@@ -15,14 +16,12 @@ installation.
 DB-API 2.0 Test Case
 --------------------
 
-postgresql/test/test_driver.py:
-
-	Stuart Bishop <zen@shangri-la.dropbear.id.au>
+postgresql/test/test_dbapi20.py:
+ Stuart Bishop <zen@shangri-la.dropbear.id.au>
 
 
 fcrypt
 ------
 
 postgresql/resolved/crypt.py:
-
-	Carey Evans <careye@spamcop.net>
+ Carey Evans <careye@spamcop.net>
