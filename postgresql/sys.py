@@ -3,11 +3,19 @@
 # http://python.projects.postgresql.org
 ##
 """
-PostgreSQL library system functions and data.
+py-postgresql system functions and data.
+
+Data
+----
+
+ ``libpath``
+  The local file system paths that contain query libraries.
 """
 import sys
 import os
 from .python.element import format_element
+
+libpath = []
 
 def _msghook__(msg):
 	"""

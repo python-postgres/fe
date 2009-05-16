@@ -291,6 +291,19 @@ option_iri = make_x_option('-I', '--iri',
 	dest = 'pq_iri',
 )
 
+option_lib = optparse.make_option('-l',
+	help = 'bind the library found in postgresql.sys.libpath to the connection',
+	type = 'str',
+	dest = 'lib',
+	action = 'append'
+)
+option_libpath = optparse.make_option('-L',
+	help = 'append the library path',
+	type = 'str',
+	dest = 'libpath',
+	action = 'append'
+)
+
 # PostgreSQL Standard Options
 standard_optparse_options = (
 	option_host, option_port,

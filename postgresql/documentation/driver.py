@@ -279,6 +279,10 @@ interfaces:
  ``sslrootcrlfile``
   Revocation list file path. [Currently not checked.]
 
+ ``category``
+  A `postgresql.api.Category` instance used to execute further database
+  initialization such as library bindings.
+
 
 Connections
 ===========

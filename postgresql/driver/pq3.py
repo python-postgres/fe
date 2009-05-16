@@ -23,6 +23,10 @@ from functools import partial
 
 from abc import abstractmethod, abstractproperty
 
+from .. import lib as pg_lib
+from ..lib import sys as pg_sys
+pg_sys = pg_lib.load(pg_sys)
+
 from .. import versionstring as pg_version
 from .. import iri as pg_iri
 from .. import exceptions as pg_exc
@@ -41,95 +45,6 @@ from ..protocol import typio as pg_typio
 from .. import types as pg_types
 
 is_showoption = lambda x: getattr(x, 'type', None) is element.ShowOption.type
-
-TypeLookup = """
-SELECT
- ns.nspname as namespace,
- bt.typname,
- bt.typtype,
- bt.typlen,
- bt.typelem,
- bt.typrelid,
- ae.oid AS ae_typid,
- ae.typreceive::oid != 0 AS ae_hasbin_input,
- ae.typsend::oid != 0 AS ae_hasbin_output
-FROM pg_type bt
- LEFT JOIN pg_type ae
-  ON (
-	bt.typlen = -1 AND
-   bt.typelem != 0 AND
-   bt.typelem = ae.oid
-  )
- LEFT JOIN pg_namespace ns
-  ON (ns.oid = bt.typnamespace)
-WHERE bt.oid = $1
-"""
-
-CompositeLookup = """
-SELECT
- CAST(atttypid AS oid) AS atttypid,
- CAST(attname AS VARCHAR) AS attname
-FROM
- pg_type t LEFT JOIN pg_attribute a
-  ON (t.typrelid = a.attrelid)
-WHERE
- attrelid = $1 AND NOT attisdropped AND attnum > 0
-ORDER BY attnum ASC
-"""
-
-ProcedureLookup = """
-SELECT
- pg_proc.oid,
- pg_proc.*,
- pg_proc.oid::regproc AS _proid,
- pg_proc.oid::regprocedure as procedure_id,
-  -- mm, the pain. the sweet, sweet pain. oh it's portable.
-  -- it's so portable that it runs on BDB on win32.
-  COALESCE(string_to_array(trim(textin(array_out(string_to_array(
-   replace(
-    trim(textin(oidvectorout(proargtypes)), '{}'),
-    ',', ' '
-   ), ' ')::oid[]::regtype[])), '{}'), ',')::text[], '{}'::text[])
-	 AS _proargs,
- (pg_type.oid = 'record'::regtype or pg_type.typtype = 'c') AS composite
-FROM
- pg_proc LEFT JOIN pg_type ON (
-  pg_proc.prorettype = pg_type.oid
- )
-"""
-
-PreparedLookup = """
-SELECT
-	COALESCE(ARRAY(
-		SELECT
-			gid::text
-		FROM
-			pg_catalog.pg_prepared_xacts
-		WHERE
-			database = current_database()
-			AND (
-				owner = $1::text
-				OR (
-					(SELECT rolsuper FROM pg_roles WHERE rolname = $1::text)
-				)
-			)
-		ORDER BY prepared ASC
-	), ('{}'::text[]))
-"""
-
-TransactionIsPrepared = """
-SELECT TRUE FROM pg_catalog.pg_prepared_xacts
-WHERE gid::text = $1
-"""
-
-GetPreparedStatement = """
-SELECT
-	statement
-FROM
-	pg_catalog.pg_prepared_statements
-WHERE
-	statement_id = $1
-"""
 
 IDNS = 'py:%s'
 def ID(s, title = None):
@@ -178,10 +93,10 @@ class TypeIO(pg_typio.TypeIO):
 		super().__init__()
 
 	def lookup_type_info(self, typid):
-		return self.database.prepare(TypeLookup).first(typid)
+		return self.database.sys.lookup_type(typid)
 
 	def lookup_composite_type_info(self, typid):
-		return self.database.prepare(CompositeLookup)(typid)
+		return self.database.sys.lookup_composite(typid)
 
 class Output(object):
 	_output = None
@@ -693,6 +608,47 @@ class PreparedStatement(pg_api.PreparedStatement):
 	_output_attmap = None
 
 	def _e_metas(self):
+		yield (None, '[' + self.state + ']')
+		if hasattr(self._xact, 'error_message'):
+			# be very careful not to trigger an exception.
+			# even in the cases of effective protocol errors, 
+			# it is important not to bomb out.
+			pos = self._xact.error_message.get('position')
+			if pos is not None and pos.isdigit():
+				try:
+					pos = int(pos)
+					# get the statement source
+					q = str(self.string)
+					#lineno = q.count('\n', pos)
+					# tabs before position
+					tabs = q.count('\t', 0, pos)
+					# replace tabs with spaces because there is no way to identify
+					# the tab size of the final display. (ie, marker will be wrong)
+					q = q.replace('\t', '    ')
+					# adjust position for the tab substitution
+					pos = pos + (3 * tabs)
+					# grab the relevant part of the query string.
+					# the full source will be printed elsewhere.
+					bov = max(pos-80, 0)
+					view = q[bov:pos+80]
+					# position relative to the beginning of the view
+					pos = max(pos-bov, 0)
+					# analyze lines prior to position
+					lines = view[:pos].splitlines()
+					line_no = len(lines)
+					line_pos = len(lines[-1]) - 1
+					dlines = view.splitlines()
+					marker = (line_pos * ' ') + '^'
+					marker = marker + ('-' * ((len(dlines[max(line_no-1,0)]) - len(marker))+10))
+					marker += '(point of error)-<<<<<<<'
+					# insert marker
+					dlines.insert(line_no, marker)
+					dlines.insert(0, '-'*20)
+					dlines.append('-'*20)
+					yield ('SYNTAX ERROR', os.linesep.join(('|- ' + x for x in dlines)))
+				except:
+					import traceback
+					traceback.print_exc()
 		spt = self.sql_parameter_types
 		if spt is not None:
 			yield ('sql_parameter_types', spt)
@@ -715,7 +671,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self.database = database
 		self.statement_id = statement_id or ID(self)
 		self.string = string
-		self._pq_xact = None
+		self._xact = None
 		self._pq_statement_id = None
 		self.closed = None
 
@@ -788,7 +744,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 	@property
 	def state(self) -> str:
 		if self.closed:
-			if self._pq_xact is not None:
+			if self._xact is not None:
 				if self.string is not None:
 					return 'parsing'
 				else:
@@ -1180,7 +1136,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			# exception being marked as the cause, so there should
 			# be no [exception] information loss.
 			##
-			self.database.synchronize()
+			self.database.pq.synchronize()
 			raise
 
 	def load(self, iterable, tps = None):
@@ -1247,17 +1203,13 @@ class StoredProcedure(pg_api.StoredProcedure):
 	def __init__(self, ident, database, description = ()):
 		# Lookup pg_proc on database.
 		if isinstance(ident, int):
-			proctup = database.prepare(
-				ProcedureLookup + ' WHERE pg_proc.oid = $1',
-			).first(int(ident))
+			proctup = database.sys.lookup_procedure_oid(int(ident))
 		else:
-			proctup = database.prepare(
-				ProcedureLookup + ' WHERE pg_proc.oid = regprocedurein($1)',
-			).first(ident)
+			proctup = database.sys.lookup_procedure_rp(str(ident))
 		if proctup is None:
 			raise LookupError("no function with identifier %s" %(str(ident),))
 
-		self.procedure_id = proctup["procedure_id"]
+		self.procedure_id = ident
 		self.oid = proctup[0]
 		self.name = proctup["proname"]
 
@@ -1320,10 +1272,7 @@ class Settings(pg_api.Settings):
 	def __getitem__(self, i):
 		v = self.cache.get(i)
 		if v is None:
-			db = self.database
-			r = db.prepare(
-				"SELECT setting FROM pg_settings WHERE name = $1",
-			)(i)
+			r = self.database.sys.setting_get(i)
 
 			if r:
 				v = r[0][0]
@@ -1335,10 +1284,7 @@ class Settings(pg_api.Settings):
 		cv = self.cache.get(i)
 		if cv == v:
 			return
-
-		setas = self.database.prepare(
-			"SELECT set_config($1, $2, false)",
-		).first(i, v)
+		setas = self.database.sys.setting_set(i, v)
 		self.cache[i] = setas
 
 	def __delitem__(self, k):
@@ -1348,7 +1294,7 @@ class Settings(pg_api.Settings):
 		self.cache.pop(k, None)
 
 	def __len__(self):
-		return self.database.prepare("SELECT count(*) FROM pg_settings").first()
+		return self.database.sys.setting_len()
 
 	def __call__(self, **settings):
 		return SettingsCM(self.database, settings)
@@ -1374,9 +1320,7 @@ class Settings(pg_api.Settings):
 			return self.cache[k]
 
 		db = self.database
-		r = db.prepare(
-			"SELECT setting FROM pg_settings WHERE name = $1",
-		)(k)
+		r = self.database.sys.setting_get(k)
 		if r:
 			v = r[0][0]
 			self.cache[k] = v
@@ -1395,9 +1339,7 @@ class Settings(pg_api.Settings):
 				rkeys.append(k)
 
 		if rkeys:
-			r = self.database.prepare(
-				"SELECT name, setting FROM pg_settings WHERE name = ANY ($1)",
-			)(rkeys)
+			r = self.database.sys.setting_mget(rkeys)
 			self.cache.update(r)
 			setmap.update(r)
 			rem = set(rkeys) - set([x['name'] for x in r])
@@ -1407,32 +1349,22 @@ class Settings(pg_api.Settings):
 
 	def keys(self):
 		return map(
-			get0, self.database.prepare(
-				"SELECT name FROM pg_settings ORDER BY name",
-			).rows()
+			get0, self.database.sys.setting_keys()
 		)
 	__iter__ = keys
 
 	def values(self):
 		return map(
-			get0, self.database.prepare(
-				"SELECT setting FROM pg_settings ORDER BY name",
-			).rows()
+			get0, self.database.sys.setting_values()
 		)
 
 	def items(self):
-		return self.database.prepare(
-			"SELECT name, setting FROM pg_settings ORDER BY name",
-		).rows()
+		return self.database.sys.setting_items()
 
 	def update(self, d):
-		kvl = [list(x) for x in d.items()]
+		kvl = [list(x) for x in dict(d).items()]
 		self.cache.update(
-			self.database.prepare(
-				"SELECT ($1::text[][])[i][1] AS key, " \
-				"set_config(($1::text[][])[i][1], $1[i][2], false) AS value " \
-				"FROM generate_series(1, array_upper(($1::text[][]), 1)) g(i)",
-			)(kvl)
+			self.database.sys.setting_update(kvl)
 		)
 
 	def _notify(self, msg):
@@ -1646,7 +1578,7 @@ class Transaction(pg_api.Transaction):
 				creator = self
 			)
 			raise err
-		if self.database.prepare(TransactionIsPrepared).first(self.gid):
+		if self.database.sys.xact_is_prepared(self.gid):
 			self.state = 'prepared'
 			self.type = 'block'
 		else:
@@ -1770,14 +1702,6 @@ class Connection(pg_api.Connection):
 		'Close the connection on exit.'
 		self.close()
 
-	def synchronize(self):
-		"""
-		Explicitly send a Synchronize message to the backend.
-		Useful for forcing the completion of lazily processed transactions.
-		[Avoids garbage collection]
-		"""
-		self.pq.synchronize()
-
 	def interrupt(self, timeout = None):
 		self.pq.interrupt(timeout = timeout)
 
@@ -1852,7 +1776,9 @@ class Connection(pg_api.Connection):
 		if isinstance(self.pq.xact, xact.Negotiation):
 			return 'negotiating'
 		if self.pq.xact is None:
-			return 'idle'
+			if self.pq.state == b'E':
+				return 'failed block'
+			return 'idle' + (' in block' if self.pq.state != b'I' else '')
 		else:
 			return 'busy'
 
@@ -2000,17 +1926,15 @@ class Connection(pg_api.Connection):
 				't', 'true', 'on', 'yes',
 			),
 		)
+		# manual binding
+		self.sys = pg_lib.Binding(self, pg_sys)
+
 		# Get the *full* version string.
 		self.version = self.prepare("SELECT pg_catalog.version()").first()
 		# First word from the version string.
 		self.type = self.version.split()[0]
 
-		r = self.prepare(
-			"SELECT * FROM " + (
-				'"pg_catalog".' if self.version_info[:2] > (7,2) else ""
-			) + '"pg_stat_activity" ' \
-			"WHERE procpid = " + str(self.backend_id)
-		).first()
+		r = self.sys.activity_for(self.backend_id)
 		if r is not None:
 			self.client_address = r.get('client_addr')
 			self.client_port = r.get('client_port')
@@ -2032,6 +1956,7 @@ class Connection(pg_api.Connection):
 			cm = self._convert_pq_message(cm)
 			cm.creator = self
 			cm.raise_message()
+		super().connect()
 
 	def _pq_push(self, xact, controller = None):
 		x = self.pq.xact
@@ -2177,7 +2102,9 @@ class Connector(pg_api.Connector):
 		return pg_iri.serialize(
 			{
 				k : v for k,v in self.__dict__.items()
-				if v is not None and not k.startswith('_') and k != 'driver'
+				if v is not None and not k.startswith('_') and k not in (
+					'driver', 'category'
+				)
 			},
 			obscure_password = True
 		)

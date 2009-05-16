@@ -75,6 +75,26 @@ class Element(metaclass = ABCMeta):
 		it.
 		"""
 
+class ElementSet(Element, set):
+	"""
+	An ElementSet is a set of Elements that can be used as an individual factor.
+
+	In situations where a single factor is composed of multiple elements where
+	each has no significance over the other, this Element can be used represent
+	that fact.
+
+	Importantly, it provides the set metadata so that the appropriate information
+	will be produced in element tracebacks.
+	"""
+	_e_label = 'SET'
+	_e_factors = ()
+	__slots__ = ()
+
+	def _e_metas(self):
+		yield (None, len(self))
+		for x in self:
+			yield (None, format_element(x))
+
 def prime_factor(obj):
 	'get the primary factor on the `obj`, returns None if none.'
 	f = getattr(obj, '_e_factors', None)
@@ -129,7 +149,6 @@ def format_element(obj, coverage = ()):
 		else:
 			sval = str(val)
 
-		# if the key is None, it is intended to be inlined.
 		pre = ' '
 		if key is not None:
 			m += key + ':'
@@ -137,6 +156,7 @@ def format_element(obj, coverage = ()):
 				pre = os.linesep
 				sval = indent(sval)
 		else:
+			# if the key is None, it is intended to be inlined.
 			nolead = True
 			pre = ''
 		m += pre + sval.rstrip()
@@ -157,13 +177,13 @@ def format_element(obj, coverage = ()):
 
 	mtxt = os.linesep.join(metas)
 	ftxt = os.linesep.join(factors)
-	if len(factors) + len(metas) > 1:
-		if mtxt:
-			mtxt = indent(mtxt)
-		if ftxt:
-			ftxt = indent(ftxt)
+	if mtxt:
+		mtxt = indent(mtxt)
+	if ftxt:
+		ftxt = indent(ftxt)
 	s = mtxt + ftxt
 	if nolead is True:
+		# metas started with a `None` key.
 		s = ' ' + s.lstrip()
 	else:
 		s = os.linesep + s

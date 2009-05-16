@@ -17,6 +17,7 @@ from ..python.datetime import FixedOffset
 from .. import types as pg_types
 from .. import exceptions as pg_exc
 from .. import unittest as pg_unittest
+from .. import lib as pg_lib
 
 type_samples = (
 	('smallint', (

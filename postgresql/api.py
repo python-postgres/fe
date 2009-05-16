@@ -34,6 +34,7 @@ __all__ = [
 	'Rows',
 	'Cursor',
 	'Connector',
+	'Category',
 	'Database',
 	'Connection',
 	'Transaction',
@@ -1067,20 +1068,30 @@ class SocketFactory(object):
 		create the socket object. 
 		"""
 
+class Category(Element):
+	"""
+	A category is an object that initializes the subject connection for a
+	specific purpose.
+
+	Arguably, a runtime class for use with connections.
+	"""
+	_e_label = 'CATEGORY'
+	_e_factors = ()
+
+	@abstractmethod
+	def __call__(self, connection):
+		"""
+		Initialize the given connection in order to conform to the category.
+		"""
+
 class Connector(Element):
 	"""
-	A connector is a "bookmark" object and an abstraction layer for the
-	employed communication mechanism. `Connector` types should exist for each
-	mode of addressing. This allows for easier type checking and cleaner
-	implementation.
-
-	`Connector` implementations supply the tools to make a connected socket.
-	Sockets produced by the `Connector` are used by the `Connection` to
-	facilitate negotiation; once negotiation is complete, the connection is
-	made.
+	A connector is an object providing the necessary information to establish a
+	connection. This includes credentials, database settings, and many times
+	addressing information.
 	"""
 	_e_label = 'CONNECTOR'
-	_e_factors = ('driver',)
+	_e_factors = ('driver', 'category')
 
 	def __call__(self, *args, **kw):
 		"""
@@ -1094,6 +1105,7 @@ class Connector(Element):
 		password : str = None,
 		database : str = None,
 		settings : (dict, [(str,str)]) = None,
+		category : Category = None,
 	):
 		if user is None:
 			# sure, it's a "required" keyword, makes for better documentation
@@ -1102,6 +1114,9 @@ class Connector(Element):
 		self.password = password
 		self.database = database
 		self.settings = settings
+		self.category = category
+		if category is not None and not isinstance(category, Category):
+			raise TypeError("'category' must a be `None` or `postgresql.api.Category`")
 
 class Connection(Database):
 	"""
@@ -1131,13 +1146,15 @@ class Connection(Database):
 		True
 		"""
 
-	@abstractmethod
 	def connect(self) -> None:
 		"""
-		Establish the connection to the server.
+		Establish the connection to the server and initialize the category.
 
 		Does nothing if the connection is already established.
 		"""
+		cat = self.connector.category
+		if cat is not None:
+			cat(self)
 
 	@abstractmethod
 	def close(self) -> None:

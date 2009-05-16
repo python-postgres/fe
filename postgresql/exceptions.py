@@ -35,10 +35,15 @@ from functools import partial
 from operator import attrgetter
 from . import api as pg_api
 from .python.element import format_element
+from .python.string import indent
 
+PythonException = Exception
 class Exception(Exception):
 	'Base PostgreSQL exception class'
 	pass
+
+class LoadError(Exception):
+	'Failed to load a library'
 
 class Disconnection(Exception):
 	'Exception identifying errors that result in disconnection'
@@ -89,7 +94,16 @@ class Error(pg_api.Message, Exception):
 	def __str__(self):
 		it = self._e_metas()
 		if self.creator is not None:
-			after = os.linesep + format_element(self.creator)
+			# Protect against element traceback failures.
+			try:
+				after = os.linesep + format_element(self.creator)
+			except PythonException:
+				after = 'Element Traceback of %r caused exception:%s' %(
+					type(self.creator).__name__,
+					os.linesep
+				)
+				after += indent(traceback.format_exc())
+				after = os.linesep + indent(after).rstrip()
 		else:
 			after = ''
 		return next(it)[1] \
