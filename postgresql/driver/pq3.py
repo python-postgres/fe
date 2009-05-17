@@ -34,7 +34,7 @@ from .. import string as pg_str
 from .. import api as pg_api
 from ..encodings import aliases as pg_enc_aliases
 
-from ..python.itertools import interlace
+from ..python.itertools import interlace, chunk
 from ..python.socket import SocketFactory
 
 from ..protocol import xact3 as xact
@@ -1025,18 +1025,12 @@ class PreparedStatement(pg_api.PreparedStatement):
 				return None
 			return cm.extract_count() or cm.extract_command()
 
-	def _copy_data_in(self,
-		iterable,
-		tps : "tuples per *set*" = None,
-	):
+	def _load_copy_chunks(self, chunks):
 		"""
-		Given an iterable, execute the COPY ... FROM STDIN statement and
-		send the copy lines produced by the iterable to the remote end.
-
-		`tps` is the number of tuples to buffer prior to giving the data
-		to the socket's send.
+		Given an chunks of COPY lines, execute the COPY ... FROM STDIN
+		statement and send the copy lines produced by the iterable to
+		the remote end.
 		"""
-		tps = tps or 500
 		x = xact.Instruction((
 				element.Bind(
 					b'',
@@ -1044,7 +1038,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 					(), (), (),
 				),
 				element.Execute(b'', 1),
-				element.SynchronizeMessage,
+				element.FlushMessage,
 			),
 			asynchook = self.database._receive_async
 		)
@@ -1058,70 +1052,45 @@ class PreparedStatement(pg_api.PreparedStatement):
 		else:
 			# Oh, it's not a COPY at all.
 			e = pg_exc.OperationError(
-				"_copy_data_in() used on a non-COPY FROM STDIN query",
+				"_load_copy_chunks() used on a non-COPY FROM STDIN query",
 				creator = self
 			)
 			raise e
 
-		if isinstance(iterable, Chunks):
-			# optimized, each iteration == row sequence
-			while x.messages:
-				while x.messages is not x.CopyFailSequence:
-					self.database._pq_step()
-				x.messages = []
-				for rows in iterable:
-					x.messages.extend([
-						element.CopyData(l) for l in rows
-					])
-					if len(x.messages) > tps:
-						break
-		else:
-			# each iteration == one row
-			iterable = iter(iterable)
-			while x.messages:
-				# Process any messages setup for sending.
-				while x.messages is not x.CopyFailSequence:
-					self.database._pq_step()
-				x.messages = [
-					element.CopyData(l) for l in islice(iterable, tps)
-				]
+		for chunk in chunks:
+			x.messages = [element.CopyData(l) for l in chunk]
+			while x.messages is not x.CopyFailSequence:
+				self.database._pq_step()
 		x.messages = x.CopyDoneSequence
 		self.database._pq_complete()
+		self.database.pq.synchronize()
 
-	def _load_bulk_tuples(self, tupleseq, tps = None):
-		tps = tps or 64
-		if isinstance(tupleseq, Chunks):
-			tupleseqiter = chain.from_iterable(tupleseq)
-		else:
-			tupleseqiter = iter(tupleseq)
+	def _load_tuple_chunks(self, chunks):
 		pte = self._raise_parameter_tuple_error
-		last = element.FlushMessage
+		last = (element.SynchronizeMessage,)
 		try:
-			while last is element.FlushMessage:
-				c = 0
-				xm = []
-				for t in tupleseqiter:
-					params = pg_typio.process_tuple(
-						self._input_io, tuple(t), pte
-					)
-					xm.extend((
+			for chunk in chunks:
+				bindings = [
+					(
 						element.Bind(
 							b'',
 							self._pq_statement_id,
 							self._input_formats,
-							params,
+							pg_typio.process_tuple(
+								self._input_io, tuple(t), pte
+							),
 							(),
 						),
 						element.Execute(b'', 1),
-					))
-					if c == tps:
-						break
-					c += 1
-				else:
-					last = element.SynchronizeMessage
-				xm.append(last)
+					)
+					for t in chunk
+				]
+				bindings.append(last)
 				self.database._pq_push(
-					xact.Instruction(xm, asynchook = self.database._receive_async),
+					xact.Instruction(
+						chain.from_iterable(bindings),
+						asynchook = self.database._receive_async
+					),
 					self
 				)
 			self.database._pq_complete()
@@ -1141,16 +1110,32 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 	def load(self, iterable, tps = None):
 		"""
-		Execute the query for each parameter set in `iterable`.
+		WARNING: Deprecated, use load_chunks and load_rows instead.
+		"""
+		if self.closed is None:
+			self._fini()
+		if isinstance(iterable, Chunks):
+			l = self.load_chunks
+		else:
+			l = self.load_rows
+		return l(iterable)
 
-		In cases of ``COPY ... FROM STDIN``, iterable must be an iterable `bytes`.
+	def load_chunks(self, chunks):
+		"""
+		Execute the query for each row-parameter set in `iterable`.
+
+		In cases of ``COPY ... FROM STDIN``, iterable must be an iterable of
+		sequences of `bytes`.
 		"""
 		if self.closed is None:
 			self._fini()
 		if not self._input:
-			return self._copy_data_in(iterable, tps = tps)
+			return self._load_copy_chunks(chunks)
 		else:
-			return self._load_bulk_tuples(iterable, tps = tps)
+			return self._load_tuple_chunks(chunks)
+
+	def load_rows(self, rows, chunksize = 256):
+		return self.load_chunks(chunk(rows, chunksize))
 
 class StoredProcedure(pg_api.StoredProcedure):
 	_e_factors = ('database', 'procedure_id')

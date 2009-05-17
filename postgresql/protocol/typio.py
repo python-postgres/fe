@@ -434,7 +434,9 @@ def process_tuple(procs, tup, exception_handler):
 	i = len(procs)
 	if len(tup) != i:
 		raise ValueError(
-			"inconsistent items, %d processors and %d objects"
+			"inconsistent items, %d processors and %d objects" %(
+				i, len(tup)
+			)
 		)
 	r = [None] * i
 	try:

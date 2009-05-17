@@ -6,7 +6,7 @@
 itertools extensions
 """
 import collections
-from itertools import cycle
+from itertools import cycle, islice
 
 def interlace(*iters) -> collections.Iterable:
 	"""
@@ -20,3 +20,21 @@ def interlace(*iters) -> collections.Iterable:
 	)
 	"""
 	return map(next, cycle([iter(x) for x in iters]))
+
+def chunk(iterable, chunksize = 256):
+	"""
+	Given an iterable, return an iterable producing chunks of the objects
+	produced by the given iterable.
+
+	chunks([o1,o2,o3,o4], chunksize = 2) -> [
+		[o1,o2],
+		[o3,o4],
+	]
+	"""
+	iterable = iter(iterable)
+	last = ()
+	lastsize = chunksize
+	while lastsize == chunksize:
+		last = list(islice(iterable, chunksize))
+		lastsize = len(last)
+		yield last

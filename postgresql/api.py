@@ -534,7 +534,7 @@ class PreparedStatement(
 		"""
 
 	@abstractmethod
-	def load(self,
+	def load_rows(self,
 		iterable : "A iterable of tuples to execute the statement with"
 	):
 		"""
@@ -548,8 +548,29 @@ class PreparedStatement(
 			...  q(*i)
 
 		Its purpose is to allow the implementation to take advantage of the
-		knowledge that a series of parameters are to be loaded and subsequently
-		optimize the operation.
+		knowledge that a series of parameters are to be loaded so that the
+		operation can be optimized.
+		"""
+
+	@abstractmethod
+	def load_chunks(self,
+		iterable : "A iterable of chunks of tuples to execute the statement with"
+	):
+		"""
+		Given an iterable, `iterable`, feed the produced parameters of the chunks
+		produced by the iterable to the query. This is a bulk-loading interface
+		for parameterized queries.
+
+		Effectively, it is equivalent to:
+
+			>>> ps = db.prepare(...)
+			>>> for c in iterable:
+			...  for i in c:
+			...   q(*i)
+
+		Its purpose is to allow the implementation to take advantage of the
+		knowledge that a series of chunks of parameters are to be loaded so
+		that the operation can be optimized.
 		"""
 
 	@abstractmethod

@@ -435,11 +435,11 @@ cursors).
 Prepared statement objects have a few execution methods:
 
  ``ps(*parameters)``
-  As shown before, statement objects can be simply invoked like a function to get
+  As shown before, statement objects can be invoked like a function to get
   the statement's results.
 
  ``ps.rows(*parameters)``
-  Return a simple iterator to all the rows produced by the statement. This
+  Return a iterator to all the rows produced by the statement. This
   method will stream rows on demand, so it is ideal for situations where
   each individual row in a large result-set must be processed.
 
@@ -495,6 +495,20 @@ Prepared statement objects have a few execution methods:
 
  ``ps.close()``
   Close the statement inhibiting further use.
+
+ ``ps.load_rows(collections.Iterable(parameters))``
+  Given an iterable producing parameters, execute the statement for each
+  iteration. Always returns `None`.
+
+ ``ps.load_chunks(collections.Iterable(collections.Iterable(parameters)))``
+  Given an iterable of iterables producing parameters, execute the statement
+  for each parameter produced. However, send the all execution commands with
+  the corresponding parameters of each chunk before reading any results.
+  Always returns `None`. This access point is designed to be used in conjunction
+  with ``ps.chunks()`` for transferring rows from one connection to another with
+  great efficiency::
+
+   >>> dst.prepare(...).load_chunks(src.prepare(...).chunks())
 
 
 Statement Metadata
@@ -649,23 +663,24 @@ command name and the associated row count.
 
 Using the call interface is fine for making a single insert, but when multiple
 records need to be inserted, it's not the most efficient means to load data. For
-multiple records, the ``ps.load([...])`` provides an efficient way to load large
-quantities of structured data::
+multiple records, the ``ps.load_rows([...])`` provides an efficient way to load
+large quantities of structured data::
 
 	>>> from datetime import date
-	>>> mkemp.load([
+	>>> mkemp.load_rows([
 	...  ("Jack Johnson", "85000", date(1962, 11, 23), date(1990, 3, 5)),
 	...  ("Debra McGuffer", "52000", date(1973, 3, 4), date(2002, 1, 14)),
 	...  ("Barbara Smith", "86000", date(1965, 2, 24), date(2005, 7, 19)),
 	... ])
 
-While small, the above illustrates the ``ps.load()`` method taking an iterable of
-tuples that provides parameters for the each execution of the statement.
+While small, the above illustrates the ``ps.load_rows()`` method taking an
+iterable of tuples that provides parameters for the each execution of the
+statement.
 
-Load is also used to support ``COPY ... FROM STDIN`` statements::
+``load_rows`` is also used to support ``COPY ... FROM STDIN`` statements::
 
 	>>> copy_emps_in = db.prepare("COPY employee FROM STDIN")
-	>>> copy_emps_in.load([
+	>>> copy_emps_in.load_rows([
 	...  b'Emp Name1\t72000\t1970-2-01\t1980-10-22\n',
 	...  b'Emp Name2\t62000\t1968-9-11\t1985-11-1\n',
 	...  b'Emp Name3\t62000\t1968-9-11\t1985-11-1\n',
@@ -694,8 +709,8 @@ doing other actions on the connection while a COPY is active.
 In situations where other actions are invoked during a ``COPY FROM STDIN``, a
 COPY failure error will occur. The driver manages the connection state in such
 a way that will purposefully cause the error as the COPY was inappropriately
-interrupted. This not usually a problem as the ``load(...)`` method must
-complete the COPY command before returning.
+interrupted. This not usually a problem as ``load_rows(...)`` and
+``load_chunks(...)`` methods must complete the COPY command before returning.
 
 Copy data is always transferred using ``bytes`` objects. Even in cases where the
 COPY is not in ``BINARY`` mode. Any needed encoding transformations *must* be
@@ -722,9 +737,9 @@ iterator is the fastest way to move data::
 	<lots of data>
 
 ``COPY FROM STDIN`` commands are supported via
-`postgresql.api.PreparedStatement.load`. Each invocation to ``load``
-is a single invocation of COPY. ``load`` takes an iterable of COPY lines
-to send to the server::
+`postgresql.api.PreparedStatement.load_rows`. Each invocation to
+``load_rows`` is a single invocation of COPY. ``load_rows`` takes an iterable of
+COPY lines to send to the server::
 
 	>>> db.execute("""
 	... CREATE TABLE sample_copy (
@@ -733,21 +748,20 @@ to send to the server::
 	... );
 	... """)
 	>>> copyin = db.prepare('COPY sample_copy FROM STDIN')
-	>>> copyin.load([
+	>>> copyin.load_rows([
 	... 	b'123\tone twenty three\n',
 	... 	b'350\ttree fitty\n',
 	... ])
 
-The ``load()`` method is trained to identify chunk iterators so that direct
-transfers from a source database to a destination database could be
-made in a streaming fashion::
+For direct connection-to-connection COPY, use of ``load_chunks(...)`` is
+recommended as it will provide the most efficient transfer method::
 
 	>>> copyout = src.prepare('COPY atable TO STDOUT')
 	>>> copyin = dst.prepare('COPY atable FROM STDIN')
-	>>> copyin.load(copyout.chunks())
+	>>> copyin.load_chunks(copyout.chunks())
 
 Specifically, each chunk of row data produced by ``chunks()`` will be written in
-full by ``load()`` before getting another chunk to write.
+full by ``load_chunks()`` before getting another chunk to write.
 
 
 Cursors

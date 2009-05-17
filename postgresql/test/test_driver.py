@@ -539,7 +539,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		with self.db.xact():
 			self.db.execute("CREATE TABLE foo (i int)")
 			foo = self.db.prepare('insert into foo values ($1)')
-			foo.load(((x,) for x in range(500)))
+			foo.load_rows(((x,) for x in range(500)))
 
 			copy_foo = self.db.prepare('copy foo to stdout')
 			foo_content = set(copy_foo)
@@ -554,7 +554,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		with self.db.xact():
 			self.db.execute("CREATE TABLE foo (i int)")
 			foo = self.db.prepare('copy foo from stdin')
-			foo.load((str(i).encode('ascii') + b'\n' for i in range(200)))
+			foo.load_rows((str(i).encode('ascii') + b'\n' for i in range(200)))
 			foo_content = list((
 				x for (x,) in self.db.prepare('select * from foo order by 1 ASC')
 			))
@@ -729,10 +729,10 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		# make sure it's not cheating
 		self.failUnlessEqual(c.cursor_id, cid)
 
-	def testChunking(self):
+	def testLoadRows(self):
 		gs = self.db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
 		self.failUnlessEqual(
-			list((x[0] for x in chain.from_iterable(gs.chunks()))),
+			list((x[0] for x in gs.rows())),
 			list(range(1, 10001))
 		)
 		# exercise ``for x in chunks: dst.load(x)``
@@ -744,44 +744,8 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				FROM generate_series(1, 10000) g(i);
 				"""
 			)
-			read = self.db.prepare('select * FROM chunking').chunks()
-			write = db2.prepare('insert into chunking values ($1, $2)').load
-			with db2.xact():
-				for rows in read:
-					write(rows)
-			del read, write
-
-			self.failUnlessEqual(
-				self.db.prepare('select count(*) FROM chunking').first(),
-				20000
-			)
-			self.failUnlessEqual(
-				self.db.prepare('select count(DISTINCT i) FROM chunking').first(),
-				10000
-			)
-		self.db.execute('DROP TABLE chunking')
-
-	def testChunkingInXact(self):
-		with self.db.xact():
-			self.testChunking()
-
-	def testChunkDetect(self):
-		gs = self.db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
-		self.failUnlessEqual(
-			list((x[0] for x in chain.from_iterable(gs.chunks()))),
-			list(range(1, 10001))
-		)
-		# exercise ``for x in chunks: dst.load(x)``
-		with self.db.connector() as db2:
-			db2.execute(
-				"""
-				CREATE TABLE chunking AS
-				SELECT i::text AS t, i::int AS i
-				FROM generate_series(1, 10000) g(i);
-				"""
-			)
-			read = self.db.prepare('select * FROM chunking').chunks()
-			write = db2.prepare('insert into chunking values ($1, $2)').load
+			read = self.db.prepare('select * FROM chunking').rows()
+			write = db2.prepare('insert into chunking values ($1, $2)').load_rows
 			with db2.xact():
 				write(read)
 			del read, write
@@ -796,9 +760,44 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			)
 		self.db.execute('DROP TABLE chunking')
 
-	def testChunkDetectInXact(self):
+	def testLoadRowsInXact(self):
 		with self.db.xact():
-			self.testChunking()
+			self.testLoadRows()
+
+	def testLoadChunk(self):
+		gs = self.db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
+		self.failUnlessEqual(
+			list((x[0] for x in chain.from_iterable(gs.chunks()))),
+			list(range(1, 10001))
+		)
+		# exercise ``for x in chunks: dst.load_chunks(x)``
+		with self.db.connector() as db2:
+			db2.execute(
+				"""
+				CREATE TABLE chunking AS
+				SELECT i::text AS t, i::int AS i
+				FROM generate_series(1, 10000) g(i);
+				"""
+			)
+			read = self.db.prepare('select * FROM chunking').chunks()
+			write = db2.prepare('insert into chunking values ($1, $2)').load_chunks
+			with db2.xact():
+				write(read)
+			del read, write
+
+			self.failUnlessEqual(
+				self.db.prepare('select count(*) FROM chunking').first(),
+				20000
+			)
+			self.failUnlessEqual(
+				self.db.prepare('select count(DISTINCT i) FROM chunking').first(),
+				10000
+			)
+		self.db.execute('DROP TABLE chunking')
+
+	def testLoadChunkInXact(self):
+		with self.db.xact():
+			self.testLoadChunk()
 
 	def testSimpleDML(self):
 		self.db.execute("CREATE TEMP TABLE emp(emp_name text, emp_age int)")
@@ -857,7 +856,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			mset = (
 				(2,), (2,), (3,), (4,), (5,),
 			)
-			insert_t.load(mset)
+			insert_t.load_rows(mset)
 			content = self.db.prepare("SELECT * FROM t ORDER BY 1 ASC")
 			self.failUnlessEqual(mset, tuple(content()))
 		finally:
