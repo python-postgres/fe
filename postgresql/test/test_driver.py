@@ -19,7 +19,7 @@ from .. import exceptions as pg_exc
 from .. import unittest as pg_unittest
 from .. import lib as pg_lib
 
-type_samples = (
+type_samples = [
 	('smallint', (
 			((1 << 16) // 2) - 1, - ((1 << 16) // 2),
 			-1, 0, 1,
@@ -268,7 +268,40 @@ type_samples = (
 			pg_types.varbit('010111101111'),
 		],
 	),
-)
+]
+
+try:
+	import ipaddr
+	type_samples.append((
+		'inet', [
+			ipaddr.IPv4('255.255.255.255'),
+			ipaddr.IPv4('127.0.0.1'),
+			ipaddr.IPv4('10.0.0.1'),
+			ipaddr.IPv4('0.0.0.0'),
+			ipaddr.IPv6('::1'),
+			ipaddr.IPv6('ffff' + ':ffff'*7),
+			ipaddr.IPv6('fe80::1'),
+			ipaddr.IPv6('fe80::1'),
+			ipaddr.IPv6('0::0'),
+		],
+	))
+	type_samples.append((
+		'cidr', [
+			ipaddr.IPv4('255.255.255.255/32'),
+			ipaddr.IPv4('127.0.0.0/8'),
+			ipaddr.IPv4('127.1.0.0/16'),
+			ipaddr.IPv4('10.0.0.0/32'),
+			ipaddr.IPv4('0.0.0.0/0'),
+			ipaddr.IPv6('ffff' + ':ffff'*7 + '/128'),
+			ipaddr.IPv6('::1/128'),
+			ipaddr.IPv6('fe80::1/128'),
+			ipaddr.IPv6('fe80::0/64'),
+			ipaddr.IPv6('fe80::0/16'),
+			ipaddr.IPv6('0::0/0'),
+		],
+	))
+except ImportError:
+	pass
 
 class test_driver(pg_unittest.TestCaseWithCluster):
 	"""
@@ -873,7 +906,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				"SELECT $1::" + typname
 			)
 			for sample in sample_data:
-				rsample = pb.first(sample)
+				rsample = list(pb.rows(sample))[0][0]
 				if isinstance(rsample, pg_types.Array):
 					rsample = rsample.nest()
 				self.failUnless(

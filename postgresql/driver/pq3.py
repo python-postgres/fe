@@ -1921,7 +1921,15 @@ class Connection(pg_api.Connection):
 
 		r = self.sys.activity_for(self.backend_id)
 		if r is not None:
-			self.client_address = r.get('client_addr')
+			# conditional initialization of client_address.
+			# pythons without ipaddr will likely give strings.
+			ca = r.get('client_addr')
+			if ca is not None:
+				if not isinstance(ca, str):
+					# it better be a ipaddr.BaseIP..
+					self.client_address = ca.ip_ext
+				else:
+					self.client_address = ca
 			self.client_port = r.get('client_port')
 			self.backend_start = r.get('backend_start')
 		try:

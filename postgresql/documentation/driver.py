@@ -1525,6 +1525,9 @@ conversion function is bound.
  `postgresql.types.NUMERICOID`     `decimal.Decimal`                  numeric
  `postgresql.types.BYTEAOID`       `bytes`                            bytea
  `postgresql.types.TEXTOID`        `str`                              text
+
+ `postgresql.types.CIDROID`        `ipaddr.IPv4` or `ipaddr.IPv6`     cidr
+ `postgresql.types.INETOID`        `ipaddr.IPv4` or `ipaddr.IPv6`     inet
  ================================= ================================== ===========
 
 The mapping in the above table *normally* goes both ways. So when a parameter

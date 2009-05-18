@@ -421,6 +421,39 @@ oid_to_io = {
 	pg_types.CIRCLEOID : (circle_pack, circle_unpack),
 }
 
+# Conditionally use ipaddr.
+# Condition goes away when 3.0 is deprecated.
+try:
+	import ipaddr
+	def net_pack(ip):
+		family = None
+		converted = False
+		while family is None:
+			if isinstance(ip, ipaddr.IPv4):
+				family = 2
+			elif isinstance(ip, ipaddr.IPv6):
+				family = 3
+			else:
+				if converted is True:
+					raise ValueError("unknown IP type: " + repr(ip))
+				ip = ipaddr.IP(ip)
+				converted = True
+		return ts.net_pack((family, ip.prefixlen, ip.packed))
+
+	def net_unpack(data):
+		family, mask, data = ts.net_unpack(data)
+		if family in (2, 3):
+			v = ipaddr.IP(data)
+		else:
+			raise ValueError("unknown net family: " + repr(family))
+		v.prefixlen = mask
+		return v
+	oid_to_io[pg_types.CIDROID] = (net_pack, net_unpack)
+	oid_to_io[pg_types.INETOID] = (net_pack, net_unpack)
+except ImportError:
+	oid_to_io[pg_types.CIDROID] = (None, None)
+	oid_to_io[pg_types.INETOID] = (None, None)
+
 def process_tuple(procs, tup, exception_handler):
 	"""
 	Call each item in `procs` with the corresponding
@@ -716,8 +749,6 @@ class TypeIO(object, metaclass = ABCMeta):
 			pg_types.VARCHAROID : (None, None),
 			pg_types.CSTRINGOID : (None, None),
 			pg_types.TEXTOID : (None, None),
-			pg_types.CIDROID : (None, None),
-			pg_types.INETOID : (None, None),
 			pg_types.REGPROCEDUREOID : (None, None),
 			pg_types.REGTYPEOID : (None, None),
 			pg_types.REGPROCOID : (None, None),

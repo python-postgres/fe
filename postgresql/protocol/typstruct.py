@@ -313,11 +313,13 @@ def varbit_unpack(data):
 	"""
 	return long_unpack(data[0:4]), data[4:]
 
-def cidr_pack(family_mask_data):
+def net_pack(family_mask_data):
 	"""
 	Given a triple, yield the serialized form for transport.
 
 	Prepends the ``family``, ``mask`` and implicit ``is_cidr`` fields.
+
+	Supports cidr and inet types.
 	"""
 	(family, mask, data) = family_mask_data
 
@@ -328,9 +330,8 @@ def cidr_pack(family_mask_data):
 		byte_pack(len(data)),
 		data
 	))
-inet_pack = cidr_pack
 
-def cidr_unpack(data):
+def net_unpack(data):
 	"""
 	Given serialized cidr data, return a tuple:
 
@@ -343,7 +344,6 @@ def cidr_unpack(data):
 		raise ValueError("invalid size parameter")
 
 	return (family, mask, rd)
-inet_unpack = cidr_unpack
 
 def record_unpack(data):
 	"""
@@ -471,9 +471,9 @@ oid_to_io = {
 	pg_types.BYTEAOID : (bytes, bytes),
 	pg_types.CHAROID : literal,
 
-#	pg_type.MACADDROID : literal,
-#	pg_type.INETOID : (cidr_pack, cidr_unpack),
-#	pg_type.CIDROID : (cidr_pack, cidr_unpack),
+#	pg_types.MACADDROID : literal,
+	pg_types.INETOID : (net_pack, net_unpack),
+	pg_types.CIDROID : (net_pack, net_unpack),
 
 	pg_types.DATEOID : (date_pack, date_unpack),
 	pg_types.ABSTIMEOID : (long_pack, long_unpack),
