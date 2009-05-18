@@ -7,6 +7,9 @@
  *
  * PQ messages normally take the form {type, (size), data}
  */
+#define include_buffer_types \
+	mTYPE(pq_message_stream)
+
 struct p_list
 {
 	PyObject *data; /* PyString pushed onto the buffer */
