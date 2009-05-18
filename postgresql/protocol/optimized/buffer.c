@@ -7,18 +7,6 @@
  *
  * PQ messages normally take the form {type, (size), data}
  */
-#include <stdint.h>
-#ifdef WIN32
-#include <winsock.h>
-#else
-#include <sys/types.h>
-#include <netinet/in.h>
-#endif
-#include <Python.h>
-#include <structmember.h>
-
-static PyObject *message_types = NULL;
-
 struct p_list
 {
 	PyObject *data; /* PyString pushed onto the buffer */
@@ -532,7 +520,7 @@ static PyMethodDef p_methods[] = {
 
 PyTypeObject pq_message_stream_Type = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"postgresql.protocol.cbuffer.pq_message_stream",	/* tp_name */
+	"postgresql.protocol.optimized.pq_message_stream",	/* tp_name */
 	sizeof(struct p_buffer),		/* tp_basicsize */
 	0,										/* tp_itemsize */
 	p_dealloc,							/* tp_dealloc */
@@ -573,65 +561,6 @@ PyTypeObject pq_message_stream_Type = {
 	p_new,								/* tp_new */
 	NULL,									/* tp_free */
 };
-
-static struct PyModuleDef cbuffermodule = {
-   PyModuleDef_HEAD_INIT,
-   "cbuffer",/* name of module */
-   NULL,     /* module documentation, may be NULL */
-   -1,       /* size of per-interpreter state of the module,
-                or -1 if the module keeps state in global variables. */
-   NULL,
-};
-
-PyMODINIT_FUNC
-PyInit_cbuffer(void)
-{
-	PyObject *mod;
-	PyObject *msgtypes;
-	PyObject *fromlist, *fromstr;
-
-	mod = PyModule_Create(&cbuffermodule);
-	if (mod == NULL)
-		return(NULL);
-
-	if (PyType_Ready(&pq_message_stream_Type) < 0)
-		goto cleanup;
-
-	if (PyModule_AddObject(mod, "pq_message_stream",
-			(PyObject *) &pq_message_stream_Type) < 0)
-		goto cleanup;
-
-	/*
-	 * Get the message_types tuple to type "instantiation".
-	 */
-	fromlist = PyList_New(1);
-	fromstr = PyUnicode_FromString("message_types");
-	PyList_SetItem(fromlist, 0, fromstr);
-	msgtypes = PyImport_ImportModuleLevel(
-		"message_types",
-		PyModule_GetDict(mod),
-		PyModule_GetDict(mod),
-		fromlist, 1
-	);
-	Py_DECREF(fromlist);
-	if (msgtypes == NULL)
-		goto cleanup;
-	message_types = PyObject_GetAttrString(msgtypes, "message_types");
-	Py_DECREF(msgtypes);
-
-	if (!PyObject_IsInstance(message_types, (PyObject *) (&PyTuple_Type)))
-	{
-		PyErr_SetString(PyExc_RuntimeError,
-			"local protocol.message_types.message_types is not a tuple object");
-		goto cleanup;
-	}
-
-	return(mod);
-
-cleanup:
-	Py_DECREF(mod);
-	return(NULL);
-}
 /*
  * vim: ts=3:sw=3:noet:
  */

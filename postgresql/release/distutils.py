@@ -86,6 +86,7 @@ CLASSIFIERS = [
 subpackages = [
 	'bin',
 	'encodings',
+	'lib',
 	'protocol',
 	'driver',
 	'test',
@@ -96,12 +97,8 @@ subpackages = [
 	'resolved',
 ]
 extensions_data = {
-	'protocol.cbuffer' : {
-		'sources' : [os.path.join('protocol', 'buffer.c')],
-		'libraries' : (sys.platform == 'win32' and ['ws2_32'] or []),
-	},
 	'protocol.optimized' : {
-		'sources' : [os.path.join('protocol', 'optimized.c')],
+		'sources' : [os.path.join('protocol', 'optimized', 'module.c')],
 		'libraries' : (sys.platform == 'win32' and ['ws2_32'] or []),
 	},
 	'python.optimized' : {
