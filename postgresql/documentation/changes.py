@@ -11,6 +11,8 @@ Changes
 
  * Extend `postgresql.open` to take keyword arguments.
  * Implement query libraries and connection categories[#1010581 & #1010618].
+ * Implement ``clone()`` on Connections, Statements, and Cursors.
+ * Refactor ``ps.load()`` into ``ps.load_chunks()`` and ``ps.load_rows()``.
  * Performance optimizations.
  * Refactor `postgresql.api.InterfaceElement`.
  * Refactor driver.pq3.Connection to use protocol.client3.Connection.
