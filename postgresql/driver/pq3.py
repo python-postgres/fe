@@ -480,6 +480,9 @@ class Cursor(Output, pg_api.Cursor):
 		yield ('direction', 'FORWARD' if self.direction else 'BACKWORD')
 		yield ('type', 'Cursor')
 
+	def clone(self):
+		return type(self)(self.statement, self.parameters, self.database, None)
+
 	def __init__(self, statement, parameters, database, cursor_id):
 		self.database = database or statement.database
 		self.statement = statement
@@ -666,6 +669,12 @@ class PreparedStatement(pg_api.PreparedStatement):
 				yield ('sql_column_names', cn)
 		elif ct is not None:
 			yield ('sql_column_types', ct)
+
+	def clone(self):
+		ps = type(self)(self.database, None, self.string)
+		ps._init()
+		ps._fini()
+		return ps
 
 	def __init__(self, database, statement_id, string):
 		self.database = database
@@ -2073,6 +2082,11 @@ class Connection(pg_api.Connection):
 				"unknown asynchronous message: " + repr(msg),
 				creator = c
 			).raise_message()
+
+	def clone(self, *args, **kw):
+		c = type(self)(self.connector, *args, **kw)
+		c.connect()
+		return c
 
 	def __init__(self, connector, *args, **kw):
 		"""

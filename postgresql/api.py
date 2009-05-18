@@ -287,6 +287,12 @@ class Cursor(
 		False : 'BACKWARD',
 	}
 
+	@abstractmethod
+	def clone(self) -> "Cursor":
+		"""
+		Create a new cursor using the same factors as `self`.
+		"""
+
 	def __iter__(self):
 		return self
 
@@ -459,6 +465,15 @@ class PreparedStatement(
 		A sequence of type objects::
 
 			[<class 'int'>, <class 'str'>]
+		"""
+
+	@abstractmethod
+	def clone(self) -> "PreparedStatement":
+		"""
+		Create a new statement object using the same factors as `self`.
+
+		When used for refreshing plans, the new clone should replace references to
+		the original.
 		"""
 
 	@abstractmethod
@@ -1165,6 +1180,13 @@ class Connection(Database):
 
 		>>> db.closed
 		True
+		"""
+
+	@abstractmethod
+	def clone(self) -> "Connection":
+		"""
+		Create another connection using the same factors as `self`. The returned
+		object should be open and ready for use.
 		"""
 
 	def connect(self) -> None:

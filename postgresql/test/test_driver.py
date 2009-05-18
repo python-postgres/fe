@@ -330,6 +330,31 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				raise v
 		self.failUnlessRaises(pg_exc.QueryCanceledError, raise_exc, rl)
 
+	def testClones(self):
+		self.db.execute('create table _can_clone_see_this (i int);')
+		try:
+			with self.db.clone() as db2:
+				self.failUnlessEqual(db2.prepare('select 1').first(), 1)
+				self.failUnlessEqual(db2.prepare(
+						"select count(*) FROM information_schema.tables " \
+						"where table_name = '_can_clone_see_this'"
+					).first(), 1
+				)
+		finally:
+			self.db.execute('drop table _can_clone_see_this')
+		# check already open
+		db = self.db.clone()
+		self.failUnlessEqual(db.prepare('select 1').first(), 1)
+		db.close()
+
+		ps = self.db.prepare('select 1')
+		ps2 = ps.clone()
+		self.failUnlessEqual(ps2.first(), ps.first())
+		ps2.close()
+		c = ps.declare()
+		c2 = c.clone()
+		self.failUnlessEqual(c.read(), c2.read())
+
 	def testItsClosed(self):
 		ps = self.db.prepare("SELECT 1")
 		# If scroll is False it will pre-fetch, and no error will be thrown.
