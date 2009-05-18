@@ -25,6 +25,7 @@ if Installation.default().ssl:
 else:
 	warnings.warn("installation doesn't support SSL")
 from .test_driver import *
+from .test_lib import *
 from .test_dbapi20 import *
 
 if __name__ == '__main__':
