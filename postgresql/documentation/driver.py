@@ -348,6 +348,10 @@ The methods and properties on the connection object are ready for use:
   A property providing a `collections.MutableMapping` interface to the
   database's SQL settings. See `Settings`_ for more information.
 
+ ``db.clone()``
+  Create a new connection object based on the same factors that were used to
+  create ``db``. The new connection returned will already be connected.
+
 
 Connection Metadata
 -------------------
@@ -509,6 +513,10 @@ Prepared statement objects have a few execution methods:
   great efficiency::
 
    >>> dst.prepare(...).load_chunks(src.prepare(...).chunks())
+
+ ``ps.clone()``
+  Create a new statement object based on the same factors that were used to
+  create ``ps``.
 
 
 Statement Metadata
@@ -823,6 +831,10 @@ those results:
   order to ``CLOSE`` the cursor. For cursors created by invoking a prepared
   statement, this is not necessary as the garbage collection interface will take
   the appropriate steps.
+
+ ``c.clone()``
+  Create a new cursor object based on the same factors that were used to
+  create ``c``.
 
 Cursors have some additional configuration properties that may be modified
 during the use of the cursor:
