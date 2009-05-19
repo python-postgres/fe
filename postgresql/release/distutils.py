@@ -99,11 +99,9 @@ subpackages = [
 extensions_data = {
 	'protocol.optimized' : {
 		'sources' : [os.path.join('protocol', 'optimized', 'module.c')],
-		'libraries' : (sys.platform == 'win32' and ['ws2_32'] or []),
 	},
 	'python.optimized' : {
 		'sources' : [os.path.join('python', 'optimized.c')],
-		'libraries' : (sys.platform == 'win32' and ['ws2_32'] or []),
 	},
 }
 
@@ -134,7 +132,7 @@ def prefixed_extensions(
 		yield Extension(
 			pkg_prefix + mod,
 			[os.path.join(path_prefix, src) for src in data['sources']],
-			libraries = data['libraries']
+			libraries = data.get('libraries', ())
 		)
 
 def prefixed_packages(

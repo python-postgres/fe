@@ -2,6 +2,7 @@
 # copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
+import sys
 import unittest
 import struct
 import decimal
@@ -24,9 +25,9 @@ def pairs(*msgseq):
 	return list(map(pair, msgseq))
 
 try:
-	from ..protocol import cbuffer as c_buffer_module
+	from ..protocol.optimized import pq_message_stream as c_pq_message_stream
 except ImportError:
-	c_buffer_module = None
+	c_pq_message_stream = None
 
 class buffer_test(object):
 	def setUp(self):
@@ -87,9 +88,9 @@ class buffer_test(object):
 		self.failUnless(msg is not None)
 		self.failUnless(msg[0] == b'X')
 
-if c_buffer_module is not None:
+if c_pq_message_stream is not None:
 	class c_buffer(buffer_test, unittest.TestCase):
-		bufferclass = c_buffer_module.pq_message_stream
+		bufferclass = c_pq_message_stream
 
 class p_buffer(buffer_test, unittest.TestCase):
 	bufferclass = p_buffer_module.pq_message_stream
@@ -978,6 +979,42 @@ try:
 			self.failUnlessRaises(TypeError, pt, (), "bar", funpass)
 			self.failUnlessRaises(TypeError, pt, "foo", (), funpass)
 			self.failUnlessRaises(ValueError, pt, (), ("foo",), funpass)
+
+		def test_int2(self):
+			d = b'\x00\x01'
+			rd = b'\x01\x00'
+			s = protocol_optimized.swap_int2_unpack(d)
+			n = protocol_optimized.int2_unpack(d)
+			sd = protocol_optimized.swap_int2_pack(1)
+			nd = protocol_optimized.int2_pack(1)
+			if sys.byteorder == 'little':
+				self.failUnlessEqual(1, s)
+				self.failUnlessEqual(256, n)
+				self.failUnlessEqual(d, sd)
+				self.failUnlessEqual(rd, nd)
+			else:
+				self.failUnlessEqual(1, n)
+				self.failUnlessEqual(256, s)
+				self.failUnlessEqual(d, nd)
+				self.failUnlessEqual(rd, sd)
+
+		def test_int4(self):
+			d = b'\x00\x00\x00\x01'
+			rd = b'\x01\x00\x00\x00'
+			s = protocol_optimized.swap_int4_unpack(d)
+			n = protocol_optimized.int4_unpack(d)
+			sd = protocol_optimized.swap_int4_pack(1)
+			nd = protocol_optimized.int4_pack(1)
+			if sys.byteorder == 'little':
+				self.failUnlessEqual(1, s)
+				self.failUnlessEqual(16777216, n)
+				self.failUnlessEqual(d, sd)
+				self.failUnlessEqual(rd, nd)
+			else:
+				self.failUnlessEqual(1, n)
+				self.failUnlessEqual(16777216, s)
+				self.failUnlessEqual(d, nd)
+				self.failUnlessEqual(rd, sd)
 except ImportError:
 	pass
 

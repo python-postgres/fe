@@ -220,7 +220,7 @@ p_length(PyObject *self)
 			break;
 		p_seek(&p, copy_amount);
 
-		msg_length = ntohl(*((uint32_t *) (header + 1)));
+		msg_length = local_ntohl(*((uint32_t *) (header + 1)));
 		if (msg_length < 4)
 		{
 			PyErr_Format(PyExc_ValueError,
@@ -262,7 +262,7 @@ p_build_tuple(struct p_place *p)
 		return(NULL);
 	p_seek(p, copy_amount);
 
-	msg_length = ntohl(*((uint32_t *) (header + 1)));
+	msg_length = local_ntohl(*((uint32_t *) (header + 1)));
 	if (msg_length < 4)
 	{
 		PyErr_Format(PyExc_ValueError,
@@ -462,7 +462,7 @@ p_has_message(PyObject *self)
 	}
 	p_seek(&p, copy_amount);
 
-	msg_length = ntohl(*((uint32_t *) (header + 1)));
+	msg_length = local_ntohl(*((uint32_t *) (header + 1)));
 	if (msg_length < 4)
 	{
 		PyErr_Format(PyExc_ValueError,

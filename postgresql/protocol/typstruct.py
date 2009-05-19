@@ -24,6 +24,7 @@ from ..python.functools import Composition as compose
 
 null_sequence = b'\xff\xff\xff\xff'
 
+# Always to and from network order.
 def mk_pack(x):
 	'Create a pair, (pack, unpack) for the given `struct` format.'
 	s = struct.Struct('!' + x)
@@ -68,7 +69,7 @@ bit_unpack = bitdata_to_bool.__getitem__
 longlong_pack, longlong_unpack = mk_pack("q")
 long_pack, long_unpack = mk_pack("l")
 ulong_pack, ulong_unpack = mk_pack("L")
-byte_pack, byte_unpack = mk_pack("B")
+byte_pack, byte_unpack = lambda x: bytes((x,)), lambda x: x[0]
 short_pack, short_unpack = mk_pack("h")
 ushort_pack, ushort_unpack = mk_pack("H")
 double_pack, double_unpack = mk_pack("d")
@@ -86,6 +87,18 @@ dl_pack, dl_unpack = mk_pack("dl")
 ql_pack, ql_unpack = mk_pack("ql")
 
 hhhh_pack, hhhh_unpack = mk_pack("hhhh")
+
+try:
+	from sys import byteorder as bo
+	if bo == 'little':
+		from .optimized import swap_int2_unpack as short_unpack, swap_int2_pack as short_pack
+		from .optimized import swap_int4_unpack as long_unpack, swap_int4_pack as long_pack
+	else:
+		from .optimized import int2_unpack as short_unpack, int2_pack as short_pack
+		from .optimized import int4_unpack as long_unpack, int4_pack as long_pack
+	del bo
+except ImportError:
+	pass
 
 int2_pack, int2_unpack = short_pack, short_unpack
 int4_pack, int4_unpack = long_pack, long_unpack

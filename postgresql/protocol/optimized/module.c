@@ -4,14 +4,14 @@
  *
  *//*
  * Optimizations for protocol modules.
+ *
+ * This module.c file ties together other classified C source.
+ * Each C-file describing the part of the protocol package that it
+ * covers. It merely uses CPP includes to bring them into this
+ * file and then uses some CPP macros to expand the definitions
+ * in each file.
  */
 #include <stdint.h>
-#ifdef WIN32
-#include <winsock.h>
-#else
-#include <sys/types.h>
-#include <netinet/in.h>
-#endif
 #include <Python.h>
 #include <structmember.h>
 
@@ -20,6 +20,7 @@
  * Initialized in PyInit_optimized.
  */
 static PyObject *message_types = NULL;
+static long (*local_ntohl)(long) = NULL;
 
 
 #include "typio.c"
@@ -51,12 +52,13 @@ PyInit_optimized(void)
 	PyObject *mod;
 	PyObject *msgtypes;
 	PyObject *fromlist, *fromstr;
+	long l = 1;
 
 	mod = PyModule_Create(&optimized_module);
 	if (mod == NULL)
 		return(NULL);
 
-/* cpp abuse */
+/* cpp abuse; ready types */
 #define mTYPE(name) \
 	if (PyType_Ready(&name##_Type) < 0) \
 		goto cleanup; \
@@ -68,6 +70,16 @@ PyInit_optimized(void)
 	include_buffer_types
 #undef mTYPE
 
+	if (((char *) &l)[0] == 1)
+	{
+		/* little */
+		local_ntohl = swap_long;
+	}
+	else
+	{
+		/* big */
+		local_ntohl = return_long;
+	}
 
 	/*
 	 * Get the message_types tuple to type "instantiation".
