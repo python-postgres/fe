@@ -35,6 +35,19 @@
 	c=P[4];P[4]=P[3];P[3]=c;\
 }while(0)
 
+static short
+swap_short(short s)
+{
+	swap2(((char *) &s));
+	return(s);
+}
+
+static short
+return_short(short s)
+{
+	return(s);
+}
+
 static long
 swap_long(long l)
 {

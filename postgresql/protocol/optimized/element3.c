@@ -58,7 +58,7 @@ parse_tuple_message(PyObject *self, PyObject *args)
 			"invalid tuple message: %d bytes is too small", dlen);
 		return(NULL);
 	}
-	natts = ntohs(*((uint16_t *) (data)));
+	natts = local_ntohs(*((uint16_t *) (data)));
 
 	/*
 	 * FEARME: A bit much for saving a reallocation/copy?
@@ -91,7 +91,7 @@ parse_tuple_message(PyObject *self, PyObject *args)
 			goto cleanup;
 		}
 
-		attsize = ntohl(*((uint32_t *) (data + position)));
+		attsize = local_ntohl(*((uint32_t *) (data + position)));
 		position += 4;
 		/*
 		 * NULL.

@@ -21,6 +21,7 @@
  */
 static PyObject *message_types = NULL;
 static long (*local_ntohl)(long) = NULL;
+static short (*local_ntohs)(short) = NULL;
 
 
 #include "typio.c"
@@ -74,11 +75,13 @@ PyInit_optimized(void)
 	{
 		/* little */
 		local_ntohl = swap_long;
+		local_ntohs = swap_short;
 	}
 	else
 	{
 		/* big */
 		local_ntohl = return_long;
+		local_ntohs = return_short;
 	}
 
 	/*
