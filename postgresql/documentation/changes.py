@@ -13,7 +13,8 @@ Changes
  * Implement query libraries and connection categories[#1010581 & #1010618].
  * Implement ``clone()`` on Connections, Statements, and Cursors.
  * Refactor ``ps.load()`` into ``ps.load_chunks()`` and ``ps.load_rows()``.
- * Performance optimizations.
+ * Display the line and mark the location of the POSITION for syntax errors.
+ * Performance improvements.
  * Refactor `postgresql.api.InterfaceElement`.
  * Refactor driver.pq3.Connection to use protocol.client3.Connection.
  * Refactor driver.pq3.Cursor into types selected by PreparedStatements.

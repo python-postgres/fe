@@ -622,36 +622,37 @@ class PreparedStatement(pg_api.PreparedStatement):
 					pos = int(pos)
 					# get the statement source
 					q = str(self.string)
-					#lineno = q.count('\n', pos)
-					# tabs before position
-					tabs = q.count('\t', 0, pos)
+					# normalize position..
+					pos = len('\n'.join(q[:pos].splitlines()))
+					# normalize newlines
+					q = '\n'.join(q.splitlines())
+					line_no = q.count('\n', 0, pos) + 1
 					# replace tabs with spaces because there is no way to identify
 					# the tab size of the final display. (ie, marker will be wrong)
-					q = q.replace('\t', '    ')
-					# adjust position for the tab substitution
-					pos = pos + (3 * tabs)
+					q = q.replace('\t', ' ')
 					# grab the relevant part of the query string.
 					# the full source will be printed elsewhere.
-					bov = max(pos-80, 0)
-					view = q[bov:pos+80]
+					# beginning of string or the newline before the position
+					bov = q.rfind('\n', 0, pos) + 1
+					print(bov)
+					# end of string or the newline after the position
+					eov = q.find('\n', pos)
+					if eov == -1:
+						eov = len(q)
+					view = q[bov:eov]
 					# position relative to the beginning of the view
-					pos = max(pos-bov, 0)
+					pos = pos-bov
 					# analyze lines prior to position
-					lines = view[:pos].splitlines()
-					line_no = len(lines)
-					line_pos = len(lines[-1]) - 1
 					dlines = view.splitlines()
-					marker = (line_pos * ' ') + '^'
-					marker = marker + ('-' * ((len(dlines[max(line_no-1,0)]) - len(marker))+10))
-					marker += '(point of error)-<<<<<<<'
+					marker = ((pos-1) * ' ') + '^' + (
+						' [line %d, character %d] ' %(line_no, pos)
+					)
 					# insert marker
-					dlines.insert(line_no, marker)
-					dlines.insert(0, '-'*20)
-					dlines.append('-'*20)
-					yield ('SYNTAX ERROR', os.linesep.join(('|- ' + x for x in dlines)))
+					dlines.append(marker)
+					yield ('LINE', os.linesep.join(dlines))
 				except:
 					import traceback
-					traceback.print_exc()
+					yield ('LINE', traceback.format_exc(chain=False))
 		spt = self.sql_parameter_types
 		if spt is not None:
 			yield ('sql_parameter_types', spt)
