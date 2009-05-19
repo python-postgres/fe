@@ -634,7 +634,6 @@ class PreparedStatement(pg_api.PreparedStatement):
 					# the full source will be printed elsewhere.
 					# beginning of string or the newline before the position
 					bov = q.rfind('\n', 0, pos) + 1
-					print(bov)
 					# end of string or the newline after the position
 					eov = q.find('\n', pos)
 					if eov == -1:
