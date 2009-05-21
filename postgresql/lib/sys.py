@@ -55,14 +55,8 @@ lookup_procedures = """SELECT
  pg_proc.*,
  pg_proc.oid::regproc AS _proid,
  pg_proc.oid::regprocedure as procedure_id,
-  -- mm, the pain. the sweet, sweet pain. oh it's portable.
-  -- it's so portable that it runs on BDB on win32.
-  COALESCE(string_to_array(trim(textin(array_out(string_to_array(
-   replace(
-    trim(textin(oidvectorout(proargtypes)), '{}'),
-    ',', ' '
-   ), ' ')::oid[]::regtype[])), '{}'), ',')::text[], '{}'::text[])
-	 AS _proargs,
+ COALESCE(string_to_array(trim(replace(textin(oidvectorout(proargtypes)), ',', ' '), '{}'), ' ')::oid[], '{}'::oid[])
+  AS proargtypes,
  (pg_type.oid = 'record'::regtype or pg_type.typtype = 'c') AS composite
 FROM
  pg_catalog.pg_proc LEFT JOIN pg_catalog.pg_type ON (

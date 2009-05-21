@@ -457,28 +457,28 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 
 		ps = self.db.prepare("SELECT $1::text AS my_text_column")
 		self.failUnlessEqual(tuple(ps.column_names), ('my_text_column',))
-		self.failUnlessEqual(tuple(ps.sql_column_types), ('text',))
-		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('text',))
+		self.failUnlessEqual(tuple(ps.sql_column_types), ('pg_catalog.text',))
+		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text',))
 		self.failUnlessEqual(tuple(ps.pg_parameter_types), (pg_types.TEXTOID,))
 		self.failUnlessEqual(tuple(ps.column_types), (str,))
 		self.failUnlessEqual(tuple(ps.parameter_types), (str,))
 		c = ps.declare('textdata')
 		self.failUnlessEqual(tuple(c.column_names), ('my_text_column',))
-		self.failUnlessEqual(tuple(c.sql_column_types), ('text',))
+		self.failUnlessEqual(tuple(c.sql_column_types), ('pg_catalog.text',))
 		self.failUnlessEqual(tuple(c.pg_column_types), (pg_types.TEXTOID,))
 		self.failUnlessEqual(tuple(c.column_types), (str,))
 
 		ps = self.db.prepare("SELECT $1::text AS my_column1, $2::varchar AS my_column2")
 		self.failUnlessEqual(tuple(ps.column_names), ('my_column1','my_column2'))
-		self.failUnlessEqual(tuple(ps.sql_column_types), ('text', 'CHARACTER VARYING'))
-		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('text', 'CHARACTER VARYING'))
+		self.failUnlessEqual(tuple(ps.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING'))
+		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text', 'CHARACTER VARYING'))
 		self.failUnlessEqual(tuple(ps.pg_parameter_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
 		self.failUnlessEqual(tuple(ps.pg_column_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
 		self.failUnlessEqual(tuple(ps.parameter_types), (str,str))
 		self.failUnlessEqual(tuple(ps.column_types), (str,str))
 		c = ps.declare('textdata', 'varchardata')
 		self.failUnlessEqual(tuple(c.column_names), ('my_column1','my_column2'))
-		self.failUnlessEqual(tuple(c.sql_column_types), ('text', 'CHARACTER VARYING'))
+		self.failUnlessEqual(tuple(c.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING'))
 		self.failUnlessEqual(tuple(c.pg_column_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
 		self.failUnlessEqual(tuple(c.column_types), (str,str))
 
@@ -486,8 +486,8 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		myudt_oid = self.db.prepare("select oid from pg_type WHERE typname='myudt'").first()
 		ps = self.db.prepare("SELECT $1::text AS my_column1, $2::varchar AS my_column2, $3::public.myudt AS my_column3")
 		self.failUnlessEqual(tuple(ps.column_names), ('my_column1','my_column2', 'my_column3'))
-		self.failUnlessEqual(tuple(ps.sql_column_types), ('text', 'CHARACTER VARYING', 'public.myudt'))
-		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('text', 'CHARACTER VARYING', 'public.myudt'))
+		self.failUnlessEqual(tuple(ps.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
+		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
 		self.failUnlessEqual(tuple(ps.pg_column_types), (
 			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid)
 		)
@@ -498,7 +498,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(tuple(ps.column_types), (str,str,tuple))
 		c = ps.declare('textdata', 'varchardata', (123,))
 		self.failUnlessEqual(tuple(c.column_names), ('my_column1','my_column2', 'my_column3'))
-		self.failUnlessEqual(tuple(c.sql_column_types), ('text', 'CHARACTER VARYING', 'public.myudt'))
+		self.failUnlessEqual(tuple(c.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
 		self.failUnlessEqual(tuple(c.pg_column_types), (
 			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid
 		))
@@ -646,8 +646,22 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			"CREATE OR REPLACE FUNCTION ifoo(int) RETURNS int LANGUAGE SQL AS 'select $1'"
 		)
 		ifoo = self.db.proc('ifoo(int)')
-		self.failUnless(ifoo(1) == 1)
-		self.failUnless(ifoo(None) is None)
+		self.failUnlessEqual(ifoo(1), 1)
+		self.failUnlessEqual(ifoo(None), None)
+		self.db.execute(
+			"CREATE OR REPLACE FUNCTION ifoo(varchar) RETURNS varchar LANGUAGE SQL AS 'select $1'"
+		)
+		ifoo = self.db.proc('ifoo(varchar)')
+		self.failUnlessEqual(ifoo('1'), '1')
+		self.failUnlessEqual(ifoo(None), None)
+		self.db.execute(
+			"CREATE OR REPLACE FUNCTION ifoo(varchar,int) RETURNS varchar LANGUAGE SQL AS 'select ($1::int + $2)::varchar'"
+		)
+		ifoo = self.db.proc('ifoo(varchar,int)')
+		self.failUnlessEqual(ifoo('1',1), '2')
+		self.failUnlessEqual(ifoo(None,1), None)
+		self.failUnlessEqual(ifoo('1',None), None)
+		self.failUnlessEqual(ifoo('2',2), '4')
 
 	def testProcExecutionInXact(self):
 		with self.db.xact():
