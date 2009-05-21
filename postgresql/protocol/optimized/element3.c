@@ -7,18 +7,191 @@
  */
 #define include_element3_functions \
 	mFUNC(parse_tuple_message, METH_VARARGS, "parse the given tuple data into a tuple of raw data") \
+	mFUNC(pack_tuple_data, METH_O, "serialize the give tuple message[tuple of bytes()]") \
+
+static PyObject *
+_pack_tuple_data(PyObject *tup)
+{
+	PyObject *rob;
+	Py_ssize_t natts;
+	Py_ssize_t catt;
+
+	char *buf = NULL;
+	char *bufpos = NULL;
+	Py_ssize_t bufsize = 0;
+
+	if (!PyTuple_Check(tup))
+	{
+		PyErr_Format(
+			PyExc_TypeError,
+			"pack_tuple_data requires a tuple, given %s",
+			PyObject_TypeName(tup)
+		);
+		return(NULL);
+	}
+	natts = PyTuple_GET_SIZE(tup);
+	if (natts == 0)
+		return(PyBytes_FromString(""));
+
+	/* discover buffer size and valid att types */
+	for (catt = 0; catt < natts; ++catt)
+	{
+		PyObject *ob;
+		ob = PyTuple_GET_ITEM(tup, catt);
+
+		if (ob == Py_None)
+		{
+			bufsize = bufsize + 4;
+		}
+		else if (PyBytes_CheckExact(ob))
+		{
+			bufsize = bufsize + PyBytes_GET_SIZE(ob) + 4;
+		}
+		else
+		{
+			PyErr_Format(
+				PyExc_TypeError,
+				"cannot serialize attribute %d, expected bytes() or None, got %s",
+				(long) catt, PyObject_TypeName(ob)
+			);
+			return(NULL);
+		}
+	}
+
+	buf = malloc(bufsize);
+	if (buf == NULL)
+	{
+		PyErr_Format(
+			PyExc_MemoryError,
+			"failed to allocate %d bytes of memory for packing tuple data",
+			bufsize
+		);
+		return(NULL);
+	}
+	bufpos = buf;
+
+	for (catt = 0; catt < natts; ++catt)
+	{
+		PyObject *ob;
+		ob = PyTuple_GET_ITEM(tup, catt);
+		if (ob == Py_None)
+		{
+			*((unsigned long *)bufpos) = 0xFFFFFFFF;
+			bufpos = bufpos + 4;
+		}
+		else
+		{
+			*((long *)(bufpos)) = local_ntohl(PyBytes_GET_SIZE(ob));
+			bufpos = bufpos + 4;
+			memcpy(bufpos, PyBytes_AS_STRING(ob), PyBytes_GET_SIZE(ob));
+			bufpos = bufpos + PyBytes_GET_SIZE(ob);
+		}
+	}
+
+	rob = PyBytes_FromStringAndSize(buf, bufsize);
+	free(buf);
+	return(rob);
+}
+
+/*
+ * dst must be of PyTuple_Type with at least natts items slots.
+ */
+static int
+_unpack_tuple_data(PyObject *dst, unsigned short natts, const char *data, Py_ssize_t data_len)
+{
+	PyObject *ob;
+	uint16_t cnatt = 0;
+	uint32_t attsize = 0;
+	uint32_t position = 0;
+
+	while (cnatt < natts)
+	{
+		/*
+		 * Need enough data for the attribute size.
+		 */
+		if (position + 4 > data_len)
+		{
+			PyErr_Format(PyExc_ValueError,
+				"not enough data available for attribute %d's size header: "
+				"needed %d bytes, but only %lu remain at position %lu",
+				cnatt, 4, data_len - position, position
+			);
+			return(-1);
+		}
+
+		attsize = local_ntohl(*((uint32_t *) (data + position)));
+		position += 4;
+		/*
+		 * NULL.
+		 */
+		if (attsize == 0xFFFFFFFFL)
+		{
+			Py_INCREF(Py_None);
+			PyTuple_SET_ITEM(dst, cnatt, Py_None);
+		}
+		else
+		{
+			if ((position + attsize) < position)
+			{
+				/*
+				 * Likely a "limitation" over the pure-Python version, *but*
+				 * the message content size is limited to 0xFFFFFFFF-4 anyways,
+				 * so it is unexpected for an attsize to cause wrap-around.
+				 */
+				PyErr_Format(PyExc_ValueError,
+					"tuple data caused position (uint32_t) "
+					"to wrap on attribute %d, position %lu + size %lu",
+					cnatt, position, attsize
+				);
+				return(-1);
+			}
+
+			if (position + attsize > data_len)
+			{
+				PyErr_Format(PyExc_ValueError,
+					"not enough data for attribute %d, size %lu, "
+					"as only %lu bytes remain in message",
+					cnatt, attsize, data_len - position
+				);
+				return(-1);
+			}
+
+			ob = PyBytes_FromStringAndSize(data + position, attsize);
+			if (ob == NULL)
+			{
+				/*
+				 * Probably an OOM error.
+				 */
+				return(-1);
+			}
+			PyTuple_SET_ITEM(dst, cnatt, ob);
+			position += attsize;
+		}
+
+		cnatt++;
+	}
+
+	if (position != data_len)
+	{
+		PyErr_Format(PyExc_ValueError,
+			"invalid tuple message, %lu remaining "
+			"bytes after processing %d attributes",
+			data_len - position, cnatt
+		);
+		return(-1);
+	}
+
+	return(0);
+}
 
 static PyObject *
 parse_tuple_message(PyObject *self, PyObject *args)
 {
 	PyObject *rob;
-	PyObject *ob;
 	PyObject *typ;
 	const char *data;
 	Py_ssize_t dlen = 0;
-	uint16_t cnatt = 0, natts = 0;
-	uint32_t attsize = 0;
-	uint32_t position = 0;
+	uint16_t natts = 0;
 
 	if (!PyArg_ParseTuple(args, "Oy#", &typ, &data, &dlen))
 		return(NULL);
@@ -69,93 +242,23 @@ parse_tuple_message(PyObject *self, PyObject *args)
 	 * If the subtype has a custom __new__ routine, this could
 	 * be problematic, but it *should* only lead to AttributeErrors.
 	 */
-	rob = ((PyTypeObject *) typ)->tp_alloc((PyTypeObject *) typ, natts); 
+	rob = ((PyTypeObject *) typ)->tp_alloc((PyTypeObject *) typ, natts);
 	if (rob == NULL)
 	{
 		return(NULL);
 	}
 
-	position += 2;
-	while (cnatt < natts)
+	if (_unpack_tuple_data(rob, natts, data+2, dlen-2) < 0)
 	{
-		/*
-		 * Need enough data for the attribute size.
-		 */
-		if (position + 4 > dlen)
-		{
-			PyErr_Format(PyExc_ValueError,
-				"not enough data available for attribute %d's size header: "
-				"needed %d bytes, but only %lu remain at position %lu",
-				cnatt, 4, dlen - position, position
-			);
-			goto cleanup;
-		}
-
-		attsize = local_ntohl(*((uint32_t *) (data + position)));
-		position += 4;
-		/*
-		 * NULL.
-		 */
-		if (attsize == 0xFFFFFFFFL)
-		{
-			Py_INCREF(Py_None);
-			PyTuple_SET_ITEM(rob, cnatt, Py_None);
-		}
-		else
-		{
-			if ((position + attsize) < position)
-			{
-				/*
-				 * Likely a "limitation" over the pure-Python version, *but*
-				 * the message content size is limited to 0xFFFFFFFF-4 anyways,
-				 * so it is unexpected for an attsize to cause wrap-around.
-				 */
-				PyErr_Format(PyExc_ValueError,
-					"tuple data caused position (uint32_t) "
-					"to wrap on attribute %d, position %lu + size %lu",
-					cnatt, position, attsize
-				);
-				goto cleanup;
-			}
-
-			if (position + attsize > dlen)
-			{
-				PyErr_Format(PyExc_ValueError,
-					"not enough data for attribute %d, size %lu, "
-					"as only %lu bytes remain in message",
-					cnatt, attsize, dlen - position
-				);
-				goto cleanup;
-			}
-
-			ob = PyBytes_FromStringAndSize(data + position, attsize);
-			if (ob == NULL)
-			{
-				/*
-				 * Probably an OOM error.
-				 */
-				goto cleanup;
-			}
-			PyTuple_SET_ITEM(rob, cnatt, ob);
-			position += attsize;
-		}
-
-		cnatt++;
-	}
-
-	if (position != dlen)
-	{
-		PyErr_Format(PyExc_ValueError,
-			"invalid tuple message, %lu remaining "
-			"bytes after processing %d attributes",
-			dlen - position, cnatt
-		);
-		goto cleanup;
+		Py_DECREF(rob);
+		return(NULL);
 	}
 
 	return(rob);
+}
 
-cleanup:
-	Py_DECREF(rob);
-	return(NULL);
+static PyObject *
+pack_tuple_data(PyObject *self, PyObject *tup)
+{
+	return(_pack_tuple_data(tup));
 }

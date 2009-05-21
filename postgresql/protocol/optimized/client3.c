@@ -1,0 +1,171 @@
+/*
+ * copyright 2009, James William Pye
+ * http://python.projects.postgresql.org
+ *
+ *//*
+ * client3 optimizations.
+ */
+#define include_client3_functions \
+	mFUNC(cat_messages, METH_O, "cat the serialized form of the messages in the given list") \
+
+static PyObject *
+cat_messages(PyObject *self, PyObject *messages_in)
+{
+	PyObject *msgs = NULL;
+	Py_ssize_t nmsgs = 0;
+	Py_ssize_t cmsg = 0;
+
+	char *buf = NULL;
+	char *nbuf = NULL;
+	Py_ssize_t bufsize = 0;
+	Py_ssize_t bufpos = 0;
+
+	msgs = PyObject_CallFunctionObjArgs((PyObject *) &PyList_Type, messages_in, NULL);
+	if (msgs == NULL)
+		return(NULL);
+	nmsgs = PyList_GET_SIZE(msgs);
+
+	while (cmsg < nmsgs)
+	{
+		PyObject *ob;
+		ob = PyList_GET_ITEM(msgs, cmsg);
+
+		/*
+		 * Choose the extension path, lots of copy data
+		 * or more singles to serialize?
+		 */
+		if (PyBytes_CheckExact(ob))
+		{
+			Py_ssize_t eofc = cmsg;
+			Py_ssize_t xsize = 0;
+			/* find the end of the copy data */
+			do
+			{
+				++eofc;
+				xsize += PyBytes_GET_SIZE(ob);
+				if (eofc >= nmsgs)
+					break;
+				ob = PyList_GET_ITEM(msgs, eofc);
+			} while(PyBytes_CheckExact(ob));
+
+			/* realloc the buf for the new copy data */
+			bufsize = bufsize + (5 * (eofc - cmsg)) + xsize;
+			nbuf = realloc(buf, bufsize);
+			if (nbuf == NULL)
+			{
+				PyErr_Format(
+					PyExc_MemoryError,
+					"failed to allocate %d bytes of memory for out-going messages",
+					bufsize
+				);
+				goto fail;
+			}
+			else
+			{
+				buf = nbuf;
+				nbuf = NULL;
+			}
+
+			while (cmsg < eofc)
+			{
+				ob = PyList_GET_ITEM(msgs, cmsg);
+				buf[bufpos] = 'd';
+				*((long *)(buf + bufpos + 1)) = local_ntohl(PyBytes_GET_SIZE(ob) + 4);
+				memcpy(buf + bufpos + 5, PyBytes_AS_STRING(ob), PyBytes_GET_SIZE(ob));
+				bufpos = bufpos + 5 + PyBytes_GET_SIZE(ob);
+				++cmsg;
+			}
+		}
+		else
+		{
+			PyObject *serialized;
+			PyObject *msg_type;
+			int msg_type_size = 1;
+
+			serialized = PyObject_CallMethodObjArgs(ob, serialize_strob, NULL);
+			if (serialized == NULL)
+				goto fail;
+			if (!PyBytes_CheckExact(serialized))
+			{
+				PyErr_Format(
+					PyExc_TypeError,
+					"%s.serialize() returned object of type %s, expected bytes",
+					((PyTypeObject *) ob->ob_type)->tp_name,
+					((PyTypeObject *) serialized->ob_type)->tp_name
+				);
+				goto fail;
+			}
+
+			msg_type = PyObject_GetAttr(ob, msgtype_strob);
+			if (msg_type == NULL)
+			{
+				Py_DECREF(serialized);
+				goto fail;
+			}
+			if (!PyBytes_CheckExact(msg_type))
+			{
+				Py_DECREF(serialized);
+				Py_DECREF(msg_type);
+				PyErr_Format(
+					PyExc_TypeError,
+					"message's 'type' attribute was %s, expected bytes",
+					((PyTypeObject *) ob->ob_type)->tp_name
+				);
+				goto fail;
+			}
+			msg_type_size = PyBytes_GET_SIZE(msg_type);
+
+			/* realloc the buf for the new copy data */
+			bufsize = bufsize + 4 + msg_type_size + PyBytes_GET_SIZE(serialized);
+			nbuf = realloc(buf, bufsize);
+			if (nbuf == NULL)
+			{
+				Py_DECREF(serialized);
+				Py_DECREF(msg_type);
+				PyErr_Format(
+					PyExc_MemoryError,
+					"failed to allocate %d bytes of memory for out-going messages",
+					bufsize
+				);
+				goto fail;
+			}
+			else
+			{
+				buf = nbuf;
+				nbuf = NULL;
+			}
+
+			buf[bufpos] = *(PyBytes_AS_STRING(msg_type));
+			*((long *)(buf + bufpos + msg_type_size)) = local_ntohl(PyBytes_GET_SIZE(serialized) + 4);
+			memcpy(	
+				buf + bufpos + 4 + msg_type_size,
+				PyBytes_AS_STRING(serialized),
+				PyBytes_GET_SIZE(serialized)
+			);
+			bufpos = bufsize;
+
+			Py_DECREF(serialized);
+			Py_DECREF(msg_type);
+			++cmsg;
+		}
+	}
+
+	Py_DECREF(msgs);
+	if (buf == NULL)
+		/* no messages, no data */
+		return(PyBytes_FromString(""));
+	else
+	{
+		PyObject *rob;
+		rob = PyBytes_FromStringAndSize(buf, bufsize);
+		free(buf);
+
+		return(rob);
+	}
+fail:
+	/* pyerr is expected to be set */
+	Py_DECREF(msgs);
+	if (buf != NULL)
+		free(buf);
+	return(NULL);
+}

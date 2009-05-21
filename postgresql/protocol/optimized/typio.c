@@ -14,9 +14,14 @@
 	mFUNC(swap_int2_unpack, METH_O, "PyInt from swapped serialized, int2") \
 	mFUNC(swap_int4_pack, METH_O, "PyInt to swapped serialized, int4") \
 	mFUNC(swap_int4_unpack, METH_O, "PyInt from swapped serialized, int4") \
-
-#define SHORT_MAX ((2<<14)-1)
-#define SHORT_MIN (-(2<<14))
+	mFUNC(uint2_pack, METH_O, "PyInt to serialized, int2") \
+	mFUNC(uint2_unpack, METH_O, "PyInt from serialized, int2") \
+	mFUNC(uint4_pack, METH_O, "PyInt to serialized, int4") \
+	mFUNC(uint4_unpack, METH_O, "PyInt from serialized, int4") \
+	mFUNC(swap_uint2_pack, METH_O, "PyInt to swapped serialized, int2") \
+	mFUNC(swap_uint2_unpack, METH_O, "PyInt from swapped serialized, int2") \
+	mFUNC(swap_uint4_pack, METH_O, "PyInt to swapped serialized, int4") \
+	mFUNC(swap_uint4_unpack, METH_O, "PyInt from swapped serialized, int4") \
 
 /*
  * Define the swap functionality.
@@ -143,7 +148,7 @@ swap_int2_unpack(PyObject *self, PyObject *arg)
 	len = PyBytes_Size(arg);
 	if (len != 2)
 	{
-		PyErr_SetString(PyExc_ValueError, "invalid size of data for int2_unpack");
+		PyErr_SetString(PyExc_ValueError, "invalid size of data for swap_int2_unpack");
 		return(NULL);
 	}
 
@@ -208,7 +213,7 @@ swap_int4_unpack(PyObject *self, PyObject *arg)
 	len = PyBytes_Size(arg);
 	if (len != 4)
 	{
-		PyErr_SetString(PyExc_ValueError, "invalid size of data for int4_unpack");
+		PyErr_SetString(PyExc_ValueError, "invalid size of data for swap_int4_unpack");
 		return(NULL);
 	}
 
@@ -216,6 +221,166 @@ swap_int4_unpack(PyObject *self, PyObject *arg)
 	swap4(((char *) &l));
 	return(PyLong_FromLong(l));
 }
+
+static PyObject *
+uint2_pack(PyObject *self, PyObject *arg)
+{
+	long l;
+	unsigned short s;
+
+	l = PyLong_AsLong(arg);
+	if (PyErr_Occurred())
+		return(NULL);
+
+	if (l > USHORT_MAX || l < 0)
+	{
+		PyErr_Format(PyExc_OverflowError,
+			"long '%d' overflows uint2", l
+		);
+		return(NULL);
+	}
+
+	s = (unsigned short) l;
+	return(PyBytes_FromStringAndSize((const char *) &s, 2));
+}
+static PyObject *
+swap_uint2_pack(PyObject *self, PyObject *arg)
+{
+	long l;
+	unsigned short s;
+
+	l = PyLong_AsLong(arg);
+	if (PyErr_Occurred())
+		return(NULL);
+
+	if (l > USHORT_MAX || l < 0)
+	{
+		PyErr_Format(PyExc_OverflowError,
+			"long '%d' overflows uint2", l
+		);
+		return(NULL);
+	}
+
+	s = (unsigned short) l;
+	swap2(((char *) &s));
+	return(PyBytes_FromStringAndSize((const char *) &s, 2));
+}
+
+static PyObject *
+uint2_unpack(PyObject *self, PyObject *arg)
+{
+	char *c;
+	unsigned short *i;
+	long l;
+	Py_ssize_t len;
+	PyObject *rob;
+
+	c = PyBytes_AsString(arg);
+	if (PyErr_Occurred())
+		return(NULL);
+
+	len = PyBytes_Size(arg);
+	if (len != 2)
+	{
+		PyErr_SetString(PyExc_ValueError, "invalid size of data for uint2_unpack");
+		return(NULL);
+	}
+
+	i = (unsigned short *) c;
+	l = (long) *i;
+	rob = PyLong_FromLong(l);
+	return(rob);
+}
+static PyObject *
+swap_uint2_unpack(PyObject *self, PyObject *arg)
+{
+	char *c;
+	unsigned short s;
+	long l;
+	Py_ssize_t len;
+	PyObject *rob;
+
+	c = PyBytes_AsString(arg);
+	if (PyErr_Occurred())
+		return(NULL);
+
+	len = PyBytes_Size(arg);
+	if (len != 2)
+	{
+		PyErr_SetString(PyExc_ValueError, "invalid size of data for swap_uint2_unpack");
+		return(NULL);
+	}
+
+	s = *((short *) c);
+	swap2(((char *) &s));
+	l = (long) s;
+	rob = PyLong_FromLong(l);
+	return(rob);
+}
+
+static PyObject *
+uint4_pack(PyObject *self, PyObject *arg)
+{
+	unsigned long l;
+	l = PyLong_AsUnsignedLong(arg);
+	if (PyErr_Occurred())
+		return(NULL);
+	return(PyBytes_FromStringAndSize((const char *) &l, 4));
+}
+static PyObject *
+swap_uint4_pack(PyObject *self, PyObject *arg)
+{
+	unsigned long l;
+	l = PyLong_AsUnsignedLong(arg);
+	if (PyErr_Occurred())
+		return(NULL);
+	swap4(((char *) &l));
+	return(PyBytes_FromStringAndSize((const char *) &l, 4));
+}
+
+static PyObject *
+uint4_unpack(PyObject *self, PyObject *arg)
+{
+	char *c;
+	unsigned long l;
+	Py_ssize_t len;
+
+	len = PyBytes_Size(arg);
+	if (len != 4)
+	{
+		PyErr_SetString(PyExc_ValueError, "invalid size of data for uint4_unpack");
+		return(NULL);
+	}
+	c = PyBytes_AsString(arg);
+	if (PyErr_Occurred())
+		return(NULL);
+	l = *((unsigned long *) c);
+
+	return(PyLong_FromUnsignedLong(l));
+}
+static PyObject *
+swap_uint4_unpack(PyObject *self, PyObject *arg)
+{
+	char *c;
+	unsigned long l;
+	Py_ssize_t len;
+
+	c = PyBytes_AsString(arg);
+	if (PyErr_Occurred())
+		return(NULL);
+
+	len = PyBytes_Size(arg);
+	if (len != 4)
+	{
+		PyErr_SetString(PyExc_ValueError, "invalid size of data for swap_uint4_unpack");
+		return(NULL);
+	}
+
+	l = *((unsigned long *) c);
+	swap4(((char *) &l));
+	return(PyLong_FromUnsignedLong(l));
+}
+
 
 /*
  * process the tuple with the associated callables while

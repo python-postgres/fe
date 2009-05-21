@@ -980,6 +980,18 @@ try:
 			self.failUnlessRaises(TypeError, pt, "foo", (), funpass)
 			self.failUnlessRaises(ValueError, pt, (), ("foo",), funpass)
 
+		def test_pack_tuple_data(self):
+			pit = protocol_optimized.pack_tuple_data
+			self.failUnlessEqual(pit((None,)), b'\xff\xff\xff\xff')
+			self.failUnlessEqual(pit((None,)*2), b'\xff\xff\xff\xff'*2)
+			self.failUnlessEqual(pit((None,)*3), b'\xff\xff\xff\xff'*3)
+			self.failUnlessEqual(pit((None,b'foo')), b'\xff\xff\xff\xff\x00\x00\x00\x03foo')
+			self.failUnlessEqual(pit((None,b'')), b'\xff\xff\xff\xff\x00\x00\x00\x00')
+			self.failUnlessEqual(pit((None,b'',b'bar')), b'\xff\xff\xff\xff\x00\x00\x00\x00\x00\x00\x00\x03bar')
+			self.failUnlessRaises(TypeError, pit, 1)
+			self.failUnlessRaises(TypeError, pit, (1,))
+			self.failUnlessRaises(TypeError, pit, ("",))
+
 		def test_int2(self):
 			d = b'\x00\x01'
 			rd = b'\x01\x00'
@@ -997,6 +1009,10 @@ try:
 				self.failUnlessEqual(256, s)
 				self.failUnlessEqual(d, nd)
 				self.failUnlessEqual(rd, sd)
+			self.failUnlessRaises(OverflowError, protocol_optimized.swap_int2_pack, 2**15)
+			self.failUnlessRaises(OverflowError, protocol_optimized.int2_pack, 2**15)
+			self.failUnlessRaises(OverflowError, protocol_optimized.swap_int2_pack, (-2**15)-1)
+			self.failUnlessRaises(OverflowError, protocol_optimized.int2_pack, (-2**15)-1)
 
 		def test_int4(self):
 			d = b'\x00\x00\x00\x01'
@@ -1015,6 +1031,58 @@ try:
 				self.failUnlessEqual(16777216, s)
 				self.failUnlessEqual(d, nd)
 				self.failUnlessEqual(rd, sd)
+			self.failUnlessRaises(OverflowError, protocol_optimized.swap_int4_pack, 2**31)
+			self.failUnlessRaises(OverflowError, protocol_optimized.int4_pack, 2**31)
+			self.failUnlessRaises(OverflowError, protocol_optimized.swap_int4_pack, (-2**31)-1)
+			self.failUnlessRaises(OverflowError, protocol_optimized.int4_pack, (-2**31)-1)
+
+		def test_uint2(self):
+			d = b'\x00\x01'
+			rd = b'\x01\x00'
+			s = protocol_optimized.swap_uint2_unpack(d)
+			n = protocol_optimized.uint2_unpack(d)
+			sd = protocol_optimized.swap_uint2_pack(1)
+			nd = protocol_optimized.uint2_pack(1)
+			if sys.byteorder == 'little':
+				self.failUnlessEqual(1, s)
+				self.failUnlessEqual(256, n)
+				self.failUnlessEqual(d, sd)
+				self.failUnlessEqual(rd, nd)
+			else:
+				self.failUnlessEqual(1, n)
+				self.failUnlessEqual(256, s)
+				self.failUnlessEqual(d, nd)
+				self.failUnlessEqual(rd, sd)
+			self.failUnlessRaises(OverflowError, protocol_optimized.swap_uint2_pack, -1)
+			self.failUnlessRaises(OverflowError, protocol_optimized.uint2_pack, -1)
+			self.failUnlessRaises(OverflowError, protocol_optimized.swap_uint2_pack, 2**16)
+			self.failUnlessRaises(OverflowError, protocol_optimized.uint2_pack, 2**16)
+			self.failUnlessEqual(protocol_optimized.uint2_pack(2**16-1), b'\xFF\xFF')
+			self.failUnlessEqual(protocol_optimized.swap_uint2_pack(2**16-1), b'\xFF\xFF')
+
+		def test_uint4(self):
+			d = b'\x00\x00\x00\x01'
+			rd = b'\x01\x00\x00\x00'
+			s = protocol_optimized.swap_uint4_unpack(d)
+			n = protocol_optimized.uint4_unpack(d)
+			sd = protocol_optimized.swap_uint4_pack(1)
+			nd = protocol_optimized.uint4_pack(1)
+			if sys.byteorder == 'little':
+				self.failUnlessEqual(1, s)
+				self.failUnlessEqual(16777216, n)
+				self.failUnlessEqual(d, sd)
+				self.failUnlessEqual(rd, nd)
+			else:
+				self.failUnlessEqual(1, n)
+				self.failUnlessEqual(16777216, s)
+				self.failUnlessEqual(d, nd)
+				self.failUnlessEqual(rd, sd)
+			self.failUnlessRaises(OverflowError, protocol_optimized.swap_uint4_pack, -1)
+			self.failUnlessRaises(OverflowError, protocol_optimized.uint4_pack, -1)
+			self.failUnlessRaises(OverflowError, protocol_optimized.swap_uint4_pack, 2**32)
+			self.failUnlessRaises(OverflowError, protocol_optimized.uint4_pack, 2**32)
+			self.failUnlessEqual(protocol_optimized.uint4_pack(2**32-1), b'\xFF\xFF\xFF\xFF')
+			self.failUnlessEqual(protocol_optimized.swap_uint4_pack(2**32-1), b'\xFF\xFF\xFF\xFF')
 except ImportError:
 	pass
 

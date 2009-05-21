@@ -6,21 +6,25 @@
 import sys
 import os
 import pprint
-from struct import pack, unpack, Struct
+from struct import unpack, Struct
+from .message_types import message_types
+from .typstruct import ushort_pack, ushort_unpack, ulong_pack, ulong_unpack
+
+def pack_tuple_data(atts):
+	return b''.join([
+		b'\xff\xff\xff\xff'
+		if x is None
+		else (ulong_pack(len(x)) + x)
+		for x in atts
+	])
 
 try:
-	from .optimized import parse_tuple_message
+	from .optimized import parse_tuple_message, pack_tuple_data
 except ImportError:
 	pass
 
-from .message_types import message_types
-
 StringFormat = b'\x00\x00'
 BinaryFormat = b'\x00\x01'
-
-byte = Struct("!B")
-ushort = Struct("!H")
-ulong = Struct("!L")
 
 class Message(object):
 	bytes_struct = Struct("!cL")
@@ -125,11 +129,11 @@ class WireMessage(Message):
 
 	@classmethod
 	def parse(typ, data):
-		if ulong.unpack(data[1:5])[0] != len(data) - 1:
+		if ulong_unpack(data[1:5]) != len(data) - 1:
 			raise ValueError(
 				"invalid wire message where data is %d bytes and " \
 				"internal size stamp is %d bytes" %(
-					len(data), ulong.unpack(data[1:5])[0] + 1
+					len(data), ulong_unpack(data[1:5]) + 1
 				)
 			)
 		return typ((data[0:1], data[5:]))
@@ -162,13 +166,13 @@ class Notify(Message):
 		self.parameter = parameter
 
 	def serialize(self):
-		return ulong.pack(self.pid) + \
+		return ulong_pack(self.pid) + \
 			self.relation + b'\x00' + \
 			self.parameter + b'\x00'
 
 	@classmethod
 	def parse(typ, data):
-		pid = ulong.unpack(data[0:4])[0]
+		pid = ulong_unpack(data[0:4])
 		relname, param, nothing = data[4:].split(b'\x00', 2)
 		return typ(pid, relname, param)
 
@@ -363,13 +367,13 @@ class FunctionResult(Message):
 
 	def serialize(self):
 		return self.result is None and b'\xff\xff\xff\xff' or \
-			ulong.pack(len(self.result)) + self.result
+			ulong_pack(len(self.result)) + self.result
 	
 	@classmethod
 	def parse(typ, data):
 		if data == b'\xff\xff\xff\xff':
 			return typ(None)
-		size = ulong.unpack(data[0:4])[0]
+		size = ulong_unpack(data[0:4])
 		data = data[4:]
 		if size != len(data):
 			raise ValueError(
@@ -385,11 +389,11 @@ class AttributeTypes(TupleMessage):
 	__slots__ = ()
 
 	def serialize(self):
-		return ushort.pack(len(self)) + b''.join([ulong.pack(x) for x in self])
+		return ushort_pack(len(self)) + b''.join([ulong_pack(x) for x in self])
 
 	@classmethod
 	def parse(typ, data):
-		ac = ushort.unpack(data[0:2])[0]
+		ac = ushort_unpack(data[0:2])
 		args = data[2:]
 		if len(args) != ac * 4:
 			raise ValueError("invalid argument type data size")
@@ -405,14 +409,14 @@ class TupleDescriptor(TupleMessage):
 		return [x[0] for x in self]
 
 	def serialize(self):
-		return ushort.pack(len(self)) + b''.join([
+		return ushort_pack(len(self)) + b''.join([
 			x[0] + b'\x00' + self.struct.pack(*x[1:])
 			for x in self
 		])
 
 	@classmethod
 	def parse(typ, data):
-		ac = ushort.unpack(data[0:2])[0]
+		ac = ushort_unpack(data[0:2])
 		atts = []
 		data = data[2:]
 		ca = 0
@@ -433,14 +437,11 @@ class Tuple(TupleMessage):
 	__slots__ = ()
 
 	def serialize(self):
-		return ushort.pack(len(self)) + b''.join([
-			x is None and b'\xff\xff\xff\xff' or ulong.pack(len(x)) + bytes(x)
-			for x in self
-		])
+		return ushort_pack(len(self)) + pack_tuple_data(self)
 
 	@classmethod
 	def parse(typ, data):
-		natts = ushort.unpack(data[0:2])[0]
+		natts = ushort_unpack(data[0:2])
 		atts = list()
 		offset = 2
 
@@ -451,7 +452,7 @@ class Tuple(TupleMessage):
 			if size == b'\xff\xff\xff\xff':
 				att = None
 			else:
-				al = ulong.unpack(size)[0]
+				al = ulong_unpack(size)
 				ao = offset
 				offset = ao + al
 				att = data[ao:offset]
@@ -494,7 +495,7 @@ class CancelRequest(KillInformation):
 
 	def bytes(self):
 		data = self.serialize()
-		return ulong.pack(len(data) + 4) + self.serialize()
+		return ulong_pack(len(data) + 4) + self.serialize()
 
 	@classmethod
 	def parse(typ, data):
@@ -514,7 +515,7 @@ class NegotiateSSL(Message):
 
 	def bytes(self):
 		data = self.serialize()
-		return ulong.pack(len(data) + 4) + data
+		return ulong_pack(len(data) + 4) + data
 
 	def serialize(self):
 		return self.packed_version
@@ -545,7 +546,7 @@ class Startup(Message, dict):
 
 	def bytes(self):
 		data = self.serialize()
-		return ulong.pack(len(data) + 4) + data
+		return ulong_pack(len(data) + 4) + data
 
 	@classmethod
 	def parse(typ, data):
@@ -598,11 +599,11 @@ class Authentication(Message):
 		self.salt = salt
 
 	def serialize(self):
-		return ulong.pack(self.request) + self.salt
+		return ulong_pack(self.request) + self.salt
 
 	@classmethod
 	def parse(typ, data):
-		return typ(ulong.unpack(data[0:4])[0], data[4:])
+		return typ(ulong_unpack(data[0:4]), data[4:])
 
 class Password(StringMessage):
 	'Password supplement'
@@ -648,7 +649,7 @@ class Parse(Message):
 	@classmethod
 	def parse(typ, data):
 		name, statement, args = data.split(b'\x00', 2)
-		ac = ushort.unpack(args[0:2])[0]
+		ac = ushort_unpack(args[0:2])
 		args = args[2:]
 		if len(args) != ac * 4:
 			raise ValueError("invalid argument type data")
@@ -656,9 +657,9 @@ class Parse(Message):
 		return typ(name, statement, at)
 
 	def serialize(self):
-		ac = ushort.pack(len(self.argtypes))
+		ac = ushort_pack(len(self.argtypes))
 		return self.name + b'\x00' + self.statement + b'\x00' + ac + b''.join([
-			ulong.pack(x) for x in self.argtypes
+			ulong_pack(x) for x in self.argtypes
 		])
 
 class Bind(Message):
@@ -685,14 +686,9 @@ class Bind(Message):
 
 	def serialize(self):
 		args = self.arguments
-		ac = ushort.pack(len(args))
-		ad = b''.join([
-			b'\xff\xff\xff\xff'
-			if x is None
-			else (ulong.pack(len(x)) + x)
-			for x in args
-		])
-		rfc = ushort.pack(len(self.rformats))
+		ac = ushort_pack(len(args))
+		ad = pack_tuple_data(tuple(args))
+		rfc = ushort_pack(len(self.rformats))
 		return \
 			self.name + b'\x00' + self.statement + b'\x00' + \
 			ac + b''.join(self.aformats) + ac + ad + rfc + \
@@ -701,11 +697,11 @@ class Bind(Message):
 	@classmethod
 	def parse(typ, message_data):
 		name, statement, data = message_data.split(b'\x00', 2)
-		ac = ushort.unpack(data[:2])[0]
+		ac = ushort_unpack(data[:2])
 		offset = 2 + (2 * ac)
 		aformats = unpack(("2s" * ac), data[2:offset])
 
-		natts = ushort.unpack(data[offset:offset+2])[0]
+		natts = ushort_unpack(data[offset:offset+2])
 		args = list()
 		offset += 2
 
@@ -716,14 +712,14 @@ class Bind(Message):
 			if size == b'\xff\xff\xff\xff':
 				att = None
 			else:
-				al = ulong.unpack(size)[0]
+				al = ulong_unpack(size)
 				ao = offset
 				offset = ao + al
 				att = data[ao:offset]
 			args.append(att)
 			natts -= 1
 
-		rfc = ushort.unpack(data[offset:offset+2])[0]
+		rfc = ushort_unpack(data[offset:offset+2])
 		ao = offset + 2
 		offset = ao + (2 * rfc)
 		rformats = unpack(("2s" * rfc), data[ao:offset])
@@ -740,12 +736,12 @@ class Execute(Message):
 		self.max = max
 
 	def serialize(self):
-		return self.name + pack("!BL", 0, self.max)
+		return self.name + b'\x00' + ulong_pack(self.max)
 
 	@classmethod
 	def parse(typ, data):
 		name, max = data.split(b'\x00', 1)
-		return typ(name, ulong.unpack(max)[0])
+		return typ(name, ulong_unpack(max))
 
 class Describe(StringMessage):
 	"""Describe a Portal or Prepared Statement"""
@@ -813,23 +809,20 @@ class Function(Message):
 		self.rformat = rformat
 
 	def serialize(self):
-		ac = ushort.pack(len(self.arguments))
-		return ulong.pack(self.oid) + \
+		ac = ushort_pack(len(self.arguments))
+		return ulong_pack(self.oid) + \
 			ac + b''.join(self.aformats) + \
-			ac + b''.join([
-				(x is None) and b'\xff\xff\xff\xff' or ulong.pack(len(x)) + x
-				for x in self.arguments
-			]) + self.rformat
+			ac + pack_tuple_data(tuple(self.arguments)) + self.rformat
 
 	@classmethod
 	def parse(typ, data):
-		oid = ulong.unpack(data[0:4])[0]
+		oid = ulong_unpack(data[0:4])
 
-		ac = ushort.unpack(data[4:6])[0]
+		ac = ushort_unpack(data[4:6])
 		offset = 6 + (2 * ac)
 		aformats = unpack(("2s" * ac), data[6:offset])
 
-		natts = ushort.unpack(data[offset:offset+2])[0]
+		natts = ushort_unpack(data[offset:offset+2])
 		args = list()
 		offset += 2
 
@@ -840,7 +833,7 @@ class Function(Message):
 			if size == b'\xff\xff\xff\xff':
 				att = None
 			else:
-				al = ulong.unpack(size)[0]
+				al = ulong_unpack(size)
 				ao = offset
 				offset = ao + al
 				att = data[ao:offset]
@@ -860,7 +853,7 @@ class CopyBegin(Message):
 
 	def serialize(self):
 		return self.struct.pack(self.format, len(self.formats)) + b''.join([
-			ushort.pack(x) for x in self.formats
+			ushort_pack(x) for x in self.formats
 		])
 
 	@classmethod
@@ -870,7 +863,7 @@ class CopyBegin(Message):
 		if len(formats_str) != natts * 2:
 			raise ValueError("number of formats and data do not match up")
 		return typ(format, [
-			ushort.unpack(formats_str[x:x+2])[0] for x in range(0, natts * 2, 2)
+			ushort_unpack(formats_str[x:x+2]) for x in range(0, natts * 2, 2)
 		])
 
 class CopyToBegin(CopyBegin):

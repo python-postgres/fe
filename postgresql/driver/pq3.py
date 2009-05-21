@@ -1067,7 +1067,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			raise e
 
 		for chunk in chunks:
-			x.messages = [element.CopyData(l) for l in chunk]
+			x.messages = list(chunk)
 			while x.messages is not x.CopyFailSequence:
 				self.database._pq_step()
 		x.messages = x.CopyDoneSequence

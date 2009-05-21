@@ -387,7 +387,7 @@ def numeric_convert_digits(d):
 			yield int(x)
 
 numeric_signs = {
-	16384 : 1,
+	numeric_negative : 1,
 }
 
 def numeric_unpack(x):

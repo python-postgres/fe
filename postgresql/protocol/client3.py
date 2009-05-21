@@ -10,6 +10,20 @@ from traceback import format_exception_only
 from . import element3 as element
 from . import xact3 as xact
 from .buffer import pq_message_stream
+from .typstruct import long_pack
+
+def cat_messages(messages):
+	blen = bytes.__len__
+	lpack = long_pack
+	return b''.join([
+		x.bytes() if x.__class__ is not bytes else (
+			b'd' + lpack(blen(x) + 4) + x
+		) for x in messages
+	])
+try:
+	from .optimized import cat_messages
+except ImportError:
+	pass
 
 class Connection(object):
 	"""
@@ -290,12 +304,12 @@ class Connection(object):
 	def standard_write_messages(self, messages):
 		'protocol message writer'
 		if self.writing is not self.written:
-			self.message_data += b''.join([x.bytes() for x in self.writing])
+			self.message_data += cat_messages(self.writing)
 			self.written = self.writing
 
 		if messages is not self.writing:
 			self.writing = messages
-			self.message_data += b''.join([x.bytes() for x in self.writing])
+			self.message_data += cat_messages(self.writing)
 			self.written = self.writing
 		return self.send_message_data()
 	write_messages = standard_write_messages

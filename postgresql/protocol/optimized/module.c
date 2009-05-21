@@ -6,7 +6,7 @@
  * Optimizations for protocol modules.
  *
  * This module.c file ties together other classified C source.
- * Each C-file describing the part of the protocol package that it
+ * Each filename describing the part of the protocol package that it
  * covers. It merely uses CPP includes to bring them into this
  * file and then uses some CPP macros to expand the definitions
  * in each file.
@@ -15,24 +15,37 @@
 #include <Python.h>
 #include <structmember.h>
 
+#define USHORT_MAX ((1<<16)-1)
+#define SHORT_MAX ((1<<15)-1)
+#define SHORT_MIN (-(1<<15))
+
+#define PyObject_TypeName(ob) \
+	(((PyTypeObject *) (ob->ob_type))->tp_name)
+
 /*
  * buffer.c needs the message_types object from protocol.message_types.
  * Initialized in PyInit_optimized.
  */
 static PyObject *message_types = NULL;
+static PyObject *serialize_strob = NULL;
+static PyObject *msgtype_strob = NULL;
+
 static long (*local_ntohl)(long) = NULL;
 static short (*local_ntohs)(short) = NULL;
 
 
 #include "typio.c"
 #include "buffer.c"
+#include "client3.c"
 #include "element3.c"
 
 
+/* cpp abuse */
 #define mFUNC(name, typ, doc) \
 	{#name, (PyCFunction) name, typ, PyDoc_STR(doc)},
 static PyMethodDef optimized_methods[] = {
 	include_element3_functions
+	include_client3_functions
 	include_typio_functions
 	{NULL}
 };
@@ -54,6 +67,19 @@ PyInit_optimized(void)
 	PyObject *msgtypes;
 	PyObject *fromlist, *fromstr;
 	long l = 1;
+
+	if (serialize_strob == NULL)
+	{
+		serialize_strob = PyUnicode_FromString("serialize");
+		if (serialize_strob == NULL)
+			return(NULL);
+	}
+	if (msgtype_strob == NULL)
+	{
+		msgtype_strob = PyUnicode_FromString("type");
+		if (msgtype_strob == NULL)
+			return(NULL);
+	}
 
 	mod = PyModule_Create(&optimized_module);
 	if (mod == NULL)
