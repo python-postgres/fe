@@ -27,7 +27,9 @@ __project__ = 'py-postgresql'
 __project_id__ = 'http://python.projects.postgresql.org'
 
 version_info = (0, 8, 2, 'final', 0)
-__version__ = '.'.join(map(str, version_info[:3]))
+__version__ = '.'.join(map(str, version_info[:3])) + (
+	version_info[3] if version_info[3] != 'final' else ''
+)
 
 pg_iri = pg_driver = pg_param = None
 def open(iri = None):
