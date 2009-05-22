@@ -80,12 +80,12 @@ SELECT
  pg_proc.oid::regprocedure as procedure_id,
   -- mm, the pain. the sweet, sweet pain. oh it's portable.
   -- it's so portable that it runs on BDB on win32.
-  COALESCE(string_to_array(trim(textin(array_out(string_to_array(
-   replace(
-    trim(textin(oidvectorout(proargtypes)), '{}'),
-    ',', ' '
-   ), ' ')::oid[]::regtype[])), '{}'), ',')::text[], '{}'::text[])
-	 AS _proargs,
+  COALESCE(
+   string_to_array(
+    replace(trim(textin(oidvectorout(proargtypes)), '{}'), ',', ' '), ' '
+   )::oid[],
+   '{}'::oid[]
+  ) AS proargtypes,
  (pg_type.oid = 'record'::regtype or pg_type.typtype = 'c') AS composite
 FROM
  pg_proc LEFT JOIN pg_type ON (
@@ -1580,13 +1580,17 @@ class StoredProcedure(pg_api.StoredProcedure):
 			if an is not None:
 				self._input_attmap[an] = x
 
-		proargs = proctup['_proargs']
+		tio = database.typio
+		proargs = proctup['proargtypes']
+		for x in proargs:
+			tio.resolve(x)
+
 		self.statement = database.prepare(
 			"SELECT * FROM %s(%s) AS func%s" %(
 				proctup['_proid'],
 				# ($1::type, $2::type, ... $n::type)
 				', '.join([
-					 '$%d::%s' %(x + 1, proargs[x])
+					 '$%d::%s' %(x + 1, tio.sql_type_from_oid(proargs[x]))
 					 for x in range(len(proargs))
 				]),
 				# Description for anonymous record returns

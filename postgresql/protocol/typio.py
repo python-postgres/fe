@@ -730,7 +730,7 @@ class TypeIO(object, metaclass = ABCMeta):
 		if oid in self.typmeta:
 			nsp, name, *_ = self.typmeta[oid]
 			return pg_str.quote_ident(nsp) + '.' + pg_str.quote_ident(name)
-		return pg_types.oid_to_name.get(oid)
+		return 'pg_catalog.' + pg_types.oid_to_name.get(oid)
 
 	def type_from_oid(self, oid):
 		typ = pg_types.oid_to_type.get(oid)
