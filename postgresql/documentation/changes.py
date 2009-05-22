@@ -6,6 +6,11 @@ r"""
 Changes
 =======
 
+0.8.2
+-----
+
+ * Fix stored procedure statement rendering [#1010620, Dallas Morisette]
+
 0.8.1 released on 2009-04-30
 ----------------------------
 
