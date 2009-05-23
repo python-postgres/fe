@@ -189,13 +189,10 @@ Using Query Libraries
 
 After a library is created, it must be loaded before it can be bound using
 programmer interfaces. The `postgresql.lib.load` interface provides the
-primary entry point for loading libraries. ``load()`` accepts `str` objects
-and modules. If given a module, it will create a
-`postgresql.lib.ModuleLibrary` from the given module, and if a `str` object is
-given it will create a `postgresql.lib.ILF` instance.
+primary entry point for loading libraries.
 
 When ``load`` is given a string, it identifies if a directory separator is in
-the string, if there is it will treat the string as a path to the ILF to be
+the string, if there is it will treat the string as a *path* to the ILF to be
 loaded. If no separator is found, it will treat the string as the library
 name fragment and look for "lib{NAME}.sql" in the directories listed in
 `postgresql.sys.libpath`.
@@ -334,78 +331,6 @@ effect it will have when invoked:
  ``load_rows``
   Takes an iterable rows to be given as parameters. If the statement is a ``COPY
   ... FROM STDIN``, the iterable must produce COPY lines.
-
-
-Module Libraries
-================
-
-Module libraries allow query libraries to be distributed as Python modules.
-While not as portable as ILFs, they are convenient for Python projects
-as no additional file management is required in order to use them.
-
-Module libraries are designed to *not* require special dependencies in order to
-annotate symbols. Rather, simple module protocols are used in order to
-annotate symbols.
-
-For instance, in order to make a preloaded Symbol, the symbol name needs to be
-added to the ``__preload__`` collection in the module defining the symbol.
-
-libmod.py::
-
-	__preload__ = set()
-	this_symbol = "SELECT $1::text AS useless"
-	__preload__.add('this_symbol')
-
-
-Symbol Annotations
-------------------
-
-Module libraries perform symbol annotation by using specially named collection
-objects to denote the characteristics of a symbol. The names of the collection
-objects in a library module are consistent with statement method names:
-
- ``__rows__``
-  For each named symbol, use `postgresql.api.PreparedStatement.rows` as the
-  default execution method.
-
- ``__chunks__``
-  For each named symbol, use `postgresql.api.PreparedStatement.chunks` as the
-  default execution method.
-
- ``__first__``
-  For each named symbol, use `postgresql.api.PreparedStatement.first` as the
-  default execution method.
-
- ``__declare__``
-  For each named symbol, use `postgresql.api.PreparedStatement.declare` as the
-  default execution method.
-
- ``__load_rows__``
-  For each named symbol, use `postgresql.api.PreparedStatement.load_rows` as the
-  default execution method.
-
- ``__load_chunks__``
-  For each named symbol, use `postgresql.api.PreparedStatement.load_chunks` as
-  the default execution method.
-
-The symbol names stored in the above objects must *not* intersect.
-
-Additionally, symbols can be constants and preloaded using:
-
- ``__preload__``
-  Create Bound Symbols for each named symbol when the Library is bound.
-
- ``__const__``
-  Resolve the results of the query when the Library is bound and return the
-  results when the symbol is referenced.
-
-The objects used to store the symbol names should be Python `set` objects.
-
-To use a module library, import the module and give it to
-`postgresql.lib.load`::
-
-	>>> import libmod
-	>>> l = pg_lib.load(libmod)
 
 
 Audience and Motivation

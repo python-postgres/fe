@@ -24,6 +24,15 @@ from .. import api as pg_api
 from .. import sys as pg_sys
 from .. import exceptions as pg_exc
 
+try:
+	libdir = os.path.abspath(os.path.dirname(__file__))
+except NameError:
+	pass
+else:
+	if os.path.exists(libdir):
+		pg_sys.libpath.insert(0, libdir)
+	del libdir
+
 __all__ = [
 	'Library',
 	'ModuleLibrary',
