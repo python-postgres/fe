@@ -649,13 +649,13 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(ifoo(1), 1)
 		self.failUnlessEqual(ifoo(None), None)
 		self.db.execute(
-			"CREATE OR REPLACE FUNCTION ifoo(varchar) RETURNS varchar LANGUAGE SQL AS 'select $1'"
+			"CREATE OR REPLACE FUNCTION ifoo(varchar) RETURNS text LANGUAGE SQL AS 'select $1'"
 		)
 		ifoo = self.db.proc('ifoo(varchar)')
 		self.failUnlessEqual(ifoo('1'), '1')
 		self.failUnlessEqual(ifoo(None), None)
 		self.db.execute(
-			"CREATE OR REPLACE FUNCTION ifoo(varchar,int) RETURNS varchar LANGUAGE SQL AS 'select ($1::int + $2)::varchar'"
+			"CREATE OR REPLACE FUNCTION ifoo(varchar,int) RETURNS text LANGUAGE SQL AS 'select ($1::int + $2)::varchar'"
 		)
 		ifoo = self.db.proc('ifoo(varchar,int)')
 		self.failUnlessEqual(ifoo('1',1), '2')
