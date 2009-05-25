@@ -15,9 +15,11 @@ import datetime
 import time
 import re
 
+from .. import clientparameters as pg_param
 from .. import driver as pg_driver
 from .. import types as pg_type
 from .. import string as pg_str
+from .pq3 import Connection
 
 ##
 # Basically, is it a mapping, or is it a sequence?
@@ -82,6 +84,9 @@ def dbapi_type(typid):
 		return ROWID
 
 class Portal(object):
+	"""
+	Manages read() interfaces to a chunks iterator.
+	"""
 	def __init__(self, chunks):
 		self.chunks = chunks
 		self.buf = []
@@ -93,6 +98,10 @@ class Portal(object):
 			self.pos += 1
 			return r
 		except IndexError:
+			# Any alledged infinite recursion will stop on the StopIteration
+			# thrown by this next(). Recursion is unlikely to occur more than
+			# once; specifically, empty chunks would need to be returned
+			# by this invocation of next().
 			self.buf = next(self.chunks)
 			self.pos = 0
 			return self.__next__()
@@ -125,8 +134,7 @@ class Cursor(object):
 	description = None
 
 	def __init__(self, C):
-		self.connection = C
-		self.database = C.database
+		self.database = self.connection = C
 		self.description = ()
 		self.__portals = []
 
@@ -173,6 +181,7 @@ class Cursor(object):
 	def __next__(self):
 		return next(self._portal)
 	next = __next__
+
 	def __iter__(self):
 		return self
 
@@ -275,7 +284,7 @@ class Cursor(object):
 			self.__portals = None
 			for p in ps: p.close()
 
-class Connection(object):
+class Connection(Connection):
 	"""
 	DB-API 2.0 connection implementation for PG-API connection objects.
 	"""
@@ -299,7 +308,7 @@ class Connection(object):
 		else:
 			if self._xact is not None:
 				return
-			self._xact = self.database.xact()
+			self._xact = self.xact()
 			self._xact.start()
 
 	def autocommit_get(self):
@@ -315,19 +324,19 @@ class Connection(object):
 	)
 	del autocommit_set, autocommit_get, autocommit_del
 
-	def __init__(self, connection):
-		self.database = connection
-		self._xact = self.database.xact()
+	def connect(self, *args, **kw):
+		super().connect(*args, **kw)
+		self._xact = self.xact()
 		self._xact.start()
 
 	def close(self):
-		if self.database.closed:
+		if self.closed:
 			raise Error(
 				"connection already closed",
 				source = 'CLIENT',
-				creator = self.database
+				creator = self
 			)
-		self.database.close()
+		super().close()
 
 	def cursor(self):
 		return Cursor(self)
@@ -340,10 +349,10 @@ class Connection(object):
 				details = {
 					'hint': 'The "autocommit" property on the connection was set to True.'
 				},
-				creator = self.database
+				creator = self
 			)
 		self._xact.commit()
-		self._xact = self.database.xact()
+		self._xact = self.xact()
 		self._xact.start()
 
 	def rollback(self):
@@ -354,16 +363,22 @@ class Connection(object):
 				details = {
 					'hint': 'The "autocommit" property on the connection was set to True.'
 				},
-				creator = self.database
+				creator = self
 			)
 		self._xact.rollback()
-		self._xact = self.database.xact()
+		self._xact = self.xact()
 		self._xact.start()
 
+driver = pg_driver.Driver(connection = Connection)
 def connect(**kw):
 	"""
 	Create a DB-API connection using the given parameters.
 	"""
-	db = pg_driver.connect(**kw)
-	dbapi = Connection(db)
-	return dbapi
+	std_params = pg_param.collect(prompt_title = None)
+	params = pg_param.normalize(
+		list(pg_param.denormalize_parameters(std_params)) + \
+		list(pg_param.denormalize_parameters(kw))
+	)
+	# Resolve the password, but never prompt.
+	pg_param.resolve_password(params, prompt_title = None)
+	return driver.connect(**params)

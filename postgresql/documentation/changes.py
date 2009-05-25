@@ -9,17 +9,32 @@ Changes
 0.9.0
 -----
 
+ * Performance improvements.
  * Extend `postgresql.open` to take keyword arguments.
  * Implement query libraries and connection categories[#1010581 & #1010618].
  * Implement ``clone()`` on Connections, Statements, and Cursors.
- * Refactor ``ps.load()`` into ``ps.load_chunks()`` and ``ps.load_rows()``.
  * Display the line and mark the location of the POSITION for syntax errors.
- * Performance improvements.
+ * Refactor ``ps.load()`` into ``ps.load_chunks()`` and ``ps.load_rows()``.
  * Refactor `postgresql.api.InterfaceElement`.
  * Refactor driver.pq3.Connection to use protocol.client3.Connection.
  * Refactor driver.pq3.Cursor into types selected by PreparedStatements.
  * Fix memory leak due to circular references and __del__. [Reported by Valentine Gogichashvili]
    Additionally, try to avoid circular references at that level.
+ * Correct StoredProcedure's statement production. It was falsely using a
+   a mechanism that would use SQL predefined type names instead of
+   qualified names. [Reported by Dallas Morisett]
+ * Make DB-API connect() inherit defaults like postgresql.open()
+ * Make DB-API extend PG-API so that DB-API connections will now have direct
+   access to PG-API features.
+
+
+0.8.2
+-----
+
+ * Correct StoredProcedure's statement production. It was falsely using a
+   a mechanism that would use SQL predefined type names instead of
+   qualified names. [Reported by Dallas Morisett]
+
 
 0.8.1 released on 2009-04-30
 ----------------------------

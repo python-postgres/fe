@@ -56,6 +56,7 @@ class Cluster(pg_api.Cluster):
 	to be a base class for managing a cluster, and is intended to be extended to
 	accommodate for a particular purpose.
 	"""
+	driver = pg_driver.default
 	installation = None
 	data_directory = None
 	DEFAULT_CLUSTER_ENCODING = DEFAULT_CLUSTER_ENCODING
@@ -413,7 +414,7 @@ class Cluster(pg_api.Cluster):
 		listen_addresses and port configuration in settings.
 		"""
 		host, port = self.address()
-		return pg_driver.default.fit(
+		return self.driver.fit(
 			host = host or 'localhost',
 			port = port or 5432,
 			**kw
@@ -472,7 +473,7 @@ class Cluster(pg_api.Cluster):
 		e = None
 		host, port = self.address()
 		try:
-			pg_driver.connect(
+			self.driver.connect(
 				user = ' -*- ping -*- ',
 				host = host or 'localhost',
 				port = port or 5432,

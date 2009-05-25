@@ -69,6 +69,9 @@ class TestCaseWithCluster(unittest.TestCase):
 			).first() is None:
 				c.execute('create database test')
 
+	def connection(self, *args, **kw):
+		return self.cluster.connection(*args, user = 'test', **kw)
+
 	def run(self, *args, **kw):
 		if not self.cluster.initialized():
 			self.cluster.encoding = 'utf-8'
@@ -91,7 +94,7 @@ class TestCaseWithCluster(unittest.TestCase):
 			self.cluster.start()
 			self.cluster.wait_until_started()
 
-		db = self.cluster.connection(user = 'test',)
+		db = self.connection()
 		with db:
 			self.db = db
 			return super().run(*args, **kw)

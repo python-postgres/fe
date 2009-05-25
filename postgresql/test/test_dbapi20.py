@@ -4,6 +4,7 @@
 import unittest
 from ..unittest import TestCaseWithCluster
 import time
+from contextlib import nested
 
 ##
 # Various Adjustments for pg.driver.dbapi20
@@ -108,10 +109,16 @@ class test_dbapi20(TestCaseWithCluster):
 		finally:
 			con.close()
 
+	def connection(self):
+		return nested()
+
 	def _connect(self):
-		c = self.db.connector()
-		c.connect()
-		return self.driver.Connection(c)
+		host, port = self.cluster.address()
+		return self.driver.connect(
+			user = 'test',
+			host = host,
+			port = port,
+		)
 
 	def test_connect(self):
 		con = self._connect()
