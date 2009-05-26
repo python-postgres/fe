@@ -395,7 +395,7 @@ process_tuple(PyObject *self, PyObject *args)
 	if (!PyArg_ParseTuple(args, "OOO", &procs, &tup, &fail))
 		return(NULL);
 
-	if (!PyObject_IsInstance(procs, (PyObject *) &PyTuple_Type))
+	if (!PyTuple_CheckExact(procs))
 	{
 		PyErr_SetString(
 			PyExc_TypeError,
@@ -404,7 +404,7 @@ process_tuple(PyObject *self, PyObject *args)
 		return(NULL);
 	}
 
-	if (!PyObject_IsInstance(tup, (PyObject *) &PyTuple_Type))
+	if (!PyTuple_Check(tup))
 	{
 		PyErr_SetString(
 			PyExc_TypeError,
