@@ -484,8 +484,13 @@ def process_tuple(procs, tup, exception_handler):
 		raise RuntimeError("process_tuple exception handler failed to raise")
 	return r
 
+def process_chunk(procs, tupc, fail):
+	return [
+		process_tuple(procs, x, fail) for x in tupc
+	]
+
 try:
-	from .optimized import process_tuple
+	from .optimized import process_tuple, process_chunk
 except ImportError:
 	pass
 

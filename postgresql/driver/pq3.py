@@ -238,24 +238,19 @@ class Output(object):
 		Process the Tuple messages in `x`.
 		"""
 		return [
-			pg_types.Row.from_sequence(
-				self._output_attmap,
-				pg_typio.process_tuple(
-					self._output_io, y,
-					self._raise_column_tuple_error
-				),
-			) for y in x
+			pg_types.Row.from_sequence(self._output_attmap, y)
+			for y in pg_typio.process_chunk(
+				self._output_io, x, self._raise_column_tuple_error
+			)
 		]
 
 	def _process_tuple_chunk(self, x):
 		"""
 		Process the Tuple messages in `x`.
 		"""
-		return [
-			pg_typio.process_tuple(
-				self._output_io, y, self._raise_column_tuple_error
-			) for y in x
-		]
+		return pg_typio.process_chunk(
+			self._output_io, x, self._raise_column_tuple_error
+		)
 
 	def _raise_column_tuple_error(self, procs, tup, itemnum):
 		'for column processing'
@@ -407,7 +402,7 @@ class SingleXactFetch(FetchAll):
 		))
 
 class MultiXactStream(Chunks):
-	chunksize = 256
+	chunksize = 512
 	# only tuple streams
 	_process_chunk = Output._process_tuple_chunk_Row
 

@@ -6,6 +6,9 @@
 	mFUNC(process_tuple, METH_VARARGS, \
 		"process the items in the second argument " \
 		"with the corresponding items in the first argument.") \
+	mFUNC(process_chunk, METH_VARARGS, \
+		"process the items of the chunk given as the second argument " \
+		"with the corresponding items in the first argument.") \
 	mFUNC(int2_pack, METH_O, "PyInt to serialized, int2") \
 	mFUNC(int2_unpack, METH_O, "PyInt from serialized, int2") \
 	mFUNC(int4_pack, METH_O, "PyInt to serialized, int4") \
@@ -24,7 +27,7 @@
 	mFUNC(swap_uint4_unpack, METH_O, "PyInt from swapped serialized, int4") \
 
 /*
- * Define the swap functionality.
+ * Define the swap functionality for those endians.
  */
 #define swap2(CP) do{register char c; \
 	c=CP[1];CP[1]=CP[0];CP[0]=c;\
@@ -387,13 +390,10 @@ swap_uint4_unpack(PyObject *self, PyObject *arg)
  * calling the third object in cases of failure to generalize the exception.
  */
 static PyObject *
-process_tuple(PyObject *self, PyObject *args)
+_process_tuple(PyObject *procs, PyObject *tup, PyObject *fail)
 {
-	PyObject *tup, *procs, *fail, *rob;
+	PyObject *rob;
 	Py_ssize_t len, i;
-
-	if (!PyArg_ParseTuple(args, "OOO", &procs, &tup, &fail))
-		return(NULL);
 
 	if (!PyTuple_CheckExact(procs))
 	{
@@ -538,4 +538,101 @@ process_tuple(PyObject *self, PyObject *args)
 	}
 
 	return(rob);
+}
+
+/*
+ * process the tuple with the associated callables while
+ * calling the third object in cases of failure to generalize the exception.
+ */
+static PyObject *
+process_tuple(PyObject *self, PyObject *args)
+{
+	PyObject *tup, *procs, *fail;
+
+	if (!PyArg_ParseTuple(args, "OOO", &procs, &tup, &fail))
+		return(NULL);
+
+	return(_process_tuple(procs, tup, fail));
+}
+
+static PyObject *
+_process_chunk_new_list(PyObject *procs, PyObject *tupc, PyObject *fail)
+{
+	PyObject *rob;
+	Py_ssize_t i, len;
+
+	rob = PyObject_CallFunctionObjArgs((PyObject *) &PyList_Type, tupc, NULL);
+	if (rob == NULL)
+		return(NULL);
+	len = PyList_Size(rob);
+
+	for (i = 0; i < len; ++i)
+	{
+		PyObject *tup, *r;
+		/*
+		 * If it's Py_None, that means it's NULL. No processing necessary.
+		 */
+		tup = PyList_GetItem(rob, i);
+		r = _process_tuple(procs, tup, fail);
+		if (r == NULL)
+		{
+			Py_DECREF(rob);
+			return(NULL);
+		}
+		PyList_SetItem(rob, i, r);
+	}
+
+	return(rob);
+}
+
+static PyObject *
+_process_chunk_from_list(PyObject *procs, PyObject *tupc, PyObject *fail)
+{
+	PyObject *rob;
+	Py_ssize_t i, len;
+
+	len = PyList_GET_SIZE(tupc);
+	rob = PyList_New(len);
+	if (rob == NULL)
+		return(NULL);
+
+	for (i = 0; i < len; ++i)
+	{
+		PyObject *tup, *r;
+		/*
+		 * If it's Py_None, that means it's NULL. No processing necessary.
+		 */
+		tup = PyList_GET_ITEM(tupc, i);
+		r = _process_tuple(procs, tup, fail);
+		if (r == NULL)
+		{
+			Py_DECREF(rob);
+			return(NULL);
+		}
+		PyList_SET_ITEM(rob, i, r);
+	}
+
+	return(rob);
+}
+
+/*
+ * process the chunk of tuples with the associated callables while
+ * calling the third object in cases of failure to generalize the exception.
+ */
+static PyObject *
+process_chunk(PyObject *self, PyObject *args)
+{
+	PyObject *tupc, *procs, *fail;
+
+	if (!PyArg_ParseTuple(args, "OOO", &procs, &tupc, &fail))
+		return(NULL);
+
+	if (PyList_Check(tupc))
+	{
+		return(_process_chunk_from_list(procs, tupc, fail));
+	}
+	else
+	{
+		return(_process_chunk_new_list(procs, tupc, fail));
+	}
 }
