@@ -606,18 +606,11 @@ class Instruction(Transaction):
 			self.state = (Receiving, self.standard_put)
 			return self.standard_put(messages)
 
-		# Build a sequence of raw copy data.
-		lines = []
-		for x in messages:
-			# XXX: Optimize this out using a C function.
-			if x[0] is not element.CopyData.type:
-				# This is extremely unlikely to happen as the
-				# last message in the list was copydata.
-				# However, if something did manage to sneak in,
-				# handle it properly.
-				self.state = (Receiving, self.standard_put)
-				return self.standard_put(messages)
-			lines.append(x[1])
+		cdt = element.CopyData.type
+		lines = [x[1] for x in messages if x[0] is cdt]
+		if len(lines) != len(messages):
+			self.state = (Receiving, self.standard_put)
+			return self.standard_put(messages)
 
 		if not self.completed or self.completed[-1][0] != id(messages):
 			self.completed.append((id(messages), lines))
@@ -637,13 +630,10 @@ class Instruction(Transaction):
 
 		p = element.Tuple.parse
 		t = element.Tuple.type
-		tuplemessages = []
-		a = tuplemessages.append
-		for (TYP,DATA) in messages:
-			if TYP is not t:
-				self.state = (Receiving, self.standard_put)
-				return self.standard_put(messages)
-			a(p(DATA))
+		tuplemessages = [p(x[1]) for x in messages if x[0] is t]
+		if len(tuplemessages) != len(messages):
+			self.state = (Receiving, self.standard_put)
+			return self.standard_put(messages)
 
 		if not self.completed or self.completed[-1][0] != id(messages):
 			self.completed.append(((id(messages), tuplemessages)))
