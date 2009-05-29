@@ -23,6 +23,7 @@ from ..python.element import Element, ElementSet
 from .. import api as pg_api
 from .. import sys as pg_sys
 from .. import exceptions as pg_exc
+from ..python.itertools import find
 
 try:
 	libdir = os.path.abspath(os.path.dirname(__file__))
@@ -35,7 +36,6 @@ else:
 
 __all__ = [
 	'Library',
-	'ModuleLibrary',
 	'SymbolCollection',
 	'ILF',
 	'Symbol',
@@ -135,65 +135,6 @@ class Library(Element):
 		Return the symbol with the given name.
 		"""
 
-class ModuleLibrary(Library):
-	"""
-	A ModuleLibrary is a Library that is built from an imported module.
-	The
-	"""
-	preload = None
-	execution_method_sets = tuple([
-		'__' + x + '__'
-		for x in Symbol.execution_methods
-		if x is not None
-	])
-	@property
-	def address(self):
-		return self.module.__name__
-
-	@property
-	def name(self):
-		return self.module.__name__.split('.')[-1]
-
-	def _e_metas(self):
-		yield (None, self.module.__name__)
-
-	def __repr__(self):
-		return __name__ + '.' + type(self).__name__ + '(' + self.address + ')'
-
-	def __init__(self, module):
-		self.module = module
-		self.procedures = getattr(module, '__procedures__', set())
-		self.constants = getattr(module, '__const__', set())
-		self.preload = getattr(module, '__preload__', set())
-		self.preload.update(self.constants)
-		self._sym_exec_meth = {}
-		for x in self.execution_method_sets:
-			xm = getattr(module, x, None)
-			if xm is not None:
-				self._sym_exec_meth.update(dict.fromkeys(set(xm), x[2:-2]))
-
-	def get_symbol(self, name):
-		src = getattr(self.module, name, None)
-		if src is None:
-			return None
-		if name in self.constants:
-			typ = 'const'
-		elif name in self.procedures:
-			typ = 'proc'
-		else:
-			typ = None
-		return Symbol(
-			self, src, name = name,
-			method = self._sym_exec_meth.get(name),
-			type = typ
-		)
-
-	def symbols(self):
-		return {
-			x for x in self.module.__dict__.keys()
-			if not x.startswith('__') and isinstance(x, str)
-		}
-
 class SymbolCollection(Library):
 	"""
 	Explicitly composed library. (Symbols passed into __init__)
@@ -231,6 +172,9 @@ class ILF(SymbolCollection):
 	'INI Library Format'
 	def _e_metas(self):
 		yield (None, self._address or 'ILF')
+
+	def __repr__(self):
+		return self.__class__.__module__ + '.' + self.__class__.__name__ + '.open(' + repr(self.address) + ')'
 
 	@property
 	def name(self):
@@ -282,6 +226,12 @@ class ILF(SymbolCollection):
 				blocks.append((curid, curblock))
 				curid = line
 				curblock = []
+			elif line.startswith('*[') and ']' in line:
+				ref, rest = line.split(']', 1)
+				# strip the leading '*['
+				ref = ref[2:]
+				# dereferencing will take place later.
+				curblock.append((ref, rest))
 			else:
 				curblock.append(line)
 		blocks.append((curid, curblock))
@@ -294,6 +244,13 @@ class ILF(SymbolCollection):
 			name, styp, exe, *_ = (tuple(symdesc.strip().strip('[]').split(':')) + (None, None))
 			doc = ''
 			endofcomment = 0
+			# resolve any symbol references; only one per line.
+			block = [
+				x if x.__class__ is not tuple else (
+					find(reversed(syms), lambda y: y[0] == x[0])[1][-1] + x[1]
+				)
+				for x in block
+			]
 			for x in block:
 				if x.startswith('-- '):
 					doc += x[3:]
@@ -360,8 +317,8 @@ class Binding(object):
 			getattr(self, x)
 
 	def __repr__(self):
-		return '<Binding: %r on %r>' %(
-			self.__symbol_library__,
+		return '<Binding: lib%s on %r>' %(
+			self.__symbol_library__.name,
 			self.__database__
 		)
 
@@ -484,5 +441,7 @@ def load(libref):
 	else:
 		raise TypeError("load takes a module or str, given " + type(libref).__name__)
 	return lib
+
+sys = load('sys')
 
 __docformat__ = 'reStructuredText'

@@ -25,7 +25,6 @@ from abc import abstractmethod, abstractproperty
 
 from .. import lib as pg_lib
 from ..lib import sys as pg_sys
-pg_sys = pg_lib.load(pg_sys)
 
 from .. import versionstring as pg_version
 from .. import iri as pg_iri

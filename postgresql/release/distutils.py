@@ -105,6 +105,10 @@ extensions_data = {
 	},
 }
 
+subpackage_data = {
+	'lib' : ['*.sql']
+}
+
 scripts = [
 	'postgresql/bin/pg_dotconf',
 	'postgresql/bin/pg_python',
@@ -148,6 +152,18 @@ def prefixed_packages(
 	for pkg in packages:
 		yield prefix + pkg
 
+def prefixed_package_data(
+	prefix : "prefix to prepend to dictionary keys paths" = default_prefix,
+	package_data = subpackage_data,
+):
+	"""
+	Generator producing the standard `package` list prefixed with `prefix`.
+	"""
+	prefix = '.'.join(prefix)
+	prefix = prefix + '.'
+	for pkg, data in package_data.items():
+		yield prefix + pkg, data
+
 def standard_setup_keywords(build_extensions = True, prefix = default_prefix):
 	"""
 	Used by the py-postgresql distribution.
@@ -164,6 +180,7 @@ def standard_setup_keywords(build_extensions = True, prefix = default_prefix):
 		'url' : url,
 		'classifiers' : CLASSIFIERS,
 		'packages' : list(prefixed_packages(prefix = prefix)),
+		'package_data' : dict(prefixed_package_data(prefix = prefix)),
 		'scripts' : scripts,
 	}
 	if build_extensions:

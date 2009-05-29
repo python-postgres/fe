@@ -29,8 +29,8 @@ statement is to be used. The user may state the default execution method of
 the statement object, or whether the symbol is to be preloaded at bind
 time--these properties are Symbol Annotations.
 
-The purpose of query libraries to is provide a means to manage statements on
-disk and at runtime. That is, ILFs provide a means to reference a collection
+The purpose of query libraries is to provide a means to manage statements on
+disk and at runtime. ILFs provide a means to reference a collection
 of statements on disk, and, when loaded, the symbol bindings provides means to
 reference a statement already prepared for use on a given connection.
 
@@ -73,7 +73,7 @@ Empty components indicate the default effect.
 
 The second component in the section identifier is the symbol type. All Symbol
 types are listed in `Symbol Types`_. This can be
-used to specify what the section's contents are or even when to bind the
+used to specify what the section's contents are or when to bind the
 symbol::
 
 	[get_user_info:preload]
@@ -211,9 +211,9 @@ attributes which can be called to in order to execute the Symbol's statement::
 	>>> B.symbol(param)
 	...
 
-Normally, manual creation of a Binding is discouraged. Rather,
-`postgresql.lib.Category` objects should be used to manage the set of Libraries
-to be bound to a connection.
+While it is sometimes necessary, manual creation of a Binding is discouraged.
+Rather, `postgresql.lib.Category` objects should be used to manage the set of
+Libraries to be bound to a connection.
 
 
 Categories
@@ -222,10 +222,11 @@ Categories
 Libraries provide access to a collection of symbols; Bindings provide an
 interface to the symbols with respect to a subject database. When a connection
 is established, multiple Bindings may need to be created in order to fulfill
-the requirements of a user. When a Binding is created, it exists in isolation;
-this can be an inconvenience when access to both the Binding and the Connection
-is necessary. Categories exist to provide a formal method for defining the
-interface extensions on a `postgresql.api.Database` instance(connection).
+the requirements of the programmer. When a Binding is created, it exists in
+isolation; this can be an inconvenience when access to both the Binding and
+the Connection is necessary. Categories exist to provide a formal method for
+defining the interface extensions on a `postgresql.api.Database`
+instance(connection).
 
 A Category is essentially a runtime-class for connections. It provides a
 formal initialization procedure for connection objects at runtime. However,
@@ -257,9 +258,11 @@ At this point, when a connection is established as the category ``cat``,
 ``libN`` will be bound to the connection object on the attribute ``libname``
 instead of the name defined by the library.
 
-A complete illustration::
+And a final illustration of Category usage::
 
 	>>> db = postgresql.open(category = pg_lib.Category(pg_lib.load('name')))
+	>>> db.name
+	<Library>
 
 
 Symbol Types
@@ -276,8 +279,8 @@ that can be used in ILF libraries:
   used again, it will refer to the existing prepared statement object.
 
  ``preload``
-  The Symbol is a simple statement, but it should be loaded when the library
-  is bound to the connection.
+  Like the default type, the Symbol is a simple statement, but it should be
+  loaded when the library is bound to the connection.
 
  ``const``
   The statement takes no parameters and only needs to be executed once. This
@@ -331,6 +334,61 @@ effect it will have when invoked:
  ``load_rows``
   Takes an iterable rows to be given as parameters. If the statement is a ``COPY
   ... FROM STDIN``, the iterable must produce COPY lines.
+
+
+Distributing and Usage
+======================
+
+For applications, distribution and management can easily be a custom
+process. The application designates the library directory; the entry point
+adds the path to the `postgresql.sys.libpath` list; a category is built; and, a
+connection is made using the category.
+
+For mere Python extensions, however, ``distutils`` has a feature that can
+aid in ILF distribution. The ``package_data`` setup keyword can be used to
+include ILF files alongside the Python modules that make up a project. See
+http://docs.python.org/3.0/distutils/setupscript.html#installing-package-data
+for more detailed information on keyword parameter.
+
+The recommended way to manage libraries for extending projects is to
+create a package to contain them. For instance, consider the following layout::
+
+	project/
+		setup.py
+		pkg/
+			__init__.py
+			lib/
+				__init__.py
+				libthis.sql
+				libthat.sql
+
+The project's SQL libraries are organized into a single package directory,
+``lib``, and ``package_data`` would be configured::
+
+	package_data = {'pkg.lib': ['*.sql']}
+
+Subsequently, the ``lib`` package initialization script can then be used to
+load the libraries, and create categories(``project/pkg/lib/__init__.py``)::
+
+	import os.path
+	import postgresql.lib as pg_lib
+	import postgresql.sys as pg_sys
+	libdir = os.path.dirname(__file__)
+	pg_sys.libpath.append(libdir)
+	libthis = pg_lib.load('this')
+	libthat = pg_lib.load('that')
+	stdcat = pg_lib.Category(libthis, libthat)
+
+However, it can be undesirable to add the package directory to the global
+`postgresql.sys.libpath` search paths. Direct path loading can be used in those
+cases::
+
+	import os.path
+	import postgresql.lib as pg_lib
+	libdir = os.path.dirname(__file__)
+	libthis = pg_lib.load(os.path.join(libdir, 'libthis.sql'))
+	libthat = pg_lib.load(os.path.join(libdir, 'libthat.sql'))
+	stdcat = pg_lib.Category(libthis, libthat)
 
 
 Audience and Motivation

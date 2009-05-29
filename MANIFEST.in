@@ -1,3 +1,4 @@
 include AUTHORS
 include LICENSE
 recursive-include postgresql *.c
+recursive-include postgresql *.sql

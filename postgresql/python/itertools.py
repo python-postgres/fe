@@ -38,3 +38,12 @@ def chunk(iterable, chunksize = 256):
 		last = list(islice(iterable, chunksize))
 		lastsize = len(last)
 		yield last
+
+def find(iterable, selector):
+	"""
+	Return the first item in the `iterable` that causes the `selector` to return
+	`True`.
+	"""
+	for x in iterable:
+		if selector(x):
+			return x

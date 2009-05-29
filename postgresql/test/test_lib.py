@@ -17,8 +17,13 @@ preface
 
 [sym]
 select 1
+[sym_ref]
+*[sym]
+[sym_ref_trail]
+*[sym] WHERE FALSE
 [sym_first::first]
 select 1
+
 
 [sym_rows::rows]
 select 1
@@ -59,6 +64,8 @@ class test_lib(pg_unittest.TestCaseWithCluster):
 		self.db.execute("CREATE OR REPLACE FUNCTION test_ilf_proc(int) RETURNS int language sql as 'select $1';")
 		self.db.execute("CREATE OR REPLACE FUNCTION test_ilf_srf_proc(int) RETURNS SETOF int language sql as 'select $1';")
 		b = pg_lib.Binding(self.db, lib)
+		self.failUnlessEqual(b.sym_ref(), [(1,)])
+		self.failUnlessEqual(b.sym_ref_trail(), [])
 		self.failUnlessEqual(b.sym(), [(1,)])
 		self.failUnlessEqual(b.sym_first(), 1)
 		self.failUnlessEqual(list(b.sym_rows()), [(1,)])
