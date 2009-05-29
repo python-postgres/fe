@@ -17,7 +17,7 @@ from .python.element import format_element
 
 libpath = []
 
-def _msghook__(msg):
+def default_msghook(msg):
 	"""
 	Built-in message hook. DON'T TOUCH!
 	"""
@@ -33,12 +33,12 @@ def _msghook__(msg):
 
 def msghook(msg):
 	"""
-	Message hook pointing to _msghook__.
+	Message hook pointing to default_msghook.
 
 	Overload if you like. All untrapped messages raised by
 	driver connections come here to be printed to stderr.
 	"""
-	return _msghook__(msg)
+	return default_msghook(msg)
 
 def reset_msghook(with_func = msghook):
 	'restore the original msghook function'
