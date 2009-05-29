@@ -170,6 +170,13 @@ int4_pack(PyObject *self, PyObject *arg)
 	l = PyLong_AsLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
+	if (l >= (1L<<31) || l < -(1L<<31))
+	{
+		PyErr_Format(PyExc_OverflowError,
+			"long %lu overflows int4", l
+		);
+		return(NULL);
+	}
 	i = (int32_t) l;
 	return(PyBytes_FromStringAndSize((const char *) &i, 4));
 }
@@ -181,6 +188,13 @@ swap_int4_pack(PyObject *self, PyObject *arg)
 	l = PyLong_AsLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
+	if (l >= (1L<<31) || l < -(1L<<31))
+	{
+		PyErr_Format(PyExc_OverflowError,
+			"long %lu overflows int4", l
+		);
+		return(NULL);
+	}
 	i = (int32_t) l;
 	swap4(((char *) &i));
 	return(PyBytes_FromStringAndSize((const char *) &i, 4));
@@ -333,14 +347,14 @@ uint4_pack(PyObject *self, PyObject *arg)
 	l = PyLong_AsUnsignedLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	i = (uint32_t) l;
-	if (i != l)
+	if (l > 0xFFFFFFFF)
 	{
 		PyErr_Format(PyExc_OverflowError,
 			"long '%lu' overflows uint4", l
 		);
 		return(NULL);
 	}
+	i = (uint32_t) l;
 	return(PyBytes_FromStringAndSize((const char *) &i, 4));
 }
 static PyObject *
@@ -351,14 +365,14 @@ swap_uint4_pack(PyObject *self, PyObject *arg)
 	l = PyLong_AsUnsignedLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	i = (uint32_t) l;
-	if (i != l)
+	if (l > 0xFFFFFFFF)
 	{
 		PyErr_Format(PyExc_OverflowError,
 			"long '%lu' overflows uint4", l
 		);
 		return(NULL);
 	}
+	i = (uint32_t) l;
 	swap4(((char *) &i));
 	return(PyBytes_FromStringAndSize((const char *) &i, 4));
 }
@@ -373,7 +387,8 @@ uint4_unpack(PyObject *self, PyObject *arg)
 	len = PyBytes_Size(arg);
 	if (len != 4)
 	{
-		PyErr_SetString(PyExc_ValueError, "invalid size of data for uint4_unpack");
+		PyErr_SetString(PyExc_ValueError,
+			"invalid size of data for uint4_unpack");
 		return(NULL);
 	}
 	c = PyBytes_AsString(arg);
@@ -397,7 +412,8 @@ swap_uint4_unpack(PyObject *self, PyObject *arg)
 	len = PyBytes_Size(arg);
 	if (len != 4)
 	{
-		PyErr_SetString(PyExc_ValueError, "invalid size of data for swap_uint4_unpack");
+		PyErr_SetString(PyExc_ValueError,
+			"invalid size of data for swap_uint4_unpack");
 		return(NULL);
 	}
 
