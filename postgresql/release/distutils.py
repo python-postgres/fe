@@ -106,7 +106,8 @@ extensions_data = {
 }
 
 subpackage_data = {
-	'lib' : ['*.sql']
+	'lib' : ['*.sql'],
+	'documentation' : ['*.txt']
 }
 
 scripts = [
