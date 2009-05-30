@@ -170,7 +170,7 @@ int4_pack(PyObject *self, PyObject *arg)
 	l = PyLong_AsLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	if (!(l <= (long) 0x7FFFFFFF && l >= (long) (-0x80000000)))
+	if (!(l <= (long) 0x7FFFFFFFL && l >= (long) (-0x80000000L)))
 	{
 		PyErr_Format(PyExc_OverflowError,
 			"long '%ld' overflows int4", l
@@ -188,7 +188,7 @@ swap_int4_pack(PyObject *self, PyObject *arg)
 	l = PyLong_AsLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	if (!(l <= (long) 0x7FFFFFFF && l >= (long) (-0x80000000)))
+	if (!(l <= (long) 0x7FFFFFFFL && l >= (long) (-0x80000000L)))
 	{
 		PyErr_Format(PyExc_OverflowError,
 			"long '%ld' overflows int4", l
