@@ -2,7 +2,7 @@
 # copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
--- Queries for dealing with the PostgreSQL catalogs.
+-- Queries for dealing with the PostgreSQL catalogs for supporting the driver.
 
 [lookup_type::first]
 SELECT
@@ -27,6 +27,7 @@ FROM pg_catalog.pg_type bt
 WHERE bt.oid = $1
 
 [lookup_composite]
+-- Get the type Oid and name of the attributes in `attnum` order.
 SELECT
  CAST(atttypid AS oid) AS atttypid,
  CAST(attname AS VARCHAR) AS attname
@@ -59,7 +60,7 @@ FROM
 *[lookup_procedures]
  WHERE pg_proc.oid = regprocedurein($1)
 
-[lookup_prepared_xacts]
+[lookup_prepared_xacts::first]
 SELECT
 	COALESCE(ARRAY(
 		SELECT
