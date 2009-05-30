@@ -13,7 +13,7 @@ from threading import Thread
 from ..protocol import element3 as e3
 from ..protocol import xact3 as x3
 from ..protocol import client3 as c3
-from ..protocol import pbuffer as p_buffer_module
+from ..protocol import buffer as pq_buf
 from ..protocol import typstruct as pg_typstruct
 from ..protocol import typio as pg_typio
 from .. import types as pg_types
@@ -24,14 +24,9 @@ def pair(msg):
 def pairs(*msgseq):
 	return list(map(pair, msgseq))
 
-try:
-	from ..protocol.optimized import pq_message_stream as c_pq_message_stream
-except ImportError:
-	c_pq_message_stream = None
-
-class buffer_test(object):
+class test_buffer(object):
 	def setUp(self):
-		self.buffer = self.bufferclass()
+		self.buffer = pq_buf.pq_message_stream()
 
 	def testMultiByteMessage(self):
 		b = self.buffer
@@ -87,13 +82,6 @@ class buffer_test(object):
 		msg = b.next_message()
 		self.failUnless(msg is not None)
 		self.failUnless(msg[0] == b'X')
-
-if c_pq_message_stream is not None:
-	class c_buffer(buffer_test, unittest.TestCase):
-		bufferclass = c_pq_message_stream
-
-class p_buffer(buffer_test, unittest.TestCase):
-	bufferclass = p_buffer_module.pq_message_stream
 
 ##
 # element3 tests
