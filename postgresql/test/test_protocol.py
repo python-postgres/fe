@@ -468,6 +468,23 @@ class test_xact3(unittest.TestCase):
 		self.failUnless(isinstance(v, Nee))
 
 class test_client3(unittest.TestCase):
+	def test_catmessages(self):
+		# The optimized implementation will identify adjacent copy data, and
+		# take a more efficient route; so rigorously test the switch between the
+		# two modes.
+		self.failUnlessEqual(c3.cat_messages([]), b'')
+		self.failUnlessEqual(c3.cat_messages([b'foo']), b'd\x00\x00\x00\x07foo')
+		self.failUnlessEqual(c3.cat_messages([b'foo', b'foo']), 2*b'd\x00\x00\x00\x07foo')
+		# copy, other, copy
+		self.failUnlessEqual(c3.cat_messages([b'foo', e3.SynchronizeMessage, b'foo']),
+			b'd\x00\x00\x00\x07foo' + e3.SynchronizeMessage.bytes() + b'd\x00\x00\x00\x07foo')
+		# copy, other, copy*1000
+		self.failUnlessEqual(c3.cat_messages(1000*[b'foo', e3.SynchronizeMessage, b'foo']),
+			1000*(b'd\x00\x00\x00\x07foo' + e3.SynchronizeMessage.bytes() + b'd\x00\x00\x00\x07foo'))
+		# other, copy, copy*1000
+		self.failUnlessEqual(c3.cat_messages(1000*[e3.SynchronizeMessage, b'foo', b'foo']),
+			1000*(e3.SynchronizeMessage.bytes() + 2*b'd\x00\x00\x00\x07foo'))
+
 	def test_timeout(self):
 		portnum = find_available_port()
 		servsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
