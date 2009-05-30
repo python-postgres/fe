@@ -343,7 +343,7 @@ For mere Python extensions, however, ``distutils`` has a feature that can
 aid in ILF distribution. The ``package_data`` setup keyword can be used to
 include ILF files alongside the Python modules that make up a project. See
 http://docs.python.org/3.0/distutils/setupscript.html#installing-package-data
-for more detailed information on keyword parameter.
+for more detailed information on the keyword parameter.
 
 The recommended way to manage libraries for extending projects is to
 create a package to contain them. For instance, consider the following layout::
@@ -358,12 +358,12 @@ create a package to contain them. For instance, consider the following layout::
 				libthat.sql
 
 The project's SQL libraries are organized into a single package directory,
-``lib``, and ``package_data`` would be configured::
+``lib``, so ``package_data`` would be configured::
 
 	package_data = {'pkg.lib': ['*.sql']}
 
 Subsequently, the ``lib`` package initialization script can then be used to
-load the libraries, and create categories(``project/pkg/lib/__init__.py``)::
+load the libraries, and create any categories(``project/pkg/lib/__init__.py``)::
 
 	import os.path
 	import postgresql.lib as pg_lib
@@ -384,6 +384,15 @@ cases::
 	libthis = pg_lib.load(os.path.join(libdir, 'libthis.sql'))
 	libthat = pg_lib.load(os.path.join(libdir, 'libthat.sql'))
 	stdcat = pg_lib.Category(libthis, libthat)
+
+Using the established project context, a connection would then be created as::
+
+	from pkg.lib import stdcat
+	import postgresql as pg
+	db = pg.open(..., category = stdcat)
+	# And execute some fictitious symbols.
+	db.this.sym_from_libthis()
+	db.that.sym_from_libthat(...)
 
 
 Audience and Motivation
