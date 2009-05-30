@@ -56,17 +56,17 @@ return_short(short s)
 	return(s);
 }
 
-static long
-swap_long(long l)
+static int32_t
+swap_int4(int32_t i)
 {
-	swap4(((char *) &l));
-	return(l);
+	swap4(((char *) &i));
+	return(i);
 }
 
-static long
-return_long(long l)
+static int32_t
+return_int4(int32_t i)
 {
-	return(l);
+	return(i);
 }
 
 static PyObject *
@@ -166,27 +166,31 @@ static PyObject *
 int4_pack(PyObject *self, PyObject *arg)
 {
 	long l;
+	int32_t i;
 	l = PyLong_AsLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	return(PyBytes_FromStringAndSize((const char *) &l, 4));
+	i = (int32_t) l;
+	return(PyBytes_FromStringAndSize((const char *) &i, 4));
 }
 static PyObject *
 swap_int4_pack(PyObject *self, PyObject *arg)
 {
 	long l;
+	int32_t i;
 	l = PyLong_AsLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	swap4(((char *) &l));
-	return(PyBytes_FromStringAndSize((const char *) &l, 4));
+	i = (int32_t) l;
+	swap4(((char *) &i));
+	return(PyBytes_FromStringAndSize((const char *) &i, 4));
 }
 
 static PyObject *
 int4_unpack(PyObject *self, PyObject *arg)
 {
 	char *c;
-	long l;
+	int32_t i;
 	Py_ssize_t len;
 
 	len = PyBytes_Size(arg);
@@ -198,15 +202,15 @@ int4_unpack(PyObject *self, PyObject *arg)
 	c = PyBytes_AsString(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	l = *((long *) c);
+	i = *((int32_t *) c);
 
-	return(PyLong_FromLong(l));
+	return(PyLong_FromLong((long) i));
 }
 static PyObject *
 swap_int4_unpack(PyObject *self, PyObject *arg)
 {
 	char *c;
-	long l;
+	int32_t i;
 	Py_ssize_t len;
 
 	c = PyBytes_AsString(arg);
@@ -220,9 +224,9 @@ swap_int4_unpack(PyObject *self, PyObject *arg)
 		return(NULL);
 	}
 
-	l = *((long *) c);
-	swap4(((char *) &l));
-	return(PyLong_FromLong(l));
+	i = *((int32_t *) c);
+	swap4(((char *) &i));
+	return(PyLong_FromLong((long) i));
 }
 
 static PyObject *
@@ -324,28 +328,46 @@ swap_uint2_unpack(PyObject *self, PyObject *arg)
 static PyObject *
 uint4_pack(PyObject *self, PyObject *arg)
 {
+	uint32_t i;
 	unsigned long l;
 	l = PyLong_AsUnsignedLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	return(PyBytes_FromStringAndSize((const char *) &l, 4));
+	i = (uint32_t) l;
+	if (i != l)
+	{
+		PyErr_Format(PyExc_OverflowError,
+			"long '%lu' overflows uint4", l
+		);
+		return(NULL);
+	}
+	return(PyBytes_FromStringAndSize((const char *) &i, 4));
 }
 static PyObject *
 swap_uint4_pack(PyObject *self, PyObject *arg)
 {
+	uint32_t i;
 	unsigned long l;
 	l = PyLong_AsUnsignedLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	swap4(((char *) &l));
-	return(PyBytes_FromStringAndSize((const char *) &l, 4));
+	i = (uint32_t) l;
+	if (i != l)
+	{
+		PyErr_Format(PyExc_OverflowError,
+			"long '%lu' overflows uint4", l
+		);
+		return(NULL);
+	}
+	swap4(((char *) &i));
+	return(PyBytes_FromStringAndSize((const char *) &i, 4));
 }
 
 static PyObject *
 uint4_unpack(PyObject *self, PyObject *arg)
 {
 	char *c;
-	unsigned long l;
+	uint32_t i;
 	Py_ssize_t len;
 
 	len = PyBytes_Size(arg);
@@ -357,15 +379,15 @@ uint4_unpack(PyObject *self, PyObject *arg)
 	c = PyBytes_AsString(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	l = *((unsigned long *) c);
+	i = *((uint32_t *) c);
 
-	return(PyLong_FromUnsignedLong(l));
+	return(PyLong_FromUnsignedLong((unsigned long) i));
 }
 static PyObject *
 swap_uint4_unpack(PyObject *self, PyObject *arg)
 {
 	char *c;
-	unsigned long l;
+	uint32_t i;
 	Py_ssize_t len;
 
 	c = PyBytes_AsString(arg);
@@ -379,9 +401,10 @@ swap_uint4_unpack(PyObject *self, PyObject *arg)
 		return(NULL);
 	}
 
-	l = *((unsigned long *) c);
-	swap4(((char *) &l));
-	return(PyLong_FromUnsignedLong(l));
+	i = *((uint32_t *) c);
+	swap4(((char *) &i));
+
+	return(PyLong_FromUnsignedLong((unsigned long) i));
 }
 
 

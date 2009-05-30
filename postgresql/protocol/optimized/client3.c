@@ -70,7 +70,8 @@ cat_messages(PyObject *self, PyObject *messages_in)
 			{
 				ob = PyList_GET_ITEM(msgs, cmsg);
 				buf[bufpos] = 'd';
-				*((long *)(buf + bufpos + 1)) = local_ntohl(PyBytes_GET_SIZE(ob) + 4);
+				*((uint32_t *)(buf + bufpos + 1)) =
+					(uint32_t) local_ntohl(PyBytes_GET_SIZE(ob) + 4);
 				memcpy(buf + bufpos + 5, PyBytes_AS_STRING(ob), PyBytes_GET_SIZE(ob));
 				bufpos = bufpos + 5 + PyBytes_GET_SIZE(ob);
 				++cmsg;
@@ -136,7 +137,8 @@ cat_messages(PyObject *self, PyObject *messages_in)
 			}
 
 			buf[bufpos] = *(PyBytes_AS_STRING(msg_type));
-			*((long *)(buf + bufpos + msg_type_size)) = local_ntohl(PyBytes_GET_SIZE(serialized) + 4);
+			*((uint32_t *)(buf + bufpos + msg_type_size)) =
+				(uint32_t) local_ntohl(PyBytes_GET_SIZE(serialized) + 4);
 			memcpy(	
 				buf + bufpos + 4 + msg_type_size,
 				PyBytes_AS_STRING(serialized),

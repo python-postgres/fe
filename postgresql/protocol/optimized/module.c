@@ -30,7 +30,7 @@ static PyObject *message_types = NULL;
 static PyObject *serialize_strob = NULL;
 static PyObject *msgtype_strob = NULL;
 
-static long (*local_ntohl)(long) = NULL;
+static int32_t (*local_ntohl)(int32_t) = NULL;
 static short (*local_ntohs)(short) = NULL;
 
 
@@ -66,7 +66,7 @@ PyInit_optimized(void)
 	PyObject *mod;
 	PyObject *msgtypes;
 	PyObject *fromlist, *fromstr;
-	long l = 1;
+	long l;
 
 	if (serialize_strob == NULL)
 	{
@@ -97,16 +97,17 @@ PyInit_optimized(void)
 	include_buffer_types
 #undef mTYPE
 
+	l = 1;
 	if (((char *) &l)[0] == 1)
 	{
 		/* little */
-		local_ntohl = swap_long;
+		local_ntohl = swap_int4;
 		local_ntohs = swap_short;
 	}
 	else
 	{
 		/* big */
-		local_ntohl = return_long;
+		local_ntohl = return_int4;
 		local_ntohs = return_short;
 	}
 

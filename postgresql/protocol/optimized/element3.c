@@ -76,12 +76,20 @@ _pack_tuple_data(PyObject *tup)
 		ob = PyTuple_GET_ITEM(tup, catt);
 		if (ob == Py_None)
 		{
-			*((unsigned long *)bufpos) = 0xFFFFFFFF;
+			*((uint32_t *) bufpos) = 0xFFFFFFFF;
 			bufpos = bufpos + 4;
 		}
 		else
 		{
-			*((long *)(bufpos)) = local_ntohl(PyBytes_GET_SIZE(ob));
+			Py_ssize_t size = PyBytes_GET_SIZE(ob);
+			if (size > 0xFFFFFFFE)
+			{
+				PyErr_Format(PyExc_OverflowError,
+					"data size of %d is greater than attribute capacity",
+					catt
+				);
+			}
+			*((uint32_t *) bufpos) = local_ntohl((uint32_t) size);
 			bufpos = bufpos + 4;
 			memcpy(bufpos, PyBytes_AS_STRING(ob), PyBytes_GET_SIZE(ob));
 			bufpos = bufpos + PyBytes_GET_SIZE(ob);
