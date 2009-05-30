@@ -170,10 +170,10 @@ int4_pack(PyObject *self, PyObject *arg)
 	l = PyLong_AsLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	if (l >= (1L<<31) || l < -(1L<<31))
+	if (!(l <= (long) 0x7FFFFFFF && l >= (long) (-0x80000000)))
 	{
 		PyErr_Format(PyExc_OverflowError,
-			"long %lu overflows int4", l
+			"long '%ld' overflows int4", l
 		);
 		return(NULL);
 	}
@@ -188,10 +188,10 @@ swap_int4_pack(PyObject *self, PyObject *arg)
 	l = PyLong_AsLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	if (l >= (1L<<31) || l < -(1L<<31))
+	if (!(l <= (long) 0x7FFFFFFF && l >= (long) (-0x80000000)))
 	{
 		PyErr_Format(PyExc_OverflowError,
-			"long %lu overflows int4", l
+			"long '%ld' overflows int4", l
 		);
 		return(NULL);
 	}
@@ -256,7 +256,7 @@ uint2_pack(PyObject *self, PyObject *arg)
 	if (l > USHORT_MAX || l < 0)
 	{
 		PyErr_Format(PyExc_OverflowError,
-			"long '%d' overflows uint2", l
+			"long '%ld' overflows uint2", l
 		);
 		return(NULL);
 	}
@@ -277,7 +277,7 @@ swap_uint2_pack(PyObject *self, PyObject *arg)
 	if (l > USHORT_MAX || l < 0)
 	{
 		PyErr_Format(PyExc_OverflowError,
-			"long '%d' overflows uint2", l
+			"long '%ld' overflows uint2", l
 		);
 		return(NULL);
 	}
