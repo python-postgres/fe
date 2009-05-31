@@ -255,6 +255,7 @@ class Cursor(object):
 		c = ps.chunks(*pxf(parameters))
 		if ps._output is not None and len(ps._output) > 0:
 			# name, relationId, columnNumber, typeId, typlen, typmod, format
+			self.rowcount = -1
 			self.description = tuple([
 				(self.database.typio.decode(x[0]), dbapi_type(x[3]),
 				None, None, None, None, None)
@@ -262,6 +263,9 @@ class Cursor(object):
 			])
 			self.__portals.insert(0, Portal(c))
 		else:
+			self.rowcount = c.count()
+			if self.rowcount is None:
+				self.rowcount = -1
 			self.description = None
 			# execute bumps any current portal
 			if self.__portals:
@@ -272,9 +276,10 @@ class Cursor(object):
 		sql, pxf, nparams = self._convert_query(statement)
 		ps = self.database.prepare(sql)
 		if ps._input is not None:
-			ps.load(map(pxf, parameters))
+			ps.load_rows(map(pxf, parameters))
 		else:
-			ps.load(parameters)
+			ps.load_rows(parameters)
+		self.rowcount = -1
 		return self
 
 	def close(self):

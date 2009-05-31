@@ -271,24 +271,33 @@ class test_dbapi20(TestCaseWithCluster):
 		try:
 			cur = con.cursor()
 			self.executeDDL1(cur)
-			self.assertEqual(cur.rowcount,-1,
+			self.assertEqual(cur.rowcount, -1,
 				'cursor.rowcount should be -1 after executing no-result '
 				'statements'
 			)
 			cur.execute("insert into %sbooze values ('Victoria Bitter')" % (
 				self.table_prefix
 			))
-			self.failUnless(cur.rowcount in (-1,1),
+			self.failUnlessEqual(cur.rowcount, 1,
 				'cursor.rowcount should == number or rows inserted, or '
 				'set to -1 after executing an insert statement'
 			)
+			cur.execute("insert into %sbooze select 'Victoria Bitter' WHERE FALSE" % (
+				self.table_prefix
+			))
+			self.failUnlessEqual(cur.rowcount, 0)
+			cur.execute("insert into %sbooze select 'First' UNION ALL select 'second'" % (
+				self.table_prefix
+			))
+			self.failUnlessEqual(cur.rowcount, 2)
+
 			cur.execute("select name from %sbooze" % self.table_prefix)
-			self.failUnless(cur.rowcount in (-1,1),
+			self.failUnlessEqual(cur.rowcount, -1,
 				'cursor.rowcount should == number of rows returned, or '
 				'set to -1 after executing a select statement'
 			)
 			self.executeDDL2(cur)
-			self.assertEqual(cur.rowcount,-1,
+			self.assertEqual(cur.rowcount, -1,
 				'cursor.rowcount not being reset to -1 after executing '
 				'no-result statements'
 			)

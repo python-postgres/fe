@@ -21,6 +21,7 @@ Changes
  * Make DB-API connect() inherit defaults like postgresql.open()
  * Make DB-API extend PG-API so that DB-API connections will now have direct
    access to PG-API features.
+ * Fix DB-API setting of rowcount after execute. [Reported by Mike Bayer; 1010643]
 
 
 0.8.2
@@ -29,6 +30,7 @@ Changes
  * Correct StoredProcedure's statement production. It was falsely using a
    a mechanism that would use SQL predefined type names instead of
    qualified names. [Reported by Dallas Morisett]
+ * Fix DB-API setting of rowcount after execute. [Reported by Mike Bayer; 1010643]
 
 
 0.8.1 released on 2009-04-30
