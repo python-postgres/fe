@@ -490,6 +490,7 @@ def process_chunk(procs, tupc, fail):
 	]
 
 try:
+	# C implementation of the tuple processors.
 	from .optimized import process_tuple, process_chunk
 except ImportError:
 	pass

@@ -36,6 +36,7 @@
 	c=P[3];P[3]=P[0];P[0]=c;\
 	c=P[2];P[2]=P[1];P[1]=c;\
 }while(0)
+/* unused - jwp2009 */
 #define swap8(P) do{register char c; \
 	c=P[7];P[7]=P[0];P[0]=c;\
 	c=P[6];P[6]=P[1];P[1]=c;\
@@ -167,6 +168,7 @@ int4_pack(PyObject *self, PyObject *arg)
 {
 	long l;
 	int32_t i;
+
 	l = PyLong_AsLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
@@ -185,6 +187,7 @@ swap_int4_pack(PyObject *self, PyObject *arg)
 {
 	long l;
 	int32_t i;
+
 	l = PyLong_AsLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
@@ -207,15 +210,16 @@ int4_unpack(PyObject *self, PyObject *arg)
 	int32_t i;
 	Py_ssize_t len;
 
+	c = PyBytes_AsString(arg);
+	if (PyErr_Occurred())
+		return(NULL);
+
 	len = PyBytes_Size(arg);
 	if (len != 4)
 	{
 		PyErr_SetString(PyExc_ValueError, "invalid size of data for int4_unpack");
 		return(NULL);
 	}
-	c = PyBytes_AsString(arg);
-	if (PyErr_Occurred())
-		return(NULL);
 	i = *((int32_t *) c);
 
 	return(PyLong_FromLong((long) i));
@@ -300,7 +304,7 @@ uint2_unpack(PyObject *self, PyObject *arg)
 	if (PyErr_Occurred())
 		return(NULL);
 
-	len = PyBytes_Size(arg);
+	len = PyBytes_GET_SIZE(arg);
 	if (len != 2)
 	{
 		PyErr_SetString(PyExc_ValueError, "invalid size of data for uint2_unpack");
@@ -325,7 +329,7 @@ swap_uint2_unpack(PyObject *self, PyObject *arg)
 	if (PyErr_Occurred())
 		return(NULL);
 
-	len = PyBytes_Size(arg);
+	len = PyBytes_GET_SIZE(arg);
 	if (len != 2)
 	{
 		PyErr_SetString(PyExc_ValueError, "invalid size of data for swap_uint2_unpack");
@@ -344,16 +348,18 @@ uint4_pack(PyObject *self, PyObject *arg)
 {
 	uint32_t i;
 	unsigned long l;
+
 	l = PyLong_AsUnsignedLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	if (l > 0xFFFFFFFF)
+	if (l > 0xFFFFFFFFL)
 	{
 		PyErr_Format(PyExc_OverflowError,
 			"long '%lu' overflows uint4", l
 		);
 		return(NULL);
 	}
+
 	i = (uint32_t) l;
 	return(PyBytes_FromStringAndSize((const char *) &i, 4));
 }
@@ -362,16 +368,18 @@ swap_uint4_pack(PyObject *self, PyObject *arg)
 {
 	uint32_t i;
 	unsigned long l;
+
 	l = PyLong_AsUnsignedLong(arg);
 	if (PyErr_Occurred())
 		return(NULL);
-	if (l > 0xFFFFFFFF)
+	if (l > 0xFFFFFFFFL)
 	{
 		PyErr_Format(PyExc_OverflowError,
 			"long '%lu' overflows uint4", l
 		);
 		return(NULL);
 	}
+
 	i = (uint32_t) l;
 	swap4(((char *) &i));
 	return(PyBytes_FromStringAndSize((const char *) &i, 4));
@@ -438,7 +446,7 @@ _process_tuple(PyObject *procs, PyObject *tup, PyObject *fail)
 	{
 		PyErr_SetString(
 			PyExc_TypeError,
-			"process_tuple requires a tuple as its first argument"
+			"process_tuple requires an exact tuple as its first argument"
 		);
 		return(NULL);
 	}
@@ -458,17 +466,24 @@ _process_tuple(PyObject *procs, PyObject *tup, PyObject *fail)
 	{
 		PyErr_Format(
 			PyExc_ValueError,
-			"inconsistent items, %d processors and %d objects",
+			"inconsistent items, %d processors and %d items in row",
 			len,
 			PyTuple_GET_SIZE(procs)
 		);
 		return(NULL);
 	}
+	/* types check out; consistent sizes */
 	rob = PyTuple_New(len);
 
 	for (i = 0; i < len; ++i)
 	{
 		PyObject *p, *o, *ot, *r;
+		/* p = processor,
+		 * o = source object,
+		 * ot = o's tuple (temp for application to p),
+		 * r = transformed * output
+		 */
+
 		/*
 		 * If it's Py_None, that means it's NULL. No processing necessary.
 		 */
@@ -477,6 +492,7 @@ _process_tuple(PyObject *procs, PyObject *tup, PyObject *fail)
 		{
 			Py_INCREF(Py_None);
 			PyTuple_SET_ITEM(rob, i, Py_None);
+			/* mmmm, cake! */
 			continue;
 		}
 
@@ -490,11 +506,23 @@ _process_tuple(PyObject *procs, PyObject *tup, PyObject *fail)
 
 		r = PyObject_CallObject(p, ot);
 		Py_DECREF(ot);
-		if (r == NULL)
+		if (r != NULL)
+		{
+			/* good, set it and move on. */
+			PyTuple_SET_ITEM(rob, i, r);
+		}
+		else
 		{
 			/*
-			 * Exception from p(*ot)
+			 * Exception caused by >>> p(*ot)
+			 *
+			 * In this case, the failure callback needs to be called
+			 * in order to properly generalize the failure. There are numerous,
+			 * and (sometimes) inconsistent reasons why a tuple cannot be
+			 * processed and therefore a generalized exception raised in the
+			 * context of the original is very useful.
 			 */
+
 			Py_DECREF(rob);
 			rob = NULL;
 
@@ -573,7 +601,6 @@ _process_tuple(PyObject *procs, PyObject *tup, PyObject *fail)
 			 */
 			break;
 		}
-		PyTuple_SET_ITEM(rob, i, r);
 	}
 
 	return(rob);
@@ -600,10 +627,13 @@ _process_chunk_new_list(PyObject *procs, PyObject *tupc, PyObject *fail)
 	PyObject *rob;
 	Py_ssize_t i, len;
 
+	/*
+	 * Turn the iterable into a new list.
+	 */
 	rob = PyObject_CallFunctionObjArgs((PyObject *) &PyList_Type, tupc, NULL);
 	if (rob == NULL)
 		return(NULL);
-	len = PyList_Size(rob);
+	len = PyList_GET_SIZE(rob);
 
 	for (i = 0; i < len; ++i)
 	{
@@ -611,10 +641,11 @@ _process_chunk_new_list(PyObject *procs, PyObject *tupc, PyObject *fail)
 		/*
 		 * If it's Py_None, that means it's NULL. No processing necessary.
 		 */
-		tup = PyList_GetItem(rob, i);
+		tup = PyList_GetItem(rob, i); /* borrowed ref from list */
 		r = _process_tuple(procs, tup, fail);
 		if (r == NULL)
 		{
+			/* process_tuple failed. assume PyErr_Occurred() */
 			Py_DECREF(rob);
 			return(NULL);
 		}
@@ -668,6 +699,10 @@ process_chunk(PyObject *self, PyObject *args)
 
 	if (PyList_Check(tupc))
 	{
+		/*
+		 * If given a list, it's assumed that the user wants the contents
+		 * replaced. The list(tupc) will be returned.
+		 */
 		return(_process_chunk_from_list(procs, tupc, fail));
 	}
 	else

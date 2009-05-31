@@ -88,6 +88,7 @@ ql_pack, ql_unpack = mk_pack("ql")
 
 hhhh_pack, hhhh_unpack = mk_pack("hhhh")
 
+# Optimizations for int2 and int4.
 try:
 	from sys import byteorder as bo
 	if bo == 'little':
@@ -95,7 +96,7 @@ try:
 		from .optimized import swap_int4_unpack as long_unpack, swap_int4_pack as long_pack
 		from .optimized import swap_uint2_unpack as ushort_unpack, swap_uint2_pack as ushort_pack
 		from .optimized import swap_uint4_unpack as ulong_unpack, swap_uint4_pack as ulong_pack
-	else:
+	elif bo == 'big':
 		from .optimized import int2_unpack as short_unpack, int2_pack as short_pack
 		from .optimized import int4_unpack as long_unpack, int4_pack as long_pack
 		from .optimized import uint2_unpack as ushort_unpack, uint2_pack as ushort_pack
