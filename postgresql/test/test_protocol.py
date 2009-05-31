@@ -484,6 +484,23 @@ class test_client3(unittest.TestCase):
 		# other, copy, copy*1000
 		self.failUnlessEqual(c3.cat_messages(1000*[e3.SynchronizeMessage, b'foo', b'foo']),
 			1000*(e3.SynchronizeMessage.bytes() + 2*b'd\x00\x00\x00\x07foo'))
+		class ThisEx(Exception):
+			pass
+		class ThatEx(Exception):
+			pass
+		class Bad(e3.Message):
+			def serialize(self):
+				raise ThisEx('foo')
+		self.failUnlessRaises(ThisEx, c3.cat_messages, [Bad()])
+		class NoType(e3.Message):
+			def serialize(self):
+				return b''
+		self.failUnlessRaises(AttributeError, c3.cat_messages, [NoType()])
+		class BadType(e3.Message):
+			type = 123
+			def serialize(self):
+				return b''
+		self.failUnlessRaises((TypeError,struct.error), c3.cat_messages, [BadType()])
 
 	def test_timeout(self):
 		portnum = find_available_port()

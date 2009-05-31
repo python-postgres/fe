@@ -15,11 +15,17 @@ cat_messages(PyObject *self, PyObject *messages_in)
 	Py_ssize_t nmsgs = 0;
 	Py_ssize_t cmsg = 0;
 
+	/*
+	 * Buffer holding the messages' serialized form.
+	 */
 	char *buf = NULL;
 	char *nbuf = NULL;
 	Py_ssize_t bufsize = 0;
 	Py_ssize_t bufpos = 0;
 
+	/*
+	 * Get a List object for faster rescanning when dealing with copy data.
+	 */
 	msgs = PyObject_CallFunctionObjArgs((PyObject *) &PyList_Type, messages_in, NULL);
 	if (msgs == NULL)
 		return(NULL);
@@ -31,22 +37,29 @@ cat_messages(PyObject *self, PyObject *messages_in)
 		ob = PyList_GET_ITEM(msgs, cmsg);
 
 		/*
-		 * Choose the extension path, lots of copy data
-		 * or more singles to serialize?
+		 * Choose the path, lots of copy data or more singles to serialize?
 		 */
 		if (PyBytes_CheckExact(ob))
 		{
 			Py_ssize_t eofc = cmsg;
 			Py_ssize_t xsize = 0;
-			/* find the end of the copy data */
+			/* find the last of the copy data (eofc) */
 			do
 			{
 				++eofc;
+				/* increase in size to allocate for the adjacent copy messages */
 				xsize += PyBytes_GET_SIZE(ob);
 				if (eofc >= nmsgs)
-					break;
+					break; /* end of messages in the list? */
+
+				/* Grab the next message. */
 				ob = PyList_GET_ITEM(msgs, eofc);
 			} while(PyBytes_CheckExact(ob));
+
+			/*
+			 * Either the end of the list or `ob` is not a data object meaning
+			 * that it's the end of the copy data.
+			 */
 
 			/* realloc the buf for the new copy data */
 			bufsize = bufsize + (5 * (eofc - cmsg)) + xsize;
@@ -55,8 +68,8 @@ cat_messages(PyObject *self, PyObject *messages_in)
 			{
 				PyErr_Format(
 					PyExc_MemoryError,
-					"failed to allocate %d bytes of memory for out-going messages",
-					bufsize
+					"failed to allocate %lu bytes of memory for out-going messages",
+					(unsigned long) bufsize
 				);
 				goto fail;
 			}
@@ -66,6 +79,10 @@ cat_messages(PyObject *self, PyObject *messages_in)
 				nbuf = NULL;
 			}
 
+			/*
+			 * Make the final pass through the copy lines memcpy'ing the data from
+			 * the bytes() objects.
+			 */
 			while (cmsg < eofc)
 			{
 				ob = PyList_GET_ITEM(msgs, cmsg);
@@ -81,8 +98,13 @@ cat_messages(PyObject *self, PyObject *messages_in)
 		{
 			PyObject *serialized;
 			PyObject *msg_type;
-			int msg_type_size = 1;
+			int msg_type_size;
 
+			/*
+			 * Call the serialize() method on the element object.
+			 * Do this instead of the normal bytes() method to avoid
+			 * the type and size packing overhead.
+			 */
 			serialized = PyObject_CallMethodObjArgs(ob, serialize_strob, NULL);
 			if (serialized == NULL)
 				goto fail;
@@ -91,8 +113,8 @@ cat_messages(PyObject *self, PyObject *messages_in)
 				PyErr_Format(
 					PyExc_TypeError,
 					"%s.serialize() returned object of type %s, expected bytes",
-					((PyTypeObject *) ob->ob_type)->tp_name,
-					((PyTypeObject *) serialized->ob_type)->tp_name
+					PyObject_TypeName(ob),
+					PyObject_TypeName(serialized)
 				);
 				goto fail;
 			}
@@ -110,10 +132,14 @@ cat_messages(PyObject *self, PyObject *messages_in)
 				PyErr_Format(
 					PyExc_TypeError,
 					"message's 'type' attribute was %s, expected bytes",
-					((PyTypeObject *) ob->ob_type)->tp_name
+					PyObject_TypeName(ob)
 				);
 				goto fail;
 			}
+			/*
+			 * Some elements have empty message types--Startup for instance.
+			 * It is important to get the actual size rather than assuming one.
+			 */
 			msg_type_size = PyBytes_GET_SIZE(msg_type);
 
 			/* realloc the buf for the new copy data */
@@ -136,7 +162,11 @@ cat_messages(PyObject *self, PyObject *messages_in)
 				nbuf = NULL;
 			}
 
+			/*
+			 * All necessary information acquired, so fill in the message's data.
+			 */
 			buf[bufpos] = *(PyBytes_AS_STRING(msg_type));
+			/* data size */
 			*((uint32_t *)(buf + bufpos + msg_type_size)) =
 				(uint32_t) local_ntohl(PyBytes_GET_SIZE(serialized) + 4);
 			memcpy(	
