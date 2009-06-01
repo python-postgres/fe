@@ -189,6 +189,7 @@ class Cursor(object):
 		c = ps._cursor(*pxf(parameters))
 		if ps._output is not None and len(ps._output) > 0:
 			# name, relationId, columnNumber, typeId, typlen, typmod, format
+			self.rowcount = -1
 			self.description = tuple([
 				(self.database.typio.decode(x[0]), dbapi_type(x[3]),
 				None, None, None, None, None)
@@ -196,6 +197,9 @@ class Cursor(object):
 			])
 			self.__portals.insert(0, c)
 		else:
+			self.rowcount = c.count()
+			if self.rowcount is None:
+				self.rowcount = -1
 			self.description = None
 			if self.__portals:
 				del self._portal
@@ -208,6 +212,7 @@ class Cursor(object):
 			ps.load(map(pxf, parameters))
 		else:
 			ps.load(parameters)
+		self.rowcount = -1
 		return self
 
 	def close(self):

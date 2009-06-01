@@ -9,7 +9,10 @@ Changes
 0.8.2
 -----
 
- * Fix stored procedure statement rendering [#1010620, Dallas Morisette]
+ * Correct StoredProcedure's statement production. It was falsely using a
+   a mechanism that would use SQL predefined type names instead of
+   qualified names. [#1010620, Reported by Dallas Morisett]
+ * Fix DB-API setting of rowcount after execute. [Reported by Mike Bayer; 1010643]
 
 0.8.1 released on 2009-04-30
 ----------------------------
