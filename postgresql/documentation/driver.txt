@@ -275,8 +275,8 @@ interfaces:
   Revocation list file path. [Currently not checked.]
 
  ``category``
-  A `postgresql.api.Category` instance used to execute further database
-  initialization such as library bindings.
+  A `postgresql.api.Category` instance used to further initialize
+  the database.
 
 
 Connections
@@ -346,6 +346,12 @@ The methods and properties on the connection object are ready for use:
  ``db.clone()``
   Create a new connection object based on the same factors that were used to
   create ``db``. The new connection returned will already be connected.
+
+ ``db.msghook(msg)``
+  By default, the `msghook` attribute does not exist. If set to a callable, any
+  message that occurs during an operation of the database or an operation of a
+  database derived object will be given to the callable. See the
+  `Message Management`_ section for more information.
 
 
 Connection Metadata
@@ -512,6 +518,12 @@ Prepared statement objects have a few execution methods:
  ``ps.clone()``
   Create a new statement object based on the same factors that were used to
   create ``ps``.
+
+ ``ps.msghook(msg)``
+  By default, the `msghook` attribute does not exist. If set to a callable, any
+  message that occurs during an operation of the statement or an operation of a
+  statement derived object will be given to the callable. See the
+  `Message Management`_ section for more information.
 
 
 Statement Metadata
@@ -830,6 +842,12 @@ those results:
  ``c.clone()``
   Create a new cursor object based on the same factors that were used to
   create ``c``.
+
+ ``c.msghook(msg)``
+  By default, the `msghook` attribute does not exist. If set to a callable, any
+  message that occurs during an operation of the cursor will be given to the
+  callable. See the `Message Management`_ section for more information.
+
 
 Cursors have some additional configuration properties that may be modified
 during the use of the cursor:
@@ -1298,6 +1316,11 @@ that change of state.
   Prepare the transaction for the final commit. Once prepared, the second commit
   may be ran to finalize the transaction, ``x.commit()``. 
 
+ ``x.msghook(msg)``
+  By default, the `msghook` attribute does not exist. If set to a callable, any
+  message that occurs during an operation of the transaction will be given to
+  the callable. See the `Message Management`_ section for more information.
+
 These methods are primarily provided for applications that manage transactions
 in a way that cannot be formed around single, sequential blocks of code.
 Generally, using these methods require additional work to be performed by the
@@ -1605,3 +1628,81 @@ Or if use of a dictionary is desired::
 
 When a dictionary is given to construct the row, absent values are filled with
 `None`.
+
+
+Message Management
+==================
+
+By default, py-postgresql gives detailed reports of messages emitted by the
+database. Often, the verbosity is excessive due to single target processes or
+existing application infrastructure for tracing the sources of various events.
+
+PostgreSQL itself provides a noise reduction tool for the client via the
+``client_min_messages`` setting. Altering this setting to a preferred level
+either temporarily or permanently can be an appropriate solution in many cases.
+
+When finer grained control over message details is needed, py-postgresql's
+object relationship model provides a common protocol for controlling message
+propagation and, ultimately, display.
+
+The ``msghook`` attribute on elements is absent by default. However, when
+present on an object--explicitly set--that contributed the cause of a message
+event, it will be invoked with the Message, `postgresql.api.Message`, object as
+its sole parameter. The attribute of the object that is closest to the event is
+checked first, if present it will be called. If the ``msghook()`` call returns
+a `True` value(specficially, ``bool(x) is True``), the message will not be
+propagated any further. However, if a `False` value is returned, the next
+element is checked until the list is exhausted and the message is given to
+`postgresql.sys.msghook`. The normal list of elements is as follows::
+
+	Output -> Statement -> Connection -> Connector -> Driver [-> postgresql.sys]
+
+Where ``Output`` can be a `postgresql.api.Cursor` object produced by
+``declare(...)`` or an implicit output management object used *internally* by
+``__call__()`` and other statement execution methods. Setting the ``msghook``
+attribute on `postgresql.api.PreparedStatment` gives very fine control over
+raised messages. Consider filtering the notice message on create table
+statements that implicitly create indexes::
+
+	>>> db = postgresql.open(...)
+	>>> ct_this = db.prepare('CREATE TEMP TABLE "this" (i int PRIMARY KEY)')
+	>>> ct_that = db.prepare('CREATE TEMP TABLE "that" (i int PRIMARY KEY)')
+	>>> def filter_notices(msg):
+	...  if msg.details['severity'] == 'NOTICE':
+	...   return True
+	...
+	>>> ct_that()
+	NOTICE: CREATE TABLE / PRIMARY KEY will create implicit index "that_pkey" for table "that"
+	...
+	('CREATE', None)
+	>>> ct_this.msghook = filter_notices
+	>>> ct_this()
+	('CREATE', None)
+	>>>
+
+The above illustrates the quality of an installed ``msghook`` that simply
+inhibits further propagation messages with a severity of 'NOTICE'--but, only
+notices coming from objects derived from the ``ct_this``
+`postgresql.api.PreparedStatement` object.
+
+Subsequently, if the filter is installed on the connection's ``msghook``::
+
+	>>> db = postgresql.open(...)
+	>>> ct_this = db.prepare('CREATE TEMP TABLE "this" (i int PRIMARY KEY)')
+	>>> ct_that = db.prepare('CREATE TEMP TABLE "that" (i int PRIMARY KEY)')
+	>>> def filter_notices(msg):
+	...  if msg.details['severity'] == 'NOTICE':
+	...   return True
+	...
+	>>> db.msghook = filter_notices
+	>>> ct_that()
+	('CREATE', None)
+	>>> ct_this()
+	('CREATE', None)
+	>>>
+
+Any message with ``'NOTICE'`` severity coming from the connection, ``db``, will be
+suffocated by the ``filter_notices`` function. However, if a ``msghook`` is
+installed on either of those statements, it would be possible for display to
+occur depending on the implementation of the hook installed on the statement
+objects.

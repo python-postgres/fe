@@ -69,3 +69,27 @@ is not an string, it will fail to unpack the row or pack the appropriate data fo
 the element or attribute.
 
 In most cases issues related to this can be avoided with explicit casts to text.
+
+
+NOTICEs, WARNINGs, and other messages are too verbose
+-----------------------------------------------------
+
+For many situations, the information provided with database messages is
+far too verbose. However, considering that py-postgresql is a programmer's
+library, the default of high verbosity is taken with the express purpose of
+allowing the programmer to "adjust the volume" until appropriate.
+
+There are a number of ways to reduce the noise emitted by a script. In some
+cases, the alteration of the ``client_min_messages`` setting is the most
+appropriate solution::
+
+	>>> db.execute("SET client_min_messages TO WARNING;")
+
+However, py-postgresql provides some additional configuration tools and message
+hooks in order to taylor the detail into something more appropriate for a given
+application.
+
+See the PostgreSQL documentation for more information on the
+``client_min_messages`` setting, and see the Database Messages section in
+`postgresql.documentation.driver` for more information on filtering and the
+`postgresql.sys.msghook`.

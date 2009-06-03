@@ -144,20 +144,22 @@ class Message(Element):
 	def raise_message(self, starting_point = None):
 		"""
 		Take the given message object and hand it to all the primary
-		factors(creator) with a trap_message callable.
+		factors(creator) with a msghook callable.
 		"""
 		if starting_point is not None:
-			current = starting_point
+			f = starting_point
 		else:
-			current = self.creator
+			f = self.creator
 
-		while current is not None:
-			if getattr(current, 'trap_message', None) is not None:
-				if f.trap_message(self):
+		while f is not None:
+			if getattr(f, 'msghook', None) is not None:
+				if f.msghook(self):
 					# the trap returned a nonzero value,
-					# so don't continue raising.
-					return current
-			current = prime_factor(current)
+					# so don't continue raising. (like with's __exit__)
+					return f
+			f = prime_factor(f)
+			if f:
+				f = f[1]
 		# if the next primary factor is without a raise or does not exist,
 		# send the message to postgresql.sys.msghook
 		pg_sys.msghook(self)

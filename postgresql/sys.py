@@ -17,13 +17,13 @@ from .python.element import format_element
 
 libpath = []
 
-def default_msghook(msg):
+def default_msghook(msg, format_message = format_element):
 	"""
 	Built-in message hook. DON'T TOUCH!
 	"""
 	if sys.stderr and not sys.stderr.closed:
 		try:
-			sys.stderr.write(format_element(msg) + os.linesep)
+			sys.stderr.write(format_message(msg) + os.linesep)
 		except Exception:
 			try:
 				sys.excepthook(*sys.exc_info())
