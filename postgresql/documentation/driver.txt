@@ -1316,11 +1316,6 @@ that change of state.
   Prepare the transaction for the final commit. Once prepared, the second commit
   may be ran to finalize the transaction, ``x.commit()``. 
 
- ``x.msghook(msg)``
-  By default, the `msghook` attribute does not exist. If set to a callable, any
-  message that occurs during an operation of the transaction will be given to
-  the callable. See the `Message Management`_ section for more information.
-
 These methods are primarily provided for applications that manage transactions
 in a way that cannot be formed around single, sequential blocks of code.
 Generally, using these methods require additional work to be performed by the
