@@ -217,7 +217,6 @@ The following is a list of environment variables that will be collected by the
  ``PGCONNECT_TIMEOUT`` ``'connect_timeout'``
  ``PGREALM``           ``'kerberos4_realm'``
  ``PGKRBSRVNAME``      ``'kerberos5_service'``
- ``PGROLE``            ``'role'``
  ``PGPASSFILE``        ``'pgpassfile'``
  ``PGTZ``              ``'settings' = {'timezone': }``
  ``PGDATESTYLE``       ``'settings' = {'datestyle': }``
