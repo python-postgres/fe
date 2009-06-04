@@ -14,7 +14,7 @@ Installation
 
 Installation *should* be as simple as::
 
-	$ python3.0 ./setup.py install
+	$ python3 ./setup.py install
 
 
 More information about installation is available via::
