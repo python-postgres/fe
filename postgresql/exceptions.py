@@ -34,8 +34,7 @@ import traceback
 from functools import partial
 from operator import attrgetter
 from . import api as pg_api
-from .python.element import format_element
-from .python.string import indent
+from . import sys as pg_sys
 
 PythonException = Exception
 class Exception(Exception):
@@ -92,25 +91,8 @@ class Error(pg_api.Message, Exception):
 	code = ''
 
 	def __str__(self):
-		it = self._e_metas()
-		if self.creator is not None:
-			# Protect against element traceback failures.
-			try:
-				after = os.linesep + format_element(self.creator)
-			except PythonException:
-				after = 'Element Traceback of %r caused exception:%s' %(
-					type(self.creator).__name__,
-					os.linesep
-				)
-				after += indent(traceback.format_exc())
-				after = os.linesep + indent(after).rstrip()
-		else:
-			after = ''
-		return next(it)[1] \
-			+ os.linesep + '  ' \
-			+ (os.linesep + '  ').join(
-				k + ': ' + v for k, v in it
-			) + after
+		'Call .sys.errformat(self)'
+		return pg_sys.errformat(self)
 
 	@property
 	def fatal(self):
