@@ -32,7 +32,7 @@ __version__ = '.'.join(map(str, version_info[:3])) + (
 )
 
 pg_iri = pg_driver = pg_param = None
-def open(iri = None, **kw):
+def open(iri = None, prompt_title = None, **kw):
 	"""
 	Create a `postgresql.api.Connection` to the server referenced by the given
 	`iri`::
@@ -43,9 +43,6 @@ def open(iri = None, **kw):
 
 		# Connect to 'postgres' at localhost.
 		>>> db = postgresql.open('localhost/postgres')
-
-	If the URL starts with an '&', a connector will be returned instead of a
-	connection.
 
 	(Note: "pq" is the name of the protocol used to communicate with PostgreSQL)
 	"""
@@ -72,7 +69,7 @@ def open(iri = None, **kw):
 		list(pg_param.denormalize_parameters(kw))
 	)
 	# Resolve the password, but never prompt.
-	pg_param.resolve_password(params, prompt_title = None)
+	pg_param.resolve_password(params, prompt_title = prompt_title)
 
 	C = pg_driver.default.fit(**params)
 	if return_connector is True:

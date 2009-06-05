@@ -24,7 +24,6 @@ from functools import partial
 from abc import abstractmethod, abstractproperty
 
 from .. import lib as pg_lib
-from ..lib import sys as pg_sys
 
 from .. import versionstring as pg_version
 from .. import iri as pg_iri
@@ -1919,7 +1918,7 @@ class Connection(pg_api.Connection):
 			),
 		)
 		# manual binding
-		self.sys = pg_lib.Binding(self, pg_sys)
+		self.sys = pg_lib.Binding(self, pg_lib.sys)
 
 		# Get the *full* version string.
 		self.version = self.prepare("SELECT pg_catalog.version()").first()
