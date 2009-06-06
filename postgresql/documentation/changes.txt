@@ -22,6 +22,8 @@ Changes
  * Make DB-API extend PG-API so that DB-API connections will now have direct
    access to PG-API features.
  * Fix DB-API setting of rowcount after execute. [Reported by Mike Bayer; 1010643]
+ * Document msghook attributes, and use postgresql.sys.errformat for
+   postgresql.exceptions.Error.__str__.
 
 
 0.8.2
