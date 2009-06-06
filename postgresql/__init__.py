@@ -68,8 +68,7 @@ def open(iri = None, prompt_title = None, **kw):
 		list(pg_param.denormalize_parameters(iri_params)) + \
 		list(pg_param.denormalize_parameters(kw))
 	)
-	# Resolve the password, but never prompt.
-	pg_param.resolve_password(params, prompt_title = prompt_title)
+	pg_param.resolve_password(params)
 
 	C = pg_driver.default.fit(**params)
 	if return_connector is True:

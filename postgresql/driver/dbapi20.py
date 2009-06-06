@@ -375,7 +375,7 @@ class Connection(Connection):
 		self._xact.start()
 
 driver = pg_driver.Driver(connection = Connection)
-def connect(prompt_title = None, **kw):
+def connect(**kw):
 	"""
 	Create a DB-API connection using the given parameters.
 	"""
@@ -384,6 +384,5 @@ def connect(prompt_title = None, **kw):
 		list(pg_param.denormalize_parameters(std_params)) + \
 		list(pg_param.denormalize_parameters(kw))
 	)
-	# Resolve the password, but never prompt.
-	pg_param.resolve_password(params, prompt_title = prompt_title)
+	pg_param.resolve_password(params)
 	return driver.connect(**params)

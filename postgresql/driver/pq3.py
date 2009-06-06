@@ -2146,9 +2146,11 @@ class Connector(pg_api.Connector):
 		sslkeyfile : "filepath" = None,
 		sslrootcrtfile : "filepath" = None,
 		sslrootcrlfile : "filepath" = None,
+		driver = None,
 		**kw
 	):
 		super().__init__(**kw)
+		self.driver = driver
 
 		self.server_encoding = server_encoding
 		self.connect_timeout = connect_timeout
@@ -2219,13 +2221,11 @@ class IP4(SocketConnector):
 		return self._socketcreators
 
 	def __init__(self,
-		driver,
 		host : "IPv4 Address (str)" = None,
 		port : int = None,
 		ipv = 4,
 		**kw
 	):
-		self.driver = driver
 		if ipv != self.ipv:
 			raise TypeError("'ipv' keyword must be '4'")
 		if host is None:
@@ -2242,7 +2242,7 @@ class IP4(SocketConnector):
 		self._socketcreators = (
 			self._socketcreator,
 		)
-		super().__init__(**kw)
+		super().__init__(*args, **kw)
 
 class IP6(SocketConnector):
 	'Connector for establishing IPv6 connections'
@@ -2251,13 +2251,11 @@ class IP6(SocketConnector):
 		return self._socketcreators
 
 	def __init__(self,
-		driver,
 		host : "IPv6 Address (str)" = None,
 		port : int = None,
 		ipv = 6,
 		**kw
 	):
-		self.driver = driver
 		if ipv != self.ipv:
 			raise TypeError("'ipv' keyword must be '6'")
 		if host is None:
@@ -2281,8 +2279,7 @@ class Unix(SocketConnector):
 	def socket_factory_sequence(self):
 		return self._socketcreators
 
-	def __init__(self, driver, unix = None, **kw):
-		self.driver = driver
+	def __init__(self, unix = None, **kw):
 		if unix is None:
 			raise TypeError("'unix' is a required keyword and cannot be 'None'")
 		self.unix = unix
@@ -2313,14 +2310,12 @@ class Host(SocketConnector):
 		]
 
 	def __init__(self,
-		driver,
 		host : str = None,
 		port : (str, int) = None,
 		ipv : int = None,
 		address_family : "address family to use(AF_INET,AF_INET6)" = None,
 		**kw
 	):
-		self.driver = driver
 		if host is None:
 			raise TypeError("'host' is a required keyword")
 		if port is None:
@@ -2346,16 +2341,16 @@ class Driver(pg_api.Driver):
 		yield (None, type(self).__module__ + '.' + type(self).__name__)
 
 	def ip4(self, **kw):
-		return IP4(self, **kw)
+		return IP4(driver = self, **kw)
 
 	def ip6(self, **kw):
-		return IP6(self, **kw)
+		return IP6(driver = self, **kw)
 
 	def host(self, **kw):
-		return Host(self, **kw)
+		return Host(driver = self, **kw)
 
 	def unix(self, **kw):
-		return Unix(self, **kw)
+		return Unix(driver = self, **kw)
 
 	def fit(self,
 		unix = None,
