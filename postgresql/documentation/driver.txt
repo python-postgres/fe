@@ -351,7 +351,7 @@ The methods and properties on the connection object are ready for use:
   By default, the `msghook` attribute does not exist. If set to a callable, any
   message that occurs during an operation of the database or an operation of a
   database derived object will be given to the callable. See the
-  `Message Management`_ section for more information.
+  `Database Messages`_ section for more information.
 
 
 Connection Metadata
@@ -523,7 +523,7 @@ Prepared statement objects have a few execution methods:
   By default, the `msghook` attribute does not exist. If set to a callable, any
   message that occurs during an operation of the statement or an operation of a
   statement derived object will be given to the callable. See the
-  `Message Management`_ section for more information.
+  `Database Messages`_ section for more information.
 
 
 Statement Metadata
@@ -846,7 +846,7 @@ those results:
  ``c.msghook(msg)``
   By default, the `msghook` attribute does not exist. If set to a callable, any
   message that occurs during an operation of the cursor will be given to the
-  callable. See the `Message Management`_ section for more information.
+  callable. See the `Database Messages`_ section for more information.
 
 
 Cursors have some additional configuration properties that may be modified
@@ -1625,8 +1625,8 @@ When a dictionary is given to construct the row, absent values are filled with
 `None`.
 
 
-Message Management
-==================
+Database Messages
+=================
 
 By default, py-postgresql gives detailed reports of messages emitted by the
 database. Often, the verbosity is excessive due to single target processes or
@@ -1650,12 +1650,12 @@ propagated any further. However, if a `False` value is returned, the next
 element is checked until the list is exhausted and the message is given to
 `postgresql.sys.msghook`. The normal list of elements is as follows::
 
-	Output -> Statement -> Connection -> Connector -> Driver [-> postgresql.sys]
+	Output → Statement → Connection → Connector → Driver [→ postgresql.sys]
 
 Where ``Output`` can be a `postgresql.api.Cursor` object produced by
 ``declare(...)`` or an implicit output management object used *internally* by
 ``__call__()`` and other statement execution methods. Setting the ``msghook``
-attribute on `postgresql.api.PreparedStatment` gives very fine control over
+attribute on `postgresql.api.PreparedStatement` gives very fine control over
 raised messages. Consider filtering the notice message on create table
 statements that implicitly create indexes::
 
@@ -1701,3 +1701,58 @@ suffocated by the ``filter_notices`` function. However, if a ``msghook`` is
 installed on either of those statements, it would be possible for display to
 occur depending on the implementation of the hook installed on the statement
 objects.
+
+
+Message Metadata
+----------------
+
+PostgreSQL messages, `postgresql.api.Message`, are primarily described in three
+parts: the SQL-state code, the main message string, and a mapping defining the
+details. The follow attributes are available on message objects:
+
+ ``message``
+  The primary message string.
+
+ ``code``
+  The SQL-state code associated with a given message.
+
+ ``source``
+  The origins of the message. Normally, ``'SERVER'`` or ``'CLIENT'``.
+
+ ``location``
+  A terse, textual representation of ``'file'``, ``'line'``, and ``'function'``
+  provided by the associated ``details``.
+
+ ``details``
+  A mapping providing extended information about a message. This mapping
+  object **can** contain the following keys:
+
+   ``'severity'``
+    Any of ``'DEBUG'``, ``'INFO'``, ``'NOTICE'``, ``'WARNING'``, ``'ERROR'``,
+    ``'FATAL'``, or ``'PANIC'``; the latter three are usually associated with a
+    `postgresql.exceptions.Error` instance.
+
+   ``'context'``
+    The CONTEXT portion of the message.
+
+   ``'detail'``
+    The DETAIL portion of the message.
+
+   ``'hint'``
+    The HINT portion of the message.
+
+   ``'position'``
+    A number identifying the position in the statement string that caused a
+    parse error.
+
+   ``'file'``
+    The name of the file that emitted the message.
+    (*normally* server information)
+
+   ``'function'``
+    The name of the function that emitted the message.
+    (*normally* server information)
+
+   ``'line'``
+    The line of the file that emitted the message.
+    (*normally* server information)
