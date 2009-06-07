@@ -121,6 +121,7 @@ class Portal(object):
 				self.buf.extend(next(self.chunks))
 			end = self.pos + amount
 		except StopIteration:
+			# end of cursor
 			end = len(self.buf)
 
 		r = self.buf[self.pos:end]
