@@ -2242,7 +2242,7 @@ class IP4(SocketConnector):
 		self._socketcreators = (
 			self._socketcreator,
 		)
-		super().__init__(*args, **kw)
+		super().__init__(**kw)
 
 class IP6(SocketConnector):
 	'Connector for establishing IPv6 connections'
