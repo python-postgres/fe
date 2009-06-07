@@ -257,22 +257,23 @@ class Output(object):
 		if len(data) > 80:
 			# Be sure not to fill screen with noise.
 			data = data[:75] + ' ...'
-		te = pg_exc.ColumnError(
-			"failed to unpack column %r, %s::%s, from wire data" %(
+
+		em = element.ClientError(
+			code = "--CIO",
+			message = "failed to unpack column %r, %s::%s, from wire data" %(
 				itemnum,
 				self.column_names[itemnum],
 				self.database.typio.sql_type_from_oid(
 					self.statement.pg_column_types[itemnum]
 				) or '<unknown>',
 			),
-			details = {
-				'data': data,
-				'hint' : "Try casting the column to 'text'."
-			},
-			creator = self
+			detail = data,
+			hint = "Try casting the column to 'text'.",
+			position = str(itemnum),
 		)
-		te.index = itemnum
-		raise te
+		self.database._raise_a_pq_error(em, controller = self)
+		# "can't happen"
+		raise RuntimeError("failed to raise client error")
 
 	@property
 	def state(self):
@@ -708,18 +709,17 @@ class PreparedStatement(pg_api.PreparedStatement):
 		if len(data) > 80:
 			# Be sure not to fill screen with noise.
 			data = data[:75] + ' ...'
-		te = pg_exc.ParameterError(
-			"failed to pack parameter %s::%s for transfer" %(
+		em = element.ClientError(
+			message = "failed to pack parameter %s::%s for transfer" %(
 				('$' + str(itemnum + 1)), typ,
 			),
-			details = {
-				'detail': data,
-				'hint' : "Try casting the parameter to 'text', then to the target type."
-			},
-			creator = self
+			code = '--PIO',
+			detail = data,
+			hint = "Try casting the parameter to 'text', then to the target type.",
+			position = str(itemnum)
 		)
-		te.index = itemnum
-		raise te
+		self.database._raise_a_pq_error(em, controller = self)
+		raise RuntimeError("failed to raise client error")
 
 	def _raise_column_tuple_error(self, procs, tup, itemnum):
 		typ = self.database.typio.sql_type_from_oid(
@@ -730,18 +730,19 @@ class PreparedStatement(pg_api.PreparedStatement):
 		if len(data) > 80:
 			# Be sure not to fill screen with noise.
 			data = data[:75] + ' ...'
-		te = pg_exc.ColumnError(
-			"failed to unpack column %r, %s::%s, from wire data" %(
+
+		em = element.ClientError(
+			message = "failed to unpack column %r, %s::%s, from wire data" %(
 				itemnum, self.column_names[itemnum], typ
 			),
-			details = {
-				'data': data,
-				'hint' : "Try casting the column to 'text'."
-			},
-			creator = self
+			code = "--CIO",
+			detail = data,
+			hint = "Try casting the column to 'text'.",
+			position = str(itemnum),
 		)
-		te.index = itemnum
-		raise te
+		self.database._raise_a_pq_error(em, controller = self)
+		# "can't happen"
+		raise RuntimeError("failed to raise client error")
 
 	@property
 	def state(self) -> str:
@@ -1053,11 +1054,14 @@ class PreparedStatement(pg_api.PreparedStatement):
 				break
 		else:
 			# Oh, it's not a COPY at all.
-			e = pg_exc.OperationError(
-				"_load_copy_chunks() used on a non-COPY FROM STDIN query",
-				creator = self
+			x.error_message = element.ClientError(
+				# OperationError
+				code = '--OPE',
+				message = "_load_copy_chunks() used on a non-COPY FROM STDIN query",
 			)
-			raise e
+			x.fatal = False
+			self.database._raise_pq_error(x, controller = self)
+			raise RuntimeError("failed to raise client error")
 
 		for chunk in chunks:
 			x.messages = list(chunk)
@@ -1432,19 +1436,15 @@ class Transaction(pg_api.Transaction):
 		if typ is None:
 			# No exception, but in a failed transaction?
 			if self.database.pq.state == b'E':
-				err = pg_exc.InFailedTransactionError(
-					"invalid transaction block exit detected",
-					source = 'CLIENT',
-					details = {
-						'cause': \
-							'Database was in an error-state, ' \
-							'but no exception was raised.'
-					},
-					creator = self
-				)
 				if not self.database.closed:
 					self.rollback()
-				raise err
+				# pg_exc.InFailedTransactionError
+				em = element.ClientError(
+					code = '25P02',
+					message = 'invalid transaction block exit detected',
+					hint = "Database was in an error-state, but no exception was raised."
+				)
+				self.database._raise_a_pq_error(em, self)
 			else:
 				# No exception, and no error state. Everything is good.
 				try:
@@ -1501,15 +1501,13 @@ class Transaction(pg_api.Transaction):
 		if self.state == 'open':
 			return
 		if self.state != 'initialized':
-			err = pg_exc.OperationError(
-				"transactions cannot be restarted",
-				details = {
-					'hint': \
+			em = element.ClientError(
+				code = '--OPE',
+				message = "transactions cannot be restarted",
+				hint = \
 					'Create a new transaction object instead of re-using an old one.'
-				},
-				creator = self
 			)
-			raise err
+			self.database._raise_a_pq_error(em, self)
 
 		if self.database.pq.state == b'I':
 			self.type = 'block'
@@ -1520,14 +1518,12 @@ class Transaction(pg_api.Transaction):
 		else:
 			self.type = 'savepoint'
 			if (self.gid, self.isolation, self.mode) != (None,None,None):
-				err = pg_exc.OperationError(
-					"configured transaction used inside a transaction block",
-					details = {
-						'cause': 'A transaction block was already started.'
-					},
-					creator = self
+				em = element.ClientError(
+					code = '--OPE',
+					message = "configured transaction used inside a transaction block",
+					hint = 'A transaction block was already started.',
 				)
-				raise err
+				self.database._raise_a_pq_error(em, self)
 			q = self._savepoint_xact_string(hex(id(self)))
 		self.database.execute(q)
 		self.state = 'open'
@@ -1547,48 +1543,47 @@ class Transaction(pg_api.Transaction):
 		if self.state == 'prepared':
 			return
 		if self.state != 'open':
-			err = pg_exc.OperationError(
-				"transaction state must be 'open' in order to prepare",
-				creator = self
+			em = element.ClientError(
+				code = '--OPE',
+				message = "transaction state must be 'open' in order to prepare",
 			)
-			raise err
+			self.database._raise_a_pq_error(em, self)
 		if self.type != 'block':
-			err = pg_exc.OperationError(
-				"improper transaction type to prepare",
-				creator = self
+			em = element.ClientError(
+				code = '--OPE',
+				message = "improper transaction type to prepare",
 			)
-			raise err
+			self.database._raise_a_pq_error(em, self)
 		q = self._prepare_string(self.gid)
 		self.database.execute(q)
 		self.state = 'prepared'
 
 	def recover(self):
 		if self.state != 'initialized':
-			err = pg_exc.OperationError(
-				"improper state for prepared transaction recovery",
-				creator = self
+			em = element.ClientError(
+				code = '--OPE',
+				message = "improper state for prepared transaction recovery",
 			)
-			raise err
+			self.database._raise_a_pq_error(em, self)
 		if self.database.sys.xact_is_prepared(self.gid):
 			self.state = 'prepared'
 			self.type = 'block'
 		else:
-			err = pg_exc.UndefinedObjectError(
-				"prepared transaction does not exist",
-				source = 'CLIENT',
-				creator = self
+			em = element.ClientError(
+				code = '42704', # UndefinedObjectError
+				message = "prepared transaction does not exist",
 			)
-			raise err
+			self.database._raise_a_pq_error(em, self)
 
 	def commit(self):
 		if self.state == 'committed':
 			return
 		if self.state not in ('prepared', 'open'):
-			err = pg_exc.OperationError(
-				"commit attempted on transaction with unexpected state, " + repr(self.state),
-				creator = self
+			em = element.ClientError(
+				code = '--OPE',
+				message = "commit attempted on transaction with unexpected state, " + repr(self.state),
 			)
-			raise err
+			self.database._raise_a_pq_error(em, self)
 
 		if self.type == 'block':
 			if self.gid is not None:
@@ -1598,14 +1593,11 @@ class Transaction(pg_api.Transaction):
 				q = 'COMMIT'
 		else:
 			if self.gid is not None:
-				err = pg_exc.OperationError(
-					"savepoint configured with global identifier",
-					details = {
-						'cause': "Prepared transaction started inside transaction block?"
-					},
-					creator = self
+				em = element.ClientError(
+					code = '--OPE',
+					message = "savepoint configured with global identifier",
 				)
-				raise err
+				self.database._raise_a_pq_error(em, self)
 			q = self._release_string(hex(id(self)))
 		self.database.execute(q)
 		self.state = 'committed'
@@ -1618,12 +1610,12 @@ class Transaction(pg_api.Transaction):
 		if self.state == 'aborted':
 			return
 		if self.state not in ('prepared', 'open'):
-			err = pg_exc.OperationError(
-				"aborted attempted on transaction with unexpected state, " \
-				+ repr(self.state),
-				creator = self
+			em = element.ClientError(
+				code = '--OPE',
+				message = "ABORT attempted on transaction with unexpected state, " \
+					+ repr(self.state),
 			)
-			raise err
+			self.database._raise_a_pq_error(em, self)
 
 		if self.type == 'block':
 			if self.state == 'prepared':
@@ -1938,23 +1930,22 @@ class Connection(pg_api.Connection):
 					self.client_address = ca
 			self.client_port = r.get('client_port')
 			self.backend_start = r.get('backend_start')
-		try:
-			scstr = self.settings.cache.get('standard_conforming_strings')
-			if scstr is None or scstr.lower() not in ('on','true','yes'):
-				self.settings['standard_conforming_strings'] = str(True)
-		except (
-			pg_exc.UndefinedObjectError,
-			pg_exc.ImmutableRuntimeParameterError
-		):
+		##
+		# Set standard_conforming_strings
+		scstr = self.settings.get('standard_conforming_strings')
+		if scstr is None:
 			# warn about non-standard strings
 			cm = element.ClientNotice(
 				message = 'standard conforming strings are not available',
 				severity = 'WARNING',
 				code = '01-00',
+				hint = 'Backend does not support "SET standard_conforming_strings TO ON"'
 			)
 			cm = self._convert_pq_message(cm)
 			cm.creator = self
 			cm.raise_message()
+		elif scstr.lower() not in ('on','true','yes'):
+			self.settings['standard_conforming_strings'] = str(True)
 		super().connect()
 
 	def _pq_push(self, xact, controller = None):
@@ -1996,6 +1987,11 @@ class Connection(pg_api.Connection):
 		err.creator = fromcontroller
 		if fromexc is not None:
 			err.__cause__ = fromexc
+		raise err
+
+	def _raise_a_pq_error(self, em, controller):
+		err = self._error_lookup(em)
+		err.creator = controller
 		raise err
 
 	def _decode_pq_message(self, msg):

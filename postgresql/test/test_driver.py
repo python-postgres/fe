@@ -1016,9 +1016,9 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				# Expecting a double TupleError here, one from the composite pack
 				# and one from the row pack.
 				self.failUnless(isinstance(err.__context__, pg_exc.ColumnError))
-				self.failUnlessEqual(err.index, 0)
+				self.failUnlessEqual(int(err.details['position']), 0)
 				# attribute number that the failure occurred on
-				self.failUnlessEqual(err.__context__.index, 0)
+				self.failUnlessEqual(int(err.__context__.details['position']), 0)
 			else:
 				self.fail("failed to raise TupleError")
 
@@ -1043,7 +1043,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			except pg_exc.ColumnError as err:
 				self.failUnless(isinstance(err.__context__, ThisError))
 				# might be too inquisitive....
-				self.failUnlessEqual(err.index, 0)
+				self.failUnlessEqual(int(err.details['position']), 0)
 				self.failUnless('numeric' in err.message)
 				self.failUnless('col' in err.message)
 			else:
@@ -1055,8 +1055,8 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				self.failUnless(isinstance(err.__context__, pg_exc.ColumnError))
 				self.failUnless(isinstance(err.__context__.__context__, ThisError))
 				# might be too inquisitive....
-				self.failUnlessEqual(err.index, 0)
-				self.failUnlessEqual(err.__context__.index, 0)
+				self.failUnlessEqual(int(err.details['position']), 0)
+				self.failUnlessEqual(int(err.__context__.details['position']), 0)
 				self.failUnless('test_tuple_error' in err.message)
 			else:
 				self.fail("failed to raise TupleError from reception")

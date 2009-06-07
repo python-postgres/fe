@@ -585,7 +585,7 @@ def composite_typio(
 		if len(data) > 80:
 			# Be sure not to fill screen with noise.
 			data = data[:75] + ' ...'
-		te = pg_exc.ColumnError(
+		raise pg_exc.ColumnError(
 			"failed to pack attribute %d, %s::%s, of composite %s for transfer" %(
 				itemnum,
 				attnames[itemnum],
@@ -593,18 +593,17 @@ def composite_typio(
 				composite_name,
 			),
 			details = {
-				'data': data,
+				'context': data,
+				'position' : str(itemnum)
 			},
 		)
-		te.index = itemnum
-		raise te
 
 	def raise_unpack_tuple_error(procs, tup, itemnum):
 		data = repr(tup[itemnum])
 		if len(data) > 80:
 			# Be sure not to fill screen with noise.
 			data = data[:75] + ' ...'
-		te = pg_exc.ColumnError(
+		raise pg_exc.ColumnError(
 			"failed to unpack attribute %d, %s::%s, of composite %s from wire data" %(
 				itemnum,
 				attnames[itemnum],
@@ -612,11 +611,10 @@ def composite_typio(
 				composite_name,
 			),
 			details = {
-				'data': data,
+				'context': data,
+				'position' : str(itemnum),
 			},
 		)
-		te.index = itemnum
-		raise te
 
 	def unpack_a_record(data):
 		data = tuple([x[1] for x in ts.record_unpack(data)])
