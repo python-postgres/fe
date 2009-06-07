@@ -9,6 +9,10 @@
 	mFUNC(parse_tuple_message, METH_VARARGS, "parse the given tuple data into a tuple of raw data") \
 	mFUNC(pack_tuple_data, METH_O, "serialize the give tuple message[tuple of bytes()]") \
 
+/*
+ * Given a tuple of bytes and None objects, join them into a
+ * a single bytes object with sizes.
+ */
 static PyObject *
 _pack_tuple_data(PyObject *tup)
 {
@@ -105,7 +109,7 @@ _pack_tuple_data(PyObject *tup)
  * dst must be of PyTuple_Type with at least natts items slots.
  */
 static int
-_unpack_tuple_data(PyObject *dst, unsigned short natts, const char *data, Py_ssize_t data_len)
+_unpack_tuple_data(PyObject *dst, uint16_t natts, const char *data, Py_ssize_t data_len)
 {
 	PyObject *ob;
 	uint16_t cnatt = 0;
@@ -132,7 +136,7 @@ _unpack_tuple_data(PyObject *dst, unsigned short natts, const char *data, Py_ssi
 		/*
 		 * NULL.
 		 */
-		if (attsize == 0xFFFFFFFFL)
+		if (attsize == (uint32_t) 0xFFFFFFFFL)
 		{
 			Py_INCREF(Py_None);
 			PyTuple_SET_ITEM(dst, cnatt, Py_None);
@@ -182,7 +186,7 @@ _unpack_tuple_data(PyObject *dst, unsigned short natts, const char *data, Py_ssi
 	if (position != data_len)
 	{
 		PyErr_Format(PyExc_ValueError,
-			"invalid tuple message, %lu remaining "
+			"invalid tuple(D) message, %lu remaining "
 			"bytes after processing %d attributes",
 			data_len - position, cnatt
 		);
@@ -195,7 +199,7 @@ _unpack_tuple_data(PyObject *dst, unsigned short natts, const char *data, Py_ssi
 static PyObject *
 parse_tuple_message(PyObject *self, PyObject *args)
 {
-	PyObject *rob;
+	PyObject *prerob, *rob, *temp_tup;
 	PyObject *typ;
 	const char *data;
 	Py_ssize_t dlen = 0;
@@ -203,35 +207,6 @@ parse_tuple_message(PyObject *self, PyObject *args)
 
 	if (!PyArg_ParseTuple(args, "Oy#", &typ, &data, &dlen))
 		return(NULL);
-
-	/*
-	 * Validate that the given "typ" is in fact a PyTuple_Type subtype.
-	 */
-	if (typ != Py_None)
-	{
-		if (!PyObject_IsSubclass(typ, (PyObject *) &PyTuple_Type))
-		{
-			const char *typname = "<not-a-type>";
-			if (PyObject_IsInstance(
-				(PyObject *) typ->ob_type,
-				(PyObject *) &PyType_Type
-			))
-			{
-				typname = ((PyTypeObject *) typ)->tp_name;
-			}
-
-			PyErr_Format(
-				PyExc_TypeError,
-				"cannot instantiate wire tuple into a non-tuple subtype: %s",
-				typname
-			);
-			return(NULL);
-		}
-	}
-	else
-	{
-		typ = (PyObject *) &PyTuple_Type;
-	}
 
 	if (dlen < 2)
 	{
@@ -241,27 +216,26 @@ parse_tuple_message(PyObject *self, PyObject *args)
 	}
 	natts = local_ntohs(*((uint16_t *) (data)));
 
-	/*
-	 * FEARME: A bit much for saving a reallocation/copy?
-	 *
-	 * This is expected to be used as a classmethod on a tuple subtype that
-	 * has *no* additional attributes.
-	 *
-	 * If the subtype has a custom __new__ routine, this could
-	 * be problematic, but it *should* only lead to AttributeErrors.
-	 */
-	rob = ((PyTypeObject *) typ)->tp_alloc((PyTypeObject *) typ, natts);
-	if (rob == NULL)
+	prerob = PyTuple_New(natts);
+	if (prerob == NULL)
+		return(NULL);
+
+	if (_unpack_tuple_data(prerob, natts, data+2, dlen-2) < 0)
 	{
+		Py_DECREF(prerob);
 		return(NULL);
 	}
 
-	if (_unpack_tuple_data(rob, natts, data+2, dlen-2) < 0)
+	temp_tup = PyTuple_New(1);
+	if (temp_tup == NULL)
 	{
-		Py_DECREF(rob);
+		Py_DECREF(prerob);
 		return(NULL);
 	}
+	PyTuple_SET_ITEM(temp_tup, 0, prerob);
 
+	rob = PyObject_CallObject(typ, temp_tup);
+	Py_DECREF(temp_tup);
 	return(rob);
 }
 
