@@ -93,3 +93,19 @@ See the PostgreSQL documentation for more information on the
 ``client_min_messages`` setting, and see the Database Messages section in
 `postgresql.documentation.driver` for more information on filtering and the
 `postgresql.sys.msghook`.
+
+
+Strange TypeError using load_rows() or load_chunks()
+----------------------------------------------------
+
+When a prepared statement is directly executed using ``__call__()``, it can easily
+validate that the appropriate number of parameters are given to the function.
+When ``load_rows()`` or ``load_chunks()`` is used, any tuple in the
+the entire sequence can cause this TypeError during the loading process::
+
+	TypeError: inconsistent items, N processors and M items in row
+
+This exception is raised by a generic processing routine whose funcitonality
+is abstract in nature, so the message is abstract as well. It essentially means
+that a tuple in the sequence given to the loading method had too many or too few
+items.
