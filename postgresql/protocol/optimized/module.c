@@ -23,7 +23,7 @@
 	(((PyTypeObject *) (ob->ob_type))->tp_name)
 
 /*
- * buffer.c needs the message_types object from protocol.message_types.
+ * buffer.c needs the message_types object from .protocol.message_types.
  * Initialized in PyInit_optimized.
  */
 static PyObject *message_types = NULL;
@@ -40,7 +40,7 @@ static short (*local_ntohs)(short) = NULL;
 #include "element3.c"
 
 
-/* cpp abuse */
+/* cpp abuse, read up on X-Macros if you don't understand  */
 #define mFUNC(name, typ, doc) \
 	{#name, (PyCFunction) name, typ, PyDoc_STR(doc)},
 static PyMethodDef optimized_methods[] = {
@@ -68,6 +68,7 @@ PyInit_optimized(void)
 	PyObject *fromlist, *fromstr;
 	long l;
 
+	/* make some constants */
 	if (serialize_strob == NULL)
 	{
 		serialize_strob = PyUnicode_FromString("serialize");

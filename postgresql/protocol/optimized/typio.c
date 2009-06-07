@@ -465,7 +465,7 @@ _process_tuple(PyObject *procs, PyObject *tup, PyObject *fail)
 	if (len != PyTuple_GET_SIZE(procs))
 	{
 		PyErr_Format(
-			PyExc_ValueError,
+			PyExc_TypeError,
 			"inconsistent items, %d processors and %d items in row",
 			len,
 			PyTuple_GET_SIZE(procs)
@@ -520,7 +520,7 @@ _process_tuple(PyObject *procs, PyObject *tup, PyObject *fail)
 			 * in order to properly generalize the failure. There are numerous,
 			 * and (sometimes) inconsistent reasons why a tuple cannot be
 			 * processed and therefore a generalized exception raised in the
-			 * context of the original is very useful.
+			 * context of the original is *very* useful.
 			 */
 
 			Py_DECREF(rob);
@@ -699,10 +699,6 @@ process_chunk(PyObject *self, PyObject *args)
 
 	if (PyList_Check(tupc))
 	{
-		/*
-		 * If given a list, it's assumed that the user wants the contents
-		 * replaced. The list(tupc) will be returned.
-		 */
 		return(_process_chunk_from_list(procs, tupc, fail));
 	}
 	else

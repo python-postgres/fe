@@ -52,7 +52,7 @@ _pack_tuple_data(PyObject *tup)
 			PyErr_Format(
 				PyExc_TypeError,
 				"cannot serialize attribute %d, expected bytes() or None, got %s",
-				(long) catt, PyObject_TypeName(ob)
+				(int) catt, PyObject_TypeName(ob)
 			);
 			return(NULL);
 		}
@@ -76,7 +76,7 @@ _pack_tuple_data(PyObject *tup)
 		ob = PyTuple_GET_ITEM(tup, catt);
 		if (ob == Py_None)
 		{
-			*((uint32_t *) bufpos) = 0xFFFFFFFF;
+			*((uint32_t *) bufpos) = (uint32_t) 0xFFFFFFFFL;
 			bufpos = bufpos + 4;
 		}
 		else

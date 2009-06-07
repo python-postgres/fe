@@ -1000,7 +1000,7 @@ try:
 			self.failUnlessRaises(TypeError, pt, "foo", "bar", funpass)
 			self.failUnlessRaises(TypeError, pt, (), "bar", funpass)
 			self.failUnlessRaises(TypeError, pt, "foo", (), funpass)
-			self.failUnlessRaises(ValueError, pt, (), ("foo",), funpass)
+			self.failUnlessRaises(TypeError, pt, (), ("foo",), funpass)
 
 		def test_pack_tuple_data(self):
 			pit = protocol_optimized.pack_tuple_data
