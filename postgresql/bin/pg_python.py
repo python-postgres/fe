@@ -12,7 +12,8 @@ import code
 import optparse
 import contextlib
 from .. import clientparameters
-from ..resolved import pythoncommand as pycmd
+from ..python import command as pycmd
+from ..python.contextlib import Nested, NoCM
 from .. import __version__
 
 from ..driver import default as pg_driver
@@ -110,7 +111,7 @@ def command(argv = sys.argv):
 			if trace_file is not None:
 				connection.tracer = trace_file.write
 			context = [connection]
-			with contextlib.nested(*context):
+			with Nested(*context):
 				rv = pythonexec(
 					context = pycmd.postmortem(os.environ.get('PYTHON_POSTMORTEM'))
 				)

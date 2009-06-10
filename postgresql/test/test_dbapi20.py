@@ -4,7 +4,7 @@
 import unittest
 from ..unittest import TestCaseWithCluster
 import time
-from contextlib import nested
+from ..python.contextlib import NoCM
 
 ##
 # Various Adjustments for pg.driver.dbapi20
@@ -110,7 +110,7 @@ class test_dbapi20(TestCaseWithCluster):
 			con.close()
 
 	def connection(self):
-		return nested()
+		return NoCM
 
 	def _connect(self):
 		host, port = self.cluster.address()
@@ -807,13 +807,13 @@ class test_dbapi20(TestCaseWithCluster):
 		d1 = self.driver.Date(2002,12,25)
 		d2 = self.driver.DateFromTicks(time.mktime((2002,12,25,0,0,0,0,0,0)))
 		# Can we assume this? API doesn't specify, but it seems implied
-		# self.assertEqual(str(d1),str(d2))
+		self.assertEqual(str(d1),str(d2))
 
 	def test_Time(self):
 		t1 = self.driver.Time(13,45,30)
 		t2 = self.driver.TimeFromTicks(time.mktime((2001,1,1,13,45,30,0,0,0)))
 		# Can we assume this? API doesn't specify, but it seems implied
-		# self.assertEqual(str(t1),str(t2))
+		self.assertEqual(str(t1),str(t2))
 
 	def test_Timestamp(self):
 		t1 = self.driver.Timestamp(2002,12,25,13,45,30)
@@ -821,7 +821,7 @@ class test_dbapi20(TestCaseWithCluster):
 			time.mktime((2002,12,25,13,45,30,0,0,0))
 		)
 		# Can we assume this? API doesn't specify, but it seems implied
-		# self.assertEqual(str(t1),str(t2))
+		#self.assertEqual(str(t1),str(t2))
 
 	def test_Binary(self):
 		b = self.driver.Binary(b'Something')
