@@ -2016,12 +2016,17 @@ class Connection(pg_api.Connection):
 			dmsg[k] = v
 		return dmsg
 
-	def _convert_pq_message(self, msg, source = 'SERVER'):
+	def _convert_pq_message(self, msg, source = None):
 		'create a message, warning or error'
 		dmsg = self._decode_pq_message(msg)
 		m = dmsg.pop('message')
 		c = dmsg.pop('code')
 		sev = dmsg['severity'].upper()
+		if source is None:
+			if type(msg) in (element.ClientNotice, element.ClientError):
+				source = 'CLIENT'
+			else:
+				source = 'SERVER'
 		if sev in ('ERROR', 'PANIC', 'FATAL'):
 			mo = pg_exc.ErrorLookup(c)(
 				m, code = c, details = dmsg, source = source
