@@ -270,38 +270,37 @@ type_samples = [
 	),
 ]
 
-try:
-	import ipaddr
+if False:
+	# When an implementation does make it,
+	# re-enable these tests.
 	type_samples.append((
 		'inet', [
-			ipaddr.IPv4('255.255.255.255'),
-			ipaddr.IPv4('127.0.0.1'),
-			ipaddr.IPv4('10.0.0.1'),
-			ipaddr.IPv4('0.0.0.0'),
-			ipaddr.IPv6('::1'),
-			ipaddr.IPv6('ffff' + ':ffff'*7),
-			ipaddr.IPv6('fe80::1'),
-			ipaddr.IPv6('fe80::1'),
-			ipaddr.IPv6('0::0'),
+			IPAddress4('255.255.255.255'),
+			IPAddress4('127.0.0.1'),
+			IPAddress4('10.0.0.1'),
+			IPAddress4('0.0.0.0'),
+			IPAddress6('::1'),
+			IPAddress6('ffff' + ':ffff'*7),
+			IPAddress6('fe80::1'),
+			IPAddress6('fe80::1'),
+			IPAddress6('0::0'),
 		],
 	))
 	type_samples.append((
 		'cidr', [
-			ipaddr.IPv4('255.255.255.255/32'),
-			ipaddr.IPv4('127.0.0.0/8'),
-			ipaddr.IPv4('127.1.0.0/16'),
-			ipaddr.IPv4('10.0.0.0/32'),
-			ipaddr.IPv4('0.0.0.0/0'),
-			ipaddr.IPv6('ffff' + ':ffff'*7 + '/128'),
-			ipaddr.IPv6('::1/128'),
-			ipaddr.IPv6('fe80::1/128'),
-			ipaddr.IPv6('fe80::0/64'),
-			ipaddr.IPv6('fe80::0/16'),
-			ipaddr.IPv6('0::0/0'),
+			IPNetwork4('255.255.255.255/32'),
+			IPNetwork4('127.0.0.0/8'),
+			IPNetwork4('127.1.0.0/16'),
+			IPNetwork4('10.0.0.0/32'),
+			IPNetwork4('0.0.0.0/0'),
+			IPNetwork6('ffff' + ':ffff'*7 + '/128'),
+			IPNetwork6('::1/128'),
+			IPNetwork6('fe80::1/128'),
+			IPNetwork6('fe80::0/64'),
+			IPNetwork6('fe80::0/16'),
+			IPNetwork6('0::0/0'),
 		],
 	))
-except ImportError:
-	pass
 
 class test_driver(pg_unittest.TestCaseWithCluster):
 	"""
