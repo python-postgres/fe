@@ -128,12 +128,13 @@ def defaults(environ = os.environ):
 
 	# If appdata is available, override the pgdata and pgpassfile
 	# configuration settings.
-	pgpassfile = os.path.join(userdir, pg_home_passfile)
 	if sys.platform == 'win32':
 		appdata = environ.get('APPDATA')
 		if appdata:
 			pgdata = os.path.join(appdata, pg_appdata_directory)
-			pgpassfile = os.path.join(appdata, pg_appdata_passfile)
+			pgpassfile = os.path.join(pgdata, pg_appdata_passfile)
+	else:
+		pgpassfile = os.path.join(userdir, pg_home_passfile)
 
 	for k, v in (
 		('sslcrtfile', os.path.join(pgdata, 'postgresql.crt')),

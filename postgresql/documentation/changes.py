@@ -13,6 +13,7 @@ Changes
    a mechanism that would use SQL predefined type names instead of
    qualified names. [#1010620, Reported by Dallas Morisett]
  * Fix DB-API setting of rowcount after execute. [Reported by Mike Bayer; 1010643]
+ * Fix pgpass.conf resolution on win32
 
 0.8.1 released on 2009-04-30
 ----------------------------
