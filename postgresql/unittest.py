@@ -56,6 +56,11 @@ class TestCaseWithCluster(unittest.TestCase):
 			log_min_messages = 'FATAL',
 			silent_mode = 'off',
 		))
+		# 8.4 turns prepared transactions off by default.
+		if self.cluster.installation.version_info >= (8,1):
+			self.cluster.settings.update(dict(
+				max_prepared_transactions = '3',
+			))
 
 	def initialize_database(self):
 		c = self.cluster.connection(
