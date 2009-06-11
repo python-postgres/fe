@@ -150,7 +150,7 @@ class test_socket(unittest.TestCase):
 			else:
 				self.fail("got a connection to an available port: " + str(portnum))
 
-class contextlib(unittest.TestCase):
+class test_contextlib(unittest.TestCase):
 	def testNoCM(self):
 		with NoCM as foo:
 			pass
@@ -160,139 +160,6 @@ class contextlib(unittest.TestCase):
 		with NoCM as foo:
 			pass
 		self.failUnlessEqual(foo, None)
-
-	def testNested(self):
-		class SomeExc(Exception):
-			pass
-		@contextmanager
-		def just_one():
-			yield 1
-		@contextmanager
-		def just_two():
-			try:
-				yield 2
-			except:
-				print("wtf")
-		@contextmanager
-		def raise_exc():
-			raise SomeExc("foo")
-			yield 1
-		@contextmanager
-		def finally_exc():
-			try:
-				yield 1
-			finally:
-				raise SomeExc("foo")
-		@contextmanager
-		def suppress():
-			try:
-				yield None
-			except SomeExc:
-				pass
-		@contextmanager
-		def expect_and_raise(exc, rexc):
-			try:
-				yield None
-			except exc:
-				raise rexc("bleh")
-
-		with Nested() as foo:
-			pass
-		self.failUnlessEqual(foo, ())
-		try:
-			with Nested() as foo:
-				self.failUnlessEqual(foo, ())
-				raise SomeExc("bar")
-		except SomeExc:
-			pass
-		else:
-			self.fail("empty Nested did not raise exception")
-
-		with Nested(just_one()) as foo:
-			pass
-		self.failUnlessEqual(foo, (1,))
-
-		with Nested(just_one(), just_one()) as foo:
-			pass
-		self.failUnlessEqual(foo, (1,1))
-
-		# NoCM won't raise a RuntimeError on re-use.
-		N=Nested(NoCM)
-		with N:
-			pass
-		try:
-			with N:
-				pass
-		except RuntimeError:
-			pass
-		else:
-			self.fail("exhausted Nested() failed to raise RuntimeError")
-
-		# unsuppressed exceptions on entry
-		try:
-			with Nested(raise_exc()):
-				pass
-		except SomeExc:
-			pass
-		else:
-			self.fail("nested didn't raise SomeExc")
-		try:
-			with Nested(just_one(), raise_exc()):
-				pass
-		except SomeExc:
-			pass
-		else:
-			self.fail("nested didn't raise SomeExc")
-
-		# suppressed SomeExc during entry--disallowed.
-		try:
-			with Nested(suppress(), raise_exc()):
-				pass
-		except RuntimeError:
-			pass
-		else:
-			self.fail("nested didn't raise RuntimeError on suppressed partial entry")
-
-		# suppress should stop it, and that's okay because we're already
-		# inside the block.
-		with Nested(suppress(), finally_exc()):
-			raise SomeExc("foo")
-
-		# This test case validates that the context is being
-		# properly set.
-		class ThisExc(Exception):
-			pass
-		try:
-			with Nested(expect_and_raise(ThisExc, SomeExc)):
-				raise ThisExc("FOO")
-		except SomeExc as e:
-			self.failUnlessEqual(type(e.__context__), ThisExc)
-		else:
-			self.fail("failed to raise exception")
-
-		class ThatExc(Exception):
-			pass
-		try:
-			with Nested(expect_and_raise(ThisExc, SomeExc), expect_and_raise(ThatExc, ThisExc)):
-				raise ThatExc("BAFOON")
-		except SomeExc as e:
-			# ThatExc -> ThisExc -> SomeExc
-			self.failUnlessEqual(type(e.__cause__), ThisExc)
-			self.failUnlessEqual(type(e.__cause__.__cause__), ThatExc)
-
-		try:
-			with Nested(just_one()) as foo:
-				self.failUnlessEqual(foo, (1,))
-				raise SomeExc("inside the block")
-		except SomeExc as e:
-			pass
-		else:
-			self.fail("Nested didn't pass up exception raised in block")
-
-		# Slightly more complex suppression.
-		with Nested(just_two(), suppress(), expect_and_raise(ThisExc, SomeExc), expect_and_raise(ThatExc, ThisExc)) as foo:
-			raise ThatExc("MOOF")
-		self.failUnlessEqual(foo[0], 2)
 
 if __name__ == '__main__':
 	from types import ModuleType
