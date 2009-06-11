@@ -1923,17 +1923,13 @@ class Connection(pg_api.Connection):
 			# pythons without ipaddr will likely give strings.
 			ca = r.get('client_addr')
 			if ca is not None:
-				if not isinstance(ca, str):
-					# it better be a ipaddr.BaseIP..
-					self.client_address = ca.ip_ext
-				else:
-					self.client_address = ca
+				self.client_address = ca.split('/')[0]
 			self.client_port = r.get('client_port')
 			self.backend_start = r.get('backend_start')
 		##
 		# Set standard_conforming_strings
 		scstr = self.settings.get('standard_conforming_strings')
-		if scstr is None:
+		if scstr is None or (self.version_info[0] == 8 and self.version_info[1] == 1):
 			# warn about non-standard strings
 			cm = element.ClientNotice(
 				message = 'standard conforming strings are not available',
