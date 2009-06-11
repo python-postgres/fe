@@ -2,6 +2,7 @@
 # copyright 2009, James William Pye
 # http://python.projects.postgresql.org
 ##
+import os
 import unittest
 from io import StringIO
 from .. import configfile
@@ -32,49 +33,49 @@ listen_addresses = '*'
 winning_cases = [
 	(
 		# Two top contenders; the first should be altered, second commented.
-		"foo = bar\nfoo = bar",
+		"foo = bar"+os.linesep+"foo = bar",
 		{'foo' : 'newbar'},
-		"foo = 'newbar'\n#foo = bar"
+		"foo = 'newbar'"+os.linesep+"#foo = bar"
 	),
 	(
 		# Two top contenders, first one stays commented
-		"#foo = bar\nfoo = bar",
+		"#foo = bar"+os.linesep+"foo = bar",
 		{'foo' : 'newbar'},
-		"#foo = bar\nfoo = 'newbar'"
+		"#foo = bar"+os.linesep+"foo = 'newbar'"
 	),
 	(
 		# Two top contenders, second one stays commented
-		"foo = bar\n#foo = bar",
+		"foo = bar"+os.linesep+"#foo = bar",
 		{'foo' : 'newbar'},
-		"foo = 'newbar'\n#foo = bar"
+		"foo = 'newbar'"+os.linesep+"#foo = bar"
 	),
 	(
 		# Two candidates
-		"foo = bar\nfoo = none",
+		"foo = bar"+os.linesep+"foo = none",
 		{'foo' : 'bar'},
-		"foo = 'bar'\n#foo = none"
+		"foo = 'bar'"+os.linesep+"#foo = none"
 	),
 	(
 		# Two candidates, winner should be the first, second gets comment
-		"#foo = none\nfoo = bar",
+		"#foo = none"+os.linesep+"foo = bar",
 		{'foo' : 'none'},
-		"foo = 'none'\n#foo = bar"
+		"foo = 'none'"+os.linesep+"#foo = bar"
 	),
 	(
 		# Two commented candidates
-		"#foo = none\n#foo = some",
+		"#foo = none"+os.linesep+"#foo = some",
 		{'foo' : 'bar'},
-		"foo = 'bar'\n#foo = some"
+		"foo = 'bar'"+os.linesep+"#foo = some"
 	),
 	(
 		# Two commented candidates, the latter a top contender
-		"#foo = none\n#foo = bar",
+		"#foo = none"+os.linesep+"#foo = bar",
 		{'foo' : 'bar'},
-		"#foo = none\nfoo = 'bar'"
+		"#foo = none"+os.linesep+"foo = 'bar'"
 	),
 	(
 		# Replace empty value
-		"foo = \n",
+		"foo = "+os.linesep,
 		{'foo' : 'feh'},
 		"foo = 'feh'"
 	),
@@ -118,13 +119,13 @@ winning_cases = [
 		# New setting
 		"foo = 'bar'",
 		{'bar' : 'newvar'},
-		"foo = 'bar'\nbar = 'newvar'",
+		"foo = 'bar'"+os.linesep+"bar = 'newvar'",
 	),
 	(
 		# New setting with quote escape
 		"foo = 'bar'",
 		{'bar' : "new'var"},
-		"foo = 'bar'\nbar = 'new''var'",
+		"foo = 'bar'"+os.linesep+"bar = 'new''var'",
 	),
 ]
 
@@ -167,25 +168,25 @@ class test_configfile(unittest.TestCase):
 
 	def testParser(self):
 		self.parseExpect("#%s = %s", 'foo', 'none')
-		self.parseExpect("#%s=%s\n", 'foo', 'bar')
-		self.parseExpect(" #%s=%s\n", 'foo', 'bar')
-		self.parseExpect('%s =%s\n', 'foo', 'bar')
-		self.parseExpect(' %s=%s \n', 'foo', 'Bar')
-		self.parseExpect(' %s = %s \n', 'foo', 'Bar')
-		self.parseExpect('# %s = %s \n', 'foo', 'Bar')
-		self.parseExpect('\t # %s = %s \n', 'foo', 'Bar')
-		self.parseExpect('  # %s =   %s \n', 'foo', 'Bar')
-		self.parseExpect("  # %s = %s\n", 'foo', "' Bar '")
-		self.parseExpect("%s = %s# comment\n", 'foo', '')
-		self.parseExpect("  # %s = %s # A # comment\n", 'foo', "' B''a#r '")
+		self.parseExpect("#%s=%s"+os.linesep, 'foo', 'bar')
+		self.parseExpect(" #%s=%s"+os.linesep, 'foo', 'bar')
+		self.parseExpect('%s =%s'+os.linesep, 'foo', 'bar')
+		self.parseExpect(' %s=%s '+os.linesep, 'foo', 'Bar')
+		self.parseExpect(' %s = %s '+os.linesep, 'foo', 'Bar')
+		self.parseExpect('# %s = %s '+os.linesep, 'foo', 'Bar')
+		self.parseExpect('\t # %s = %s '+os.linesep, 'foo', 'Bar')
+		self.parseExpect('  # %s =   %s '+os.linesep, 'foo', 'Bar')
+		self.parseExpect("  # %s = %s"+os.linesep, 'foo', "' Bar '")
+		self.parseExpect("%s = %s# comment"+os.linesep, 'foo', '')
+		self.parseExpect("  # %s = %s # A # comment"+os.linesep, 'foo', "' B''a#r '")
 		# No equality or equality in complex comment
-		self.parseNone(' #i  # foo =   Bar \n')
+		self.parseNone(' #i  # foo =   Bar '+os.linesep)
 		self.parseNone('#bar')
 		self.parseNone('bar')
 
 	def testConfigRead(self):
-		sample = "foo = bar\n# A comment, yes.\n bar = foo # yet?\n"
-		d = configfile.read_config(sample.split('\n'))
+		sample = "foo = bar"+os.linesep+"# A comment, yes."+os.linesep+" bar = foo # yet?"+os.linesep
+		d = configfile.read_config(sample.split(os.linesep))
 		self.failUnless(d['foo'] == 'bar')
 		self.failUnless(d['bar'] == 'foo')
 
@@ -200,7 +201,7 @@ class test_configfile(unittest.TestCase):
 	def testWinningCases(self):
 		i = 0
 		for before, alters, after in winning_cases:
-			befg = (x + '\n' for x in before.split('\n'))
+			befg = (x + os.linesep for x in before.split(os.linesep))
 			became = ''.join(configfile.alter_config(alters, befg))
 			self.failUnless(
 				became.strip() == after,
@@ -213,7 +214,7 @@ class test_configfile(unittest.TestCase):
 	def testSimpleConfigAlter(self):
 		# Simple set and uncomment and set test.
 		strio = StringIO()
-		strio.write("foo = bar\n # bleh = unset\n # grr = 'oh yeah''s'")
+		strio.write("foo = bar"+os.linesep+" # bleh = unset"+os.linesep+" # grr = 'oh yeah''s'")
 		strio.seek(0)
 		lines = configfile.alter_config({'foo' : 'yes', 'bleh' : 'feh'}, strio)
 		d = configfile.read_config(lines)
@@ -225,7 +226,7 @@ class test_configfile(unittest.TestCase):
 		lines = configfile.alter_config({
 				'shared_buffers' : '800',
 				'port' : None
-			}, (x + '\n' for x in sample_config_Aroma.split('\n'))
+			}, (x + os.linesep for x in sample_config_Aroma.split('\n'))
 		)
 		d = configfile.read_config(lines)
 		self.failUnless(d['shared_buffers'] == '800')
@@ -240,11 +241,11 @@ class test_configfile(unittest.TestCase):
 	
 	def testSelection(self):
 		# Sanity
-		red = configfile.read_config(['foo = bar\n', 'bar = foo'])
+		red = configfile.read_config(['foo = bar'+os.linesep, 'bar = foo'])
 		self.failUnless(len(red.keys()) == 2)
 
 		# Test a simple selector
-		red = configfile.read_config(['foo = bar\n', 'bar = foo'],
+		red = configfile.read_config(['foo = bar'+os.linesep, 'bar = foo'],
 			selector = lambda x: x == 'bar')
 		rkeys = list(red.keys())
 		self.failUnless(len(rkeys) == 1)
