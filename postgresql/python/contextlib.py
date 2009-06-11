@@ -66,10 +66,8 @@ class Nested(object):
 					typ = val = tb = None
 			except:
 				newtyp, newval, newtb = sys.exc_info()
-				if getattr(newval,'__cause__') is None:
-					newval.__cause__ = getattr(newval, '__context__', val)
-				if newval.__cause__ is newval.__context__:
-					newval.__context__ = None
+				if newval.__cause__ is None:
+					newval.__cause__ = newval.__context__
 				typ = newtyp
 				val = newval
 				tb = newtb
