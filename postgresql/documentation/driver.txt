@@ -16,10 +16,13 @@ For DB-API 2.0 users, the driver module is located at
 `postgresql.driver.dbapi20`. The DB-API 2.0 interface extends PG-API. All of the
 features discussed in this chapter are available on DB-API connections.
 
-.. note::
+.. warning::
    PostgreSQL versions 8.1 and earlier do not support standard conforming
-   strings. A warning will be raised whenever a connection is established to a
-   server that does not support standard conforming strings.
+   strings. In order to avoid subjective escape methods on connections,
+   `postgresql.driver.pq3` enables the ``standard_conforming_strings`` setting
+   by default. Greater care must be taken when working versions that do not
+   support standard strings.
+   **The majority of issues surrounding the interpolation of properly quoted literals can be easily avoided by using parameterized statements**.
 
 The following identifiers are regularly used as shorthands for significant
 interface elements:

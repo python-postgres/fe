@@ -1922,18 +1922,12 @@ class Connection(pg_api.Connection):
 		# Set standard_conforming_strings
 		scstr = self.settings.get('standard_conforming_strings')
 		if scstr is None or (self.version_info[0] == 8 and self.version_info[1] == 1):
-			# warn about non-standard strings
-			cm = element.ClientNotice(
-				message = 'standard conforming strings are not available',
-				severity = 'WARNING',
-				code = '01-00',
-				hint = 'Backend does not support "SET standard_conforming_strings TO ON"'
-			)
-			cm = self._convert_pq_message(cm)
-			cm.creator = self
-			cm.raise_message()
+			# There used to be a warning emitted here.
+			# It was noisy, and had little added value
+			# over a nice WARNING at the top of the driver documentation.
+			pass
 		elif scstr.lower() not in ('on','true','yes'):
-			self.settings['standard_conforming_strings'] = str(True)
+			self.settings['standard_conforming_strings'] = 'on'
 		super().connect()
 
 	def _pq_push(self, xact, controller = None):
