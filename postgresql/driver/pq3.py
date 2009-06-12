@@ -5,23 +5,15 @@
 """
 PG-API interface for PostgreSQL using PQ version 3.0.
 """
-import sys
 import os
 import weakref
-import warnings
-import collections
-
-import errno
 import socket
 from traceback import format_exception
-
 from operator import itemgetter
 get0 = itemgetter(0)
 get1 = itemgetter(1)
-from itertools import repeat, islice, chain, count
-from functools import partial
-
-from abc import abstractmethod, abstractproperty
+from itertools import repeat, chain
+from abc import abstractmethod
 
 from .. import lib as pg_lib
 
