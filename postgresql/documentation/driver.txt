@@ -13,7 +13,8 @@ version 3.0 of the PQ protocol *should* work, many features may not work due to
 absent functionality in the remote end.
 
 For DB-API 2.0 users, the driver module is located at
-`postgresql.driver.dbapi20`.
+`postgresql.driver.dbapi20`. The DB-API 2.0 interface extends PG-API. All of the
+features discussed in this chapter are available on DB-API connections.
 
 .. note::
    PostgreSQL versions 8.1 and earlier do not support standard conforming
