@@ -231,7 +231,7 @@ class Negotiation(Transaction):
 
 		# Done authenticating, pick up the killinfo and the ready message.
 		x = (yield None)
-		if x[0] != element.KillInformation.type:
+		if x[0] is not element.KillInformation.type:
 			self.fatal = True
 			self.error_message = element.ClientError(
 				message = \
@@ -246,7 +246,7 @@ class Negotiation(Transaction):
 		self.killinfo = element.KillInformation.parse(x[1])
 
 		x = (yield None)
-		if x[0] != element.Ready.type:
+		if x[0] is not element.Ready.type:
 			self.fatal = True
 			self.error_message = element.ClientError(
 				message = \
