@@ -144,13 +144,19 @@ class Cursor(object):
 	def _portal():
 		def fget(self):
 			if self.__portals is None:
-				raise Error("access on closed cursor")
+				raise Error("cursor is closed",
+					source = 'CLIENT', creator = self.database
+				)
 			try:
 				p = self.__portals[0]
 			except IndexError:
 				raise InterfaceError("no portal on stack")
 			return p
 		def fdel(self):
+			if self.__portals is None:
+				raise Error("cursor is closed",
+					source = 'CLIENT', creator = self.database
+				)
 			try:
 				del self.__portals[0]
 			except IndexError:
@@ -159,15 +165,23 @@ class Cursor(object):
 	_portal = property(**_portal())
 
 	def setinputsizes(self, sizes):
-		pass
+		if self.__portals is None:
+			raise Error("cursor is closed",
+				source = 'CLIENT', creator = self.database)
 
 	def setoutputsize(self, sizes, columns = None):
-		pass
+		if self.__portals is None:
+			raise Error("cursor is closed",
+				source = 'CLIENT', creator = self.database)
 
 	def callproc(self, proname, args):
+		if self.__portals is None:
+			raise Error("cursor is closed",
+				source = 'CLIENT', creator = self.database)
+
 		p = self.database.prepare("SELECT %s(%s)" %(
 			proname, ','.join([
-				'$%d' %(x,) for x in range(1, len(args) + 1)
+				'$' + str(x) for x in range(1, len(args) + 1)
 			])
 		))
 		self.__portals.insert(0, Portal(p.chunks(*args)))
@@ -245,6 +259,10 @@ class Cursor(object):
 		return (pg_str.unsplit(rparts) if rparts else string, transformer, count)
 
 	def execute(self, statement, parameters = ()):
+		if self.__portals is None:
+			raise Error("cursor is closed",
+				source = 'CLIENT', creator = self.database)
+
 		sql, pxf, nparams = self._convert_query(statement)
 		if nparams != -1 and len(parameters) != nparams:
 			raise TypeError(
@@ -274,6 +292,10 @@ class Cursor(object):
 		return self
 
 	def executemany(self, statement, parameters):
+		if self.__portals is None:
+			raise Error("cursor is closed",
+				source = 'CLIENT', creator = self.database)
+
 		sql, pxf, nparams = self._convert_query(statement)
 		ps = self.database.prepare(sql)
 		if ps._input is not None:
@@ -284,11 +306,11 @@ class Cursor(object):
 		return self
 
 	def close(self):
+		if self.__portals is None:
+			raise Error("cursor is closed",
+				source = 'CLIENT', creator = self.database)
 		self.description = None
-		ps = self.__portals
-		if self.__portals is not None:
-			self.__portals = None
-			for p in ps: p.close()
+		self.__portals = None
 
 class Connection(Connection):
 	"""

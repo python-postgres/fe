@@ -342,6 +342,25 @@ class test_dbapi20(TestCaseWithCluster):
 		# connection.close should raise an Error if called more than once
 		self.assertRaises(self.driver.Error,con.close)
 
+	def test_cursor_close(self):
+		con = self._connect()
+		try:
+			cur = con.cursor()
+			cur.close()
+			# cursor.execute should raise an Error if called after cursor.close
+			# closed
+			self.assertRaises(self.driver.Error,self.executeDDL1,cur)
+			# cursor.executemany should raise an Error if called after connection'
+			# closed.'
+			self.assertRaises(self.driver.Error,cur.executemany,'foo', [])
+
+			self.assertRaises(self.driver.Error,cur.callproc,'generate_series', [1, 10])
+
+			# cursor.close should raise an Error if called more than once
+			self.assertRaises(self.driver.Error,cur.close)
+		finally:
+			con.close()
+
 	def test_execute(self):
 		con = self._connect()
 		try:
