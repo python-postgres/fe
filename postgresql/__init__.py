@@ -21,7 +21,7 @@ __all__ = [
 ]
 
 __author__ = "James William Pye <x@jwp.name>"
-__date__ = "2009-04-30 17:34:00-07"
+__date__ = "2009-06-13 17:19:00-07"
 
 __project__ = 'py-postgresql'
 __project_id__ = 'http://python.projects.postgresql.org'
