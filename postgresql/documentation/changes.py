@@ -6,8 +6,8 @@ r"""
 Changes
 =======
 
-0.8.2
------
+0.8.2 released on 2009-06-13
+----------------------------
 
  * Correct StoredProcedure's statement production. It was falsely using a
    a mechanism that would use SQL predefined type names instead of
