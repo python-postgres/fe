@@ -1,8 +1,8 @@
 Changes
 =======
 
-0.9.0
------
+0.9.0 released on 2009-06-13
+----------------------------
 
  * Performance improvements.
  * Extend `postgresql.open` to take keyword arguments.
@@ -26,8 +26,8 @@ Changes
    postgresql.exceptions.Error.__str__.
 
 
-0.8.2
------
+0.8.2 released on 2009-06-13
+----------------------------
 
  * Correct StoredProcedure's statement production. It was falsely using a
    a mechanism that would use SQL predefined type names instead of
