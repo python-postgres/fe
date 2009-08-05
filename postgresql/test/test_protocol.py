@@ -530,11 +530,11 @@ class test_client3(unittest.TestCase):
 			{}
 		)
 		exc = None
+		servsock.listen(1)
 		def client_thread():
 			pc.connect(ssl = True)
 		client = Thread(target = client_thread)
 		client.start()
-		servsock.listen(1)
 		c, addr = servsock.accept()
 		c.send(b'S')
 		c.sendall(b'0000000000000000000000')
@@ -558,11 +558,11 @@ class test_client3(unittest.TestCase):
 			{}
 		)
 		exc = None
+		servsock.listen(1)
 		def client_thread():
 			pc.connect()
 		client = Thread(target = client_thread)
 		client.start()
-		servsock.listen(1)
 		c, addr = servsock.accept()
 		c.close()
 		time.sleep(0.25)
