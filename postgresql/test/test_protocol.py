@@ -194,6 +194,16 @@ class test_element3(unittest.TestCase):
 				xtype = type(x)
 				self.failUnless(x is xtype())
 
+	def testUnknownNoticeFields(self):
+		# Ignore the unknown fields 'Z' and 'X'.
+		N = e3.Notice.parse(b'Z\x00Xklsvdnvldsvkndvlsn\x00Pfoobar\x00Mmessage\x00')
+		E = e3.Error.parse(b'Z\x00Xklsvdnvldsvkndvlsn\x00Pfoobar\x00Mmessage\x00')
+		self.failUnlessEqual(N['message'], b'message')
+		self.failUnlessEqual(E['message'], b'message')
+		self.failUnlessEqual(N['position'], b'foobar')
+		self.failUnlessEqual(E['position'], b'foobar')
+		self.failUnlessEqual(len(N), 2)
+		self.failUnlessEqual(len(E), 2)
 ##
 # xact3 tests
 ##

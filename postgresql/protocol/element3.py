@@ -327,9 +327,12 @@ class Notice(Message, dict):
 	@classmethod
 	def parse(typ, data):
 		kw = {}
+		g = typ._dtm.get
 		for frag in data.split(b'\x00'):
 			if frag:
-				kw[typ._dtm[frag[0:1]]] = frag[1:]
+				key = g(frag[0:1])
+				if key is not None:
+					kw[key] = frag[1:]
 		return typ(**kw)
 
 class ClientNotice(Notice):
