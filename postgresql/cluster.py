@@ -494,7 +494,7 @@ class Cluster(pg_api.Cluster):
 					if isinstance(x, pg_exc.AuthenticationSpecificationError):
 						return True
 				# configuration file error. ya, that's probably not going to change.
-				if isinstance(x, pg_exc.CFError):
+				if isinstance(x, (pg_exc.CFError, pg_exc.ProtocolError)):
 					raise x
 				if isinstance(x, pg_exc.ServerNotReadyError):
 					e = x
