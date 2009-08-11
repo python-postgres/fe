@@ -11,7 +11,6 @@
  * file and then uses some CPP macros to expand the definitions
  * in each file.
  */
-#include <stdint.h>
 #include <Python.h>
 #include <structmember.h>
 
