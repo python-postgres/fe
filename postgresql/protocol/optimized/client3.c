@@ -85,12 +85,17 @@ cat_messages(PyObject *self, PyObject *messages_in)
 			 */
 			while (cmsg < eofc)
 			{
+				uint32_t msg_length;
+				char *localbuf = buf + bufpos + 1;
+				buf[bufpos] = 'd'; /* COPY data message type */
+
 				ob = PyList_GET_ITEM(msgs, cmsg);
-				buf[bufpos] = 'd';
-				*((uint32_t *)(buf + bufpos + 1)) =
-					(uint32_t) local_ntohl(PyBytes_GET_SIZE(ob) + 4);
-				memcpy(buf + bufpos + 5, PyBytes_AS_STRING(ob), PyBytes_GET_SIZE(ob));
-				bufpos = bufpos + 5 + PyBytes_GET_SIZE(ob);
+				msg_length = PyBytes_GET_SIZE(ob) + 4;
+
+				bufpos = bufpos + 1 + msg_length;
+				msg_length = local_ntohl(msg_length);
+				memcpy(localbuf, &msg_length, 4);
+				memcpy(localbuf + 4, PyBytes_AS_STRING(ob), PyBytes_GET_SIZE(ob));
 				++cmsg;
 			}
 		}
@@ -99,6 +104,7 @@ cat_messages(PyObject *self, PyObject *messages_in)
 			PyObject *serialized;
 			PyObject *msg_type;
 			int msg_type_size;
+			uint32_t msg_length;
 
 			/*
 			 * Call the serialize() method on the element object.
@@ -166,9 +172,9 @@ cat_messages(PyObject *self, PyObject *messages_in)
 			 * All necessary information acquired, so fill in the message's data.
 			 */
 			buf[bufpos] = *(PyBytes_AS_STRING(msg_type));
-			/* data size */
-			*((uint32_t *)(buf + bufpos + msg_type_size)) =
-				(uint32_t) local_ntohl(PyBytes_GET_SIZE(serialized) + 4);
+			msg_length = PyBytes_GET_SIZE(serialized) + 4;
+			msg_length = local_ntohl(msg_length);
+			memcpy(buf + bufpos + msg_type_size, &msg_length, 4);
 			memcpy(	
 				buf + bufpos + 4 + msg_type_size,
 				PyBytes_AS_STRING(serialized),

@@ -80,12 +80,14 @@ _pack_tuple_data(PyObject *tup)
 		ob = PyTuple_GET_ITEM(tup, catt);
 		if (ob == Py_None)
 		{
-			*((uint32_t *) bufpos) = (uint32_t) 0xFFFFFFFFL;
+			uint32_t attsize = 0xFFFFFFFFL; /* Indicates NULL */
+			memcpy(bufpos, &attsize, 4);
 			bufpos = bufpos + 4;
 		}
 		else
 		{
 			Py_ssize_t size = PyBytes_GET_SIZE(ob);
+			uint32_t msg_size;
 			if (size > 0xFFFFFFFE)
 			{
 				PyErr_Format(PyExc_OverflowError,
@@ -93,7 +95,8 @@ _pack_tuple_data(PyObject *tup)
 					catt
 				);
 			}
-			*((uint32_t *) bufpos) = local_ntohl((uint32_t) size);
+			msg_size = local_ntohl((uint32_t) size);
+			memcpy(bufpos, &msg_size, 4);
 			bufpos = bufpos + 4;
 			memcpy(bufpos, PyBytes_AS_STRING(ob), PyBytes_GET_SIZE(ob));
 			bufpos = bufpos + PyBytes_GET_SIZE(ob);
@@ -131,7 +134,8 @@ _unpack_tuple_data(PyObject *dst, uint16_t natts, const char *data, Py_ssize_t d
 			return(-1);
 		}
 
-		attsize = local_ntohl(*((uint32_t *) (data + position)));
+		memcpy(&attsize, data + position, 4);
+		attsize = local_ntohl(attsize);
 		position += 4;
 		/*
 		 * NULL.
@@ -214,7 +218,8 @@ parse_tuple_message(PyObject *self, PyObject *args)
 			"invalid tuple message: %d bytes is too small", dlen);
 		return(NULL);
 	}
-	natts = local_ntohs(*((uint16_t *) (data)));
+	memcpy(&natts, data, 2);
+	natts = local_ntohs(natts);
 
 	prerob = PyTuple_New(natts);
 	if (prerob == NULL)

@@ -17,14 +17,14 @@
 	mFUNC(swap_int2_unpack, METH_O, "PyInt from swapped serialized, int2") \
 	mFUNC(swap_int4_pack, METH_O, "PyInt to swapped serialized, int4") \
 	mFUNC(swap_int4_unpack, METH_O, "PyInt from swapped serialized, int4") \
-	mFUNC(uint2_pack, METH_O, "PyInt to serialized, int2") \
-	mFUNC(uint2_unpack, METH_O, "PyInt from serialized, int2") \
-	mFUNC(uint4_pack, METH_O, "PyInt to serialized, int4") \
-	mFUNC(uint4_unpack, METH_O, "PyInt from serialized, int4") \
-	mFUNC(swap_uint2_pack, METH_O, "PyInt to swapped serialized, int2") \
-	mFUNC(swap_uint2_unpack, METH_O, "PyInt from swapped serialized, int2") \
-	mFUNC(swap_uint4_pack, METH_O, "PyInt to swapped serialized, int4") \
-	mFUNC(swap_uint4_unpack, METH_O, "PyInt from swapped serialized, int4") \
+	mFUNC(uint2_pack, METH_O, "PyInt to serialized, uint2") \
+	mFUNC(uint2_unpack, METH_O, "PyInt from serialized, uint2") \
+	mFUNC(uint4_pack, METH_O, "PyInt to serialized, uint4") \
+	mFUNC(uint4_unpack, METH_O, "PyInt from serialized, uint4") \
+	mFUNC(swap_uint2_pack, METH_O, "PyInt to swapped serialized, uint2") \
+	mFUNC(swap_uint2_unpack, METH_O, "PyInt from swapped serialized, uint2") \
+	mFUNC(swap_uint4_pack, METH_O, "PyInt to swapped serialized, uint4") \
+	mFUNC(swap_uint4_unpack, METH_O, "PyInt from swapped serialized, uint4") \
 
 /*
  * Define the swap functionality for those endians.

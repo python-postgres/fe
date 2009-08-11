@@ -1,6 +1,13 @@
 Changes
 =======
 
+0.9.1
+-----
+
+ * Fix misaligned reads in C extensions [Reported by Leonardo Francalanci]
+ * Fix protocol tests on linux systems
+ * Abort cluster startup waits on ProtocolError
+
 0.9.0 released on 2009-06-13
 ----------------------------
 

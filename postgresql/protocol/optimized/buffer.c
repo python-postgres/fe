@@ -181,7 +181,7 @@ p_memcpy(char *dst, struct p_place *p, uint32_t amount)
 
 	while (amount_left > 0)
 	{
-		unsigned long this_read =
+		uint32_t this_read =
 			chunk_size < amount_left ? chunk_size : amount_left;
 
 		memcpy(dst, src, this_read);
@@ -220,7 +220,8 @@ p_length(PyObject *self)
 			break;
 		p_seek(&p, copy_amount);
 
-		msg_length = local_ntohl(*((uint32_t *) (header + 1)));
+		memcpy(&msg_length, header + 1, 4);
+		msg_length = local_ntohl(msg_length);
 		if (msg_length < 4)
 		{
 			PyErr_Format(PyExc_ValueError,
@@ -262,7 +263,8 @@ p_build_tuple(struct p_place *p)
 		return(NULL);
 	p_seek(p, copy_amount);
 
-	msg_length = local_ntohl(*((uint32_t *) (header + 1)));
+	memcpy(&msg_length, header + 1, 4);
+	msg_length = local_ntohl(msg_length);
 	if (msg_length < 4)
 	{
 		PyErr_Format(PyExc_ValueError,
@@ -341,7 +343,7 @@ p_write(PyObject *self, PyObject *data)
 	if (!PyBytes_Check(data))
 	{
 		PyErr_SetString(PyExc_TypeError,
-			"PQ buffer.write() method requires a bytes object");
+			"pq buffer.write() method requires a bytes object");
 		return(NULL);
 	}
 	pb = ((struct p_buffer *) self);
@@ -461,8 +463,9 @@ p_has_message(PyObject *self)
 		return(Py_False);
 	}
 	p_seek(&p, copy_amount);
+	memcpy(&msg_length, header + 1, 4);
 
-	msg_length = local_ntohl(*((uint32_t *) (header + 1)));
+	msg_length = local_ntohl(msg_length);
 	if (msg_length < 4)
 	{
 		PyErr_Format(PyExc_ValueError,
