@@ -1,12 +1,15 @@
 Changes
 =======
 
-0.9.1
------
+0.9.1 released on 2009-08-12
+----------------------------
 
  * Fix misaligned reads in C extensions [Reported by Leonardo Francalanci]
- * Fix protocol tests on linux systems
- * Abort cluster startup waits on ProtocolError
+ * Don't be strict about keys(field type) in Notice messages per specification:
+   http://www.postgresql.org/docs/8.4/static/protocol-message-formats.html
+ * Fix test_protocol on ubuntu linux systems.
+ * Stop waiting for cluster startup on postgresql.exceptions.ProtocolError.
+ * DEAD BRANCH: 0.8 is no longer supported.
 
 0.9.0 released on 2009-06-13
 ----------------------------
