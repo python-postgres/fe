@@ -12,6 +12,13 @@
  * in each file.
  */
 #include <Python.h>
+/*
+ * If Python didn't find it, it won't include it.
+ * However, it's quite necessary.
+ */
+#ifndef HAVE_STDINT_H
+#include <stdint.h>
+#endif
 
 #define USHORT_MAX ((1<<16)-1)
 #define SHORT_MAX ((1<<15)-1)
