@@ -12,7 +12,6 @@
  * in each file.
  */
 #include <Python.h>
-#include <structmember.h>
 
 #define USHORT_MAX ((1<<16)-1)
 #define SHORT_MAX ((1<<15)-1)
