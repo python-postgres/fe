@@ -21,12 +21,12 @@ __all__ = [
 ]
 
 __author__ = "James William Pye <x@jwp.name>"
-__date__ = "2009-08-12 03:47:00-07"
+__date__ = "2009-08-12 08:53:00-07"
 
 __project__ = 'py-postgresql'
 __project_id__ = 'http://python.projects.postgresql.org'
 
-version_info = (0, 9, 1, 'final', 0)
+version_info = (0, 9, 2, 'dev', 0)
 __version__ = '.'.join(map(str, version_info[:3])) + (
 	version_info[3] if version_info[3] != 'final' else ''
 )
