@@ -1645,8 +1645,8 @@ object relationship model provides a common protocol for controlling message
 propagation and, ultimately, display.
 
 The ``msghook`` attribute on elements is absent by default. However, when
-present on an object--explicitly set--that contributed the cause of a message
-event, it will be invoked with the Message, `postgresql.api.Message`, object as
+present on an object that contributed the cause of a message event, it will
+be invoked with the Message, `postgresql.api.Message`, object as
 its sole parameter. The attribute of the object that is closest to the event is
 checked first, if present it will be called. If the ``msghook()`` call returns
 a `True` value(specficially, ``bool(x) is True``), the message will not be

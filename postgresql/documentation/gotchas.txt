@@ -6,8 +6,8 @@ given user. In order to highlight those potential issues and hopefully bring
 some sense into a confusing situation, this document was drawn.
 
 
-client_encoding setting should be altered carefully
----------------------------------------------------
+`client_encoding` setting should be altered carefully
+-----------------------------------------------------
 
 `postgresql.driver`'s streaming cursor implementation reads a fixed set of rows
 when it queries the server for more. In order to optimize some situations, the
@@ -22,7 +22,7 @@ Furthermore, it is probably best to never change the `client_encoding` as the
 driver automatically makes the necessary transformation to Python strings.
 
 
-The user and password is correct, but does it not work when using `postgresql.driver`
+The user and password is correct, but it does not work when using `postgresql.driver`
 -------------------------------------------------------------------------------------
 
 This issue likely comes from the possibility that the information sent to the
