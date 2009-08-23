@@ -15,11 +15,13 @@ postgres_to_python = {
 	'euc_kr' : 'euckr',
 #	'euc_tw' : None, # N/A
 #	'mule_internal' : None, # N/A
-	'win1256' : 'windows_1256',
-	'tcvn' : 'windows_1258',
+	'alt' : 'cp866',
 	'win874' : 'cp874',
 	'koi8r' : 'koi8_r',
-	'win1251' : 'windows_1251',
-	'alt' : 'cp866',
+	'tcvn' : 'windows_1258',
 	'win1250' : 'windows_1250',
+	'win1251' : 'windows_1251',
+	'win1252' : 'windows_1252',
+	'win1256' : 'windows_1256',
+	'win1258' : 'windows_1258',
 }
