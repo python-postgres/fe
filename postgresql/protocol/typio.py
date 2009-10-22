@@ -512,6 +512,7 @@ def array_typio(
 				pack_array_elements(data.elements)
 			))
 	else:
+		# signals string formatting
 		pack_an_array = None
 
 	if hasbin_output:
@@ -532,6 +533,7 @@ def array_typio(
 				dimensions = dim
 			)
 	else:
+		# signals string formatting
 		unpack_an_array = None
 
 	return (pack_an_array, unpack_an_array)

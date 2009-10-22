@@ -566,12 +566,12 @@ class Array(object):
 					yield x
 				break
 			l = len(hier)
-			yield l
 			if l > 0:
 				# boundary consistency checks come later.
 				hier = hier[0]
 			else:
 				break
+			yield l
 
 	@classmethod
 	def from_nest(typ, nest, offset = None):
