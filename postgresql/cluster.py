@@ -15,10 +15,7 @@ import signal
 import time
 import io
 import subprocess as sp
-import warnings
 import tempfile
-from contextlib import closing
-from operator import attrgetter
 
 from . import api as pg_api
 from . import configfile
