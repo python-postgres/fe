@@ -8,7 +8,6 @@ import os
 import os.path
 import subprocess
 import io
-import pprint
 import errno
 from itertools import chain
 from operator import itemgetter
