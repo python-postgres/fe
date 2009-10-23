@@ -18,7 +18,7 @@ SELECT
 FROM pg_catalog.pg_type bt
  LEFT JOIN pg_type ae
   ON (
-	bt.typlen = -1 AND
+   bt.typlen = -1 AND
    bt.typelem != 0 AND
    bt.typelem = ae.oid
   )
