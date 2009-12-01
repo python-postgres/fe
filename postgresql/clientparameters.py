@@ -287,7 +287,7 @@ def append_db_client_x_parameters(option, opt_str, value, parser):
 make_x_option = partial(make_option, callback = append_db_client_x_parameters)
 
 option_iri = make_x_option('-I', '--iri',
-	help = 'database locator string [pq://user:password@host:port/database?[driver_param]=valuesetting=value]',
+	help = 'database locator string [pq://user:password@host:port/database?[driver_param]=value&setting=value]',
 	type = 'str',
 	dest = 'pq_iri',
 )
