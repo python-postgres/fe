@@ -28,6 +28,9 @@ with the following built-ins:
  ``proc``
   ``db.proc``
 
+ ``sqlexec``
+  ``db.execute``, execute multiple SQL statements (``None`` is always returned)
+
 
 pg_python Usage
 ---------------
