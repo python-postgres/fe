@@ -91,7 +91,10 @@ def command(argv = sys.argv):
 			'connector' : connector,
 			'db' : connection,
 			'prepare' : connection.prepare,
+			# XXX: being replaced by sqlexec.
 			'execute' : connection.execute,
+
+			'sqlexec' : connection.execute,
 			'settings' : connection.settings,
 			'proc' : connection.proc,
 			'xact' : connection.xact,
