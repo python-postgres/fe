@@ -31,7 +31,7 @@ __version__ = '.'.join(map(str, version_info[:3])) + (
 	version_info[3] if version_info[3] != 'final' else ''
 )
 
-pg_iri = pg_driver = pg_param = None
+_pg_iri = _pg_driver = _pg_param = None
 def open(iri = None, prompt_title = None, **kw):
 	"""
 	Create a `postgresql.api.Connection` to the server referenced by the given
@@ -46,31 +46,31 @@ def open(iri = None, prompt_title = None, **kw):
 
 	(Note: "pq" is the name of the protocol used to communicate with PostgreSQL)
 	"""
-	global pg_iri, pg_driver, pg_param
-	if pg_iri is None:
-		from . import iri as pg_iri
-		from . import driver as pg_driver
-		from . import clientparameters as pg_param
+	global _pg_iri, _pg_driver, _pg_param
+	if _pg_iri is None:
+		from . import iri as _pg_iri
+		from . import driver as _pg_driver
+		from . import clientparameters as _pg_param
 
 	return_connector = False
 	if iri is not None:
 		if iri.startswith('&'):
 			return_connector = True
 			iri = iri[1:]
-		iri_params = pg_iri.parse(iri)
+		iri_params = _pg_iri.parse(iri)
 		iri_params.pop('path', None)
 	else:
 		iri_params = {}
 
-	std_params = pg_param.collect(prompt_title = None)
-	params = pg_param.normalize(
-		list(pg_param.denormalize_parameters(std_params)) + \
-		list(pg_param.denormalize_parameters(iri_params)) + \
-		list(pg_param.denormalize_parameters(kw))
+	std_params = _pg_param.collect(prompt_title = None)
+	params = _pg_param.normalize(
+		list(_pg_param.denormalize_parameters(std_params)) + \
+		list(_pg_param.denormalize_parameters(iri_params)) + \
+		list(_pg_param.denormalize_parameters(kw))
 	)
-	pg_param.resolve_password(params)
+	_pg_param.resolve_password(params)
 
-	C = pg_driver.default.fit(**params)
+	C = _pg_driver.default.fit(**params)
 	if return_connector is True:
 		return C
 	else:
