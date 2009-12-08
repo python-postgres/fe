@@ -8,7 +8,6 @@ using PostgreSQL.
 At its core, py-postgresql provides a PG-API, `postgresql.api`, and
 DB-API 2.0 interface for using a PostgreSQL database.
 
-
 Contents
 --------
 
@@ -19,10 +18,17 @@ Contents
    driver
    lib
    clientparameters
-   bin
    gotchas
    changes
 
+Reference
+---------
+
+.. toctree::
+   :maxdepth: 2
+
+   bin
+   modules
 
 Sample PG-API Code
 ------------------

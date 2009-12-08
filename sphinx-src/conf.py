@@ -13,18 +13,19 @@
 
 import sys, os
 sys.path.insert(0, '.')
+sys.dont_write_bytecode = True
 
 # If your extensions are in another directory, add it here. If the directory
 # is relative to the documentation root, use os.path.abspath to make it
 # absolute, like shown here.
-#sys.path.append(os.path.abspath('some/directory'))
+sys.path.append(os.path.abspath(os.path.dirname(__file__) + '../..'))
 
 # General configuration
 # ---------------------
 
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = []
+extensions = ['sphinx.ext.autodoc']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['.templates']
@@ -36,7 +37,7 @@ source_suffix = '.txt'
 master_doc = 'index'
 
 # General substitutions.
-import meta
+import postgresql as meta
 project = meta.__project__
 copyright = meta.__date__ + ', ' + meta.__author__
 

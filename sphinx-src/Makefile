@@ -23,7 +23,6 @@ help:
 clean:
 	-rm -rf *.txt
 	-rm -rf ../sphinx
-	-rm -f meta.py*
 
 html: dump
 	mkdir -p $(BUILD_DIR) $(BUILD_DIR)/doctrees
@@ -73,6 +72,6 @@ mkdirs:
 	mkdir -p .static .templates
 
 dump: mkdirs
-	cp ../postgresql/__init__.py ./meta.py
 	cp ../postgresql/documentation/*.txt ./
 	cp index.rst index.txt
+	cp modules.rst modules.txt
