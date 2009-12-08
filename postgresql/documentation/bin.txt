@@ -1,5 +1,5 @@
-Console Scripts
-***************
+Commands
+********
 
 This chapter discusses the usage of the available console scripts.
 
