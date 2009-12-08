@@ -19,11 +19,11 @@ Contents
  Driver
   `postgresql.documentation.driver`
 
+ Categories and Query Libraries
+  `postgresql.documentation.lib`
+
  Client Parameters
   `postgresql.documentation.clientparameters`
-
- Console Scripts
-  `postgresql.documentation.bin`
 
  Gotchas
   `postgresql.documentation.gotchas`
@@ -31,6 +31,12 @@ Contents
  Changes
   `postgresql.documentation.changes`
 
+---------
+Reference
+---------
+
+ Commands
+  `postgresql.documentation.bin`
 
 ------------------
 Sample PG-API Code

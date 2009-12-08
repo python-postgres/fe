@@ -1,6 +1,13 @@
 Changes
 =======
 
+0.9.2
+-----
+
+ * Correct types.Array binary serialization (8.5 added extra checks)
+ * Add more encoding name mapping entries.
+ * Documentation improvements.
+
 0.9.1 released on 2009-08-12
 ----------------------------
 
