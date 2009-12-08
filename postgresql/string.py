@@ -46,7 +46,7 @@ quote_re = re.compile(r"""(?xu)
 |	(\$(?:[^0-9$]\w*)?\$).*?(?:\1|$)   (?# Dollar quotes $$str$$)
 """)
 
-def split(text, re = quote_re):
+def split(text):
 	"""
 	split the string up by into non-quoted and quoted portions. Zero and even
 	numbered indexes are unquoted portions, while odd indexes are quoted
@@ -66,6 +66,7 @@ def split(text, re = quote_re):
 	to identify the best course of action for the given split.
 	"""
 	lastend = 0
+	re = quote_re
 	scan = re.scanner(text)
 	match = scan.search()
 	while match is not None:
