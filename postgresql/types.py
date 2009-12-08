@@ -16,6 +16,7 @@ try:
 except ImportError:
 	import xml.etree.ElementTree as etree
 
+# XXX: Would be nicer to generate these from a header file...
 InvalidOid = 0
 
 RECORDOID = 2249
@@ -455,33 +456,34 @@ class box(tuple):
 
 	http://www.postgresql.org/docs/current/static/datatype-geometric.html
 
-	>>> box(( (0,0), (-2, -2) ))
-	postgresql.types.box(((0.0, 0.0), (-2.0, -2.0)))
+		>>> box(( (0,0), (-2, -2) ))
+		postgresql.types.box(((0.0, 0.0), (-2.0, -2.0)))
 
 	It will also relocate values to enforce the high-low expectation:
 
-	>>> t.box(((-4,0),(-2,-3)))
-	postgresql.types.box(((-2.0, 0.0), (-4.0, -3.0)))
+		>>> t.box(((-4,0),(-2,-3)))
+		postgresql.types.box(((-2.0, 0.0), (-4.0, -3.0)))
 
-	That is:
+	::
+		
+		                (-2, 0) `high`
+		                   |
+		                   |
+		    (-4,-3) -------+-x
+		     `low`         y
 
-	               (-2, 0) `high`
-	                  |
-	                  |
-	   (-4,-3) -------+-x
-	    `low`         y
-	
 	This happens because ``-4`` is less than ``-2``; therefore the ``-4``
 	belongs on the low point. This is consistent with what PostgreSQL does
 	with its ``box`` type.
 	"""
-	high = property(fget = get0)
-	low = property(fget = get1)
+	high = property(fget = get0, doc = "high point of the box")
+	low = property(fget = get1, doc = "low point of the box")
 	center = property(
 		fget = lambda s: point((
 			(s[0][0] + s[1][0]) / 2.0,
 			(s[0][1] + s[1][1]) / 2.0
-		))
+		)),
+		doc = "center of the box as a point"
 	)
 
 	def __new__(subtype, hl):
@@ -515,9 +517,9 @@ class box(tuple):
 		return '%s,%s' %(self[0], self[1])
 
 class circle(tuple):
-	'circle type--center point and radius'
-	center = property(fget = get0)
-	radius = property(fget = get1)
+	'type for PostgreSQL circles'
+	center = property(fget = get0, doc = "center of the circle (point)")
+	radius = property(fget = get1, doc = "radius of the circle (radius >= 0)")
 
 	def __new__(subtype, pair):
 		center, radius = pair
@@ -537,6 +539,10 @@ class circle(tuple):
 		return '<%s,%s>' %(self[0], self[1])
 
 class Array(object):
+	"""
+	Type used to mimic PostgreSQL arrays.
+	"""
+
 	@staticmethod
 	def unroll_nest(hier, dimensions):
 		"return an iterator over the absolute elements of a nested sequence"
@@ -776,7 +782,7 @@ class Row(tuple):
 	def transform(self, *args, **kw):
 		"""
 		Make a new Row after processing the values with the callables associated
-		with the values either by index, *args, or my column name, **kw.
+		with the values either by index, \*args, or my column name, \*\*kw.
 
 			>>> r=Row.from_sequence({'col1':0,'col2':1}, (1,'two'))
 			>>> r.transform(str)
@@ -792,6 +798,7 @@ class Row(tuple):
 			>>> xf = operator.methodcaller('transform', col2 = str.upper)
 			>>> list(map(xf, rowseq))
 			[(1,'TWO')]
+
 		"""
 		r = list(self)
 		i = 0
@@ -844,6 +851,7 @@ oid_to_type = {
 	TIMEOID: datetime.time,
 	TIMETZOID: datetime.time,
 
+	# XXX: doesn't support months.
 	INTERVALOID: datetime.timedelta,
 
 	RECORDOID : tuple,
