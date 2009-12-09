@@ -34,8 +34,6 @@ from ..protocol import typio as pg_typio
 
 from .. import types as pg_types
 
-is_showoption = lambda x: getattr(x, 'type', None) is element.ShowOption.type
-
 IDNS = 'py:%s'
 def ID(s, title = None):
 	'generate an id for a client statement or cursor'
@@ -321,7 +319,10 @@ class FetchAll(Chunks):
 		self.database = statement.database
 		Output.__init__(self, '')
 
-	def _init(self):
+	def _init(self,
+		null = element.Null.type,
+		complete = element.Complete.type,
+	):
 		expect = self._expect
 		self._xact = self._ins(
 			self._pq_xp_fetchall() + (element.SynchronizeMessage,)
@@ -330,11 +331,11 @@ class FetchAll(Chunks):
 		while self._xact.state != xact.Complete:
 			self.database._pq_step()
 			for x in self._xact.messages_received():
-				if x.type is element.Null.type:
+				if x.type == null:
 					self.database._pq_complete()
 					self._xact = None
 					return
-				elif x.type is element.Complete.type:
+				elif x.type == complete:
 					self._complete_message = x
 					self.database._pq_complete()
 					# If this was a select/copy cursor,
@@ -342,7 +343,7 @@ class FetchAll(Chunks):
 					# return.
 					self._xact = None
 					return
-				elif x.type is expect:
+				elif x.type == expect:
 					# no need to step once this is seen
 					return
 				elif x.type in (
@@ -387,9 +388,11 @@ class SingleXactCopy(FetchAll):
 class SingleXactFetch(FetchAll):
 	_expect = element.Tuple.type
 	_process_chunk_ = FetchAll._process_tuple_chunk_Row
-	def _process_chunk(self, x):
+	def _process_chunk(self, x,
+		tuple_type = element.Tuple.type
+	):
 		return self._process_chunk_((
-			y for y in x if y.type is element.Tuple.type
+			y for y in x if y.type == tuple_type
 		))
 
 class MultiXactStream(Chunks):
@@ -433,7 +436,7 @@ class MultiXactStream(Chunks):
 			self.database._pq_complete()
 
 		chunk = [
-			y for y in x.messages_received() if y.type is element.Tuple.type
+			y for y in x.messages_received() if y.type == element.Tuple.type
 		]
 		if len(chunk) == self.chunksize:
 			# there may be more, dispatch the request for the next chunk
@@ -496,7 +499,9 @@ class Cursor(Output, pg_api.Cursor):
 		else:
 			return self.direction
 
-	def _init(self):
+	def _init(self,
+		tupledesc = element.TupleDescriptor.type,
+	):
 		"""
 		Based on the cursor parameters and the current transaction state,
 		select a cursor strategy for managing the response from the server.
@@ -510,7 +515,7 @@ class Cursor(Output, pg_api.Cursor):
 			self.database._pq_push(x, self)
 			self.database._pq_complete()
 			for m in x.messages_received():
-				if m.type is element.TupleDescriptor.type:
+				if m.type == tupledesc:
 					self._output = m
 					self._output_attmap = \
 						self.database.typio.attribute_map(self._output)
@@ -545,7 +550,7 @@ class Cursor(Output, pg_api.Cursor):
 		self.database._pq_push(x, self)
 		self.database._pq_complete()
 		return self._process_tuple((
-			y for y in x.messages_received() if y.type is element.Tuple.type
+			y for y in x.messages_received() if y.type == element.Tuple.type
 		))
 
 	def seek(self, offset, whence = 'ABSOLUTE'):
@@ -979,6 +984,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 					params,
 					self._output_formats,
 				),
+				# Get all
 				element.Execute(b'', 0xFFFFFFFF),
 				element.SynchronizeMessage
 			),
@@ -990,8 +996,9 @@ class PreparedStatement(pg_api.PreparedStatement):
 		if self._output_io:
 			##
 			# Look for the first tuple.
+			tuple_type = element.Tuple.type
 			for xt in x.messages_received():
-				if xt.type is element.Tuple.type:
+				if xt.type == tuple_type:
 					break
 			else:
 				return None
@@ -1012,8 +1019,14 @@ class PreparedStatement(pg_api.PreparedStatement):
 		else:
 			##
 			# It doesn't return rows, so return a count.
+			##
+			# This loop searches through the received messages
+			# for the Complete message which contains the count.
+			complete = element.Complete.type
 			for cm in x.messages_received():
-				if getattr(cm, 'type', None) == element.Complete.type:
+				# Use getattr because COPY doesn't produce
+				# element.Message instances.
+				if getattr(cm, 'type', None) == complete:
 					break
 			else:
 				# Probably a Null command.
@@ -1800,7 +1813,7 @@ class Connection(pg_api.Connection):
 
 		# When ssl is None: SSL negotiation will not occur.
 		# When ssl is True: SSL negotiation will occur *and* it must succeed.
-		# When ssl is False: SSL negotiation will occur but NOSSL is okay.
+		# When ssl is False: SSL negotiation will occur but it may fail(NOSSL).
 		if sslmode == 'allow':
 			# first, without ssl, then with. :)
 			socket_factories = interlace(
@@ -1838,15 +1851,21 @@ class Connection(pg_api.Connection):
 				sf, self.connector._startup_parameters,
 				password = self.connector._password,
 			)
+			# Grab the negotiation transaction before
+			# connecting as it will be needed later if successful.
 			neg = pq.xact
 			pq.connect(ssl = ssl, timeout = timeout)
 
 			didssl = getattr(pq, 'ssl_negotiation', -1)
+
+			# It successfully connected if pq.xact is None.
 			if pq.xact is None:
 				self.pq = pq
-				for x in filter(is_showoption, neg.asyncs):
-					self._receive_async(x)
 				self.security = 'ssl' if didssl is True else None
+				showoption_type = element.ShowOption.type
+				for x in neg.asyncs:
+					if x.type == showoption_type:
+						self._receive_async(x)
 				# success!
 				break
 
@@ -2037,20 +2056,24 @@ class Connection(pg_api.Connection):
 		err.database = self
 		return err
 
-	def _receive_async(self, msg, controller = None):
+	def _receive_async(self, msg, controller = None,
+		showoption = element.ShowOption.type,
+		notice = element.Notice.type,
+		notify = element.Notify.type,
+	):
 		c = controller or getattr(self, '_controller', self)
-		if msg.type is element.ShowOption.type:
+		if msg.type == showoption:
 			if msg.name == b'client_encoding':
 				self.typio.set_encoding(msg.value.decode('ascii'))
 			self.settings._notify(msg)
-		elif msg.type is element.Notice.type:
+		elif msg.type == notice:
 			src = 'SERVER'
 			if type(msg) is element.ClientNotice:
 				src = 'CLIENT'
 			m = self._convert_pq_message(msg, source = src)
 			m.creator = c
 			m.raise_message()
-		elif msg.type is element.Notify.type:
+		elif msg.type == notify:
 			subs = getattr(self, '_subscriptions', {})
 			for x in subs.get(msg.relation, ()):
 				x(self, msg)

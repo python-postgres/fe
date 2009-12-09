@@ -134,7 +134,7 @@ class Negotiation(Transaction):
 		try:
 			for x in messages:
 				count += 1
-				if x[0] is element.Error.type:
+				if x[0] == element.Error.type:
 					if self.fatal is None:
 						self.error_message = element.Error.parse(x[1])
 						self.fatal = True
@@ -177,7 +177,7 @@ class Negotiation(Transaction):
 		"""
 		x = (yield (self.startup_message,))
 
-		if x[0] is not element.Authentication.type:
+		if x[0] != element.Authentication.type:
 			self.fatal = True
 			self.error_message = element.ClientError(
 				message = \
@@ -231,7 +231,7 @@ class Negotiation(Transaction):
 
 		# Done authenticating, pick up the killinfo and the ready message.
 		x = (yield None)
-		if x[0] is not element.KillInformation.type:
+		if x[0] != element.KillInformation.type:
 			self.fatal = True
 			self.error_message = element.ClientError(
 				message = \
@@ -246,7 +246,7 @@ class Negotiation(Transaction):
 		self.killinfo = element.KillInformation.parse(x[1])
 
 		x = (yield None)
-		if x[0] is not element.Ready.type:
+		if x[0] != element.Ready.type:
 			self.fatal = True
 			self.error_message = element.ClientError(
 				message = \
@@ -476,7 +476,7 @@ class Instruction(Transaction):
 
 			if path is None:
 				# No path for message type, could be a protocol error.
-				if x[0] is element.Error.type:
+				if x[0] == element.Error.type:
 					em = element.Error.parse(x[1])
 					fatal = em['severity'].upper() in (b'FATAL', b'PANIC')
 					self.error_message = em
@@ -541,7 +541,7 @@ class Instruction(Transaction):
 					current_step = next_step
 				else:
 					current_step = 0
-					if r.type is element.Ready.type:
+					if r.type == element.Ready.type:
 						self.last_ready = r.xact_state
 					# Done with the current command. Increment the offset, and
 					# try to process the new command with the remaining data.
@@ -582,11 +582,11 @@ class Instruction(Transaction):
 			last = processed[-1]
 			if type(last) is bytes:
 				self.state = (Receiving, self.put_copydata)
-			elif last.type is element.CopyToBegin.type:
+			elif last.type == element.CopyToBegin.type:
 				self.state = (Receiving, self.put_copydata)
-			elif last.type is element.Tuple.type:
+			elif last.type == element.Tuple.type:
 				self.state = (Receiving, self.put_tupledata)
-			elif last.type is element.CopyFromBegin.type:
+			elif last.type == element.CopyFromBegin.type:
 				self.CopyFailSequence = (self.CopyFailMessage,) + \
 					self.commands[offset+1:]
 				self.CopyDoneSequence = (element.CopyDoneMessage,) + \
@@ -601,13 +601,13 @@ class Instruction(Transaction):
 		message is received, it reverts the ``state`` attribute back to
 		`standard_put` to process the message-sequence.
 		"""
+		copydata = element.CopyData.type
 		# "Fail" quickly if the last message is not copy data.
-		if messages[-1][0] is not element.CopyData.type:
+		if messages[-1][0] != copydata:
 			self.state = (Receiving, self.standard_put)
 			return self.standard_put(messages)
 
-		cdt = element.CopyData.type
-		lines = [x[1] for x in messages if x[0] is cdt]
+		lines = [x[1] for x in messages if x[0] == copydata]
 		if len(lines) != len(messages):
 			self.state = (Receiving, self.standard_put)
 			return self.standard_put(messages)
@@ -624,13 +624,13 @@ class Instruction(Transaction):
 		"""
 		# Fallback to `standard_put` quickly if the last
 		# message is not tuple data.
-		if messages[-1][0] is not element.Tuple.type:
+		if messages[-1][0] != element.Tuple.type:
 			self.state = (Receiving, self.standard_put)
 			return self.standard_put(messages)
 
 		p = element.Tuple.parse
 		t = element.Tuple.type
-		tuplemessages = [p(x[1]) for x in messages if x[0] is t]
+		tuplemessages = [p(x[1]) for x in messages if x[0] == t]
 		if len(tuplemessages) != len(messages):
 			self.state = (Receiving, self.standard_put)
 			return self.standard_put(messages)

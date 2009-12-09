@@ -7,6 +7,19 @@ Changes
  * Correct types.Array binary serialization (8.5 added extra checks)
  * Add more encoding name mapping entries.
  * Documentation improvements.
+ * Correct protocol message type comparison method.
+   In 0.9.1 and before, types were compared using 'is' because all
+   message type objects were loaded from a tuple created by the
+   postgresql.protocol.message_types module. In some environments,
+   sys.modules is cleared. For pure-Python installations, this is unlikely
+   to cause a problem, but when the optimized module is available, it will hold
+   a reference to the "old" version of the message_types data. Subsequently, the
+   use of the 'is' operator is then broken resulting in superfluous protocol
+   errors. The fix for 0.9.2 is to use the actual comparison operator.
+   This does not add any significant overhead, but use of 'is' may return if
+   some permanent storage method becomes available.
+   [Reported by Radomir Stevanovic]
+
 
 0.9.1 released on 2009-08-12
 ----------------------------

@@ -69,12 +69,14 @@ class pq_message_stream(object):
 		rpos = self._start
 		self._strio.seek(self._start)
 		while True:
+			# get the message metadata
 			header = self._strio.read(5)
 			rpos += 5
 			if len(header) < 5:
+				# not enough data for another message
 				break
+			# unpack the length from the header
 			length, = xl_unpack(header)
-			typ = message_types[header[0]]
 			rpos += length - 4
 
 			if length < 4:
@@ -86,12 +88,12 @@ class pq_message_stream(object):
 			count += 1
 		return count
 
-	def _get_message(self):
+	def _get_message(self, mtypes = message_types):
 		header = self._strio.read(5)
 		if len(header) < 5:
 			return
 		length, = xl_unpack(header)
-		typ = message_types[header[0]]
+		typ = mtypes[header[0]]
 
 		if length < 4:
 			raise ValueError("invalid message size '%d'" %(length,))

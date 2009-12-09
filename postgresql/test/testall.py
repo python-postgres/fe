@@ -8,7 +8,6 @@ import unittest
 import warnings
 from ..installation import Installation
 
-
 from .test_exceptions import *
 from .test_bytea_codec import *
 from .test_iri import *
