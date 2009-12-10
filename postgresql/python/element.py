@@ -11,7 +11,7 @@ class RecursiveFactor(Exception):
 	'Raised when a factor is ultimately composed of itself'
 	pass
 
-class Element(metaclass = ABCMeta):
+class Element(object, metaclass = ABCMeta):
 	"""
 	The purpose of an element is to provide a general mechanism for specifying
 	the factors that composed an object. Factors are designated using an
