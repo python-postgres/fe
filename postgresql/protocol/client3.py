@@ -109,8 +109,12 @@ class Connection(object):
 					code = "--TOE",
 				)
 			else:
+				errmsg = self.socket_factory.fatal_exception_message(err)
+				# It's an error that occurred during socket creation/connection.
+				# Even if there isn't a known fatal message,
+				# identify it as fatal and set an ambiguous message.
 				self.xact.error_message = element.ClientError(
-					message = self.socket_factory.fatal_exception_message(err),
+					message = errmsg or "could not connect socket",
 					severity = "FATAL",
 					# ConnectionRejectionError
 					code = "08004",
