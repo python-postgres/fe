@@ -74,4 +74,4 @@ mkdirs:
 dump: mkdirs
 	cp ../postgresql/documentation/*.txt ./
 	cp index.rst index.txt
-	cp modules.rst modules.txt
+	#cp modules.rst modules.txt

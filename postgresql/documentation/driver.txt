@@ -90,7 +90,7 @@ driver would never identify them as driver parameters.
 
 The general structure of a PQ-locator is::
 
-	protocol://user:password@host:port/database?[driver_setting]=value&server_setting=value#schema,public
+	protocol://user:password@host:port/database?[driver_setting]=value&server_setting=value
 
 Optionally, connection keyword arguments can be used to override anything given
 in the locator::
@@ -295,7 +295,7 @@ used to interact with the database provided by the server. If further use of the
 server is desired, a new connection *must* be established.
 
 .. note::
-   Cannot connect failures, exceptions raised on ``connect()``, are also terminal.
+ Cannot connect failures, exceptions raised on ``connect()``, are also terminal.
 
 In cases where operations are performed on a closed connection, a
 `postgresql.exceptions.ConnectionDoesNotExistError` will be raised.
@@ -806,9 +806,9 @@ Likewise, cursors created from statement invocations will be automatically
 released when they are no longer referenced.
 
 .. note::
-   PG-API cursors are a direct interface to single result-set SQL cursors. This
-   is in contrast with DB-API cursors, which have interfaces for dealing with
-   multiple result-sets. There is no execute method on PG-API cursors.
+ PG-API cursors are a direct interface to single result-set SQL cursors. This
+ is in contrast with DB-API cursors, which have interfaces for dealing with
+ multiple result-sets. There is no execute method on PG-API cursors.
 
 
 Cursor Interface Points
@@ -1267,6 +1267,10 @@ instruction methods provided by `postgresql.api.Transaction` objects.
 Transaction Configuration
 -------------------------
 
+.. warning::
+   **All transaction configuration arguments are being deprecated over the**
+   **next few versions of py-postgresql. Use should be discontinued**.
+
 Keyword arguments given to ``xact()`` provide the means for configuring the
 properties of the transaction. Only three points of configuration are available:
 
@@ -1314,11 +1318,11 @@ that change of state.
   phase.
 
  ``x.recover()``
-  Identify the existence of the prepared transaction.
+  Identify the existence of the prepared transaction. (**Deprecated**)
 
  ``x.prepare()``
   Prepare the transaction for the final commit. Once prepared, the second commit
-  may be ran to finalize the transaction, ``x.commit()``. 
+  may be ran to finalize the transaction, ``x.commit()``. (**Deprecated**)
 
 These methods are primarily provided for applications that manage transactions
 in a way that cannot be formed around single, sequential blocks of code.
@@ -1373,6 +1377,10 @@ property on the raised exception.
 
 Prepared Transactions
 ---------------------
+
+.. warning::
+   **The two phase commit interfaces are being deprecated.**
+   **Use should be discontinued.**
 
 Transactions configured with the ``gid`` keyword will require two steps to fully
 commit the transaction. First, ``prepare()``, then ``commit()``. The prepare
@@ -1458,6 +1466,10 @@ And ``update(...)`` is better performing for multiple sets:
 	...  'default_statistics_target' : "1000"
 	... })
 
+..note::
+ The ``transaction_isolation`` setting cannot be set using the ``settings``
+ mapping. Internally, ``settings`` uses ``set_config``, which cannot adjust
+ that particular setting.
 
 Settings Interface Points
 -------------------------
