@@ -28,7 +28,6 @@ Reference
    :maxdepth: 2
 
    bin
-   modules
 
 Sample PG-API Code
 ------------------
