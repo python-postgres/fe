@@ -114,7 +114,7 @@ class Connection(object):
 				# Even if there isn't a known fatal message,
 				# identify it as fatal and set an ambiguous message.
 				self.xact.error_message = element.ClientError(
-					message = errmsg or "could not connect socket",
+					message = errmsg or "could not connect",
 					severity = "FATAL",
 					# ConnectionRejectionError
 					code = "08004",
