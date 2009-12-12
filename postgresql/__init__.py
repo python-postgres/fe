@@ -16,18 +16,22 @@ __all__ = [
 	'__project_id__',
 	'__docformat__',
 	'__version__',
+	'version',
 	'version_info',
 	'open',
 ]
 
 __author__ = "James William Pye <x@jwp.name>"
-__date__ = "2009-08-12 08:53:00-07"
+__date__ = "2009-12-11 08:44:00-07"
 
 __project__ = 'py-postgresql'
 __project_id__ = 'http://python.projects.postgresql.org'
 
+#: The py-postgresql version tuple.
 version_info = (0, 9, 2, 'dev', 0)
-__version__ = '.'.join(map(str, version_info[:3])) + (
+
+#: The py-postgresql version string.
+version = __version__ = '.'.join(map(str, version_info[:3])) + (
 	version_info[3] if version_info[3] != 'final' else ''
 )
 
@@ -43,6 +47,12 @@ def open(iri = None, prompt_title = None, **kw):
 
 		# Connect to 'postgres' at localhost.
 		>>> db = postgresql.open('localhost/postgres')
+
+	Connection keywords can also be used with `open`. See the narratives for
+	more information.
+
+	When `prompt_title` is *not* `None`, a password prompt will be issued if
+	necessary.
 
 	(Note: "pq" is the name of the protocol used to communicate with PostgreSQL)
 	"""
