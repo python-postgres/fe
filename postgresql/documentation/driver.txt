@@ -337,11 +337,11 @@ The methods and properties on the connection object are ready for use:
   occurs. If errors occur, the processing of the statements will stop and the
   error will be raised.
 
- ``db.xact(gid = None, isolation = None, mode = None)``
+ ``db.xact(isolation = None, mode = None)``
   The `postgresql.api.Transaction` constructor for creating transactions.
   This method creates a transaction reference. The transaction will not be
   started until it's instructed to do so. See `Transactions`_ for more
-  information.
+  information. (**gid keyword is deprecated**)
 
  ``db.settings``
   A property providing a `collections.MutableMapping` interface to the
@@ -1267,17 +1267,13 @@ instruction methods provided by `postgresql.api.Transaction` objects.
 Transaction Configuration
 -------------------------
 
-.. warning::
-   **All transaction configuration arguments are being deprecated over the**
-   **next few versions of py-postgresql. Use should be discontinued**.
-
 Keyword arguments given to ``xact()`` provide the means for configuring the
 properties of the transaction. Only three points of configuration are available:
 
  ``gid``
   The global identifier to use. Identifies the transaction as using two-phase
   commit. The ``prepare()`` method *must* be called prior to ``commit()`` or
-  ``__exit__()``.
+  ``__exit__()``. (**Deprecated**)
 
  ``isolation``
   The isolation level of the transaction. This must be a string. It will be
@@ -1314,8 +1310,8 @@ that change of state.
   Commit the transaction.
 
  ``x.rollback()``
-  Abort the transaction. For prepared transactions, this can be called at any
-  phase.
+  Abort the transaction.
+  (Deprecated: For prepared transactions, this can be called at any phase.)
 
  ``x.recover()``
   Identify the existence of the prepared transaction. (**Deprecated**)

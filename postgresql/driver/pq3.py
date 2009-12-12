@@ -1422,7 +1422,7 @@ class Transaction(pg_api.Transaction):
 	def _e_metas(self):
 		yield (None, self.state)
 
-	def __init__(self, database, gid = None, isolation = None, mode = None):
+	def __init__(self, database, isolation = None, mode = None, gid = None):
 		self.database = database
 		self.gid = gid
 		self.isolation = isolation

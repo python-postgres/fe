@@ -652,6 +652,8 @@ class Transaction(Element):
 		...  with db.xact():
 		...   ...
 
+	[DEPRECATED]
+
 	Or, in cases where two-phase commit is desired:
 
 		>>> with db.xact(gid = 'gid') as gxact:
@@ -696,6 +698,8 @@ class Transaction(Element):
 	@abstractproperty
 	def gid(self) -> (None, str):
 		"""
+		[DEPRECATED]
+
 		The global identifier of the transaction block:
 
 			PREPARE TRANSACTION <gid>;
@@ -750,20 +754,23 @@ class Transaction(Element):
 		"""
 		Abort the transaction.
 
-		If the transaction is configured with a `gid` *and* has been prepared, issue
-		a ROLLBACK PREPARE statement with the configured `gid`.
-
 		If the transaction is a savepoint, ROLLBACK TO the savepoint identifier.
 
 		If the transaction is a transaction block, issue an ABORT.
 
 		If the transaction has already been aborted, do nothing.
+
+		[DEPRECATED]
+		If the transaction is configured with a `gid` *and* has been prepared, issue
+		a ROLLBACK PREPARE statement with the configured `gid`.
 		"""
 	abort = rollback
 
 	@abstractmethod
 	def recover(self) -> None:
 		"""
+		[DEPRECATED]
+
 		If the transaction is assigned a `gid`, recover may be used to identify
 		the transaction as prepared and ready for committing or aborting.
 
@@ -783,6 +790,8 @@ class Transaction(Element):
 	@abstractmethod
 	def prepare(self) -> None:
 		"""
+		[DEPRECATED]
+
 		Explicitly prepare the transaction with the configured `gid` by issuing a
 		PREPARE TRANSACTION statement with the configured `gid`.
 		This *must* be called for the first phase of the commit.
