@@ -26,6 +26,7 @@ class SocketFactory(object):
 		errno.ECONNRESET : 'server explicitly closed the connection',
 		errno.EPIPE : 'broken connection detected on send',
 		errno.ECONNREFUSED : 'server refused connection',
+		errno.EHOSTUNREACH : 'server is not reachable',
 	}
 	timeout_exception = socket.timeout
 	fatal_exception = socket.error
