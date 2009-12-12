@@ -541,11 +541,14 @@ class circle(tuple):
 class Array(object):
 	"""
 	Type used to mimic PostgreSQL arrays.
+
+	It primarily implements the Python sequence interfaces for treating a
+	PostgreSQL array like nested Python lists.
 	"""
 
+	# return an iterator over the absolute elements of a nested sequence
 	@staticmethod
 	def unroll_nest(hier, dimensions):
-		"return an iterator over the absolute elements of a nested sequence"
 		weight = []
 		elc = 1
 		dims = list(dimensions[:-1])
@@ -563,9 +566,9 @@ class Array(object):
 			for i in v:
 				yield i
 
+	# Detect the dimensions of a nested sequence
 	@staticmethod
 	def detect_dimensions(hier):
-		'Detect the dimensions of a nested sequence'
 		while type(hier) is list or type(hier) is Array:
 			if type(hier) is Array:
 				for x in hier.dimensions:
@@ -623,7 +626,6 @@ class Array(object):
 		return rob
 
 	def arrayslice(self, subpos):
-		'Create an array based on itself'
 		rob = object.__new__(type(self))
 		rob.elements = self.elements
 		rob.dimensions = self.dimensions

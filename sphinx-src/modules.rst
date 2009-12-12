@@ -19,13 +19,3 @@ Modules intended for general use.
     postgresql.string
     :members:
     :show-inheritance:
-
-
-:mod:`postgresql.types`
------------------------
-
-.. automodule::
-    postgresql.types
-    :members:
-    :show-inheritance:
-
