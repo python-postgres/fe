@@ -207,7 +207,7 @@ def split_ident(text, sep = ',', quote = '"', maxsplit = -1):
 
 def split_qname(text, maxsplit = -1):
 	"""
-	Call to pg_str.split_ident() with a '.' sep parameter.
+	Call to .split_ident() with a '.' sep parameter.
 	"""
 	return split_ident(text, maxsplit = maxsplit, sep = '.')
 
@@ -218,7 +218,7 @@ def qname(*args):
 def split_sql(sql, sep = ';'):
 	"""
 	Given SQL, safely split using the given separator.
-	Notably, this yields split text. This should be used instead of
+	Notably, this yields fully split text. This should be used instead of
 	split_sql_str() when quoted sections need be still be isolated.
 
 	>>> list(split_sql('select $$1$$ AS "foo;"; select 2;'))
