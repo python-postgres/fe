@@ -1,6 +1,8 @@
 Client Parameters
 *****************
 
+.. warning:: **The interfaces dealing with optparse are subject to change in 1.0**.
+
 There are various sources of parameters used by PostgreSQL client applications.
 The `postgresql.clientparameters` module provides a means for collecting and
 managing those parameters.

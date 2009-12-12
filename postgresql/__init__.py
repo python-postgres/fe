@@ -35,6 +35,7 @@ version = __version__ = '.'.join(map(str, version_info[:3])) + (
 	version_info[3] if version_info[3] != 'final' else ''
 )
 
+# Avoid importing these until requested.
 _pg_iri = _pg_driver = _pg_param = None
 def open(iri = None, prompt_title = None, **kw):
 	"""
@@ -51,8 +52,8 @@ def open(iri = None, prompt_title = None, **kw):
 	Connection keywords can also be used with `open`. See the narratives for
 	more information.
 
-	When `prompt_title` is *not* `None`, a password prompt will be issued if
-	necessary.
+	The `prompt_title` keyword is ignored. `open` will never prompt for
+	the password unless it is explicitly instructed to do so.
 
 	(Note: "pq" is the name of the protocol used to communicate with PostgreSQL)
 	"""
