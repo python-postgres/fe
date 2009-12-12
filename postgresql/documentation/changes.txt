@@ -6,7 +6,6 @@ Changes
 
  * Correct types.Array binary serialization (8.5 added extra checks)
  * Add more encoding name mapping entries.
- * Documentation improvements.
  * Correct protocol message type comparison method.
    In 0.9.1 and before, types were compared using 'is' because all
    message type objects were loaded from a tuple created by the
@@ -17,8 +16,12 @@ Changes
    use of the 'is' operator is then broken resulting in superfluous protocol
    errors. The fix is to use the '==' operator. This does not add any
    significant overhead, but use of 'is' may return if some permanent storage
-   method becomes available.
-   [Reported by Radomir Stevanovic]
+   method becomes available. [Reported by Radomir Stevanovic]
+ * Documentation improvements.
+ * Fix a bug revealed by a no route to host connection failure. Ended in an
+   ambiguous KeyError due there being no message string for that particular
+   errno. Add an appropriate message string fallback on a default message when
+   a specific one doesn't exist.
 
 
 0.9.1 released on 2009-08-12
