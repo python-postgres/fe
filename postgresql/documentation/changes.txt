@@ -15,9 +15,9 @@ Changes
    to cause a problem, but when the optimized module is available, it will hold
    a reference to the "old" version of the message_types data. Subsequently, the
    use of the 'is' operator is then broken resulting in superfluous protocol
-   errors. The fix for 0.9.2 is to use the actual comparison operator.
-   This does not add any significant overhead, but use of 'is' may return if
-   some permanent storage method becomes available.
+   errors. The fix is to use the '==' operator. This does not add any
+   significant overhead, but use of 'is' may return if some permanent storage
+   method becomes available.
    [Reported by Radomir Stevanovic]
 
 
