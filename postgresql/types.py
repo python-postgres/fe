@@ -741,7 +741,7 @@ class Row(tuple):
 		return r
 
 	def __getitem__(self, i):
-		if type(i) is int:
+		if isinstance(i, (int, slice)):
 			return tuple.__getitem__(self, i)
 		idx = self.keymap[i]
 		return tuple.__getitem__(self, idx)

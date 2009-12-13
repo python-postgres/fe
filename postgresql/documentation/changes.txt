@@ -22,6 +22,7 @@ Changes
    ambiguous KeyError due there being no message string for that particular
    errno. Add an appropriate message string fallback on a default message when
    a specific one doesn't exist.
+ * Fix slice() support in Row.__getitem__.
 
 
 0.9.1 released on 2009-08-12
