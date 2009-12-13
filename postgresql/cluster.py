@@ -434,7 +434,9 @@ class Cluster(pg_api.Cluster):
 				"cannot connect if cluster is not running",
 				creator = self
 			)
-		return self.connection(**kw).connect()
+		x = self.connection(**kw)
+		x.connect()
+		return x
 
 	def address(self):
 		"""
