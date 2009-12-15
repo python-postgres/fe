@@ -1462,7 +1462,7 @@ And ``update(...)`` is better performing for multiple sets:
 	...  'default_statistics_target' : "1000"
 	... })
 
-..note::
+.. note::
  The ``transaction_isolation`` setting cannot be set using the ``settings``
  mapping. Internally, ``settings`` uses ``set_config``, which cannot adjust
  that particular setting.
@@ -1685,7 +1685,7 @@ statements that implicitly create indexes::
 	>>>
 
 The above illustrates the quality of an installed ``msghook`` that simply
-inhibits further propagation messages with a severity of 'NOTICE'--but, only
+inhibits further propagation of messages with a severity of 'NOTICE'--but, only
 notices coming from objects derived from the ``ct_this``
 `postgresql.api.PreparedStatement` object.
 
