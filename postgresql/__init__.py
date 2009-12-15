@@ -22,13 +22,13 @@ __all__ = [
 ]
 
 __author__ = "James William Pye <x@jwp.name>"
-__date__ = "2009-12-11 08:44:00-07"
+__date__ = "2009-12-14 21:16:00-07"
 
 __project__ = 'py-postgresql'
 __project_id__ = 'http://python.projects.postgresql.org'
 
 #: The py-postgresql version tuple.
-version_info = (0, 9, 2, 'dev', 0)
+version_info = (0, 9, 2, 'final', 0)
 
 #: The py-postgresql version string.
 version = __version__ = '.'.join(map(str, version_info[:3])) + (
