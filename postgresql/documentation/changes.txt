@@ -24,7 +24,7 @@ Changes
  * Documentation improvements.
  * Fix slice() support in Row.__getitem__.
  * DEPRECATION: 2PC interfaces are being deprecated. Warnings in 1.0,
-                removal in 1.1.
+   removal in 1.1.
 
 0.9.1 released on 2009-08-12
 ----------------------------
