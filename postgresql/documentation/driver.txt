@@ -335,7 +335,9 @@ The methods and properties on the connection object are ready for use:
  ``db.do(source[, language = None])``
   Execute a DO statement on the server. If `language` is `None`, none will be
   specified and the `default_do_language` database setting will be used by
-  PostgreSQL.
+  PostgreSQL. *DO statements are available on PostgreSQL 8.5 and greater.*
+  *Executing this method on servers that do not support DO statements will*
+  *likely cause a SyntaxError*.
 
  ``db.execute(sql_statements_string)``
   Run a block of SQL on the server. This method returns `None` unless an error
