@@ -28,7 +28,7 @@ __project__ = 'py-postgresql'
 __project_id__ = 'http://python.projects.postgresql.org'
 
 #: The py-postgresql version tuple.
-version_info = (0, 9, 3, 'dev', 0)
+version_info = (1, 0, 0, 'dev', 0)
 
 #: The py-postgresql version string.
 version = __version__ = '.'.join(map(str, version_info[:3])) + (
