@@ -90,9 +90,8 @@ def command(argv = sys.argv):
 		# New built-ins
 			'connector' : connector,
 			'db' : connection,
+			'do' : connection.do,
 			'prepare' : connection.prepare,
-			# XXX: being replaced by sqlexec.
-			'execute' : connection.execute,
 
 			'sqlexec' : connection.execute,
 			'settings' : connection.settings,

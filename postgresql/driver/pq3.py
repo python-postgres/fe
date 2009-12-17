@@ -1702,6 +1702,12 @@ class Connection(pg_api.Connection):
 		self._pq_push(q, self)
 		self._pq_complete()
 
+	def do(self, source : str, language : str = None) -> None:
+		sql = "DO " + pg_str.quote_literal(source)
+		if language is not None:
+			sql = sql + " LANGUAGE " + pg_str.quote_ident(language)
+		self.execute(sql + ";")
+
 	def xact(self, gid = None, isolation = None, mode = None):
 		x = Transaction(self, gid = gid, isolation = isolation, mode = mode)
 		return x

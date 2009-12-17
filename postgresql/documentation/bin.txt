@@ -28,9 +28,11 @@ with the following built-ins:
  ``proc``
   ``db.proc``
 
+ ``do``
+  ``db.do``, execute a single DO statement.
+
  ``sqlexec``
   ``db.execute``, execute multiple SQL statements (``None`` is always returned)
-
 
 pg_python Usage
 ---------------

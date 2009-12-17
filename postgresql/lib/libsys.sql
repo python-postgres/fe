@@ -133,3 +133,6 @@ SELECT pg_catalog.pg_relation_size($1::text)::bigint
 
 [pg_reload_conf]
 SELECT pg_reload_conf()
+
+[languages::column]
+SELECT lanname FROM pg_catalog.pg_language

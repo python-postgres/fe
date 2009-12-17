@@ -900,6 +900,18 @@ class Database(Element):
 		"""
 
 	@abstractmethod
+	def do(source, language = None) -> None:
+		"""
+		Execute a DO statement using the given source. Always returns `None` and
+		raise a `postgresql.exceptions.Error` subclass on error.
+
+		If `language` is `None`, no language will be given to the DO statement,
+		allowing the default configured language to be used.
+
+		Likely to be a function of Connection.execute.
+		"""
+
+	@abstractmethod
 	def execute(sql) -> None:
 		"""
 		Execute an arbitrary block of SQL. Always returns `None` and raise

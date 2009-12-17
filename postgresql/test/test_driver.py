@@ -1365,5 +1365,21 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		dall.sort(key=itemgetter(0))
 		self.failUnlessEqual(dall, all)
 
+	def testDo(self):
+		# plpgsql is expected to be available.
+		if self.db.version_info[:2] < (8,5):
+			return
+		if 'plpgsql' not in self.db.sys.languages():
+			self.db.execute("CREATE LANGUAGE plpgsql")
+		self.db.do(
+			"BEGIN CREATE TEMP TABLE do_tmp_table(i int, t text); END",
+			language = 'plpgsql')
+		self.failUnlessEqual(len(self.db.prepare("SELECT * FROM do_tmp_table")()), 0)
+		# now, with the default language.
+		self.db.settings["default_do_language"] = 'plpgsql'
+		self.db.do(
+			"BEGIN INSERT INTO do_tmp_table VALUES (100, 'foo'); END")
+		self.failUnlessEqual(len(self.db.prepare("SELECT * FROM do_tmp_table")()), 1)
+
 if __name__ == '__main__':
 	unittest.main()

@@ -332,6 +332,11 @@ The methods and properties on the connection object are ready for use:
   This is used in cases where the cursor was declared on the server. See
   `Cursors`_ for more information.
 
+ ``db.do(source[, language = None])``
+  Execute a DO statement on the server. If `language` is `None`, none will be
+  specified and the `default_do_language` database setting will be used by
+  PostgreSQL.
+
  ``db.execute(sql_statements_string)``
   Run a block of SQL on the server. This method returns `None` unless an error
   occurs. If errors occur, the processing of the statements will stop and the
