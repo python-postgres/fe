@@ -65,7 +65,9 @@ class Cluster(pg_api.Cluster):
 	def state(self):
 		if self.running():
 			return 'running'
-		return 'not running'
+		if not os.path.exists(self.data_directory):
+			return 'void'
+		return 'stopped'
 
 	def _e_metas(self):
 		state = self.state
