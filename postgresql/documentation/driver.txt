@@ -341,7 +341,7 @@ The methods and properties on the connection object are ready for use:
   The `postgresql.api.Transaction` constructor for creating transactions.
   This method creates a transaction reference. The transaction will not be
   started until it's instructed to do so. See `Transactions`_ for more
-  information. (**gid keyword is deprecated**)
+  information.
 
  ``db.settings``
   A property providing a `collections.MutableMapping` interface to the
@@ -1270,17 +1270,12 @@ Transaction Configuration
 Keyword arguments given to ``xact()`` provide the means for configuring the
 properties of the transaction. Only three points of configuration are available:
 
- ``gid``
-  The global identifier to use. Identifies the transaction as using two-phase
-  commit. The ``prepare()`` method *must* be called prior to ``commit()`` or
-  ``__exit__()``. (**Deprecated**)
-
  ``isolation``
   The isolation level of the transaction. This must be a string. It will be
   interpolated directly into the START TRANSACTION statement. Normally,
   'SERIALIZABLE' or 'READ COMMITTED':
 
-  	>>> with db.xact(isolation = 'SERIALIZABLE'):
+  	>>> with db.xact('SERIALIZABLE'):
   	...  ...
 
  ``mode``
@@ -1311,14 +1306,6 @@ that change of state.
 
  ``x.rollback()``
   Abort the transaction.
-  (Deprecated: For prepared transactions, this can be called at any phase.)
-
- ``x.recover()``
-  Identify the existence of the prepared transaction. (**Deprecated**)
-
- ``x.prepare()``
-  Prepare the transaction for the final commit. Once prepared, the second commit
-  may be ran to finalize the transaction, ``x.commit()``. (**Deprecated**)
 
 These methods are primarily provided for applications that manage transactions
 in a way that cannot be formed around single, sequential blocks of code.
@@ -1369,77 +1356,6 @@ The driver intervenes here and raises the
 cases. This effect is consistent with savepoint releases that occur during an
 error state. The distinction between the two cases is made using the ``source``
 property on the raised exception.
-
-
-Prepared Transactions
----------------------
-
-.. warning::
-   **The two phase commit interfaces are being deprecated.**
-   **Use should be discontinued.**
-
-Transactions configured with the ``gid`` keyword will require two steps to fully
-commit the transaction. First, ``prepare()``, then ``commit()``. The prepare
-method will issue the necessary PREPARE TRANSACTION statement, and commit will
-finalize the operation with the issuance of the COMMIT PREPARED statement. At
-any state of the transaction, ``rollback()`` may be used to abort the
-transaction. If the transaction has yet to be prepared, it will issue the ABORT
-statement, and if it has, it will issue ROLLBACK PREPARED instead.
-
-Prepared transactions can be used with with-statements:
-
-	>>> with db.xact(gid='global-id') as gxact:
-	...  ...
-	...  gxact.prepare()
-
-Transactions always call ``commit()`` on exit. This requires transaction objects
-representing a prepared transaction to be prepared prior to the block's exit.
-If the transaction is not prepared, the attempt to ``COMMIT PREPARED`` is still
-made::
-
-	>>> with db.xact(gid='notprepared'):
-	...  pass
-	...
-	Traceback (most recent call last):
-	 ...
-	postgresql.exceptions.ActiveTransactionError: COMMIT PREPARED cannot run inside a transaction block
-	  CAUSE: The prepared transaction was not prepared prior to the block's exit.
-	  CODE: 25001
-	  SEVERITY: ERROR
-	  LOCATION: File 'xact.c', line 2648, in PreventTransactionChain
-
-
-When a prepared transaction is prepared, the transaction should be
-rolled-back or committed at some point in time. It is possible
-for a transaction to be prepared, but the connection lost before the final
-commit or rollback. Cases where this occurs require a recovery operation to
-determine the ultimate fate of the transaction.
-
-In order to recover a prepared transaction, the ``recover()`` method can be
-used:
-
-	>>> gxact = db.xact(gid='a-lost-transaction')
-	>>> gxact.recover()
-
-Once recovered, it may then be committed or rolled-back using the appropriate
-methods:
-
-	>>> gxact.commit()
-
-When a transaction is recovered and the configured ``gid`` does not exist, the
-driver will throw a `postgresql.exceptions.UndefinedObjectError`. This is
-consistent with the error that is caused by ROLLBACK PREPARED and COMMIT
-PREPARED when the global identifier does not exist.
-
-	>>> gxact = db.xact(gid='a-non-existing-gid')
-	>>> gxact.recover()
-	Traceback (most recent call last):
-	 ...
-	postgresql.exceptions.UndefinedObjectError: ...
-
-This allows recovery operations to identify the existence of the prepared
-transaction. Transaction managers should trap this exception in order to
-determine how to proceed.
 
 
 Settings

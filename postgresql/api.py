@@ -651,21 +651,6 @@ class Transaction(Element):
 		>>> with db.xact():
 		...  with db.xact():
 		...   ...
-
-	[DEPRECATED]
-
-	Or, in cases where two-phase commit is desired:
-
-		>>> with db.xact(gid = 'gid') as gxact:
-		...  with gxact:
-		...   # phase 1 block
-		...   ...
-		>>> # fully committed at this point
-
-	Considering that transactions decide what's saved and what's not saved, it is
-	important that they are used properly. In most situations, when an action is
-	performed where state of the transaction is unexpected, an exception should
-	occur.
 	"""
 	_e_label = 'XACT'
 	_e_factors = ('database',)
@@ -694,20 +679,6 @@ class Transaction(Element):
 		the START TRANSACTION statement.
 		"""
 
-	@propertydoc
-	@abstractproperty
-	def gid(self) -> (None, str):
-		"""
-		[DEPRECATED]
-
-		The global identifier of the transaction block:
-
-			PREPARE TRANSACTION <gid>;
-
-		The `gid` property is a string that indicates that the block is a prepared
-		transaction.
-		"""
-
 	@abstractmethod
 	def start(self) -> None:
 		"""
@@ -726,7 +697,7 @@ class Transaction(Element):
 		`self.mode` specifies the mode of the transaction. Normally, ``READ
 		ONLY`` or ``READ WRITE``.
 
-		If the transaction is open--started or prepared, do nothing.
+		If the transaction is already open, do nothing.
 
 		If the transaction has been committed or aborted, raise an
 		`postgresql.exceptions.OperationError`.
@@ -737,9 +708,6 @@ class Transaction(Element):
 	def commit(self) -> None:
 		"""
 		Commit the transaction.
-
-		If the transaction is configured with a `gid` issue a COMMIT PREPARED
-		statement with the configured `gid`.
 
 		If the transaction is a block, issue a COMMIT statement.
 
@@ -759,45 +727,8 @@ class Transaction(Element):
 		If the transaction is a transaction block, issue an ABORT.
 
 		If the transaction has already been aborted, do nothing.
-
-		[DEPRECATED]
-		If the transaction is configured with a `gid` *and* has been prepared, issue
-		a ROLLBACK PREPARE statement with the configured `gid`.
 		"""
 	abort = rollback
-
-	@abstractmethod
-	def recover(self) -> None:
-		"""
-		[DEPRECATED]
-
-		If the transaction is assigned a `gid`, recover may be used to identify
-		the transaction as prepared and ready for committing or aborting.
-
-		This method is used in recovery procedures where a prepared transaction
-		needs to be committed or rolled back.
-
-		If no prepared transaction with the configured `gid` exists, a
-		`postgresql.exceptions.UndefinedObjectError` must be raised.
-		[This is consistent with the error raised by ROLLBACK/COMMIT PREPARED]
-
-		Once this method has been ran, it should identify the transaction as being
-		prepared so that subsequent invocations to `commit` or `rollback` should
-		cause the appropriate ROLLBACK PREPARED or COMMIT PREPARED statements to
-		be executed.
-		"""
-
-	@abstractmethod
-	def prepare(self) -> None:
-		"""
-		[DEPRECATED]
-
-		Explicitly prepare the transaction with the configured `gid` by issuing a
-		PREPARE TRANSACTION statement with the configured `gid`.
-		This *must* be called for the first phase of the commit.
-
-		If the transaction is already prepared, do nothing.
-		"""
 
 	@abstractmethod
 	def __enter__(self):
@@ -822,9 +753,7 @@ class Transaction(Element):
 		unavailable, the `rollback` method should cause a
 		`postgresql.exceptions.ConnectionDoesNotExistError` exception to occur.
 
-		Otherwise, run the transaction's `commit` method. If the commit fails,
-		a `gid` is configured, and the connection is still available, run the
-		transaction's `rollback` method.
+		Otherwise, run the transaction's `commit` method.
 
 		When the `commit` is ultimately unsuccessful or not ran at all, the purpose
 		of __exit__ is to resolve the error state of the database iff the
@@ -955,7 +884,6 @@ class Database(Element):
 	@propertydoc
 	@abstractproperty
 	def xact(self,
-		gid : "global identifier to configure" = None,
 		isolation : "ISOLATION LEVEL to use with the transaction" = None,
 		mode : "Mode of the transaction, READ ONLY or READ WRITE" = None,
 	) -> Transaction:
