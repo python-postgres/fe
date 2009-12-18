@@ -1198,7 +1198,7 @@ class Installation(Element):
 	information about an installation of PostgreSQL accessible by the Python 
 	"""
 	_e_label = "INSTALLATION"
-	_e_factors = ('pg_config_path',)
+	_e_factors = ()
 
 	@propertydoc
 	@abstractproperty
