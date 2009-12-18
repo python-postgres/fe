@@ -92,6 +92,7 @@ subpackages = [
 	'test',
 	'documentation',
 	'python',
+	'port',
 	'release',
 	# Modules imported from other packages.
 	'resolved',
