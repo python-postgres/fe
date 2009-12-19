@@ -61,10 +61,6 @@ class TypeConversionWarning(DriverWarning):
 	'Report a potential issue with a conversion.'
 	code = '01-TP'
 
-class ClusterWarning(Warning):
-	code = ''
-	source = 'CLUSTER'
-
 class DeprecationWarning(Warning):
 	code = '01P01'
 class DynamicResultSetsReturnedWarning(Warning):
@@ -133,21 +129,6 @@ class OperationError(DriverError):
 	An invalid operation on an interface element.
 	"""
 	code = '--OPE'
-##
-# Exceptions pertinent to cluster initialization and management
-##
-class ClusterError(Error):
-	source = 'CLUSTER'
-class ClusterInitializationError(ClusterError):
-	pass
-class InitDBError(ClusterInitializationError):
-	"A non-zero result was returned by the initdb command"
-class ClusterStartupError(ClusterError):
-	pass
-class ClusterNotRunningError(ClusterError):
-	pass
-class ClusterTimeoutError(ClusterError):
-	pass
 
 class TransactionError(Error):
 	pass

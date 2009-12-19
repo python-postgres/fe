@@ -5,6 +5,7 @@
 """
 socket tools
 """
+import sys
 import random
 import socket
 import math
@@ -28,6 +29,11 @@ class SocketFactory(object):
 		errno.ECONNREFUSED : 'server refused connection',
 		errno.EHOSTUNREACH : 'server is not reachable',
 	}
+	if sys.platform in ('win32', 'win64'):
+		fatal_exception_messages.update({
+			errno.WSAECONNABORTED : 'server aborted the connection',
+		})
+
 	timeout_exception = socket.timeout
 	fatal_exception = socket.error
 	try_again_exception = socket.error

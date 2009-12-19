@@ -12,7 +12,7 @@ import unittest
 
 from . import exceptions as pg_exc
 from . import cluster as pg_cluster
-from . import installation as pg_inn
+from . import installation
 
 from .python.socket import find_available_port
 
@@ -22,9 +22,9 @@ class TestCaseWithCluster(unittest.TestCase):
 	"""
 	def __init__(self, *args, **kw):
 		super().__init__(*args, **kw)
-		self.installation = pg_inn.Installation.default()
+		self.installation = installation.default()
 		self.cluster_path = \
-			'py_unittest_postgresql_cluster_' \
+			'py_unittest_pg_cluster_' \
 			+ str(os.getpid()) + getattr(self, 'cluster_path_suffix', '')
 
 		if self.installation is None:
@@ -35,7 +35,8 @@ class TestCaseWithCluster(unittest.TestCase):
 			sys.exit(1)
 
 		self.cluster = pg_cluster.Cluster(
-			self.cluster_path, self.installation
+			self.installation,
+			self.cluster_path,
 		)
 		if self.cluster.initialized():
 			self.cluster.drop()

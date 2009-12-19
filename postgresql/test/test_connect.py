@@ -13,6 +13,8 @@ from ..driver import dbapi20 as dbapi20
 from .. import driver as pg_driver
 from .. import open as pg_open
 
+msw = sys.platform in ('win32', 'win64')
+
 class test_connect(pg_unittest.TestCaseWithCluster):
 	"""
 	postgresql.driver *interface* tests.
@@ -33,7 +35,9 @@ class test_connect(pg_unittest.TestCaseWithCluster):
 		self.cluster.settings['log_min_messages'] = 'log'
 		# Configure the hba file with the supported methods.
 		with open(self.cluster.hba_file, 'w') as hba:
-			hosts = ['0.0.0.0/0', '0::0/0',]
+			hosts = ['0.0.0.0/0',]
+			if not msw:
+				hosts.append('0::0/0')
 			methods = ['md5', 'password'] + (['crypt'] if self.do_crypt else [])
 			for h in hosts:
 				for m in methods:
@@ -44,10 +48,12 @@ class test_connect(pg_unittest.TestCaseWithCluster):
 					)])
 			# trusted
 			hba.writelines(["host test trusted 0.0.0.0/0 trust\n"])
-			hba.writelines(["host test trusted 0::0/0 trust\n"])
+			if not msw:
+				hba.writelines(["host test trusted 0::0/0 trust\n"])
 			# admin lines
 			hba.writelines(["host all test 0.0.0.0/0 trust\n"])
-			hba.writelines(["host all test 0::0/0 trust\n"])
+			if not msw:
+				hba.writelines(["host all test 0::0/0 trust\n"])
 
 	def initialize_database(self):
 		super().initialize_database()
@@ -273,16 +279,19 @@ search_path = public
 		with C() as c:
 			self.failUnlessEqual(c.prepare('select 1').first(), 1)
 
-	def test_IP6_connect(self):
-		C = pg_driver.default.ip6(
-			user = 'test',
-			host = '::1',
-			database = 'test',
-			port = self.cluster.address()[1],
-			**self.params
-		)
-		with C() as c:
-			self.failUnlessEqual(c.prepare('select 1').first(), 1)
+	if not msw:
+		# win32 binaries don't appear to be built with ipv6
+		# so filter this test on windows.
+		def test_IP6_connect(self):
+			C = pg_driver.default.ip6(
+				user = 'test',
+				host = '::1',
+				database = 'test',
+				port = self.cluster.address()[1],
+				**self.params
+			)
+			with C() as c:
+				self.failUnlessEqual(c.prepare('select 1').first(), 1)
 
 	def test_Host_connect(self):
 		C = pg_driver.default.host(

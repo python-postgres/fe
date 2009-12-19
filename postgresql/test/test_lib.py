@@ -90,11 +90,20 @@ class test_lib(pg_unittest.TestCaseWithCluster):
 		self._testILF(lib)
 
 	def testILF_from_file(self):
-		with tempfile.NamedTemporaryFile('w', encoding = 'utf-8') as f:
+		f = tempfile.NamedTemporaryFile(
+			delete = False, mode = 'w', encoding = 'utf-8'
+		) 
+		n = f.name
+		try:
 			f.write(ilf)
 			f.flush()
-			lib = pg_lib.ILF.open(f.name, encoding = 'utf-8')
+			f.seek(0)
+			lib = pg_lib.ILF.open(n, encoding = 'utf-8')
 			self._testILF(lib)
+			f.close()
+		finally:
+			# so annoying...
+			os.unlink(n)
 
 	def testLoad(self):
 		# gotta test it in the cwd...

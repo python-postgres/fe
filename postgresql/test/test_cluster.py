@@ -3,13 +3,14 @@
 # http://python.projects.postgresql.org
 ##
 import sys
+import os
 import time
 import unittest
 import tempfile
-from ..installation import Installation
-from ..cluster import Cluster
+from .. import installation
+from ..cluster import Cluster, ClusterStartupError
 
-default_install = Installation.default()
+default_install = installation.default()
 if default_install is None:
 	sys.stderr.write("ERROR: cannot find 'default' pg_config\n")
 	sys.stderr.write("HINT: set the PGINSTALLATION environment variable to the `pg_config` path\n")
@@ -17,14 +18,14 @@ if default_install is None:
 
 class test_cluster(unittest.TestCase):
 	def setUp(self):
-		self.cluster = Cluster('test_cluster', default_install)
+		self.cluster = Cluster(default_install, 'test_cluster',)
 
 	def tearDown(self):
 		self.cluster.drop()
 		self.cluster = None
 
-	def start_cluster(self):
-		self.cluster.start(logfile = None)
+	def start_cluster(self, logfile = None):
+		self.cluster.start(logfile = logfile)
 		self.cluster.wait_until_started(timeout = 10)
 
 	def init(self, *args, **kw):
@@ -37,10 +38,20 @@ class test_cluster(unittest.TestCase):
 		})
 
 	def testSilentMode(self):
-		self.init(logfile = None)
+		self.init()
 		self.cluster.settings['silent_mode'] = 'on'
 		# if it fails to start(ClusterError), silent_mode is not working properly.
-		self.start_cluster()
+		try:
+			self.start_cluster(logfile = sys.stdout)
+		except ClusterStartupError:
+			# silent_mode is not supported on windows by PG.
+			if sys.platform in ('win32','win64'):
+				pass
+			else:
+				raise
+		else:
+			if sys.platform in ('win32','win64'):
+				self.fail("silent_mode supported on windows")
 
 	def testSuperPassword(self):
 		self.init(

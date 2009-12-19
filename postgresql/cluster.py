@@ -3,25 +3,64 @@
 # http://python.projects.postgresql.org
 ##
 """
-Create and interface with PostgreSQL clusters.
+Create, control, and destroy PostgreSQL clusters.
 
-Primarily, this means starting and stopping the postgres daemon and modifying
-the configuration file.
+postgresql.cluster provides a programmer's interface to controlling a PostgreSQL
+cluster. It provides direct access to proper signalling interfaces.
 """
 import sys
 import os
 import errno
-import signal
 import time
 import io
 import subprocess as sp
-import tempfile
+from tempfile import NamedTemporaryFile
 
 from . import api as pg_api
 from . import configfile
 from . import installation as pg_inn
 from . import exceptions as pg_exc
 from . import driver as pg_driver
+from .encodings.aliases import get_python_name
+from .python.os import close_fds
+
+if sys.platform in ('win32', 'win64'):
+	from .port import signal1_msw as signal
+	pg_kill = signal.kill
+	def namedtemp(encoding):
+		return NamedTemporaryFile(delete = False, mode = 'w', encoding=encoding)
+else:
+	import signal
+	pg_kill = os.kill
+	def namedtemp(encoding):
+		return NamedTemporaryFile(mode = 'w', encoding=encoding)
+
+class ClusterError(pg_exc.Error):
+	"""
+	General cluster error.
+	"""
+	code = '-C000'
+	source = 'CLUSTER'
+class ClusterInitializationError(ClusterError):
+	"General cluster initialization failure"
+	code = '-Cini'
+class InitDBError(ClusterInitializationError):
+	"A non-zero result was returned by the initdb command"
+	code = '-Cidb'
+class ClusterStartupError(ClusterError):
+	"Cluster startup failed"
+	code = '-Cbot'
+class ClusterNotRunningError(ClusterError):
+	"Cluster is not running"
+	code = '-Cdwn'
+class ClusterTimeoutError(ClusterError):
+	"Cluster operation timed out"
+	code = '-Cout'
+
+class ClusterWarning(pg_exc.Warning):
+	"Warning issued by cluster operations"
+	code = '-Cwrn'
+	source = 'CLUSTER'
 
 DEFAULT_CLUSTER_ENCODING = 'utf-8'
 DEFAULT_CONFIG_FILENAME = 'postgresql.conf'
@@ -38,9 +77,9 @@ initdb_option_map = {
 	'time' : '--lc-time',
 	'authentication' : '-A',
 	'user' : '-U',
+	# pwprompt is not supported.
+	# Cluster.init is *not* intended for interactive use.
 }
-
-pg_kill = os.kill
 
 class Cluster(pg_api.Cluster):
 	"""
@@ -77,6 +116,9 @@ class Cluster(pg_api.Cluster):
 
 	@property
 	def daemon_path(self):
+		"""
+		Path to the executable to use to startup the cluster.
+		"""
 		return self.installation.postmaster or self.installation.postgres
 
 	def get_pid_from_file(self):
@@ -110,25 +152,21 @@ class Cluster(pg_api.Cluster):
 		return self._settings
 
 	@property
-	def hba_file(self):
+	def hba_file(self, join = os.path.join):
+		"""
+		The path to the HBA file of the cluster.
+		"""
 		return self.settings.get(
 			'hba_file',
-			os.path.join(self.data_directory, self.DEFAULT_HBA_FILENAME)
+			join(self.data_directory, self.DEFAULT_HBA_FILENAME)
 		)
 
-	@classmethod
-	def from_pg_config_path(type, data_directory, pg_config_path):
-		"""
-		Create the cluster using the data_directory and the *path* to pg_config
-		"""
-		return type(data_directory, pg_inn.Installation(pg_config_path))
-
 	def __init__(self,
+		installation : "installation object",
 		data_directory : "path to the data directory",
-		installation : pg_inn.Installation,
 	):
-		self.data_directory = os.path.abspath(data_directory)
 		self.installation = installation
+		self.data_directory = os.path.abspath(data_directory)
 		self.pgsql_dot_conf = os.path.join(
 			self.data_directory,
 			self.DEFAULT_CONFIG_FILENAME
@@ -136,31 +174,33 @@ class Cluster(pg_api.Cluster):
 		self.daemon_process = None
 		self.daemon_command = None
 
-	def __repr__(self):
-		return "%s.%s(%r, %r)" %(
+	def __repr__(self, format = "{mod}.{name}({ins!r}, {dir!r})".format):
+		return format(
 			type(self).__module__,
 			type(self).__name__,
-			self.data_directory,
 			self.installation,
+			self.data_directory,
 		)
 
-	def __context__(self):
-		return self
-
 	def __enter__(self):
+		"""
+		Start the cluster and wait for it to startup.
+		"""
 		self.start()
 		self.wait_until_started()
+		return self
 
 	def __exit__(self, typ, val, tb):
+		"""
+		Stop the cluster and wait for it to shutdown.
+		"""
 		self.stop()
 		self.wait_until_stopped()
-		return typ is None
 
 	def init(self,
 		password : \
 			"Password to assign to the " \
 			"cluster's superuser(`user` keyword)." = None,
-		initdb : "[BEWARE] explicitly state the initdb binary to use" = None,
 		**kw
 	):
 		"""
@@ -170,16 +210,24 @@ class Cluster(pg_api.Cluster):
 		`command_option_map` provides the mapping of keyword arguments
 		to command options.
 		"""
+		initdb = self.installation.initdb
 		if initdb is None:
-			initdb = self.installation.initdb
-			if initdb is None:
-				raise pg_exc.ClusterInitializationError(
-					"unable to find `initdb` executable for installation: " + \
-					repr(self.installation),
-					creator = self
-				)
+			initdb = (self.installation.pg_ctl, 'initdb',)
+		else:
+			initdb = (initdb,)
 
+		if None in initdb:
+			raise ClusterInitializationError(
+				"unable to find executable for cluster initialization",
+				details = {
+					'detail' : "The installation had neither 'initdb' nor 'pg_ctl'had neither 'initdb' nor 'pg_ctl'",
+				},
+				creator = self
+			)
 		# Transform keyword options into command options for the executable.
+
+		# A default is used rather than looking at the environment to, well,
+		# avoid looking at the environment.
 		kw.setdefault('encoding', self.DEFAULT_CLUSTER_ENCODING)
 		opts = []
 		for x in kw:
@@ -189,43 +237,53 @@ class Cluster(pg_api.Cluster):
 				raise TypeError("got an unexpected keyword argument %r" %(x,))
 			opts.append(initdb_option_map[x])
 			opts.append(kw[x])
-		logfile = kw.get('logfile', sp.PIPE)
+		logfile = kw.get('logfile') or sp.PIPE
 		extra_args = tuple([
 			str(x) for x in kw.get('extra_arguments', ())
 		])
 
 		supw_file = ()
-		if password is not None:
-			# got a superuserpass, store it in a tempfile for initdb
-			supw_tmp = tempfile.NamedTemporaryFile(
-				mode = 'w', encoding = kw['encoding']
+		supw_tmp = None
+		try:
+			if password is not None:
+				# got a superuserpass, store it in a tempfile for initdb
+				supw_tmp = namedtemp(encoding = get_python_name(kw['encoding']))
+				supw_tmp.write(password)
+				supw_tmp.flush()
+				supw_file = ('--pwfile=' + supw_tmp.name,)
+
+			cmd = initdb + ('-D', self.data_directory) \
+				+ tuple(opts) \
+				+ supw_file \
+				+ extra_args
+
+			p = sp.Popen(
+				cmd,
+				close_fds = close_fds,
+				bufsize = 1024 * 5, # not expecting this to ever be filled.
+				stdin = sp.PIPE,
+				stdout = logfile,
+				# stderr is used to identify a reasonable error message.
+				stderr = sp.PIPE,
 			)
-			supw_tmp.write(password)
-			supw_tmp.flush()
-			supw_file = ('--pwfile=' + supw_tmp.name,)
+			# stdin is not used; it is not desirable for initdb to be attached.
+			p.stdin.close()
 
-		cmd = (initdb, '-D', self.data_directory) \
-			+ tuple(opts) \
-			+ supw_file \
-			+ extra_args
-
-		p = sp.Popen(
-			cmd,
-			stdin = sp.PIPE,
-			stdout = logfile,
-			stderr = sp.PIPE,
-		)
-		p.stdin.close()
-
-		while True:
-			try:
-				rc = p.wait()
-				break
-			except OSError as e:
-				if e.errno != errno.EINTR:
-					raise
-		if password is not None:
-			supw_tmp.close()
+			while True:
+				try:
+					rc = p.wait()
+					break
+				except OSError as e:
+					if e.errno != errno.EINTR:
+						raise
+		finally:
+			# stdlib fail. Make sure the temp gets deleted.
+			# NamedTemporaryFile has inconsistencies across platforms. :(
+			if supw_tmp is not None:
+				n = supw_tmp.name
+				supw_tmp.close()
+				if os.path.exists(n):
+					os.unlink(n)
 
 		if rc != 0:
 			r = p.stderr.read().strip()
@@ -236,11 +294,12 @@ class Cluster(pg_api.Cluster):
 				msg = os.linesep.join([
 					repr(x)[2:-1] for x in r.splitlines()
 				])
-			raise pg_exc.InitDBError(
-				msg,
+			raise InitDBError(
+				"initdb exited with non-zero status",
 				details = {
-					'COMMAND': cmd,
-					'RESULT': rc,
+					'command': cmd,
+					'stderr': msg,
+					'stdout': msg,
 				},
 				creator = self
 			)
@@ -253,12 +312,12 @@ class Cluster(pg_api.Cluster):
 			self.shutdown()
 			try:
 				self.wait_until_stopped()
-			except pg_exc.ClusterTimeoutError:
+			except ClusterTimeoutError:
 				self.kill()
 				try:
 					self.wait_until_stopped()
-				except pg_exc.ClusterTimeoutError:
-					pg_exc.ClusterWarning(
+				except ClusterTimeoutError:
+					ClusterWarning(
 						'cluster failed to shutdown after kill',
 						details = {
 							'hint' : 'Shared memory may be leaked.'
@@ -289,6 +348,9 @@ class Cluster(pg_api.Cluster):
 
 		p = sp.Popen(
 			cmd,
+			close_fds = close_fds,
+			bufsize = 1024,
+			# send everything to logfile
 			stdout = sp.PIPE if logfile is None else logfile,
 			stderr = sp.STDOUT,
 			stdin = sp.PIPE,
@@ -304,13 +366,16 @@ class Cluster(pg_api.Cluster):
 		Restart the cluster gracefully.
 
 		This provides a higher level interface to stopping then starting the
-		cluster. It will 
+		cluster. It will perform the wait operations and block until the
+		restart is complete.
+
+		If waiting is not desired, .start() and .stop() should be used directly.
 		"""
 		if self.running():
 			self.stop()
 			self.wait_until_stopped(timeout = timeout)
 		if self.running():
-			raise pg_exc.ClusterError(
+			raise ClusterError(
 				"failed to shutdown cluster",
 				creator = self
 			)
@@ -524,8 +589,8 @@ class Cluster(pg_api.Cluster):
 				if self.daemon_process is not None:
 					r = self.daemon_process.returncode
 					if r is not None and r != 0:
-						raise pg_exc.ClusterStartupError(
-							"postgresql daemon exited with non-zero status",
+						raise ClusterStartupError(
+							"postgres daemon exited with non-zero status",
 							details = {
 								'RESULT' : r,
 								'COMMAND' : self.daemon_command,
@@ -533,8 +598,8 @@ class Cluster(pg_api.Cluster):
 							creator = self
 						)
 				else:
-					raise pg_exc.ClusterNotRunningError(
-						"postgresql daemon has not been started",
+					raise ClusterNotRunningError(
+						"postgres daemon has not been started",
 						creator = self
 					)
 			r = self.ready_for_connections()
@@ -549,7 +614,7 @@ class Cluster(pg_api.Cluster):
 				# condition, rather it's *still* starting up.
 				if r is not None and isinstance(r, pg_exc.ServerNotReadyError):
 					raise r
-				e = pg_exc.ClusterTimeoutError(
+				e = ClusterTimeoutError(
 					'timeout on startup',
 					creator = self
 				)
@@ -576,7 +641,7 @@ class Cluster(pg_api.Cluster):
 			if self.daemon_process is not None:
 				self.last_exit_code = self.daemon_process.poll()
 			if time.time() - start >= timeout:
-				raise pg_exc.ClusterTimeoutError(
+				raise ClusterTimeoutError(
 					'timeout on shutdown',
 					creator = self,
 				)
