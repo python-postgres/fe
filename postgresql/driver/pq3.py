@@ -31,8 +31,30 @@ from ..protocol import xact3 as xact
 from ..protocol import element3 as element
 from ..protocol import client3 as client
 from ..protocol import typio as pg_typio
+from ..protocol.message_types import message_types
 
 from .. import types as pg_types
+
+# Map element3.Notice field identifiers
+# to names used by api.Message.
+notice_field_to_name = {
+	message_types[b'S'[0]] : 'severity',
+	message_types[b'C'[0]] : 'code',
+	message_types[b'M'[0]] : 'message',
+	message_types[b'D'[0]] : 'detail',
+	message_types[b'H'[0]] : 'hint',
+	message_types[b'W'[0]] : 'context',
+	message_types[b'P'[0]] : 'position',
+	message_types[b'p'[0]] : 'internal_position',
+	message_types[b'q'[0]] : 'internal_query',
+	message_types[b'F'[0]] : 'file',
+	message_types[b'L'[0]] : 'line',
+	message_types[b'R'[0]] : 'function',
+}
+
+notice_field_from_name = dict(
+	(v, k) for (k, v) in notice_field_to_name.items()
+)
 
 IDNS = 'py:%s'
 def ID(s, title = None):
@@ -248,19 +270,21 @@ class Output(object):
 			# Be sure not to fill screen with noise.
 			data = data[:75] + ' ...'
 
-		em = element.ClientError(
-			code = "--CIO",
-			message = "failed to unpack column %r, %s::%s, from wire data" %(
-				itemnum,
-				self.column_names[itemnum],
-				self.database.typio.sql_type_from_oid(
-					self.statement.pg_column_types[itemnum]
-				) or '<unknown>',
+		em = element.ClientError((
+			(b'S', 'ERROR'),
+			(b'C', "--CIO"),
+			(b'M', "failed to unpack column %r, %s::%s, from wire data" %(
+					itemnum,
+					self.column_names[itemnum],
+					self.database.typio.sql_type_from_oid(
+						self.statement.pg_column_types[itemnum]
+					) or '<unknown>',
+				)
 			),
-			detail = data,
-			hint = "Try casting the column to 'text'.",
-			position = str(itemnum),
-		)
+			(b'D', data),
+			(b'H', "Try casting the column to 'text'."),
+			(b'P', str(itemnum)),
+		))
 		self.database._raise_a_pq_error(em, controller = self)
 		# "can't happen"
 		raise RuntimeError("failed to raise client error")
@@ -322,6 +346,8 @@ class FetchAll(Chunks):
 	def _init(self,
 		null = element.Null.type,
 		complete = element.Complete.type,
+		bindcomplete = element.BindComplete.type,
+		parsecomplete = element.ParseComplete.type,
 	):
 		expect = self._expect
 		self._xact = self._ins(
@@ -346,18 +372,17 @@ class FetchAll(Chunks):
 				elif x.type == expect:
 					# no need to step once this is seen
 					return
-				elif x.type in (
-					element.BindComplete.type, element.ParseComplete.type
-				):
+				elif x.type in (bindcomplete, parsecomplete):
 					pass
 				else:
 					self.database._pq_complete()
 					if self._xact.fatal is None:
 						self._xact.fatal = False
-						self._xact.error_message = element.ClientError(
-							code = "--000",
-							message = "unexpected message type " + repr(x.type)
-						)
+						self._xact.error_message = element.ClientError((
+							(b'S', 'ERROR'),
+							(b'C', "--000"),
+							(b'M', "unexpected message type " + repr(x.type))
+						))
 						self.database._raise_pq_error(self._xact, controller = self)
 					return
 
@@ -697,48 +722,62 @@ class PreparedStatement(pg_api.PreparedStatement):
 			self._raise_parameter_tuple_error
 		)
 
+	##
+	# process_tuple failed(exception). The parameters could not be packed.
+	# This function is called with the given information in the context
+	# of the original exception(to allow chaining).
 	def _raise_parameter_tuple_error(self, procs, tup, itemnum):
+		# Find the SQL type name. This should *not* hit the server.
 		typ = self.database.typio.sql_type_from_oid(
 			self.pg_parameter_types[itemnum]
 		) or '<unknown>'
 
-		data = repr(tup[itemnum])
-		if len(data) > 80:
+		# Representation of the bad parameter.
+		bad_data = repr(tup[itemnum])
+		if len(bad_data) > 80:
 			# Be sure not to fill screen with noise.
-			data = data[:75] + ' ...'
-		em = element.ClientError(
-			message = "failed to pack parameter %s::%s for transfer" %(
-				('$' + str(itemnum + 1)), typ,
+			bad_data = bad_data[:75] + ' ...'
+
+		em = element.ClientError((
+			(b'S', 'ERROR'),
+			(b'C', '--PIO'),
+			(b'M', "could not pack parameter %s::%s for transfer" %(
+					('$' + str(itemnum + 1)), typ,
+				)
 			),
-			code = '--PIO',
-			detail = data,
-			hint = "Try casting the parameter to 'text', then to the target type.",
-			position = str(itemnum)
-		)
+			(b'D', bad_data),
+			(b'H', "Try casting the parameter to 'text', then to the target type."),
+			(b'P', str(itemnum))
+		))
 		self.database._raise_a_pq_error(em, controller = self)
 		raise RuntimeError("failed to raise client error")
 
+	##
+	# Similar to the parameter variant.
 	def _raise_column_tuple_error(self, procs, tup, itemnum):
+		# Find the SQL type name. This should *not* hit the server.
 		typ = self.database.typio.sql_type_from_oid(
 			self.pg_column_types(itemnum)
 		) or '<unknown>'
 
+		# Representation of the bad column.
 		data = repr(tup[itemnum])
 		if len(data) > 80:
 			# Be sure not to fill screen with noise.
 			data = data[:75] + ' ...'
 
-		em = element.ClientError(
-			message = "failed to unpack column %r, %s::%s, from wire data" %(
-				itemnum, self.column_names[itemnum], typ
+		em = element.ClientError((
+			(b'S', 'ERROR'),
+			(b'C', '--CIO'),
+			(b'M', "could not unpack column %r, %s::%s, from wire data" %(
+					itemnum, self.column_names[itemnum], typ
+				)
 			),
-			code = "--CIO",
-			detail = data,
-			hint = "Try casting the column to 'text'.",
-			position = str(itemnum),
-		)
+			(b'D', data),
+			(b'H', "Try casting the column to 'text'."),
+			(b'P', str(itemnum)),
+		))
 		self.database._raise_a_pq_error(em, controller = self)
-		# "can't happen"
 		raise RuntimeError("failed to raise client error")
 
 	@property
@@ -1059,12 +1098,13 @@ class PreparedStatement(pg_api.PreparedStatement):
 				break
 		else:
 			# Oh, it's not a COPY at all.
-			x.error_message = element.ClientError(
-				# OperationError
-				code = '--OPE',
-				message = "_load_copy_chunks() used on a non-COPY FROM STDIN query",
-			)
 			x.fatal = False
+			x.error_message = element.ClientError((
+				(b'S', 'ERROR'),
+				# OperationError
+				(b'C', '--OPE'),
+				(b'M', "_load_copy_chunks() used on a non-COPY FROM STDIN query"),
+			))
 			self.database._raise_pq_error(x, controller = self)
 			raise RuntimeError("failed to raise client error")
 
@@ -1444,11 +1484,12 @@ class Transaction(pg_api.Transaction):
 				if not self.database.closed:
 					self.rollback()
 				# pg_exc.InFailedTransactionError
-				em = element.ClientError(
-					code = '25P02',
-					message = 'invalid transaction block exit detected',
-					hint = "Database was in an error-state, but no exception was raised."
-				)
+				em = element.ClientError((
+					(b'S', 'ERROR'),
+					(b'C', '25P02'),
+					(b'M', 'invalid transaction block exit detected'),
+					(b'H', "Database was in an error-state, but no exception was raised.")
+				))
 				self.database._raise_a_pq_error(em, self)
 			else:
 				# No exception, and no error state. Everything is good.
@@ -1506,12 +1547,12 @@ class Transaction(pg_api.Transaction):
 		if self.state == 'open':
 			return
 		if self.state != 'initialized':
-			em = element.ClientError(
-				code = '--OPE',
-				message = "transactions cannot be restarted",
-				hint = \
-					'Create a new transaction object instead of re-using an old one.'
-			)
+			em = element.ClientError((
+				(b'S', 'ERROR'),
+				(b'C', '--OPE'),
+				(b'M', "transactions cannot be restarted"),
+				(b'H', 'Create a new transaction object instead of re-using an old one.')
+			))
 			self.database._raise_a_pq_error(em, self)
 
 		if self.database.pq.state == b'I':
@@ -1523,11 +1564,12 @@ class Transaction(pg_api.Transaction):
 		else:
 			self.type = 'savepoint'
 			if (self.gid, self.isolation, self.mode) != (None,None,None):
-				em = element.ClientError(
-					code = '--OPE',
-					message = "configured transaction used inside a transaction block",
-					hint = 'A transaction block was already started.',
-				)
+				em = element.ClientError((
+					(b'S', 'ERROR'),
+					(b'C', '--OPE'),
+					(b'M', "configured transaction used inside a transaction block"),
+					(b'H', 'A transaction block was already started.'),
+				))
 				self.database._raise_a_pq_error(em, self)
 			q = self._savepoint_xact_string(hex(id(self)))
 		self.database.execute(q)
@@ -1548,16 +1590,18 @@ class Transaction(pg_api.Transaction):
 		if self.state == 'prepared':
 			return
 		if self.state != 'open':
-			em = element.ClientError(
-				code = '--OPE',
-				message = "transaction state must be 'open' in order to prepare",
-			)
+			em = element.ClientError((
+				(b'S', 'ERROR'),
+				(b'C', '--OPE'),
+				(b'M', "transaction state must be 'open' in order to prepare"),
+			))
 			self.database._raise_a_pq_error(em, self)
 		if self.type != 'block':
-			em = element.ClientError(
-				code = '--OPE',
-				message = "improper transaction type to prepare",
-			)
+			em = element.ClientError((
+				(b'S', 'ERROR'),
+				(b'C', '--OPE'),
+				(b'M', "improper transaction type to prepare"),
+			))
 			self.database._raise_a_pq_error(em, self)
 		q = self._prepare_string(self.gid)
 		self.database.execute(q)
@@ -1565,29 +1609,32 @@ class Transaction(pg_api.Transaction):
 
 	def recover(self):
 		if self.state != 'initialized':
-			em = element.ClientError(
-				code = '--OPE',
-				message = "improper state for prepared transaction recovery",
-			)
+			em = element.ClientError((
+				(b'S', 'ERROR'),
+				(b'C', '--OPE'),
+				(b'M', "improper state for prepared transaction recovery"),
+			))
 			self.database._raise_a_pq_error(em, self)
 		if self.database.sys.xact_is_prepared(self.gid):
 			self.state = 'prepared'
 			self.type = 'block'
 		else:
-			em = element.ClientError(
-				code = '42704', # UndefinedObjectError
-				message = "prepared transaction does not exist",
-			)
+			em = element.ClientError((
+				(b'S', 'ERROR'),
+				(b'C', '42704'), # UndefinedObjectError
+				(b'M', "prepared transaction does not exist"),
+			))
 			self.database._raise_a_pq_error(em, self)
 
 	def commit(self):
 		if self.state == 'committed':
 			return
 		if self.state not in ('prepared', 'open'):
-			em = element.ClientError(
-				code = '--OPE',
-				message = "commit attempted on transaction with unexpected state, " + repr(self.state),
-			)
+			em = element.ClientError((
+				(b'S', 'ERROR'),
+				(b'C', '--OPE'),
+				(b'M', "commit attempted on transaction with unexpected state, " + repr(self.state)),
+			))
 			self.database._raise_a_pq_error(em, self)
 
 		if self.type == 'block':
@@ -1598,10 +1645,11 @@ class Transaction(pg_api.Transaction):
 				q = 'COMMIT'
 		else:
 			if self.gid is not None:
-				em = element.ClientError(
-					code = '--OPE',
-					message = "savepoint configured with global identifier",
-				)
+				em = element.ClientError((
+					(b'S', 'ERROR'),
+					(b'C', '--OPE'),
+					(b'M', "savepoint configured with global identifier"),
+				))
 				self.database._raise_a_pq_error(em, self)
 			q = self._release_string(hex(id(self)))
 		self.database.execute(q)
@@ -1615,11 +1663,11 @@ class Transaction(pg_api.Transaction):
 		if self.state == 'aborted':
 			return
 		if self.state not in ('prepared', 'open'):
-			em = element.ClientError(
-				code = '--OPE',
-				message = "ABORT attempted on transaction with unexpected state, " \
-					+ repr(self.state),
-			)
+			em = element.ClientError((
+				(b'S', 'ERROR'),
+				(b'C', '--OPE'),
+				(b'M', "ABORT attempted on transaction with unexpected state, " + repr(self.state)),
+			))
 			self.database._raise_a_pq_error(em, self)
 
 		if self.type == 'block':
@@ -1899,19 +1947,19 @@ class Connection(pg_api.Connection):
 			failures.append(pq)
 		else:
 			# No servers available. (see the break-statement in the for-loop)
-			msg = "failed to establish connection to server"
-			ce = element.ClientError(
-				message = msg,
-				severity = "FATAL",
-				code = "08001",
-			)
-			err = self._error_lookup(ce)
-			err.creator = self
+			msg = "could not establish connection to server"
+			ce = element.ClientError((
+				(b'S', 'FATAL'),
+				(b'C', '08001'),
+				(b'M', msg),
+			))
+			could_not_connect_err = self._error_lookup(ce)
+			could_not_connect_err.creator = self
 			self.failures = failures or ()
 			if exc is not None:
-				err.__cause__ = exc
+				could_not_connect_err.__cause__ = exc
 			# it's over.
-			raise err
+			raise could_not_connect_err
 		##
 		# connected, now initialize metadata
 		# Use the version_info and integer_datetimes setting to identify
@@ -1964,18 +2012,26 @@ class Connection(pg_api.Connection):
 			self._controller = controller
 		self.pq.push(xact)
 
+	# Complete the current protocol transaction.
 	def _pq_complete(self):
-		x = self.pq.xact
-		if self.pq.xact is not None:
-			self.pq.complete()
+		pq = self.pq
+		x = pq.xact
+		if x is not None:
+			# There is a running transaction, finish it.
+			pq.complete()
+			# Raise an error *iff* one occurred.
 			self._raise_pq_error(x)
 			del self._controller
 
-	def _pq_step(self):
-		x = self.pq.xact
+	# Process the next message.
+	def _pq_step(self, complete_state = globals()['xact'].Complete):
+		pq = self.pq
+		x = pq.xact
 		if x is not None:
-			self.pq.step()
-			if x.state is xact.Complete:
+			pq.step()
+			# If the protocol transaction was completed by
+			# the last step, raise the error *iff* one occurred.
+			if x.state is complete_state:
 				self._raise_pq_error(x)
 				del self._controller
 
@@ -2001,44 +2057,55 @@ class Connection(pg_api.Connection):
 		err.creator = controller
 		raise err
 
-	def _decode_pq_message(self, msg):
-		'decode the values in a message(E,N)'
-		if type(msg) in (element.ClientError, element.ClientNotice):
-			return dict(msg)
+	##
+	# Used by _decode_pq_message()
+	def _decode_failsafe(self, data):
 		decode = self.typio._decode
-		dmsg = {}
-		for k, v in msg.items():
+		i = iter(data)
+		for x in i:
 			try:
-				# code should always be ascii..
-				if k == "code":
-					v = v.decode('ascii')
-				else:
-					v = decode(v)[0]
+				# prematurely optimized for your viewing displeasure.
+				v = x[1]
+				yield (x[0], decode(v)[0])
+				for x in i:
+					v = x[1]
+					yield (x[0], decode(v)[0])
 			except UnicodeDecodeError:
 				# Fallback to the bytes representation.
 				# This should be sufficiently informative in most cases,
 				# and in the cases where it isn't, an element traceback should
 				# ultimately yield the pertinent information
-				v = repr(v)[2:-1]
-			dmsg[k] = v
-		return dmsg
+				yield (x[0], repr(data[1])[2:-1])
 
-	def _convert_pq_message(self, msg, source = None):
-		'create a message, warning or error'
+	def _decode_pq_message(self, notice,
+		client_message_types = (element.ClientError, element.ClientNotice)
+	):
+		if isinstance(notice, client_message_types):
+			# already in unicode
+			notice = notice.items()
+		else:
+			notice = self._decode_failsafe(notice.items())
+
+		return {
+			notice_field_to_name[k] : v
+			for k, v in notice
+			# don't include unknown messages in this list.
+			if k in notice_field_to_name
+		}
+
+	##
+	# Given an element.Notice (or Error) instance, create the appropriate
+	# Message (or Error) instance.
+	def _convert_pq_message(self, msg, source = None,):
 		dmsg = self._decode_pq_message(msg)
 		m = dmsg.pop('message')
 		c = dmsg.pop('code')
-		sev = dmsg['severity'].upper()
 		if source is None:
-			if type(msg) in (element.ClientNotice, element.ClientError):
+			if isinstance(msg, client_message_types):
 				source = 'CLIENT'
 			else:
 				source = 'SERVER'
-		if sev in ('ERROR', 'PANIC', 'FATAL'):
-			mo = pg_exc.ErrorLookup(c)(
-				m, code = c, details = dmsg, source = source
-			)
-		if sev == 'WARNING':
+		if dmsg['severity'].upper() == 'WARNING':
 			mo = pg_exc.WarningLookup(c)(
 				m, code = c, details = dmsg, source = source
 			)
@@ -2049,15 +2116,19 @@ class Connection(pg_api.Connection):
 		mo.database = self
 		return mo
 
-	def _error_lookup(self, om : element.Error,) -> pg_exc.Error:
-		'lookup a PostgreSQL error and instantiate it'
+	##
+	# lookup a PostgreSQL error and instantiate it
+	def _error_lookup(self, om : element.Error,
+		clienterror = element.ClientError,
+		errorlookup = pg_exc.ErrorLookup,
+	) -> pg_exc.Error:
 		m = self._decode_pq_message(om)
 		src = 'SERVER'
-		if type(om) is element.ClientError:
+		if type(om) is clienterror:
 			src = 'CLIENT'
 		c = m.pop('code')
 		ms = m.pop('message')
-		err = pg_exc.ErrorLookup(c)
+		err = errorlookup(c)
 		err = err(ms, code = c, details = m, source = src)
 		err.database = self
 		return err

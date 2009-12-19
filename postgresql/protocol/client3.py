@@ -103,22 +103,22 @@ class Connection(object):
 			self.xact.fatal = True
 			self.xact.exception = err
 			if self.socket_factory.timed_out(err):
-				self.xact.error_message = element.ClientError(
-					message = "connect timed out (%s seconds)" %(timeout,),
-					severity = "FATAL",
-					code = "--TOE",
-				)
+				self.xact.error_message = element.ClientError((
+					(b'S', 'FATAL'),
+					(b'C', '--TOE'),
+					(b'M', "connect timed out (%s seconds)" %(timeout,)),
+				))
 			else:
 				errmsg = self.socket_factory.fatal_exception_message(err)
 				# It's an error that occurred during socket creation/connection.
 				# Even if there isn't a known fatal message,
 				# identify it as fatal and set an ambiguous message.
-				self.xact.error_message = element.ClientError(
-					message = errmsg or "could not connect",
-					severity = "FATAL",
+				self.xact.error_message = element.ClientError((
+					(b'S', 'FATAL'),
 					# ConnectionRejectionError
-					code = "08004",
-				)
+					(b'C', '08004'),
+					(b'M', errmsg or "could not connect"),
+				))
 			return
 
 		if ssl is not None:
@@ -131,13 +131,14 @@ class Connection(object):
 			if supported is None:
 				# probably not PQv3..
 				self.socket.close()
-				self.xact.error_message = element.ClientError(
-					message = 'server did not support SSL negotiation',
-					# ProtocolError
-					code = '08P01',
-					hint = 'The server is probably not PostgreSQL.',
-				)
 				self.xact.fatal = True
+				self.xact.error_message = element.ClientError((
+					# ProtocolError
+					(b'S', 'FATAL'),
+					(b'C', '08P01'),
+					(b'M', 'server did not support SSL negotiation'),
+					(b'H', 'The server is probably not PostgreSQL.'),
+				))
 				self.xact.state = xact.Complete
 				return
 
@@ -145,12 +146,13 @@ class Connection(object):
 			if not supported and ssl is True:
 				# ssl is required..
 				self.socket.close()
-				self.xact.error_message = element.ClientError(
-					message = 'SSL was required, and the server could not accommodate',
-					# InsecurityError
-					code = '--SEC',
-				)
 				self.xact.fatal = True
+				self.xact.error_message = element.ClientError((
+					(b'S', 'FATAL'),
+					# InsecurityError
+					(b'C', '--SEC'),
+					(b'M', 'SSL was required, and the server could not accommodate'),
+				))
 				self.xact.state = xact.Complete
 				return
 
@@ -164,11 +166,12 @@ class Connection(object):
 					self.xact.exception = err
 					self.xact.fatal = True
 					self.xact.state = xact.Complete
-					self.xact.error_message = element.ClientError(
-						message = 'SSL negotiation caused exception',
+					self.xact.error_message = element.ClientError((
+						(b'S', 'FATAL'),
 						# InsecurityError
-						code = '--SEC',
-					)
+						(b'C', '--SEC'),
+						(b'M', 'SSL negotiation caused exception'),
+					))
 					return
 		# time to negotiate
 		negxact = self.xact
@@ -182,10 +185,13 @@ class Connection(object):
 			self.socket.close()
 			self.xact.fatal = True
 			self.xact.state = xact.Complete
-			self.xact.error_message = element.ClientError(
-				message = "failed to complete negotiation",
-				code = "--000",
-			)
+			self.xact.error_message = element.ClientError((
+				(b'S', 'FATAL'),
+				(b'C', '--XXX'),
+				(b'M', "failed to complete negotiation"),
+				(b'H',	"Negotiation failed to completed, but no " \
+						"error was attributed on the connection."),
+			))
 
 	def negotiate_ssl(self) -> (bool, None):
 		"""
@@ -230,12 +236,11 @@ class Connection(object):
 					self.xact.state = xact.Complete
 					self.xact.fatal = True
 					self.xact.exception = e
-					self.xact.error_message = element.ClientError(
-						message = msg,
-						severity = 'FATAL',
-						detail = 'fatal socket error',
-						code = '08006',
-					)
+					self.xact.error_message = element.ClientError((
+						(b'S', 'FATAL'),
+						(b'C', '08006'),
+						(b'M', msg),
+					))
 					return False
 				else:
 					# It's probably a non-fatal error,
@@ -248,13 +253,13 @@ class Connection(object):
 				self.socket.close()
 				self.xact.state = xact.Complete
 				self.xact.fatal = True
-				self.xact.error_message = element.ClientError(
-					message = "unexpected EOF from server",
-					severity = 'FATAL',
-					code = '08006',
-					detail = "Zero-length read " \
-					"from the connection's socket.",
-				)
+				self.xact.error_message = element.ClientError((
+					(b'S', 'FATAL'),
+					(b'C', '08006'),
+					(b'M', 'unexpected EOF from server'),
+					(b'D',	"Zero-length read " \
+							"from the connection's socket."),
+				))
 				return False
 
 			# Got data. Put it in the buffer and clear read_data.
@@ -294,11 +299,11 @@ class Connection(object):
 				self.xact.state = xact.Complete
 				self.xact.fatal = True
 				self.xact.exception = e
-				self.xact.error_message = element.ClientError(
-					message = msg,
-					severity = 'FATAL',
-					code = '08006'
-				)
+				self.xact.error_message = element.ClientError((
+					(b'S', 'FATAL'),
+					(b'C', '08006'),
+					(b'M', msg),
+				))
 				return False
 			else:
 				# It wasn't fatal, so just raise
@@ -455,14 +460,15 @@ class Connection(object):
 				# If an exception is raised here, it's a protocol or a programming error.
 				# XXX: It may be useful to have this closer to the actual
 				# message so that a more informative message can be given.
-				x.error_message = element.ClientError(
-					message = "wire-data caused exception in protocol transaction",
-					hint = "Protocol error detected.",
-					code = "08P01",
-				)
-				x.exception = proto_exc
 				x.fatal = True
 				x.state = xact.Complete
+				x.exception = proto_exc
+				x.error_message = element.ClientError((
+					(b'S', 'FATAL'),
+					(b'C', '08P01'),
+					(b'M', "wire-data caused exception in protocol transaction"),
+					(b'H', "Protocol error detected."),
+				))
 				self.state = b''
 				return
 		self.state = getattr(x, 'last_ready', self.state)

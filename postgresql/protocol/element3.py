@@ -280,60 +280,29 @@ class Ready(Message):
 		return self.xact_state
 
 class Notice(Message, dict):
-	"""Notification message"""
-	type = message_types[b'N'[0]]
-	_dtm = {
-		b'S' : 'severity',
-		b'C' : 'code',
-		b'M' : 'message',
-		b'D' : 'detail',
-		b'H' : 'hint',
-		b'W' : 'context',
-		b'P' : 'position',
-		b'p' : 'internal_position',
-		b'q' : 'internal_query',
-		b'F' : 'file',
-		b'L' : 'line',
-		b'R' : 'function',
-	}
-	__slots__ = ()
+	"""
+	Notification message
 
-	def __init__(self,
-		severity = None,
-		message = None,
-		code = None,
-		detail = None,
-		hint = None,
-		position = None,
-		internal_position = None,
-		internal_query = None,
-		context = None,
-		file = None,
-		line = None,
-		function = None
-	):
-		for (k, v) in locals().items():
-			if v not in (self, None):
-				self[k] = v
+	Used by PQ to emit INFO, NOTICE, and WARNING messages among other
+	severities.
+	"""
+	type = message_types[b'N'[0]]
+	__slots__ = ()
 	__repr__ = dict_message_repr
 
 	def serialize(self):
-		return b''.join([
-			k + self[v] + b'\x00'
-			for k, v in self._dtm.items()
-			if self.get(v) is not None
+		return b'\x00'.join([
+			k + v for k, v in self.items()
+			if k and v is not None
 		]) + b'\x00'
 
 	@classmethod
-	def parse(typ, data):
-		kw = {}
-		g = typ._dtm.get
-		for frag in data.split(b'\x00'):
-			if frag:
-				key = g(frag[0:1])
-				if key is not None:
-					kw[key] = frag[1:]
-		return typ(**kw)
+	def parse(typ, data, msgtypes = message_types):
+		return typ([
+			(msgtypes[x[0]], x[1:])
+			# "if x" reduce empty fields
+			for x in data.split(b'\x00') if x
+		])
 
 class ClientNotice(Notice):
 	__slots__ = ()

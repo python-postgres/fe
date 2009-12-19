@@ -94,13 +94,13 @@ message_samples = [
 		b'database' : b'template1',
 		b'options' : b'-f',
 	}),
-	e3.Notice(
-		severity = b'FATAL',
-		message = b'a descriptive message',
-		code = b'FIVEC',
-		detail = b'bleh',
-		hint = b'dont spit into the fan',
-	),
+	e3.Notice((
+		(b'S', b'FATAL'),
+		(b'M', b'a descriptive message'),
+		(b'C', b'FIVEC'),
+		(b'D', b'bleh'),
+		(b'H', b'dont spit into the fan'),
+	)),
 	e3.Notify(123, b'wood_table'),
 	e3.KillInformation(19320, 589483),
 	e3.ShowOption(b'foo', b'bar'),
@@ -195,15 +195,14 @@ class test_element3(unittest.TestCase):
 				self.failUnless(x is xtype())
 
 	def testUnknownNoticeFields(self):
-		# Ignore the unknown fields 'Z' and 'X'.
-		N = e3.Notice.parse(b'Z\x00Xklsvdnvldsvkndvlsn\x00Pfoobar\x00Mmessage\x00')
-		E = e3.Error.parse(b'Z\x00Xklsvdnvldsvkndvlsn\x00Pfoobar\x00Mmessage\x00')
-		self.failUnlessEqual(N['message'], b'message')
-		self.failUnlessEqual(E['message'], b'message')
-		self.failUnlessEqual(N['position'], b'foobar')
-		self.failUnlessEqual(E['position'], b'foobar')
-		self.failUnlessEqual(len(N), 2)
-		self.failUnlessEqual(len(E), 2)
+		N = e3.Notice.parse(b'\x00\x00Z\x00Xklsvdnvldsvkndvlsn\x00Pfoobar\x00Mmessage\x00')
+		E = e3.Error.parse(b'Z\x00Xklsvdnvldsvkndvlsn\x00Pfoobar\x00Mmessage\x00\x00')
+		self.failUnlessEqual(N[b'M'], b'message')
+		self.failUnlessEqual(E[b'M'], b'message')
+		self.failUnlessEqual(N[b'P'], b'foobar')
+		self.failUnlessEqual(E[b'P'], b'foobar')
+		self.failUnlessEqual(len(N), 4)
+		self.failUnlessEqual(len(E), 4)
 ##
 # xact3 tests
 ##
@@ -359,7 +358,7 @@ class test_xact3(unittest.TestCase):
 		c.state[1]()
 		self.failUnlessEqual(c.fatal, True)
 		self.failUnlessEqual(c.error_message.__class__, e3.ClientError)
-		self.failUnlessEqual(c.error_message['code'], '08003')
+		self.failUnlessEqual(c.error_message[b'C'], '08003')
 
 	def testNegotiation(self):
 		# simple successful run
@@ -367,7 +366,7 @@ class test_xact3(unittest.TestCase):
 		n.state[1]()
 		n.state[1](
 			pairs(
-				e3.Notice(message = b"foobar"),
+				e3.Notice(((b'M', b"foobar"),)),
 				e3.Authentication(e3.AuthRequest_OK, b''),
 				e3.KillInformation(0,0),
 				e3.ShowOption(b'name', b'val'),
@@ -381,7 +380,7 @@ class test_xact3(unittest.TestCase):
 		n.state[1]()
 		n.state[1](
 			pairs(
-				e3.Notice(message = b"foobar"),
+				e3.Notice(((b'M', b"foobar"),)),
 				e3.Authentication(e3.AuthRequest_OK, b''),
 				e3.ShowOption(b'name', b'val'),
 				e3.Ready(b'I'),
@@ -389,13 +388,13 @@ class test_xact3(unittest.TestCase):
 		)
 		self.failUnlessEqual(n.state, x3.Complete)
 		self.failUnlessEqual(n.last_ready, None)
-		self.failUnlessEqual(n.error_message["code"], '08P01')
+		self.failUnlessEqual(n.error_message[b'C'], '08P01')
 		# killinfo twice.. must cause protocol error...
 		n = x3.Negotiation({}, b'')
 		n.state[1]()
 		n.state[1](
 			pairs(
-				e3.Notice(message = b"foobar"),
+				e3.Notice(((b'M', b"foobar"),)),
 				e3.Authentication(e3.AuthRequest_OK, b''),
 				e3.ShowOption(b'name', b'val'),
 				e3.KillInformation(0,0),
@@ -405,13 +404,13 @@ class test_xact3(unittest.TestCase):
 		)
 		self.failUnlessEqual(n.state, x3.Complete)
 		self.failUnlessEqual(n.last_ready, None)
-		self.failUnlessEqual(n.error_message["code"], '08P01')
+		self.failUnlessEqual(n.error_message[b'C'], '08P01')
 		# start with ready message..
 		n = x3.Negotiation({}, b'')
 		n.state[1]()
 		n.state[1](
 			pairs(
-				e3.Notice(message = b"foobar"),
+				e3.Notice(((b'M', b"foobar"),)),
 				e3.Ready(b'I'),
 				e3.Authentication(e3.AuthRequest_OK, b''),
 				e3.ShowOption(b'name', b'val'),
@@ -419,7 +418,7 @@ class test_xact3(unittest.TestCase):
 		)
 		self.failUnlessEqual(n.state, x3.Complete)
 		self.failUnlessEqual(n.last_ready, None)
-		self.failUnlessEqual(n.error_message["code"], '08P01')
+		self.failUnlessEqual(n.error_message[b'C'], '08P01')
 		# unsupported authreq
 		n = x3.Negotiation({}, b'')
 		n.state[1]()
@@ -430,7 +429,7 @@ class test_xact3(unittest.TestCase):
 		)
 		self.failUnlessEqual(n.state, x3.Complete)
 		self.failUnlessEqual(n.last_ready, None)
-		self.failUnlessEqual(n.error_message["code"], '--AUT')
+		self.failUnlessEqual(n.error_message[b'C'], '--AUT')
 
 	def testInstructionAsynchook(self):
 		l = []
@@ -439,7 +438,7 @@ class test_xact3(unittest.TestCase):
 		x = x3.Instruction([
 			e3.Query(b"NOTHING")
 		], asynchook = hook)
-		a1 = e3.Notice(message = b"m1")
+		a1 = e3.Notice(((b'M', b"m1"),))
 		a2 = e3.Notify(0, b'relation', b'parameter')
 		a3 = e3.ShowOption(b'optname', b'optval')
 		# "send" the query message
@@ -463,7 +462,7 @@ class test_xact3(unittest.TestCase):
 		x = x3.Instruction([
 			e3.Query(b"NOTHING")
 		], asynchook = ehook)
-		a1 = e3.Notice(message = b"m1")
+		a1 = e3.Notice(((b'M', b"m1"),))
 		x.state[1]()
 		import sys
 		v = None
@@ -583,7 +582,7 @@ class test_client3(unittest.TestCase):
 		self.failUnlessEqual(pc.xact.fatal, True)
 		self.failUnlessEqual(pc.xact.__class__, x3.Negotiation)
 		self.failUnlessEqual(pc.xact.error_message.__class__, e3.ClientError)
-		self.failUnlessEqual(pc.xact.error_message["code"], '08006')
+		self.failUnlessEqual(pc.xact.error_message[b'C'], '08006')
 
 # this must pack to that, and
 # that must unpack to this

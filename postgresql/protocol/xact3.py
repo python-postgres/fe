@@ -13,7 +13,6 @@ get0 = itemgetter(0)
 get1 = itemgetter(1)
 
 from ..python.functools import Composition as compose
-from .. import exceptions as pg_exc
 from . import element3 as element
 
 from hashlib import md5
@@ -32,6 +31,10 @@ AsynchronousMap = {
 def return_arg(x):
 	return x
 
+message_expectation = \
+	"expected message of types {expected}, " \
+	"but received {received} instead".format
+
 class Transaction(object, metaclass = ABCMeta):
 	"""
 	If the fatal attribute is not None, an error occurred, and the
@@ -49,14 +52,14 @@ class Closing(Transaction):
 	"""
 	Send the disconnect message and mark the connection as closed.
 	"""
-	error_message = element.ClientError(
+	error_message = element.ClientError((
+		(b'S', 'FATAL'),
 		# pg_exc.ConnectionDoesNotExistError.code
-		code = '08003',
-		severity = 'FATAL',
-		message = 'operation on closed connection',
-		hint = "A new connection needs to be "\
-			"created in order to query the server.",
-	)
+		(b'C', '08003'),
+		(b'M', 'operation on closed connection'),
+		(b'H', "A new connection needs to be "\
+			"created in order to query the server."),
+	))
 
 	def messages_received(self):
 		return ()
@@ -160,15 +163,14 @@ class Negotiation(Transaction):
 
 	def unsupported_auth_request(self, req):
 		self.fatal = True
-		self.error_message = element.ClientError(
-			"unsupported authentication request %r(%d)" %(
+		self.error_message = element.ClientError((
+			(b'S', "FATAL"),
+			(b'C', "--AUT"),
+			(b'M', "unsupported authentication request %r(%d)" %(
 				element.AuthNameMap.get(req, '<unknown>'), req,
-			),
-			code = "--AUT",
-			hint = \
-				"'postgresql.protocol' only supports: " \
-				"MD5, crypt, plaintext, and trust."
-		)
+			)),
+			(b'H', "'postgresql.protocol' only supports: MD5, crypt, plaintext, and trust."),
+		))
 		self.state = Complete
 
 	def state_machine(self):
@@ -179,15 +181,14 @@ class Negotiation(Transaction):
 
 		if x[0] != element.Authentication.type:
 			self.fatal = True
-			self.error_message = element.ClientError(
-				message = \
-					"received message of type %s, " \
-					"but expected %s" %(
-						repr(x[0]),
-						repr(element.Authentication.type)
-					),
-				code = '08P01',
-			)
+			self.error_message = element.ClientError((
+				(b'S', 'FATAL'),
+				(b'C', '08P01'),
+				(b'M', message_expectation(
+					expected = element.Authentication.type,
+					received = x[0],
+				)),
+			))
 			return
 
 		self.authtype = element.Authentication.parse(x[1])
@@ -214,17 +215,18 @@ class Negotiation(Transaction):
 			self.authok = element.Authentication.parse(x[1])
 			if self.authok.request != element.AuthRequest_OK:
 				self.fatal = True
-				self.error_message = element.ClientError(
-					message = \
-						"expected an OK from the authentication " \
+				self.error_message = element.ClientError((
+					(b'S', 'FATAL'),
+					(b'C', "08P01"),
+					(b'M', "expected OK from the authentication " \
 						"message, but received %s(%s) instead" %(
 							repr(element.AuthNameMap.get(
 								self.authok.request, '<unknown>'
 							)),
 							repr(self.authok.request),
 						),
-					code = "08P01"
-				)
+					)
+				))
 				return
 		else:	
 			self.authok = self.authtype
@@ -233,30 +235,28 @@ class Negotiation(Transaction):
 		x = (yield None)
 		if x[0] != element.KillInformation.type:
 			self.fatal = True
-			self.error_message = element.ClientError(
-				message = \
-					"received message of type %s, " \
-					"but expected %s" %(
-						repr(x[0]),
-						element.KillInformation.type
-					),
-				code = "08P01"
-			)
+			self.error_message = element.ClientError((
+				(b'S', 'FATAL'),
+				(b'C', '08P01'),
+				(b'M', message_expectation(
+					expected = element.KillInformation.type,
+					received = repr(x[0]),
+				)),
+			))
 			return
 		self.killinfo = element.KillInformation.parse(x[1])
 
 		x = (yield None)
 		if x[0] != element.Ready.type:
 			self.fatal = True
-			self.error_message = element.ClientError(
-				message = \
-					"received message of type %s, " \
-					"but expected %s" %(
-						repr(x[0]),
-						repr(element.Ready.type)
-					),
-				code = "08P01"
-			)
+			self.error_message = element.ClientError((
+				(b'S', "FATAL"),
+				(b'C', "08P01"),
+				(b'M', message_expectation(
+					expected = repr(element.Ready.type),
+					received = repr(x[0]),
+				))
+			))
 			return
 		self.last_ready = element.Ready.parse(x[1])
 
@@ -422,12 +422,12 @@ class Instruction(Transaction):
 					"unknown message type for PQ 3.0 protocol", cmd.type
 				)
 
-	def __repr__(self):
-		return '%s.%s(%s%s)' %(
-			type(self).__module__,
-			type(self).__name__,
-			os.linesep,
-			pformat(self.commands)
+	def __repr__(self, format = '{mod}.{name}({nl}{args})'.format):
+		return format(
+			mod = type(self).__module__,
+			name = type(self).__name__,
+			nl = os.linesep,
+			args = pformat(self.commands)
 		)
 
 	def messages_received(self):
@@ -478,9 +478,8 @@ class Instruction(Transaction):
 				# No path for message type, could be a protocol error.
 				if x[0] == element.Error.type:
 					em = element.Error.parse(x[1])
-					fatal = em['severity'].upper() in (b'FATAL', b'PANIC')
+					self.fatal = fatal = em[b'S'].upper() != b'ERROR'
 					self.error_message = em
-					self.fatal = fatal
 					if fatal is True:
 						# can't sync up if it's fatal.
 						self.state = Complete
@@ -521,15 +520,15 @@ class Instruction(Transaction):
 				else:
 					##
 					# Procotol violation.
-					self.error_message = element.ClientError(
-						"expected message of types %r, " \
-						"but received %r instead" % (
-							tuple(paths[current_step].keys()), x[0]
-						),
-						code = '08P01',
-						severity = 'FATAL',
-					)
 					self.fatal = True
+					self.error_message = element.ClientError((
+						(b'S', 'FATAL'),
+						(b'C', '08P01'),
+						(b'M', message_expectation(
+							expected = tuple(paths[current_step].keys()),
+							received = x[0]
+						)),
+					))
 					self.state = Complete
 					return count
 			else:
