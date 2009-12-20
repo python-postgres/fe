@@ -1,6 +1,13 @@
 Changes
 =======
 
+0.9.3
+-----
+
+ * Fix inconsistency in savepoint identification by pq3.Transaction.
+   Savepoints via db.xact() were broken.
+   [Reported by Elvis Pranskevichus]
+
 0.9.2 released on 2009-12-14
 ----------------------------
 

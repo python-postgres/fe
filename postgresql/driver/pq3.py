@@ -1500,7 +1500,7 @@ class Transaction(pg_api.Transaction):
 
 	@staticmethod
 	def _savepoint_xact_string(id):
-		return 'SAVEPOINT "' + id.replace('"', '""') + '";'
+		return 'SAVEPOINT "xact(' + id.replace('"', '""') + ')";'
 
 	def start(self):
 		if self.state == 'open':
@@ -1609,7 +1609,7 @@ class Transaction(pg_api.Transaction):
 
 	@staticmethod
 	def _rollback_to_string(id):
-		return 'ROLLBACK TO "' + id.replace('"', '""') + '";'
+		return 'ROLLBACK TO "xact(' + id.replace('"', '""') + ')";'
 
 	def rollback(self):
 		if self.state == 'aborted':
