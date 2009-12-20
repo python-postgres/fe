@@ -666,6 +666,10 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		with self.db.xact():
 			self.testProcExecution()
 
+	def testProcExecutionInSubXact(self):
+		with self.db.xact(), self.db.xact():
+			self.testProcExecution()
+
 	def testNULL(self):
 		# Directly commpare (SELECT NULL) is None
 		self.failUnless(
@@ -1299,6 +1303,29 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			except pg_exc.InFailedTransactionError as err:
 				# driver should have released/aborted instead
 				self.failUnlessEqual(err.source, 'CLIENT')
+
+	def testSuccessfulSubtransactionBlock(self):
+		with self.db.xact():
+			with self.db.xact():
+				self.db.execute("create temp table subxact_sx1(i int);")
+				with self.db.xact():
+					self.db.execute("create temp table subxact_sx2(i int);")
+					# And, because I'm paranoid.
+					# The following block is used to make sure
+					# that savepoints are actually being set.
+					try:
+						with self.db.xact():
+							self.db.execute("selekt 1")
+					except pg_exc.SyntaxError:
+						# Just in case the xact() aren't doing anything.
+						pass
+			with self.db.xact():
+				self.db.execute("create temp table subxact_sx3(i int);")
+		# if it can't drop these tables, it didn't manage the subxacts
+		# properly.
+		self.db.execute("drop table subxact_sx1")
+		self.db.execute("drop table subxact_sx2")
+		self.db.execute("drop table subxact_sx3")
 
 	def testCloseInSubTransactionBlock(self):
 		try:
