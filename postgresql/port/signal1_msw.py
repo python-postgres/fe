@@ -5,7 +5,10 @@
 """
 Support for PG signals on Windows platforms.
 
-This implementation supports all known versions of PostgreSQL.
+This implementation supports all known versions of PostgreSQL. (2009)
+
+CallNamedPipe:
+	http://msdn.microsoft.com/en-us/library/aa365144%28VS.85%29.aspx
 """
 from ctypes import windll, wintypes, pointer
 
