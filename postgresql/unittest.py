@@ -84,8 +84,9 @@ class TestCaseWithCluster(unittest.TestCase):
 			self.cluster.init(
 				user = 'test',
 				encoding = self.cluster.encoding,
-				logfile = sys.stderr,
+				logfile = None,
 			)
+			sys.stderr.write('*')
 			try:
 				atexit.register(self.cluster.drop)
 				self.configure_cluster()
