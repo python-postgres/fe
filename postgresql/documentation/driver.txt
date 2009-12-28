@@ -466,6 +466,13 @@ Prepared statement objects have a few execution methods:
   >>> for table_name, in db.prepare("SELECT table_name FROM information_schema.tables"):
   ...  print(table_name)
 
+ ``ps.column(*parameters)``
+  Return a iterator to the first column produced by the statement. This
+  method will stream values on demand, and *should* only be used with statements
+  that have a single column; otherwise, bandwidth will ultimately be wasted as
+  the other columns will be dropped.
+  *This execution method cannot be used with COPY statements.*
+
  ``ps.first(*parameters)``
   For simple statements, cursor objects are unnecessary.
   Consider the data contained in ``c`` from above, 'hello world!'. To get at this

@@ -569,6 +569,17 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			self.failUnlessEqual(i, row.index_from_key('col' + str(i)))
 			self.failUnlessEqual('col' + str(i), row.key_from_index(i))
 
+	def testColumn(self):
+		g_i = self.db.prepare('SELECT i FROM generate_series(1,10) as g(i)').column
+		# ignore the second column.
+		g_ii = self.db.prepare('SELECT i, i+10 as i2 FROM generate_series(1,10) as g(i)').column
+		self.failUnlessEqual(tuple(g_i()), tuple(g_ii()))
+		self.failUnlessEqual(tuple(g_i()), (1,2,3,4,5,6,7,8,9,10))
+
+	def testColumnInXact(self):
+		with self.db.xact():
+			self.testColumn()
+
 	def testStatementFromId(self):
 		self.db.execute("PREPARE foo AS SELECT 1 AS colname;")
 		ps = self.db.statement_from_id('foo')

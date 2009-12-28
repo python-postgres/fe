@@ -491,23 +491,6 @@ class PreparedStatement(
 		"""
 
 	@abstractmethod
-	def rows(self, *parameters) -> collections.Iterable:
-		"""
-		Return an iterator producing rows produced by the cursor
-		created from the statement bound with the given parameters.
-
-		Row iterators are never scrollable.
-
-		Supporting cursors will be WITH HOLD when outside of a transaction.
-
-		`rows` is designed for the situations involving large data sets.
-
-		Each iteration returns a single row. Arguably, best implemented:
-
-			return itertools.chain.from_iterable(self.chunks(*parameters))
-		"""
-
-	@abstractmethod
 	def chunks(self, *parameters) -> collections.Iterable:
 		"""
 		Return an iterator producing sequences of rows produced by the cursor
@@ -522,6 +505,42 @@ class PreparedStatement(
 		Each iteration returns sequences of rows *normally* of length(seq) ==
 		chunksize. If chunksize is unspecified, a default, positive integer will
 		be filled in.
+		"""
+
+	@abstractmethod
+	def rows(self, *parameters) -> collections.Iterable:
+		"""
+		Return an iterator producing rows produced by the cursor
+		created from the statement bound with the given parameters.
+
+		Row iterators are never scrollable.
+
+		Supporting cursors will be WITH HOLD when outside of a transaction to
+		allow cross-transaction access.
+
+		`rows` is designed for the situations involving large data sets.
+
+		Each iteration returns a single row. Arguably, best implemented::
+
+			return itertools.chain.from_iterable(self.chunks(*parameters))
+		"""
+
+	@abstractmethod
+	def column(self, *parameters) -> collections.Iterable:
+		"""
+		Return an iterator producing the values of the first column in
+		the cursor created from the statement bound with the given parameters.
+
+		Column iterators are never scrollable.
+
+		Supporting cursors will be WITH HOLD when outside of a transaction to
+		allow cross-transaction access.
+
+		`column` is designed for the situations involving large data sets.
+
+		Each iteration returns a single value. `column` is equivalent to::
+
+			return map(operator.itemgetter(0), self.rows(*parameters))
 		"""
 
 	@abstractmethod

@@ -108,6 +108,9 @@ class TypeIO(pg_typio.TypeIO):
 	def lookup_composite_type_info(self, typid):
 		return self.database.sys.lookup_composite(typid)
 
+##
+# This class manages all the functionality used to get
+# rows from a PostgreSQL portal/cursor.
 class Output(object):
 	_output = None
 	_output_io = None
@@ -126,6 +129,7 @@ class Output(object):
 		"""
 		Bind a cursor based on the configured parameters.
 		"""
+		# The local initialization for the specific cursor.
 
 	def __init__(self, cursor_id):
 		self.cursor_id = cursor_id
@@ -138,6 +142,7 @@ class Output(object):
 		if self.cursor_id == ID(self):
 			addgarbage = self.database.pq.garbage_cursors.append
 			typio = self.database.typio
+			# Callback for closing the cursor on remote end.
 			self._del = weakref.ref(
 				self, lambda x: addgarbage(typio.encode(cursor_id))
 			)
@@ -154,6 +159,7 @@ class Output(object):
 				self.database.typio.encode(self.cursor_id)
 			)
 		self.closed = True
+		# Don't need the weakref anymore.
 		if hasattr(self, '_del'):
 			del self._del
 
@@ -224,7 +230,6 @@ class Output(object):
 		)
 
 	def _pq_xp_move(self, position, whence):
-		'make a command sequence for a MOVE single command'
 		return (
 			element.Parse(b'',
 				b'MOVE ' + whence + b' ' + position + b' IN ' + \
@@ -243,24 +248,36 @@ class Output(object):
 				]
 		return x
 
-	def _process_tuple_chunk_Row(self, x):
-		"""
-		Process the Tuple messages in `x`.
-		"""
+	# Process the element.Tuple message in x for column()
+	def _process_tuple_chunk_Column(self, x, range = range):
+		unpack = self._output_io[0]
+		# get the raw data for the first column
+		l = [y[0] for y in x]
+		# iterate over the range to keep track
+		# of which item we're processing.
+		r = range(len(l))
+		try:
+			return [unpack(l[i]) for i in r]
+		except:
+			try:
+				i = next(r)
+			except StopIteration:
+				i = len(l)
+			self._raise_column_tuple_error(self._output_io, (l[i],), 0)
+
+	# Process the element.Tuple message in x for rows()
+	def _process_tuple_chunk_Row(self, x,
+		proc = pg_typio.process_chunk,
+		from_seq = pg_types.Row.from_sequence,
+	):
 		return [
-			pg_types.Row.from_sequence(self._output_attmap, y)
-			for y in pg_typio.process_chunk(
-				self._output_io, x, self._raise_column_tuple_error
-			)
+			from_seq(self._output_attmap, y)
+			for y in proc(self._output_io, x, self._raise_column_tuple_error)
 		]
 
-	def _process_tuple_chunk(self, x):
-		"""
-		Process the Tuple messages in `x`.
-		"""
-		return pg_typio.process_chunk(
-			self._output_io, x, self._raise_column_tuple_error
-		)
+	# Process the elemnt.Tuple messages in `x` for chunks()
+	def _process_tuple_chunk(self, x, proc = pg_typio.process_chunk):
+		return proc(self._output_io, x, self._raise_column_tuple_error)
 
 	def _raise_column_tuple_error(self, procs, tup, itemnum):
 		'for column processing'
@@ -300,16 +317,19 @@ class Output(object):
 	def column_names(self):
 		if self._output is not None:
 			return list(self.database.typio.decodes(self._output.keys()))
+		# `None` if _output does not exist; not row data
 
 	@property
 	def column_types(self):
 		if self._output is not None:
 			return [self.database.typio.type_from_oid(x[3]) for x in self._output]
+		# `None` if _output does not exist; not row data
 
 	@property
 	def pg_column_types(self):
 		if self._output is not None:
 			return [x[3] for x in self._output]
+		# `None` if _output does not exist; not row data
 
 	@property
 	def sql_column_types(self):
@@ -332,6 +352,9 @@ class Output(object):
 class Chunks(Output, pg_api.Chunks):
 	pass
 
+##
+# FetchAll is a Chunks cursor that gets all the information
+# in the cursor.
 class FetchAll(Chunks):
 	_e_factors = ('statement', 'parameters',)
 	def _e_metas(self):
@@ -388,21 +411,30 @@ class FetchAll(Chunks):
 
 	def __next__(self):
 		x = self._xact
+		# self._xact = None; means that the cursor has been exhausted.
 		if x is None:
 			raise StopIteration
 
+		# Finish the protocol transaction.
 		while x.state is not xact.Complete and not x.completed:
 			self.database._pq_step()
+
+		# fatal is None == no error
+		# fatal is True == dead connection
+		# fatal is False == dead transaction
 		if x.fatal is not None:
 			self.database._raise_pq_error(x, controller = self)
 
+		# no messages to process?
 		if not x.completed:
 			# Transaction has been cleaned out of completed? iterator is done.
 			self._xact = None
 			raise StopIteration
 
+		# Get the chunk to be processed.
 		chunk = x.completed[0][1]
 		r = self._process_chunk(chunk)
+		# Remove it, it's been processed.
 		del x.completed[0]
 		return r
 
@@ -413,9 +445,8 @@ class SingleXactCopy(FetchAll):
 class SingleXactFetch(FetchAll):
 	_expect = element.Tuple.type
 	_process_chunk_ = FetchAll._process_tuple_chunk_Row
-	def _process_chunk(self, x,
-		tuple_type = element.Tuple.type
-	):
+
+	def _process_chunk(self, x, tuple_type = element.Tuple.type):
 		return self._process_chunk_((
 			y for y in x if y.type == tuple_type
 		))
@@ -452,7 +483,7 @@ class MultiXactStream(Chunks):
 		self._xact = self._ins(self._bind() + self._command)
 		self.database._pq_push(self._xact, self)
 
-	def __next__(self):
+	def __next__(self, tuple_type = element.Tuple.type):
 		x = self._xact
 		if x is None:
 			raise StopIteration
@@ -460,8 +491,9 @@ class MultiXactStream(Chunks):
 		if self.database.pq.xact is x:
 			self.database._pq_complete()
 
+		# get all the element.Tuple messages
 		chunk = [
-			y for y in x.messages_received() if y.type == element.Tuple.type
+			y for y in x.messages_received() if y.type == tuple_type
 		]
 		if len(chunk) == self.chunksize:
 			# there may be more, dispatch the request for the next chunk
@@ -471,23 +503,41 @@ class MultiXactStream(Chunks):
 			# it's done.
 			self._xact = None
 			if not chunk:
+				# chunk is empty, it's done *right* now.
 				raise StopIteration
 		chunk = self._process_chunk(chunk)
 		return chunk
 
+##
+# The cursor is streamed to the client on demand *inside*
+# a single SQL transaction block.
 class MultiXactInsideBlock(MultiXactStream):
 	_bind = MultiXactStream._pq_xp_bind
 	def _fetch(self):
+		##
+		# Use the extended protocol's execute to fetch more.
 		return self._pq_xp_execute(self.chunksize) + \
 			(element.SynchronizeMessage,)
 
+##
+# The cursor is streamed to the client on demand *outside* of
+# a single SQL transaction block. [DECLARE ... WITH HOLD]
 class MultiXactOutsideBlock(MultiXactStream):
 	_bind = MultiXactStream._pq_xp_declare
+
 	def _fetch(self):
+		##
+		# Use the extended protocol's execute to fetch more *against*
+		# an SQL FETCH statement yielding the data in the proper format.
+		#
+		# MultiXactOutsideBlock uses DECLARE to create the cursor WITH HOLD.
+		# When this is done, the cursor is configured to use StringFormat with
+		# all columns. It's necessary to use FETCH to adjust the formatting.
 		return self._pq_xp_fetch(True, self.chunksize) + \
 			(element.SynchronizeMessage,)
+
 ##
-# Base Cursor class and cursor creation entry points.
+# Cursor is used to manage scrollable cursors.
 class Cursor(Output, pg_api.Cursor):
 	_process_tuple = Output._process_tuple_chunk_Row
 	def _e_metas(self):
@@ -704,6 +754,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			addgarbage = database.pq.garbage_statements.append
 			typio = database.typio
 			sid = self.statement_id
+			# Callback for closing the statement on remote end.
 			self._del = weakref.ref(
 				self, lambda x: addgarbage(typio.encode(sid))
 			)
@@ -853,6 +904,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		if self.closed is False:
 			self.database.pq.garbage_statements.append(self._pq_statement_id)
 		self.closed = True
+		# Don't need the weakref anymore.
 		if hasattr(self, '_del'):
 			del self._del
 
@@ -987,13 +1039,23 @@ class PreparedStatement(pg_api.PreparedStatement):
 		if self._output is None:
 			return SingleXactCopy(self, parameters)
 		if self.database.pq.state == b'I':
+			# Currently, *not* in a transaction block, so
+			# DECLARE the statement WITH HOLD in order to allow
+			# access across transactions.
 			if self.string is not None:
 				return MultiXactOutsideBlock(self, parameters, None)
 			else:
-				# statement source unknown, so it can't be DECLARE'd.
+				##
+				# Statement source unknown, so it can't be DECLARE'd.
+				# This happens when statement_from_id is used.
 				return SingleXactFetch(self, parameters)
 		else:
 			return MultiXactInsideBlock(self, parameters, None)
+
+	def column(self, *parameters, **kw):
+		chunks = self.chunks(*parameters, **kw)
+		chunks._process_chunk = chunks._process_tuple_chunk_Column
+		return chain.from_iterable(chunks)
 
 	def first(self, *parameters):
 		if self.closed is None:
@@ -1388,15 +1450,11 @@ class Settings(pg_api.Settings):
 		return setmap
 
 	def keys(self):
-		return map(
-			get0, self.database.sys.setting_keys()
-		)
+		return map(get0, self.database.sys.setting_keys())
 	__iter__ = keys
 
 	def values(self):
-		return map(
-			get0, self.database.sys.setting_values()
-		)
+		return map(get0, self.database.sys.setting_values())
 
 	def items(self):
 		return self.database.sys.setting_items()
