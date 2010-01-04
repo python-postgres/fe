@@ -43,16 +43,16 @@ installed and used without them. When a source installation is performed on
 
 In order to enable the compilation of extensions, set the environment variable
 ``PY_BUILD_EXTENSIONS`` to '1' before executing the ``setup.py``
-script::
+script in the prompt::
 
-	C:\-> setenv PY_BUILD_EXTENSIONS 1
-	C:\-> c:\python30\python setup.py install
+	C:\-> set PY_BUILD_EXTENSIONS=1
+	C:\-> c:\python31\python setup.py install
 
-Or, more likely, compile using mingw32::
+Or, compile using mingw32::
 
-	C:\-> setenv PY_BUILD_EXTENSIONS 1
-	C:\-> c:\python30\python setup.py build_ext --compiler=mingw32
-	C:\-> c:\python30\python setup.py install
+	C:\-> set PY_BUILD_EXTENSIONS=1
+	C:\-> c:\python31\python setup.py build_ext --compiler=mingw32
+	C:\-> c:\python31\python setup.py install
 
 See http://www.mingw.org/ to get the compiler.
 
