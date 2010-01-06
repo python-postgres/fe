@@ -290,17 +290,12 @@ class BoundSymbol(object):
 			m = symbol.method
 			if m is None:
 				self.method = ps.__call__
-			elif m == 'column':
-				self.method = self._first_column
 			else:
 				self.method = getattr(ps, m)
 			self.object = ps
 
 	def __call__(self, *args, **kw):
 		return self.method(*args, **kw)
-
-	def _first_column(self, *args, **kw):
-		return map(get0, self.object.rows(*args,**kw))
 
 class Binding(object):
 	"""
