@@ -36,6 +36,7 @@ Map PostgreSQL type Oids to routines that pack and unpack raw data.
  time64_noday_io
   long-long based time I/O with noday-intervals.
 """
+import uuid
 import warnings
 import codecs
 from ..encodings import aliases as pg_enc_aliases
@@ -266,6 +267,13 @@ def circle_unpack(x):
 	x = ts.circle_unpack(x)
 	return pg_types.circle(((x[0], x[1]), x[2]))
 
+def uuid_pack(x):
+	if isinstance(x, uuid.UUID):
+		return x.bytes
+	return uuid.UUID(x).bytes
+def uuid_unpack(x):
+	return uuid.UUID(bytes=x)
+
 ##
 # numeric is represented using:
 #  ndigits, the number of *numeric* digits.
@@ -419,6 +427,8 @@ oid_to_io = {
 	pg_types.BOXOID : (box_pack, box_unpack),
 	pg_types.LSEGOID : (lseg_pack, lseg_unpack),
 	pg_types.CIRCLEOID : (circle_pack, circle_unpack),
+
+	pg_types.UUIDOID : (uuid_pack, uuid_unpack),
 }
 
 oid_to_io[pg_types.CIDROID] = (None, None)

@@ -10,6 +10,7 @@ import threading
 import time
 import datetime
 import decimal
+import uuid
 from itertools import chain, islice
 from operator import itemgetter
 
@@ -266,6 +267,10 @@ type_samples = [
 			pg_types.varbit('1010'),
 			pg_types.varbit('01010101011111011010110101010101111'),
 			pg_types.varbit('010111101111'),
+		],
+	),
+	('uuid', [
+			uuid.uuid1(),
 		],
 	),
 ]
