@@ -269,8 +269,8 @@ def circle_unpack(x):
 
 def uuid_pack(x):
 	if isinstance(x, uuid.UUID):
-		return x.bytes
-	return uuid.UUID(x).bytes
+		return bytes(x.bytes)
+	return bytes(uuid.UUID(x).bytes)
 def uuid_unpack(x):
 	return uuid.UUID(bytes=x)
 
