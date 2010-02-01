@@ -6,12 +6,10 @@
 Python distutils data provisions module.
 
 For sub-packagers, the `prefixed_packages` and `prefixed_extensions` functions
-should be of particular interest. It is not recommended that sub-packagers
-include the `scripts` keyword from py-postgresql in their setup() call.
-If the distribution including ``py-postgresql`` uses the standard layout,
-chances are that `prefixed_extensions` and `prefixed_packages` will supply the
-appropriate information by default as they use `default_prefix` which is derived
-from the module's `__package__`.
+should be of particular interest. If the distribution including ``py-postgresql``
+uses the standard layout, chances are that `prefixed_extensions` and
+`prefixed_packages` will supply the appropriate information by default as they
+use `default_prefix` which is derived from the module's `__package__`.
 """
 import sys
 import os
@@ -55,7 +53,7 @@ However, PG-API is recommended as it provides greater utility.
 
 Once installed, try out the ``pg_python`` console script::
 
-	$ pg_python -h localhost -p port -U theuser -d database_name
+	$ python3 -m postgresql.bin.pg_python -h localhost -p port -U theuser -d database_name
 
 If a successful connection is made to the remote host, it will provide a Python
 console with the database connection bound to the `db` name.
@@ -110,11 +108,6 @@ subpackage_data = {
 	'lib' : ['*.sql'],
 	'documentation' : ['*.txt']
 }
-
-scripts = [
-	'postgresql/bin/pg_dotconf',
-	'postgresql/bin/pg_python',
-]
 
 try:
 	# :)
@@ -183,7 +176,6 @@ def standard_setup_keywords(build_extensions = True, prefix = default_prefix):
 		'classifiers' : CLASSIFIERS,
 		'packages' : list(prefixed_packages(prefix = prefix)),
 		'package_data' : dict(prefixed_package_data(prefix = prefix)),
-		'scripts' : scripts,
 	}
 	if build_extensions:
 		d['ext_modules'] = list(prefixed_extensions(prefix = prefix))
