@@ -6,6 +6,8 @@ Changes
 
  * Added db.do() method for DO-statement support(convenience method).
  * **DEPRECATION**: Removed 2PC support documentation.
+ * **DEPRECATION**: Removed pg_python and pg_dotconf 'scripts'.
+   They are still accessible by python3 -m postgresql.bin.pg_*
 
 0.9.3 released on 2010-01-01
 ----------------------------
