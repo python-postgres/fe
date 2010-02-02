@@ -42,7 +42,7 @@ def structure(d, fieldproc = ri.unescape):
 		if host.startswith('[') and host.endswith(']'):
 			host = host[1:-1]
 			if host.startswith('unix:'):
-				cpd['unix'] = host[len('unix:'):]
+				cpd['unix'] = host[len('unix:'):].replace(':','/')
 			else:
 				cpd['host'] = host[1:-1]
 		else:
@@ -115,7 +115,7 @@ def construct(x, obscure_password = False):
 
 	port = None
 	if 'unix' in x:
-		host = '[unix:/' + x['unix'] + ']'
+		host = '[unix:' + x['unix'].replace('/',':') + ']'
 		# ignore port.. it's a mis-config.
 	elif 'host' in x:
 		host = x['host']
