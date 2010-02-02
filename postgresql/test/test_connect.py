@@ -15,7 +15,7 @@ from .. import open as pg_open
 
 class test_connect(pg_unittest.TestCaseWithCluster):
 	"""
-	postgresql.driver *interface* tests.
+	postgresql.driver connectivity tests
 	"""
 	ip6 = '::1'
 	ip4 = '127.0.0.1'
@@ -27,10 +27,15 @@ class test_connect(pg_unittest.TestCaseWithCluster):
 		super().__init__(*args,**kw)
 		# 8.4 nixed this.
 		self.do_crypt = self.cluster.installation.version_info < (8,4)
+		self.do_unix = sys.platform != msw
 
 	def configure_cluster(self):
 		super().configure_cluster()
-		self.cluster.settings['log_min_messages'] = 'log'
+		self.cluster.settings.update({
+			'log_min_messages' : 'log',
+			'unix_socket_directory' : self.cluster.data_directory,
+		})
+
 		# Configure the hba file with the supported methods.
 		with open(self.cluster.hba_file, 'w') as hba:
 			hosts = ['0.0.0.0/0', '0::0/0',]
@@ -43,6 +48,7 @@ class test_connect(pg_unittest.TestCaseWithCluster):
 						m = m
 					)])
 			# trusted
+			hba.writelines(["local all all trust\n"])
 			hba.writelines(["host test trusted 0.0.0.0/0 trust\n"])
 			hba.writelines(["host test trusted 0::0/0 trust\n"])
 			# admin lines
@@ -334,6 +340,35 @@ search_path = public
 		)
 		with c:
 			self.failUnlessEqual(c.prepare('select current_user').first(), 'trusted')
+
+	def test_Unix_connect(self):
+		if msw:
+			return
+		unix_domain_socket = os.path.join(
+			self.cluster.data_directory,
+			'.s.PGSQL.' + self.cluster.settings['port']
+		)
+		C = pg_driver.default.unix(
+			user = 'test',
+			unix = unix_domain_socket,
+		)
+		with C() as c:
+			self.failUnlessEqual(c.prepare('select 1').first(), 1)
+			self.failUnlessEqual(c.client_address, None)
+
+	def test_pg_open_unix(self):
+		if msw:
+			return
+		unix_domain_socket = os.path.join(
+			self.cluster.data_directory,
+			'.s.PGSQL.' + self.cluster.settings['port']
+		)
+		with pg_open(unix = unix_domain_socket, user = 'test') as c:
+			self.failUnlessEqual(c.prepare('select 1').first(), 1)
+			self.failUnlessEqual(c.client_address, None)
+		with pg_open('pq://test@[unix:' + unix_domain_socket.replace('/',':') + ']') as c:
+			self.failUnlessEqual(c.prepare('select 1').first(), 1)
+			self.failUnlessEqual(c.client_address, None)
 
 if __name__ == '__main__':
 	unittest.main()

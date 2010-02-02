@@ -199,6 +199,8 @@ systems it is ``"%APPDATA%\postgresql"``
  [PGDATA] is *not* an environment variable.
 
 
+.. _pg_envvars:
+
 PostgreSQL Environment Variables
 ================================
 
@@ -226,6 +228,8 @@ The following is a list of environment variables that will be collected by the
  ``PGGEQO``            ``'settings' = {'geqo': }``
  ===================== ======================================
 
+
+.. _pg_passfile:
 
 PostgreSQL Password File
 ========================

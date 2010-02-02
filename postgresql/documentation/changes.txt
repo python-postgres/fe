@@ -1,6 +1,12 @@
 Changes
 =======
 
+0.9.4 in development
+--------------------
+
+ * Fix handling of unix domain sockets by pg.open and driver.connect.
+   [Reported by twitter.com/rintavarustus]
+
 0.9.3 released on 2010-01-01
 ----------------------------
 

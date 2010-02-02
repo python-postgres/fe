@@ -2290,7 +2290,7 @@ class Unix(SocketConnector):
 			raise TypeError("'unix' is a required keyword and cannot be 'None'")
 		self.unix = unix
 		# constant socket connector
-		self._socketcreator = SocketCreator(
+		self._socketcreator = SocketFactory(
 			(socket.AF_UNIX, socket.SOCK_STREAM), self.unix
 		)
 		self._socketcreators = (self._socketcreator,)

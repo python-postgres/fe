@@ -110,11 +110,8 @@ successful connection, there is no need to pass anything to open::
 
 For a complete list of keywords that `postgresql.open` can accept, see
 `Connection Keywords`_.
-For more information about the environment variables, see :doc:`Environment
-Variables</clientparameters>`.
-For more information about the ``pgpassfile``, see :doc:`PostgreSQL Password
-File</clientparameters>`.
-
+For more information about the environment variables, see :ref:`pg_envvars`.
+For more information about the ``pgpassfile``, see :ref:`pg_passfile`.
 
 `postgresql.driver.connect`
 ---------------------------
@@ -185,7 +182,8 @@ a connection:
   Connect to a single IPv6 addressed host.
 
  ``postgresql.driver.default.unix(...)``
-  Connect to a single unix domain socket.
+  Connect to a single unix domain socket. Requires the ``unix`` keyword which
+  must be an absolute path to the unix domain socket to connect to.
 
 ``host`` is the usual connector used to establish a connection::
 
@@ -240,6 +238,11 @@ interfaces:
 
  ``port``
   The port on the host to connect to.
+
+ ``unix``
+  The unix domain socket to connect to. Exclusive with ``host`` and ``port``.
+  Expects a string containing the absolute path to the unix domain socket to
+  connect to.
 
  ``settings``
   A dictionary or key-value pair sequence stating the parameters to give to the

@@ -74,6 +74,11 @@ def open(iri = None, prompt_title = None, **kw):
 		iri_params = {}
 
 	std_params = _pg_param.collect(prompt_title = None)
+	# If unix is specified, it's going to conflict with any standard
+	# settings, so remove them right here.
+	if 'unix' in kw or 'unix' in iri_params:
+		std_params.pop('host', None)
+		std_params.pop('port', None)
 	params = _pg_param.normalize(
 		list(_pg_param.denormalize_parameters(std_params)) + \
 		list(_pg_param.denormalize_parameters(iri_params)) + \
