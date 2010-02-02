@@ -2309,7 +2309,9 @@ class Connector(pg_api.Connector):
 			).raise_message()
 
 		# Startup message parameters.
-		tnkw = {}
+		tnkw = {
+			'client_min_messages' : 'WARNING',
+		}
 		if self.settings:
 			s = dict(self.settings)
 			if 'search_path' in self.settings:

@@ -10,6 +10,9 @@ Changes
    They are still accessible by python3 -m postgresql.bin.pg_*
  * Fix handling of unix domain sockets by pg.open and driver.connect.
    [Reported by twitter.com/rintavarustus]
+ * Set the default client_min_messages level to WARNING.
+   NOTICEs are often not desired by programmers, and py-postgresql's
+   high verbosity further irritates that case.
 
 0.9.3 released on 2010-01-01
 ----------------------------

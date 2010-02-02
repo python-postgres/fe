@@ -1565,6 +1565,7 @@ Or if use of a dictionary is desired::
 When a dictionary is given to construct the row, absent values are filled with
 `None`.
 
+.. _db_messages:
 
 Database Messages
 =================
@@ -1591,7 +1592,7 @@ propagated any further. However, if a `False` value is returned, the next
 element is checked until the list is exhausted and the message is given to
 `postgresql.sys.msghook`. The normal list of elements is as follows::
 
-	Output → Statement → Connection → Connector → Driver [→ postgresql.sys]
+	Output → Statement → Connection → Connector → Driver → postgresql.sys
 
 Where ``Output`` can be a `postgresql.api.Cursor` object produced by
 ``declare(...)`` or an implicit output management object used *internally* by
