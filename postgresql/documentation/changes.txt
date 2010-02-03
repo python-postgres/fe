@@ -6,6 +6,7 @@ Changes
 
  * Fix handling of unix domain sockets by pg.open and driver.connect.
    [Reported by twitter.com/rintavarustus]
+ * Fix db.tracer and pg_python's --pq-trace=
 
 0.9.3 released on 2010-01-01
 ----------------------------
