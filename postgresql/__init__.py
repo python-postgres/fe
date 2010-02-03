@@ -8,6 +8,8 @@ protocol tools, a driver(PG-API and DB-API), and cluster management tools.
 
 If it's not documented in the narratives, `postgresql.documentation.index`, then
 the stability of the APIs should *not* be trusted.
+
+See <http://postgresql.org> for more information about PostgreSQL.
 """
 __all__ = [
 	'__author__',
