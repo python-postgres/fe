@@ -15,6 +15,7 @@ Changes
    high verbosity further irritates that case.
  * Added postgresql.project module to provide project information.
    Project name, author, version, etc.
+ * Fixed db.tracer and pg_python's --pq-trace=
 
 0.9.3 released on 2010-01-01
 ----------------------------
