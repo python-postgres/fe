@@ -13,6 +13,8 @@ Changes
  * Set the default client_min_messages level to WARNING.
    NOTICEs are often not desired by programmers, and py-postgresql's
    high verbosity further irritates that case.
+ * Added postgresql.project module to provide project information.
+   Project name, author, version, etc.
 
 0.9.3 released on 2010-01-01
 ----------------------------

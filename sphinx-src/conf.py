@@ -18,7 +18,7 @@ sys.dont_write_bytecode = True
 # If your extensions are in another directory, add it here. If the directory
 # is relative to the documentation root, use os.path.abspath to make it
 # absolute, like shown here.
-sys.path.append(os.path.abspath(os.path.dirname(__file__) + '../..'))
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__) + '../../postgresql'))
 
 # General configuration
 # ---------------------
@@ -37,17 +37,16 @@ source_suffix = '.txt'
 master_doc = 'index'
 
 # General substitutions.
-import postgresql as meta
-project = meta.__project__
-copyright = meta.__date__ + ', ' + meta.__author__
+import project
+copyright = '2010, ' + project.author
 
 # The default replacements for |version| and |release|, also used in various
 # other places throughout the built documents.
 #
 # The short X.Y version.
-version = '.'.join(map(str, meta.version_info[:2]))
+version = '.'.join(map(str, project.version_info[:2]))
 # The full version, including alpha/beta/rc tags.
-release = meta.__version__
+release = project.version
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
@@ -145,7 +144,7 @@ html_last_updated_fmt = '%b %d, %Y'
 #html_file_suffix = ''
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = meta.__project__
+htmlhelp_basename = project.__name__
 
 
 # Options for LaTeX output
@@ -180,3 +179,5 @@ latex_documents = [
 
 # If false, no module index is generated.
 #latex_use_modindex = True
+
+project = project.name

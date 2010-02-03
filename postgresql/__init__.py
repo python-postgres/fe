@@ -12,28 +12,20 @@ the stability of the APIs should *not* be trusted.
 __all__ = [
 	'__author__',
 	'__date__',
-	'__project__',
-	'__project_id__',
-	'__docformat__',
 	'__version__',
+	'__docformat__',
 	'version',
 	'version_info',
 	'open',
 ]
 
-__author__ = "James William Pye <x@jwp.name>"
-__date__ = "2009-12-14 21:16:00-07"
-
-__project__ = 'py-postgresql'
-__project_id__ = 'http://python.projects.postgresql.org'
-
-#: The py-postgresql version tuple.
-version_info = (1, 0, 0, 'dev', 0)
-
-#: The py-postgresql version string.
-version = __version__ = '.'.join(map(str, version_info[:3])) + (
-	version_info[3] if version_info[3] != 'final' else ''
-)
+# Optional.
+try:
+	from .project import version_info, version, \
+		author as __author__, date as __date__
+	__version__ = version
+except ImportError:
+	pass
 
 # Avoid importing these until requested.
 _pg_iri = _pg_driver = _pg_param = None

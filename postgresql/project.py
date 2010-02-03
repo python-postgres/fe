@@ -1,0 +1,9 @@
+# project information
+name = 'py-postgresql'
+identity = 'http://python.projects.postgresql.org/'
+author = "James William Pye <x@jwp.name>"
+
+# Set this to the target date when approaching a release.
+date = None
+version_info = (1, 0, 0)
+version = '.'.join(map(str, version_info)) + (date is None and 'dev' or '')

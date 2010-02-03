@@ -13,10 +13,7 @@ use `default_prefix` which is derived from the module's `__package__`.
 """
 import sys
 import os
-from .. import \
-	__version__ as version, \
-	__project__ as name, \
-	__project_id__ as url
+from ..project import version, name, identity as url
 from distutils.core import Extension
 
 LONG_DESCRIPTION = """
