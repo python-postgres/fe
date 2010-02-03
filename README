@@ -47,3 +47,7 @@ documentation can be found at:
 	http://python.projects.postgresql.org
 
 Or, you can read them in your pager: python -m postgresql.documentation.index
+
+For information about PostgreSQL:
+
+	http://postgresql.org
