@@ -1851,6 +1851,8 @@ class Connection(pg_api.Connection):
 				sf, self.connector._startup_parameters,
 				password = self.connector._password,
 			)
+			if hasattr(self, 'tracer'):
+				pq.tracer = self.tracer
 			# Grab the negotiation transaction before
 			# connecting as it will be needed later if successful.
 			neg = pq.xact
