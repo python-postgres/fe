@@ -6,24 +6,76 @@
 Protocol version 3.0 client and tools.
 """
 import os
-from traceback import format_exception_only
+from .buffer import pq_message_stream
 from . import element3 as element
 from . import xact3 as xact
-from .buffer import pq_message_stream
-from .typstruct import long_pack
 
-def cat_messages(messages):
-	blen = bytes.__len__
-	lpack = long_pack
-	return b''.join([
-		x.bytes() if x.__class__ is not bytes else (
-			b'd' + lpack(blen(x) + 4) + x
-		) for x in messages
-	])
+__all__ = ('Connection',)
+
 try:
 	from .optimized import cat_messages
 except ImportError:
-	pass
+	from .typstruct import long_pack
+	def cat_messages(messages, lpack = long_pack, blen = bytes.__len__):
+		return b''.join([
+			x.bytes() if x.__class__ is not bytes else (
+				b'd' + lpack(blen(x) + 4) + x
+			) for x in messages
+		])
+	del long_pack
+
+client_detected_protocol_error = element.ClientError((
+	(b'S', 'FATAL'),
+	(b'C', '08P01'),
+	(b'M', "wire-data caused exception in protocol transaction"),
+	(b'H', "Protocol error detected."),
+))
+
+client_connect_timeout = element.ClientError((
+	(b'S', 'FATAL'),
+	(b'C', '--TOE'),
+	(b'M', "connect timed out"),
+))
+
+not_pq_error = element.ClientError((
+	# ProtocolError
+	(b'S', 'FATAL'),
+	(b'C', '08P01'),
+	(b'M', 'server did not support SSL negotiation'),
+	(b'H', 'The server is probably not PostgreSQL.'),
+))
+
+no_ssl_error = element.ClientError((
+	(b'S', 'FATAL'),
+	# InsecurityError
+	(b'C', '--SEC'),
+	(b'M', 'SSL was required, and the server could not accommodate'),
+))
+
+# Details in __context__
+ssl_failed_error = element.ClientError((
+	(b'S', 'FATAL'),
+	# InsecurityError
+	(b'C', '--SEC'),
+	(b'M', 'SSL negotiation caused exception'),
+))
+
+# failed to complete the connection, but no error set.
+# indicates a programmer error.
+partial_connection_error = element.ClientError((
+	(b'S', 'FATAL'),
+	(b'C', '--XXX'),
+	(b'M', "failed to complete negotiation"),
+	(b'H',	"Negotiation failed to completed, but no " \
+			"error was attributed on the connection."),
+))
+
+eof_error = element.ClientError((
+	(b'S', 'FATAL'),
+	(b'C', '08006'),
+	(b'M', 'unexpected EOF from server'),
+	(b'D',	"Zero-length read from the connection's socket."),
+))
 
 class Connection(object):
 	"""
@@ -103,11 +155,7 @@ class Connection(object):
 			self.xact.fatal = True
 			self.xact.exception = err
 			if self.socket_factory.timed_out(err):
-				self.xact.error_message = element.ClientError((
-					(b'S', 'FATAL'),
-					(b'C', '--TOE'),
-					(b'M', "connect timed out (%s seconds)" %(timeout,)),
-				))
+				self.xact.error_message = client_connect_timeout
 			else:
 				errmsg = self.socket_factory.fatal_exception_message(err)
 				# It's an error that occurred during socket creation/connection.
@@ -132,13 +180,7 @@ class Connection(object):
 				# probably not PQv3..
 				self.socket.close()
 				self.xact.fatal = True
-				self.xact.error_message = element.ClientError((
-					# ProtocolError
-					(b'S', 'FATAL'),
-					(b'C', '08P01'),
-					(b'M', 'server did not support SSL negotiation'),
-					(b'H', 'The server is probably not PostgreSQL.'),
-				))
+				self.xact.error_message = not_pq_error
 				self.xact.state = xact.Complete
 				return
 
@@ -147,12 +189,7 @@ class Connection(object):
 				# ssl is required..
 				self.socket.close()
 				self.xact.fatal = True
-				self.xact.error_message = element.ClientError((
-					(b'S', 'FATAL'),
-					# InsecurityError
-					(b'C', '--SEC'),
-					(b'M', 'SSL was required, and the server could not accommodate'),
-				))
+				self.xact.error_message = no_ssl_error
 				self.xact.state = xact.Complete
 				return
 
@@ -166,12 +203,7 @@ class Connection(object):
 					self.xact.exception = err
 					self.xact.fatal = True
 					self.xact.state = xact.Complete
-					self.xact.error_message = element.ClientError((
-						(b'S', 'FATAL'),
-						# InsecurityError
-						(b'C', '--SEC'),
-						(b'M', 'SSL negotiation caused exception'),
-					))
+					self.xact.error_message = ssl_failed_error
 					return
 		# time to negotiate
 		negxact = self.xact
@@ -185,13 +217,7 @@ class Connection(object):
 			self.socket.close()
 			self.xact.fatal = True
 			self.xact.state = xact.Complete
-			self.xact.error_message = element.ClientError((
-				(b'S', 'FATAL'),
-				(b'C', '--XXX'),
-				(b'M', "failed to complete negotiation"),
-				(b'H',	"Negotiation failed to completed, but no " \
-						"error was attributed on the connection."),
-			))
+			self.xact.error_message = partial_connection_error
 
 	def negotiate_ssl(self) -> (bool, None):
 		"""
@@ -253,13 +279,7 @@ class Connection(object):
 				self.socket.close()
 				self.xact.state = xact.Complete
 				self.xact.fatal = True
-				self.xact.error_message = element.ClientError((
-					(b'S', 'FATAL'),
-					(b'C', '08006'),
-					(b'M', 'unexpected EOF from server'),
-					(b'D',	"Zero-length read " \
-							"from the connection's socket."),
-				))
+				self.xact.error_message = eof_error
 				return False
 
 			# Got data. Put it in the buffer and clear read_data.
@@ -463,12 +483,7 @@ class Connection(object):
 				x.fatal = True
 				x.state = xact.Complete
 				x.exception = proto_exc
-				x.error_message = element.ClientError((
-					(b'S', 'FATAL'),
-					(b'C', '08P01'),
-					(b'M', "wire-data caused exception in protocol transaction"),
-					(b'H', "Protocol error detected."),
-				))
+				x.error_message = client_detected_protocol_error
 				self.state = b''
 				return
 		self.state = getattr(x, 'last_ready', self.state)
