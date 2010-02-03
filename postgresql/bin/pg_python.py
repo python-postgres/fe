@@ -50,6 +50,10 @@ def command(argv = sys.argv):
 	else:
 		cat = None
 
+	trace_file = None
+	if co.pq_trace is not None:
+		trace_file = open(co.pq_trace, 'a')
+
 	try:
 		need_prompt = False
 		cond = None
@@ -67,6 +71,8 @@ def command(argv = sys.argv):
 					raise SystemExit(1)
 				connector = pg_driver.fit(category = cat, **cond)
 				connection = connector()
+				if trace_file is not None:
+					connection.tracer = trace_file.write
 				connection.connect()
 			except pg_exc.ClientCannotConnectError as err:
 				for att in connection.failures:
@@ -104,13 +110,8 @@ def command(argv = sys.argv):
 			builtins_d = __builtins__
 		restore = {k : builtins_d.get(k) for k in builtin_overload}
 
-		trace_file = None
-		if co.pq_trace is not None:
-			trace_file = open(co.pq_trace, 'a')
 		builtins_d.update(builtin_overload)
 		try:
-			if trace_file is not None:
-				connection.tracer = trace_file.write
 			with connection:
 				rv = pythonexec(
 					context = pycmd.postmortem(os.environ.get('PYTHON_POSTMORTEM'))
