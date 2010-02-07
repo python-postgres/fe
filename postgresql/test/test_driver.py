@@ -16,9 +16,11 @@ from operator import itemgetter
 
 from ..python.datetime import FixedOffset
 from .. import types as pg_types
+from ..types.io.stdlib_xml_etree import etree
 from .. import exceptions as pg_exc
 from .. import unittest as pg_unittest
 from .. import lib as pg_lib
+from ..types.bitwise import Bit, Varbit
 
 type_samples = [
 	('smallint', (
@@ -248,25 +250,25 @@ type_samples = [
 		],
 	),
 	('bit', [
-			pg_types.bit('1'),
-			pg_types.bit('0'),
+			Bit('1'),
+			Bit('0'),
 			None,
 		],
 	),
 	('varbit', [
-			pg_types.varbit('1'),
-			pg_types.varbit('0'),
-			pg_types.varbit('10'),
-			pg_types.varbit('11'),
-			pg_types.varbit('00'),
-			pg_types.varbit('001'),
-			pg_types.varbit('101'),
-			pg_types.varbit('111'),
-			pg_types.varbit('0010'),
-			pg_types.varbit('1010'),
-			pg_types.varbit('1010'),
-			pg_types.varbit('01010101011111011010110101010101111'),
-			pg_types.varbit('010111101111'),
+			Varbit('1'),
+			Varbit('0'),
+			Varbit('10'),
+			Varbit('11'),
+			Varbit('00'),
+			Varbit('001'),
+			Varbit('101'),
+			Varbit('111'),
+			Varbit('0010'),
+			Varbit('1010'),
+			Varbit('1010'),
+			Varbit('01010101011111011010110101010101111'),
+			Varbit('010111101111'),
 		],
 	),
 	('uuid', [
@@ -498,15 +500,15 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(tuple(ps.pg_parameter_types), (
 			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid)
 		)
-		self.failUnlessEqual(tuple(ps.parameter_types), (str,str,tuple))
-		self.failUnlessEqual(tuple(ps.column_types), (str,str,tuple))
+		self.failUnlessEqual(tuple(ps.parameter_types), (str,str,pg_types.Row))
+		self.failUnlessEqual(tuple(ps.column_types), (str,str,pg_types.Row))
 		c = ps.declare('textdata', 'varchardata', (123,))
 		self.failUnlessEqual(tuple(c.column_names), ('my_column1','my_column2', 'my_column3'))
 		self.failUnlessEqual(tuple(c.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
 		self.failUnlessEqual(tuple(c.pg_column_types), (
 			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid
 		))
-		self.failUnlessEqual(tuple(c.column_types), (str,str,tuple))
+		self.failUnlessEqual(tuple(c.column_types), (str,str,pg_types.Row))
 
 	def testRowInterface(self):
 		data = (1, '0', decimal.Decimal('0.00'), datetime.datetime(1982,5,18,12,30,0))
@@ -981,14 +983,14 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			r = textxml.first('<foo/>')
 		except (pg_exc.FeatureError, pg_exc.UndefinedObjectError):
 			return
-		foo = pg_types.etree.XML('<foo/>')
-		bar = pg_types.etree.XML('<bar/>')
-		tostr = pg_types.etree.tostring
+		foo = etree.XML('<foo/>')
+		bar = etree.XML('<bar/>')
+		tostr = etree.tostring
 		self.failUnlessEqual(tostr(xml.first(foo)), tostr(foo))
 		self.failUnlessEqual(tostr(xml.first(bar)), tostr(bar))
 		self.failUnlessEqual(tostr(textxml.first('<foo/>')), tostr(foo))
 		self.failUnlessEqual(tostr(textxml.first('<foo/>')), tostr(foo))
-		self.failUnlessEqual(tostr(xml.first(pg_types.etree.XML('<foo/>'))), tostr(foo))
+		self.failUnlessEqual(tostr(xml.first(etree.XML('<foo/>'))), tostr(foo))
 		self.failUnlessEqual(tostr(textxml.first('<foo/>')), tostr(foo))
 		# test fragments
 		self.failUnlessEqual(
@@ -1048,10 +1050,10 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				pass
 			def raise_ThisError(arg):
 				raise ThisError(arg)
-			pack, unpack = self.db.typio.resolve(pg_types.NUMERICOID)
+			pack, unpack, typ = self.db.typio.resolve(pg_types.NUMERICOID)
 			# remove any existing knowledge about "test_tuple_error"
 			self.db.typio._cache = original
-			self.db.typio._cache[pg_types.NUMERICOID] = (pack, raise_ThisError)
+			self.db.typio._cache[pg_types.NUMERICOID] = (pack, raise_ThisError, typ)
 			# Now, numeric_unpack will always raise "ThisError".
 			ps = self.db.prepare('SELECT $1::numeric as col')
 			self.failUnlessRaises(
@@ -1063,7 +1065,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				self.failUnless(isinstance(err.__context__, ThisError))
 				# might be too inquisitive....
 				self.failUnlessEqual(int(err.details['position']), 0)
-				self.failUnless('numeric' in err.message)
+				self.failUnless('NUMERIC' in err.message)
 				self.failUnless('col' in err.message)
 			else:
 				self.fail("failed to raise TupleError from reception")
@@ -1393,7 +1395,6 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(self.db.settings['default_statistics_target'], sub['default_statistics_target'])
 
 	def testSettings(self):
-		'general access tests'
 		d = dict(self.db.settings)
 		d = dict(self.db.settings.items())
 		k = list(self.db.settings.keys())

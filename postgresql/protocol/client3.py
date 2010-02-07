@@ -13,9 +13,9 @@ from . import xact3 as xact
 __all__ = ('Connection',)
 
 try:
-	from .optimized import cat_messages
+	from ..port.optimized import cat_messages
 except ImportError:
-	from .typstruct import long_pack
+	from ..python.structlib import long_pack
 	def cat_messages(messages, lpack = long_pack, blen = bytes.__len__):
 		return b''.join([
 			x.bytes() if x.__class__ is not bytes else (

@@ -3,7 +3,7 @@
 # http://python.projects.postgresql.org
 ##
 import unittest
-import warnings
+from sys import stderr
 
 from ..installation import default
 
@@ -24,11 +24,17 @@ from .test_connect import *
 if default().ssl:
 	from .test_ssl_connect import *
 else:
-	warnings.warn("installation doesn't support SSL")
+	stderr.write("NOTICE: installation doesn't support SSL\n")
+
+try:
+	from .test_optimized import *
+except ImportError:
+	stderr.write("NOTICE: port.optimized could not be imported\n")
 
 from .test_driver import *
 from .test_lib import *
 from .test_dbapi20 import *
+from .test_types import *
 
 if __name__ == '__main__':
 	unittest.main()

@@ -3,7 +3,8 @@
 # http://python.projects.postgresql.org
 ##
 'PQ version class'
-from struct import pack, unpack
+from struct import Struct
+version_struct = Struct('!HH')
 
 class Version(tuple):
 	"""Version((major, minor)) -> Version
@@ -19,7 +20,7 @@ class Version(tuple):
 		minor = int(minor)
 		# If it can't be packed like this, it's not a valid version.
 		try:
-			pack('!HH', major, minor)
+			version_struct.pack(major, minor)
 		except Exception as e:
 			raise ValueError("unpackable major and minor") from e
 
@@ -29,13 +30,13 @@ class Version(tuple):
 		return (self[0] << 16) | self[1]
 
 	def bytes(self):
-		return pack('!HH', self[0], self[1])
+		return version_struct.pack(self[0], self[1])
 
 	def __repr__(self):
 		return '%d.%d' %(self[0], self[1])
 
 	def parse(self, data):
-		return self(unpack('!HH', data))
+		return self(version_struct.unpack(data))
 	parse = classmethod(parse)
 
 CancelRequestCode = Version((1234, 5678))

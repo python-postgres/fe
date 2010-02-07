@@ -30,7 +30,7 @@ WHERE bt.oid = $1
 -- Get the type Oid and name of the attributes in `attnum` order.
 SELECT
  CAST(atttypid AS oid) AS atttypid,
- CAST(attname AS VARCHAR) AS attname
+ CAST(attname AS text) AS attname
 FROM
  pg_catalog.pg_type t LEFT JOIN pg_catalog.pg_attribute a
   ON (t.typrelid = a.attrelid)
@@ -116,7 +116,7 @@ FROM
 	pg_catalog.generate_series(1, array_upper(($1::text[][]), 1)) g(i)
 
 [activity]
-SELECT * FROM pg_catalog.pg_stat_activity
+SELECT client_addr, client_port, backend_start::text FROM pg_catalog.pg_stat_activity
 
 [activity_for::first]
 *[activity]

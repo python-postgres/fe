@@ -91,13 +91,12 @@ subpackages = [
 	'release',
 	# Modules imported from other packages.
 	'resolved',
+	'types',
+	'types.io',
 ]
 extensions_data = {
-	'protocol.optimized' : {
-		'sources' : [os.path.join('protocol', 'optimized', 'module.c')],
-	},
-	'python.optimized' : {
-		'sources' : [os.path.join('python', 'optimized.c')],
+	'port.optimized' : {
+		'sources' : [os.path.join('port', 'optimized', 'module.c')],
 	},
 }
 

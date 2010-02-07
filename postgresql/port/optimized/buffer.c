@@ -526,7 +526,7 @@ static PyMethodDef p_methods[] = {
 
 PyTypeObject pq_message_stream_Type = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"postgresql.protocol.optimized.pq_message_stream",	/* tp_name */
+	"postgresql.port.optimized.pq_message_stream",	/* tp_name */
 	sizeof(struct p_buffer),		/* tp_basicsize */
 	0,										/* tp_itemsize */
 	p_dealloc,							/* tp_dealloc */

@@ -30,7 +30,6 @@ If that fails, it will return `postgresql.exceptions.Error`
 """
 import sys
 import os
-import traceback
 from functools import partial
 from operator import attrgetter
 from . import api as pg_api

@@ -5,17 +5,6 @@
 """
 PostgreSQL types and identifiers.
 """
-import math
-import decimal
-import datetime
-import operator
-get0 = operator.itemgetter(0)
-get1 = operator.itemgetter(1)
-try:
-	import xml.etree.cElementTree as etree
-except ImportError:
-	import xml.etree.ElementTree as etree
-
 # XXX: Would be nicer to generate these from a header file...
 InvalidOid = 0
 
@@ -137,6 +126,8 @@ oid_to_sql_name = {
 
 # interval types
 	INTERVALOID : 'INTERVAL',
+
+	XMLOID : 'XML',
 }
 
 oid_to_name = {
@@ -232,312 +223,6 @@ name_to_oid = dict(
 	[(v,k) for k,v in oid_to_name.items()]
 )
 
-def int2(ob):
-	'overflow check for int2'
-	return -0x8000 <= ob < 0x8000
-
-def int4(ob):
-	'overflow check for int4'
-	return -0x80000000 <= ob < 0x80000000
-
-def int8(ob):
-	'overflow check for int8'
-	return -0x8000000000000000 <= rob < 0x8000000000000000
-
-def oid(ob):
-	'overflow check for oid'
-	return 0 <= ob <= 0xFFFFFFFF
-
-class varbit(object):
-	__slots__ = ('data', 'bits')
-
-	def from_bits(subtype, bits, data):
-		if bits == 1:
-			return (data[0] & (1 << 7)) and OneBit or ZeroBit
-		else:
-			rob = object.__new__(subtype)
-			rob.bits = bits
-			rob.data = data
-			return rob
-	from_bits = classmethod(from_bits)
-
-	def __new__(typ, data):
-		if isinstance(data, varbit):
-			return data
-		if isinstance(data, bytes):
-			return typ.from_bits(len(data) * 8, data)
-		# str(), eg '00101100'
-		bits = len(data)
-		nbytes, remain = divmod(bits, 8)
-		bdata = [bytes((int(data[x:x+8], 2),)) for x in range(0, bits - remain, 8)]
-		if remain != 0:
-			bdata.append(bytes((int(data[nbytes*8:].ljust(8,'0'), 2),)))
-		return typ.from_bits(bits, b''.join(bdata))
-
-	def __str__(self):
-		if self.bits:
-			# cut off the remainder from the bits
-			blocks = [bin(x)[2:].rjust(8, '0') for x in self.data]
-			blocks[-1] = blocks[-1][0:(self.bits % 8) or 8]
-			return ''.join(blocks)
-		else:
-			return ''
-
-	def __repr__(self):
-		return '%s.%s(%r)' %(
-			type(self).__module__,
-			type(self).__name__,
-			str(self)
-		)
-
-	def __eq__(self, ob):
-		if not isinstance(ob, type(self)):
-			ob = type(self)(ob)
-		return ob.bits == self.bits and ob.data == self.data
-
-	def __len__(self):
-		return self.bits
-
-	def __add__(self, ob):
-		return varbit(str(self) + str(ob))
-
-	def __mul__(self, ob):
-		return varbit(str(self) * ob)
-
-	def getbit(self, bitoffset):
-		if bitoffset < 0:
-			idx = self.bits + bitoffset
-		else:
-			idx = bitoffset
-		if not 0 <= idx < self.bits:
-			raise IndexError("bit index %d out of range" %(bitoffset,))
-
-		byte, bitofbyte = divmod(idx, 8)
-		if ord(self.data[byte]) & (1 << (7 - bitofbyte)):
-			return OneBit
-		else:
-			return ZeroBit
-
-	def __getitem__(self, item):
-		if isinstance(item, slice):
-			return type(self)(str(self)[item])
-		else:
-			return self.getbit(item)
-
-	def __nonzero__(self):
-		for x in self.data:
-			if x != 0:
-				return True
-		return False
-
-class bit(varbit):
-	def __new__(subtype, ob):
-		if ob is ZeroBit or ob is False or ob == '0':
-			return ZeroBit
-		elif ob is OneBit or ob is True or ob == '1':
-			return OneBit
-
-		raise ValueError('unknown bit value %r, 0 or 1' %(ob,))
-
-	def __nonzero__(self):
-		return self is OneBit
-
-	def __str__(self):
-		return self is OneBit and '1' or '0'
-
-ZeroBit = object.__new__(bit)
-ZeroBit.data = b'\x00'
-ZeroBit.bits = 1
-OneBit = object.__new__(bit)
-OneBit.data = b'\x80'
-OneBit.bits = 1
-
-# Geometric types
-
-class point(tuple):
-	"""
-	A point; a pair of floating point numbers.
-	"""
-	x = property(fget = lambda s: s[0])
-	y = property(fget = lambda s: s[1])
-
-	def __new__(subtype, pair):
-		return tuple.__new__(subtype, (float(pair[0]), float(pair[1])))
-
-	def __repr__(self):
-		return '%s.%s(%s)' %(
-			type(self).__module__,
-			type(self).__name__,
-			tuple.__repr__(self),
-		)
-
-	def __str__(self):
-		return tuple.__repr__(self)
-
-	def __add__(self, ob):
-		wx, wy = ob
-		return type(self)((self[0] + wx, self[1] + wy))
-
-	def __sub__(self, ob):
-		wx, wy = ob
-		return type(self)((self[0] - wx, self[1] - wy))
-
-	def __mul__(self, ob):
-		wx, wy = ob
-		rx = (self[0] * wx) - (self[1] * wy)
-		ry = (self[0] * wy) + (self[1] * wx)
-		return type(self)((rx, ry))
-
-	def __div__(self, ob):
-		sx, sy = self
-		wx, wy = ob
-		div = (wx * wx) + (wy * wy)
-		rx = ((sx * wx) + (sy * wy)) / div
-		ry = ((wx * sy) + (wy * sx)) / div
-		return type(self)((rx, ry))
-
-	def distance(self, ob):
-		wx, wy = ob
-		dx = self[0] - float(wx)
-		dy = self[1] - float(wy)
-		return math.sqrt(dx**2 + dy**2)
-
-class lseg(tuple):
-	one = property(fget = lambda s: s[0])
-	two = property(fget = lambda s: s[1])
-
-	length = property(fget = lambda s: s[0].distance(s[1]))
-	vertical = property(fget = lambda s: s[0][0] == s[1][0])
-	horizontal = property(fget = lambda s: s[0][1] == s[1][1])
-	slope = property(
-		fget = lambda s: (s[1][1] - s[0][1]) / (s[1][0] - s[0][0])
-	)
-	center = property(
-		fget = lambda s: point((
-			(s[0][0] + s[1][0]) / 2.0,
-			(s[0][1] + s[1][1]) / 2.0,
-		))
-	)
-
-	def __new__(subtype, pair):
-		p1, p2 = pair
-		return tuple.__new__(subtype, (point(p1), point(p2)))
-
-	def __repr__(self):
-		# Avoid the point representation
-		return '%s.%s(%s, %s)' %(
-			type(self).__module__,
-			type(self).__name__,
-			tuple.__repr__(self[0]),
-			tuple.__repr__(self[1]),
-		)
-
-	def __str__(self):
-		return '[(%s,%s),(%s,%s)]' %(
-			self[0][0],
-			self[0][1],
-			self[1][0],
-			self[1][1],
-		)
-
-	def parallel(self, ob):
-		return self.slope == type(self)(ob).slope
-
-	def intersect(self, ob):
-		raise NotImplementedError
-
-	def perpendicular(self, ob):
-		return (self.slope / type(self)(ob).slope) == -1.0
-
-class box(tuple):
-	"""
-	A pair of points. One specifying the top-right point of the box; the other
-	specifying the bottom-left. `high` being top-right; `low` being bottom-left.
-
-	http://www.postgresql.org/docs/current/static/datatype-geometric.html
-
-		>>> box(( (0,0), (-2, -2) ))
-		postgresql.types.box(((0.0, 0.0), (-2.0, -2.0)))
-
-	It will also relocate values to enforce the high-low expectation:
-
-		>>> t.box(((-4,0),(-2,-3)))
-		postgresql.types.box(((-2.0, 0.0), (-4.0, -3.0)))
-
-	::
-		
-		                (-2, 0) `high`
-		                   |
-		                   |
-		    (-4,-3) -------+-x
-		     `low`         y
-
-	This happens because ``-4`` is less than ``-2``; therefore the ``-4``
-	belongs on the low point. This is consistent with what PostgreSQL does
-	with its ``box`` type.
-	"""
-	high = property(fget = get0, doc = "high point of the box")
-	low = property(fget = get1, doc = "low point of the box")
-	center = property(
-		fget = lambda s: point((
-			(s[0][0] + s[1][0]) / 2.0,
-			(s[0][1] + s[1][1]) / 2.0
-		)),
-		doc = "center of the box as a point"
-	)
-
-	def __new__(subtype, hl):
-		if isinstance(hl, box):
-			return hl
-		one, two = hl
-		if one[0] > two[0]:
-			hx = one[0]
-			lx = two[0]
-		else:
-			hx = two[0]
-			lx = one[0]
-		if one[1] > two[1]:
-			hy = one[1]
-			ly = two[1]
-		else:
-			hy = two[1]
-			ly = one[1]
-		return tuple.__new__(subtype, (point((hx, hy)), point((lx, ly))))
-
-	def __repr__(self):
-		return '%s.%s((%s, %s))' %(
-			type(self).__module__,
-			type(self).__name__,
-			tuple.__repr__(self[0]),
-			tuple.__repr__(self[1]),
-		)
-
-	def __str__(self):
-		'Comma separate the box\'s points'
-		return '%s,%s' %(self[0], self[1])
-
-class circle(tuple):
-	'type for PostgreSQL circles'
-	center = property(fget = get0, doc = "center of the circle (point)")
-	radius = property(fget = get1, doc = "radius of the circle (radius >= 0)")
-
-	def __new__(subtype, pair):
-		center, radius = pair
-		if radius < 0:
-			raise ValueError("radius is subzero")
-		return tuple.__new__(subtype, (point(center), float(radius)))
-
-	def __repr__(self):
-		return '%s.%s((%s, %s))' %(
-			type(self).__module__,
-			type(self).__name__,
-			tuple.__repr__(self[0]),
-			repr(self[1])
-		)
-
-	def __str__(self):
-		return '<%s,%s>' %(self[0], self[1])
-
 class Array(object):
 	"""
 	Type used to mimic PostgreSQL arrays.
@@ -568,12 +253,8 @@ class Array(object):
 
 	# Detect the dimensions of a nested sequence
 	@staticmethod
-	def detect_dimensions(hier):
-		while type(hier) is list or type(hier) is Array:
-			if type(hier) is Array:
-				for x in hier.dimensions:
-					yield x
-				break
+	def detect_dimensions(hier, len = len):
+		while hier.__class__ is list:
 			l = len(hier)
 			if l > 0:
 				# boundary consistency checks come later.
@@ -585,32 +266,50 @@ class Array(object):
 	@classmethod
 	def from_nest(typ, nest, offset = None):
 		'Create an array from a nested sequence'
-		dims = list(typ.detect_dimensions(nest,))
+		dims = tuple(typ.detect_dimensions(nest))
 		if offset:
 			dims = dims[:len(dims)-offset]
-		return typ(list(typ.unroll_nest(nest, dims)), dims)
+		return typ.from_elements(list(typ.unroll_nest(nest, dims)), dims)
 
-	def __new__(subtype, elements, dimensions = None, **kw):
-		if dimensions is None:
-			# there has to be at least one dimension, so
-			# normalize it into a list.
-			return subtype.from_nest(list(elements), **kw)
-		rob = object.__new__(subtype)
+	@classmethod
+	def from_elements(subtype,
+		elements : "iterable of elements in the array",
+		dimensions : "size of each axis" = (),
+		lowerbounds : "beginning of each axis" = (),
+		len = len,
+	):
+		# resolve iterable
+		elements = list(elements)
+
+		if dimensions:
+			# dimensions were given, so check.
+			elcount = 1
+			for x in dimensions:
+				elcount = x * elcount
+			if len(elements) != elcount:
+				raise ValueError("array element count inconsistent with dimensions")
+			dimensions = tuple(dimensions)
+		else:
+			# fill in default
+			elcount = len(elements)
+			dimensions = (elcount,)
+		d1 = dimensions[0]
+		ndims = len(dimensions)
+
+		if not lowerbounds:
+			lowerbounds = (1,) * ndims
+
+		# lowerbounds can be just about anything, so no checks here.
+		if len(lowerbounds) != ndims:
+			raise ValueError("number of bounds inconsistent with number of dimensions")
+		# XXX: class is not ready for this check just yet
+		#elif not lowerbounds <= dimensions:
+		#	raise ValueError("lowerbounds exceeds upperbounds")
+
+		rob = super().__new__(subtype)
 		rob.elements = elements
 		rob.dimensions = dimensions
-		if dimensions:
-			d1 = dimensions[0]
-			elcount = 1
-			for x in rob.dimensions:
-				elcount *= x
-		else:
-			d1 = 0
-			elcount = 0
-
-		if len(rob.elements) != elcount:
-			raise TypeError(
-				"array element count inconsistent with dimensions"
-			)
+		rob.lowerbounds = lowerbounds
 		rob.position = ()
 		rob.slice = slice(0, d1)
 
@@ -624,6 +323,11 @@ class Array(object):
 		rob.weight = tuple(weight)
 
 		return rob
+
+	def __new__(subtype, elements, *args, **kw):
+		if elements.__class__ is Array:
+			return elements
+		return subtype.from_nest(list(elements), **kw)
 
 	def arrayslice(self, subpos):
 		rob = object.__new__(type(self))
@@ -685,7 +389,7 @@ class Array(object):
 
 	def __lt__(self, ob):
 		return list(self) < ob
-	
+
 	def __le__(self, ob):
 		return list(self) <= ob
 
@@ -723,10 +427,15 @@ class Array(object):
 		for x in range(len(self)):
 			yield self[x]
 
+from operator import itemgetter
+get0 = itemgetter(0)
+get1 = itemgetter(1)
+del itemgetter
+
 class Row(tuple):
 	"Name addressable items tuple; mapping and sequence"
 	@classmethod
-	def from_mapping(typ, keymap, map):
+	def from_mapping(typ, keymap, map, get1 = get1):
 		iter = [
 			map.get(k) for k,_ in sorted(keymap.items(), key = get1)
 		]
@@ -740,21 +449,21 @@ class Row(tuple):
 		r.keymap = keymap
 		return r
 
-	def __getitem__(self, i):
+	def __getitem__(self, i, gi = tuple.__getitem__):
 		if isinstance(i, (int, slice)):
-			return tuple.__getitem__(self, i)
+			return gi(self, i)
 		idx = self.keymap[i]
-		return tuple.__getitem__(self, idx)
+		return gi(self, idx)
 
-	def get(self, i):
+	def get(self, i, gi = tuple.__getitem__, len = len):
 		if type(i) is int:
 			l = len(self)
 			if -l < i < l:
-				return tuple.__getitem__(self, i)
+				return gi(self, i)
 		else:
 			idx = self.keymap.get(i)
 			if idx is not None:
-				return tuple.__getitem__(self, idx)
+				return gi(self, idx)
 		return None
 
 	def keys(self):
@@ -776,7 +485,7 @@ class Row(tuple):
 		return None
 
 	@property
-	def column_names(self):
+	def column_names(self, get0 = get0, get1 = get1):
 		l=list(self.keymap.items())
 		l.sort(key=get1)
 		return tuple(map(get0, l))
@@ -815,49 +524,3 @@ class Row(tuple):
 					raise KeyError("row has no such key, " + repr(k))
 				r[i] = v(self[k])
 		return type(self).from_sequence(self.keymap, r)
-
-# Python Representations of PostgreSQL Types
-oid_to_type = {
-	VARBITOID: varbit,
-	BITOID: bit,
-
-	POINTOID: point,
-	BOXOID: box,
-	LSEGOID: lseg,
-	CIRCLEOID: circle,
-
-	BOOLOID: bool,
-
-	VARCHAROID: str,
-	TEXTOID: str,
-	BPCHAROID: str,
-	NAMEOID: str,
-
-	XMLOID: etree.ElementTree,
-
-	# This is *not* bpchar, the SQL CHARACTER type.
-	CHAROID: bytes,
-	BYTEAOID: bytes,
-
-	INT2OID: int,
-	INT4OID: int,
-	INT8OID: int,
-	NUMERICOID: decimal.Decimal,
-
-	FLOAT4OID: float,
-	FLOAT8OID: float,
-
-	DATEOID: datetime.date,
-	TIMESTAMPOID: datetime.datetime,
-	TIMESTAMPTZOID: datetime.datetime,
-	TIMEOID: datetime.time,
-	TIMETZOID: datetime.time,
-
-	# XXX: doesn't support months.
-	INTERVALOID: datetime.timedelta,
-
-	RECORDOID : tuple,
-	ANYARRAYOID : list,
-	ANYELEMENTOID : str,
-	ANYENUMOID : int,
-}

@@ -1,10 +1,6 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# python.functools
 ##
-"""
-additional functools
-"""
 from .decorlib import method
 
 def rsetattr(attr, val, ob):
@@ -16,20 +12,55 @@ def rsetattr(attr, val, ob):
 	return ob
 
 try:
-	from .optimized import rsetattr
+	from ..port.optimized import rsetattr
 except ImportError:
 	pass
 
 class Composition(tuple):
-	'simple compositions'
 	def __call__(self, r):
 		for x in self:
 			r = x(r)
 		return r
 
 	try:
-		from .optimized import compose
+		from ..port.optimized import compose
 		__call__ = method(compose)
 		del compose
 	except ImportError:
 		pass
+
+try:
+	# C implementation of the tuple processors.
+	from ..port.optimized import process_tuple, process_chunk
+except ImportError:
+	def process_tuple(procs, tup, exception_handler, len = len):
+		"""
+		Call each item in `procs` with the corresponding
+		item in `tup` returning the result as `type`.
+
+		If an item in `tup` is `None`, don't process it.
+
+		If a give transformation failes, call the given exception_handler.
+		"""
+		i = len(procs)
+		if len(tup) != i:
+			raise TypeError(
+				"inconsistent items, %d processors and %d items in row" %(
+					i, len(tup)
+				)
+			)
+		r = [None] * i
+		try:
+			for i in range(i):
+				ob = tup[i]
+				if ob is None:
+					continue
+				r[i] = procs[i](ob)
+		except Exception:
+			# relying on __context__
+			exception_handler(procs, tup, i)
+			raise RuntimeError("process_tuple exception handler failed to raise")
+		return r
+
+	def process_chunk(procs, tupc, fail, process_tuple = process_tuple):
+		return [process_tuple(procs, x, fail) for x in tupc]

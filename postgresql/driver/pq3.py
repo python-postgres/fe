@@ -9,11 +9,11 @@ import os
 import weakref
 import socket
 from traceback import format_exception
+from itertools import repeat, chain
+from abc import abstractmethod
 from operator import itemgetter
 get0 = itemgetter(0)
 get1 = itemgetter(1)
-from itertools import repeat, chain
-from abc import abstractmethod
 
 from .. import lib as pg_lib
 
@@ -26,14 +26,15 @@ from ..encodings import aliases as pg_enc_aliases
 
 from ..python.itertools import interlace, chunk
 from ..python.socket import SocketFactory
+from ..python.functools import process_tuple, process_chunk
 
 from ..protocol import xact3 as xact
 from ..protocol import element3 as element
 from ..protocol import client3 as client
-from ..protocol import typio as pg_typio
 from ..protocol.message_types import message_types
 
-from .. import types as pg_types
+from .pg_type import TypeIO
+from ..types import Row
 
 # Map element3.Notice field identifiers
 # to names used by api.Message.
@@ -97,7 +98,7 @@ def direction_to_bool(v):
 	else:
 		return v
 
-class TypeIO(pg_typio.TypeIO):
+class TypeIO(TypeIO):
 	def __init__(self, database):
 		self.database = database
 		super().__init__()
@@ -267,8 +268,8 @@ class Output(object):
 
 	# Process the element.Tuple message in x for rows()
 	def _process_tuple_chunk_Row(self, x,
-		proc = pg_typio.process_chunk,
-		from_seq = pg_types.Row.from_sequence,
+		proc = process_chunk,
+		from_seq = Row.from_sequence,
 	):
 		return [
 			from_seq(self._output_attmap, y)
@@ -276,7 +277,7 @@ class Output(object):
 		]
 
 	# Process the elemnt.Tuple messages in `x` for chunks()
-	def _process_tuple_chunk(self, x, proc = pg_typio.process_chunk):
+	def _process_tuple_chunk(self, x, proc = process_chunk):
 		return proc(self._output_io, x, self._raise_column_tuple_error)
 
 	def _raise_column_tuple_error(self, procs, tup, itemnum):
@@ -334,7 +335,6 @@ class Output(object):
 	@property
 	def sql_column_types(self):
 		return [
-			pg_types.oid_to_sql_name.get(x) or \
 			self.database.typio.sql_type_from_oid(x)
 			for x in self.pg_column_types
 		]
@@ -768,7 +768,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		)
 
 	def _pq_parameters(self, parameters):
-		return pg_typio.process_tuple(
+		return process_tuple(
 			self._input_io, parameters,
 			self._raise_parameter_tuple_error
 		)
@@ -884,7 +884,6 @@ class PreparedStatement(pg_api.PreparedStatement):
 			self._fini()
 		if self._output is not None:
 			return [
-				pg_types.oid_to_sql_name.get(x) or \
 				self.database.typio.sql_type_from_oid(x)
 				for x in self.pg_column_types
 			]
@@ -895,7 +894,6 @@ class PreparedStatement(pg_api.PreparedStatement):
 			self._fini()
 		if self._input is not None:
 			return [
-				pg_types.oid_to_sql_name.get(x) or \
 				self.database.typio.sql_type_from_oid(x)
 				for x in self.pg_parameter_types
 			]
@@ -934,7 +932,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		self._xact = xact.Instruction(cmd, asynchook = self.database._receive_async)
 		self.database._pq_push(self._xact, self)
 
-	def _fini(self):
+	def _fini(self, strfmt = element.StringFormat, binfmt = element.BinaryFormat):
 		"""
 		Complete initialization that the _init() method started.
 		"""
@@ -950,6 +948,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 		(*head, argtypes, tupdesc, last) = self._xact.messages_received()
 
+		typio = self.database.typio
 		if tupdesc is None or tupdesc is element.NoDataMessage:
 			# Not typed output.
 			self._output = None
@@ -959,31 +958,26 @@ class PreparedStatement(pg_api.PreparedStatement):
 		else:
 			self._output = tupdesc
 			self._output_attmap = dict(
-				self.database.typio.attribute_map(tupdesc)
+				typio.attribute_map(tupdesc)
 			)
 			# tuple output
-			self._output_io = \
-				self.database.typio.resolve_descriptor(tupdesc, 1)
+			self._output_io = typio.resolve_descriptor(tupdesc, 1)
 			self._output_formats = [
-				element.StringFormat
-				if x is None
-				else element.BinaryFormat
+				strfmt if x is None else binfmt
 				for x in self._output_io
 			]
 			self._output_io = tuple([
-				x or self.database.typio.decode for x in self._output_io
+				x or typio.decode for x in self._output_io
 			])
 
 		self._input = argtypes
 		packs = []
 		formats = []
 		for x in argtypes:
-			pack = (self.database.typio.resolve(x) or (None,None))[0]
-			packs.append(pack or self.database.typio.encode)
+			pack = (typio.resolve(x) or (None,None))[0]
+			packs.append(pack or typio.encode)
 			formats.append(
-				element.StringFormat
-				if x is None
-				else element.BinaryFormat
+				strfmt if x is None else binfmt
 			)
 		self._input_io = tuple(packs)
 		self._input_formats = formats
@@ -1069,7 +1063,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		db = self.database
 
 		if self._input_io:
-			params = pg_typio.process_tuple(
+			params = process_tuple(
 				self._input_io, parameters,
 				self._raise_parameter_tuple_error
 			)
@@ -1096,7 +1090,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 		if self._output_io:
 			##
-			# Look for the first tuple.
+			# It returned rows, look for the first tuple.
 			tuple_type = element.Tuple.type
 			for xt in x.messages_received():
 				if xt.type == tuple_type:
@@ -1105,9 +1099,9 @@ class PreparedStatement(pg_api.PreparedStatement):
 				return None
 
 			if len(self._output_io) > 1:
-				return pg_types.Row.from_sequence(
+				return Row.from_sequence(
 					self._output_attmap,
-					pg_typio.process_tuple(
+					process_tuple(
 						self._output_io, xt,
 						self._raise_column_tuple_error
 					),
@@ -1153,9 +1147,12 @@ class PreparedStatement(pg_api.PreparedStatement):
 		)
 		self.database._pq_push(x, self)
 
+		# localize
+		step = self.database._pq_step
+
 		# Get the COPY started.
 		while x.state is not xact.Complete:
-			self.database._pq_step()
+			step()
 			if hasattr(x, 'CopyFailSequence') and x.messages is x.CopyFailSequence:
 				break
 		else:
@@ -1173,7 +1170,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		for chunk in chunks:
 			x.messages = list(chunk)
 			while x.messages is not x.CopyFailSequence:
-				self.database._pq_step()
+				step()
 		x.messages = x.CopyDoneSequence
 		self.database._pq_complete()
 		self.database.pq.synchronize()
@@ -1189,7 +1186,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 							b'',
 							self._pq_statement_id,
 							self._input_formats,
-							pg_typio.process_tuple(
+							process_tuple(
 								self._input_io, tuple(t), pte
 							),
 							(),
@@ -2029,12 +2026,6 @@ class Connection(pg_api.Connection):
 
 		sv = self.settings.cache.get("server_version", "0.0")
 		self.version_info = pg_version.normalize(pg_version.split(sv))
-		self.typio.select_time_io(
-			self.version_info,
-			self.settings.cache.get("integer_datetimes", "off").lower() in (
-				't', 'true', 'on', 'yes',
-			),
-		)
 		# manual binding
 		self.sys = pg_lib.Binding(self, pg_lib.sys)
 

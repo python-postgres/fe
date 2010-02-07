@@ -1,0 +1,369 @@
+##
+# test.test_types
+##
+import unittest
+from ..python.functools import process_tuple
+from .. import types as pg_types
+from ..types.io import lib as typlib
+from ..types.io import builtins
+
+# this must pack to that, and
+# that must unpack to this
+expectation_samples = {
+	('bool', lambda x: builtins.bool_pack(x), lambda x: builtins.bool_unpack(x)) : [
+		(True, b'\x01'),
+		(False, b'\x00'),
+	],
+
+	('int2', builtins.int2_pack, builtins.int2_unpack) : [
+		(0, b'\x00\x00'),
+		(1, b'\x00\x01'),
+		(2, b'\x00\x02'),
+		(0x0f, b'\x00\x0f'),
+		(0xf00, b'\x0f\x00'),
+		(0x7fff, b'\x7f\xff'),
+		(-0x8000, b'\x80\x00'),
+		(-1, b'\xff\xff'),
+		(-2, b'\xff\xfe'),
+		(-3, b'\xff\xfd'),
+	],
+
+	('int4', builtins.int4_pack, builtins.int4_unpack) : [
+		(0, b'\x00\x00\x00\x00'),
+		(1, b'\x00\x00\x00\x01'),
+		(2, b'\x00\x00\x00\x02'),
+		(0x0f, b'\x00\x00\x00\x0f'),
+		(0x7fff, b'\x00\x00\x7f\xff'),
+		(-0x8000, b'\xff\xff\x80\x00'),
+		(0x7fffffff, b'\x7f\xff\xff\xff'),
+		(-0x80000000, b'\x80\x00\x00\x00'),
+		(-1, b'\xff\xff\xff\xff'),
+		(-2, b'\xff\xff\xff\xfe'),
+		(-3, b'\xff\xff\xff\xfd'),
+	],
+
+	('int8', builtins.int8_pack, builtins.int8_unpack) : [
+		(0, b'\x00\x00\x00\x00\x00\x00\x00\x00'),
+		(1, b'\x00\x00\x00\x00\x00\x00\x00\x01'),
+		(2, b'\x00\x00\x00\x00\x00\x00\x00\x02'),
+		(0x0f, b'\x00\x00\x00\x00\x00\x00\x00\x0f'),
+		(0x7fffffff, b'\x00\x00\x00\x00\x7f\xff\xff\xff'),
+		(0x80000000, b'\x00\x00\x00\x00\x80\x00\x00\x00'),
+		(-0x80000000, b'\xff\xff\xff\xff\x80\x00\x00\x00'),
+		(-1, b'\xff\xff\xff\xff\xff\xff\xff\xff'),
+		(-2, b'\xff\xff\xff\xff\xff\xff\xff\xfe'),
+		(-3, b'\xff\xff\xff\xff\xff\xff\xff\xfd'),
+	],
+
+	('numeric', typlib.numeric_pack, typlib.numeric_unpack) : [
+		(((0,0,0,0),[]), b'\x00'*2*4),
+		(((0,0,0,0),[1]), b'\x00'*2*4 + b'\x00\x01'),
+		(((1,0,0,0),[1]), b'\x00\x01' + b'\x00'*2*3 + b'\x00\x01'),
+		(((1,1,1,1),[1]), b'\x00\x01'*4 + b'\x00\x01'),
+		(((1,1,1,1),[1,2]), b'\x00\x01'*4 + b'\x00\x01\x00\x02'),
+		(((1,1,1,1),[1,2,3]), b'\x00\x01'*4 + b'\x00\x01\x00\x02\x00\x03'),
+	],
+
+	('varbit', typlib.varbit_pack, typlib.varbit_unpack) : [
+		((0, b'\x00'), b'\x00\x00\x00\x00\x00'),
+		((1, b'\x01'), b'\x00\x00\x00\x01\x01'),
+		((1, b'\x00'), b'\x00\x00\x00\x01\x00'),
+		((2, b'\x00'), b'\x00\x00\x00\x02\x00'),
+		((3, b'\x00'), b'\x00\x00\x00\x03\x00'),
+		((9, b'\x00\x00'), b'\x00\x00\x00\x09\x00\x00'),
+		# More data than necessary, we allow this.
+		# Let the user do the necessary check if the cost is worth the benefit.
+		((9, b'\x00\x00\x00'), b'\x00\x00\x00\x09\x00\x00\x00'),
+	],
+
+	# idk why
+	('bytea', builtins.bytea_pack, builtins.bytea_unpack) : [
+		(b'foo', b'foo'),
+		(b'bar', b'bar'),
+		(b'\x00', b'\x00'),
+		(b'\x01', b'\x01'),
+	],
+
+	('char', builtins.char_pack, builtins.char_unpack) : [
+		(b'a', b'a'),
+		(b'b', b'b'),
+		(b'\x00', b'\x00'),
+	],
+
+	('point', typlib.point_pack, typlib.point_unpack) : [
+		((1.0, 1.0), b'?\xf0\x00\x00\x00\x00\x00\x00?\xf0\x00\x00\x00\x00\x00\x00'),
+		((2.0, 2.0), b'@\x00\x00\x00\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x00'),
+		((-1.0, -1.0),
+			b'\xbf\xf0\x00\x00\x00\x00\x00\x00\xbf\xf0\x00\x00\x00\x00\x00\x00'),
+	],
+
+	('circle', typlib.circle_pack, typlib.circle_unpack) : [
+		((1.0, 1.0, 1.0),
+			b'?\xf0\x00\x00\x00\x00\x00\x00?\xf0\x00\x00' \
+			b'\x00\x00\x00\x00?\xf0\x00\x00\x00\x00\x00\x00'),
+		((2.0, 2.0, 2.0),
+			b'@\x00\x00\x00\x00\x00\x00\x00@\x00\x00\x00' \
+			b'\x00\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x00'),
+	],
+
+	('record', typlib.record_pack, typlib.record_unpack) : [
+		([], b'\x00\x00\x00\x00'),
+		([(0,b'foo')], b'\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x03foo'),
+		([(0,None)], b'\x00\x00\x00\x01\x00\x00\x00\x00\xff\xff\xff\xff'),
+		([(15,None)], b'\x00\x00\x00\x01\x00\x00\x00\x0f\xff\xff\xff\xff'),
+		([(0xffffffff,None)], b'\x00\x00\x00\x01\xff\xff\xff\xff\xff\xff\xff\xff'),
+		([(0,None), (1,b'some')],
+		 b'\x00\x00\x00\x02\x00\x00\x00\x00\xff\xff\xff\xff' \
+		 b'\x00\x00\x00\x01\x00\x00\x00\x04some'),
+	],
+
+	('array', typlib.array_pack, typlib.array_unpack) : [
+		([0, 0xf, (1, 0), (b'foo',)],
+			b'\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x0f\x00\x00\x00\x01' \
+			b'\x00\x00\x00\x00\x00\x00\x00\x03foo'
+		),
+		([0, 0xf, (1, 0), (None,)],
+			b'\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x0f\x00\x00\x00\x01' \
+			b'\x00\x00\x00\x00\xff\xff\xff\xff'
+		)
+	],
+}
+expectation_samples[('box', typlib.box_pack, typlib.box_unpack)] = \
+	expectation_samples[('lseg', typlib.lseg_pack, typlib.lseg_unpack)] = [
+		((1.0, 1.0, 1.0, 1.0),
+			b'?\xf0\x00\x00\x00\x00\x00\x00?\xf0' \
+			b'\x00\x00\x00\x00\x00\x00?\xf0\x00\x00' \
+			b'\x00\x00\x00\x00?\xf0\x00\x00\x00\x00\x00\x00'),
+		((2.0, 2.0, 1.0, 1.0),
+			b'@\x00\x00\x00\x00\x00\x00\x00@\x00\x00' \
+			b'\x00\x00\x00\x00\x00?\xf0\x00\x00\x00\x00' \
+			b'\x00\x00?\xf0\x00\x00\x00\x00\x00\x00'),
+		((-1.0, -1.0, 1.0, 1.0),
+			b'\xbf\xf0\x00\x00\x00\x00\x00\x00\xbf\xf0' \
+			b'\x00\x00\x00\x00\x00\x00?\xf0\x00\x00\x00' \
+			b'\x00\x00\x00?\xf0\x00\x00\x00\x00\x00\x00'),
+	]
+
+expectation_samples[('oid', typlib.oid_pack, typlib.oid_unpack)] = \
+	expectation_samples[('cid', typlib.cid_pack, typlib.cid_unpack)] = \
+	expectation_samples[('xid', typlib.xid_pack, typlib.xid_unpack)] = [
+		(0, b'\x00\x00\x00\x00'),
+		(1, b'\x00\x00\x00\x01'),
+		(2, b'\x00\x00\x00\x02'),
+		(0xf, b'\x00\x00\x00\x0f'),
+		(0xffffffff, b'\xff\xff\xff\xff'),
+		(0x7fffffff, b'\x7f\xff\xff\xff'),
+	]
+
+# this must pack and then unpack back into this
+consistency_samples = {
+	('bool', lambda x: builtins.bool_pack(x), lambda x: builtins.bool_unpack(x)) : [True, False],
+
+	('record', typlib.record_pack, typlib.record_unpack) : [
+		[],
+		[(0,b'foo')],
+		[(0,None)],
+		[(15,None)],
+		[(0xffffffff,None)],
+		[(0,None), (1,b'some')],
+		[(0,None), (1,b'some'), (0xffff, b"something_else\x00")],
+		[(0,None), (1,b"s\x00me"), (0xffff, b"\x00something_else\x00")],
+	],
+
+	('array', typlib.array_pack, typlib.array_unpack) : [
+		[0, 0xf, (), ()],
+		[0, 0xf, (0, 0), ()],
+		[0, 0xf, (1, 0), (b'foo',)],
+		[0, 0xf, (1, 0), (None,)],
+		[0, 0xf, (2, 0), (None,None)],
+		[0, 0xf, (2, 0), (b'foo',None)],
+		[0, 0xff, (2, 0), (None,b'foo',)],
+		[0, 0xffffffff, (3, 0), (None,b'foo',None)],
+		[1, 0xffffffff, (3, 0), (None,b'foo',None)],
+		[1, 0xffffffff, (3, 0, 1, 0), (None,b'foo',None)],
+		[1, 0xffffffff, (3, 0, 2, 0), (None,b'one',b'foo',b'two',None,b'three')],
+	],
+
+	# Just some random data; it's just an integer, so nothing fancy.
+	('date', typlib.date_pack, typlib.date_unpack) : [
+		123,
+		321,
+		0x7FFFFFF,
+		-0x8000000,
+	],
+
+	('point', typlib.point_pack, typlib.point_unpack) : [
+		(0, 0),
+		(2, 2),
+		(-1, -1),
+		(-1.5, -1.2),
+		(1.5, 1.2),
+	],
+
+	('circle', typlib.circle_pack, typlib.circle_unpack) : [
+		(0, 0, 0),
+		(2, 2, 2),
+		(-1, -1, -1),
+		(-1.5, -1.2, -1.8),
+	],
+
+	('tid', typlib.tid_pack, typlib.tid_unpack) : [
+		(0, 0),
+		(1, 1),
+		(0xffffffff, 0xffff),
+		(0, 0xffff),
+		(0xffffffff, 0),
+		(0xffffffff // 2, 0xffff // 2),
+	],
+
+	('cidr', typlib.net_pack, typlib.net_unpack) : [
+		(0, 0, b"\x00\x00\x00\x00"),
+		(2, 0, b"\x00" * 4),
+		(2, 0, b"\xFF" * 4),
+		(2, 32, b"\xFF" * 4),
+		(3, 0, b"\x00\x00" * 16),
+	],
+
+	('inet', typlib.net_pack, typlib.net_unpack) : [
+		(2, 32, b"\x00\x00\x00\x00"),
+		(2, 16, b"\x7f\x00\x00\x01"),
+		(2, 8, b"\xff\x00\xff\x01"),
+		(3, 128, b"\x7f\x00" * 16),
+		(3, 64, b"\xff\xff" * 16),
+		(3, 32, b"\x00\x00" * 16),
+	],
+}
+
+consistency_samples[('time', typlib.time_pack, typlib.time_unpack)] = \
+consistency_samples[('time64', typlib.time64_pack, typlib.time64_unpack)] = [
+	(0, 0),
+	(123, 123),
+	(0xFFFFFFFF, 999999),
+]
+
+# months, days, (seconds, microseconds)
+consistency_samples[('interval', typlib.interval_pack, typlib.interval_unpack)] = [
+	(0, 0, (0, 0)),
+	(1, 0, (0, 0)),
+	(0, 1, (0, 0)),
+	(1, 1, (0, 0)),
+	(0, 0, (0, 10000)),
+	(0, 0, (1, 0)),
+	(0, 0, (1, 10000)),
+	(1, 1, (1, 10000)),
+	(100, 50, (1423, 29313))
+]
+
+consistency_samples[('timetz', typlib.timetz_pack, typlib.timetz_unpack)] = \
+consistency_samples[('timetz', typlib.timetz64_pack, typlib.timetz64_unpack)] = \
+	[
+		((0, 0), 0),
+		((123, 123), 123),
+		((0xFFFFFFFF, 999999), -123),
+	]
+
+consistency_samples[('oid', typlib.oid_pack, typlib.oid_unpack)] = \
+	consistency_samples[('cid', typlib.cid_pack, typlib.cid_unpack)] = \
+	consistency_samples[('xid', typlib.xid_pack, typlib.xid_unpack)] = [
+	0, 0xffffffff, 0xffffffff // 2, 123, 321, 1, 2, 3
+]
+
+consistency_samples[('lseg', typlib.lseg_pack, typlib.lseg_unpack)] = \
+	consistency_samples[('box', typlib.box_pack, typlib.box_unpack)] = [
+	(1,2,3,4),
+	(4,3,2,1),
+	(0,0,0,0),
+	(-1,-1,-1,-1),
+	(-1.2,-1.5,-2.0,4.0)
+]
+
+consistency_samples[('path', typlib.path_pack, typlib.path_unpack)] = \
+	consistency_samples[('polygon', typlib.polygon_pack, typlib.polygon_unpack)] = [
+	(1,2,3,4),
+	(4,3,2,1),
+	(0,0,0,0),
+	(-1,-1,-1,-1),
+	(-1.2,-1.5,-2.0,4.0),
+]
+
+from types import GeneratorType
+def resolve(ob):
+	'make sure generators get "tuplified"'
+	if type(ob) not in (list, tuple, GeneratorType):
+		return ob
+	return [resolve(x) for x in ob]
+
+def testExpectIO(self, samples):
+	for id, sample in samples.items():
+		name, pack, unpack = id
+
+		for (sample_unpacked, sample_packed) in sample:
+			pack_trial = pack(sample_unpacked)
+			self.failUnless(
+				pack_trial == sample_packed,
+				"%s sample: unpacked sample, %r, did not match " \
+				"%r when packed, rather, %r" %(
+					name, sample_unpacked,
+					sample_packed, pack_trial
+				)
+			)
+
+			sample_unpacked = resolve(sample_unpacked)
+			unpack_trial = resolve(unpack(sample_packed))
+			self.failUnless(
+				unpack_trial == sample_unpacked,
+				"%s sample: packed sample, %r, did not match " \
+				"%r when unpacked, rather, %r" %(
+					name, sample_packed,
+					sample_unpacked, unpack_trial
+				)
+			)
+
+class test_io(unittest.TestCase):
+	def test_process_tuple(self, pt = process_tuple):
+		def funpass(procs, tup, col):
+			pass
+		self.failUnlessEqual(tuple(pt((),(), funpass)), ())
+		self.failUnlessEqual(tuple(pt((int,),("100",), funpass)), (100,))
+		self.failUnlessEqual(tuple(pt((int,int),("100","200"), funpass)), (100,200))
+		self.failUnlessEqual(tuple(pt((int,int),(None,"200"), funpass)), (None,200))
+		self.failUnlessEqual(tuple(pt((int,int,int),(None,None,"200"), funpass)), (None,None,200))
+		# The exception handler must raise.
+		self.failUnlessRaises(RuntimeError, pt, (int,), ("foo",), funpass)
+
+		class ThisError(Exception):
+			pass
+		data = []
+		def funraise(procs, tup, col):
+			data.append((procs, tup, col))
+			raise ThisError
+		self.failUnlessRaises(ThisError, pt, (int,), ("foo",), funraise)
+		self.failUnlessEqual(data[0], ((int,), ("foo",), 0))
+		del data[0]
+		self.failUnlessRaises(ThisError, pt, (int,int), ("100","bar"), funraise)
+		self.failUnlessEqual(data[0], ((int,int), ("100","bar"), 1))
+
+	def testExpectations(self):
+		'IO tests where the pre-made expected serialized form is compared'
+		testExpectIO(self, expectation_samples)
+
+	def testConsistency(self):
+		'IO tests where the unpacked source is compared to re-unpacked result'
+		for id, sample in consistency_samples.items():
+			name, pack, unpack = id
+			if pack is not None:
+				for x in sample:
+					packed = pack(x)
+					unpacked = resolve(unpack(packed))
+					x = resolve(x)
+					self.failUnless(x == unpacked,
+						"inconsistency with %s, %r -> %r -> %r" %(
+							name, x, packed, unpacked
+						)
+					)
+
+if __name__ == '__main__':
+	from types import ModuleType
+	this = ModuleType("this")
+	this.__dict__.update(globals())
+	unittest.main(this)

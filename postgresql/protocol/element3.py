@@ -8,7 +8,7 @@ import os
 import pprint
 from struct import unpack, Struct
 from .message_types import message_types
-from .typstruct import ushort_pack, ushort_unpack, ulong_pack, ulong_unpack
+from ..python.structlib import ushort_pack, ushort_unpack, ulong_pack, ulong_unpack
 
 def pack_tuple_data(atts):
 	return b''.join([
@@ -19,7 +19,7 @@ def pack_tuple_data(atts):
 	])
 
 try:
-	from .optimized import parse_tuple_message, pack_tuple_data
+	from ..port.optimized import parse_tuple_message, pack_tuple_data
 except ImportError:
 	pass
 
@@ -656,15 +656,14 @@ class Bind(Message):
 		self.arguments = arguments
 		self.rformats = rformats
 
-	def serialize(self):
+	def serialize(self, len = len):
 		args = self.arguments
 		ac = ushort_pack(len(args))
 		ad = pack_tuple_data(tuple(args))
-		rfc = ushort_pack(len(self.rformats))
 		return \
 			self.name + b'\x00' + self.statement + b'\x00' + \
-			ac + b''.join(self.aformats) + ac + ad + rfc + \
-			b''.join(self.rformats)
+			ac + b''.join(self.aformats) + ac + ad + \
+			ushort_pack(len(self.rformats)) + b''.join(self.rformats)
 
 	@classmethod
 	def parse(typ, message_data):
@@ -774,7 +773,7 @@ class Function(Message):
 	type = message_types[b'F'[0]]
 	__slots__ = ('oid', 'aformats', 'arguments', 'rformat')
 
-	def __init__(self, oid, aformats, args, rformat = StringFormat):
+	def __init__(self, oid, aformats, args, rformat):
 		self.oid = oid
 		self.aformats = aformats
 		self.arguments = args

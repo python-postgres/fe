@@ -12,6 +12,7 @@
  * in each file.
  */
 #include <Python.h>
+#include <structmember.h>
 /*
  * If Python didn't find it, it won't include it.
  * However, it's quite necessary.
@@ -38,8 +39,11 @@ static PyObject *msgtype_strob = NULL;
 static int32_t (*local_ntohl)(int32_t) = NULL;
 static short (*local_ntohs)(short) = NULL;
 
-
-#include "typio.c"
+/*
+ * optimized module contents
+ */
+#include "structlib.c"
+#include "functools.c"
 #include "buffer.c"
 #include "client3.c"
 #include "element3.c"
@@ -51,17 +55,18 @@ static short (*local_ntohs)(short) = NULL;
 static PyMethodDef optimized_methods[] = {
 	include_element3_functions
 	include_client3_functions
-	include_typio_functions
+	include_structlib_functions
+	include_functools_functions
 	{NULL}
 };
 #undef mFUNC
 
 static struct PyModuleDef optimized_module = {
    PyModuleDef_HEAD_INIT,
-   "optimized",/* name of module */
-   NULL,     /* module documentation, may be NULL */
-   -1,       /* size of per-interpreter state of the module,
-                or -1 if the module keeps state in global variables. */
+   "optimized",	/* name of module */
+   NULL,     		/* module documentation, may be NULL */
+   -1,       		/* size of per-interpreter state of the module,
+                		or -1 if the module keeps state in global variables. */
    optimized_methods,
 };
 
@@ -124,10 +129,10 @@ PyInit_optimized(void)
 	fromstr = PyUnicode_FromString("message_types");
 	PyList_SetItem(fromlist, 0, fromstr);
 	msgtypes = PyImport_ImportModuleLevel(
-		"message_types",
+		"protocol.message_types",
 		PyModule_GetDict(mod),
 		PyModule_GetDict(mod),
-		fromlist, 1
+		fromlist, 2
 	);
 	Py_DECREF(fromlist);
 	if (msgtypes == NULL)
