@@ -114,24 +114,33 @@ SELECT
 FROM
 	pg_catalog.generate_series(1, array_upper(($1::text[][]), 1)) g(i)
 
-[activity]
-SELECT client_addr, client_port, backend_start::text FROM pg_catalog.pg_stat_activity
+[startup_data:transient:first]
+SELECT
+ pg_catalog.version()::text,
+ backend_start::text,
+ client_addr::text,
+ client_port
+FROM pg_catalog.pg_stat_activity WHERE procpid = pg_catalog.pg_backend_pid();
 
-[activity_for::first]
-*[activity]
- WHERE procpid = $1
+[startup_data_no_start:transient:first]
+SELECT
+ pg_catalog.version()::text,
+ NULL::text AS backend_start,
+ client_addr::text,
+ client_port
+FROM pg_catalog.pg_stat_activity WHERE procpid = pg_catalog.pg_backend_pid();
 
-[sizeof_db::first]
+[sizeof_db:transient:first]
 SELECT pg_catalog.pg_database_size(current_database())::bigint
 
-[sizeof_cluster::first]
+[sizeof_cluster:transient:first]
 SELECT SUM(pg_catalog.pg_database_size(datname))::bigint FROM pg_database
 
 [sizeof_relation::first]
 SELECT pg_catalog.pg_relation_size($1::text)::bigint
 
-[pg_reload_conf]
+[pg_reload_conf:transient:]
 SELECT pg_reload_conf()
 
-[languages::column]
+[languages:transient:column]
 SELECT lanname FROM pg_catalog.pg_language

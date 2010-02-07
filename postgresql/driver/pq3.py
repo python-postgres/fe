@@ -1903,9 +1903,7 @@ class Connection(pg_api.Connection):
 			self._raise_pq_error()
 			# gah, the fatality of the connection does not
 			# appear to exist...
-			raise RuntimeError(
-				"closed connection has no fatal error"
-			)
+			raise RuntimeError("closed connection has no fatal error")
 
 		self.pq = None
 		# if any exception occurs past this point, the connection
@@ -1925,13 +1923,13 @@ class Connection(pg_api.Connection):
 		# When ssl is True: SSL negotiation will occur *and* it must succeed.
 		# When ssl is False: SSL negotiation will occur but it may fail(NOSSL).
 		if sslmode == 'allow':
-			# first, without ssl, then with. :)
+			# without ssl, then with. :)
 			socket_factories = interlace(
 				zip(repeat(None, len(socket_factories)), socket_factories),
 				zip(repeat(True, len(socket_factories)), socket_factories)
 			)
 		elif sslmode == 'prefer':
-			# first, with ssl, then without. [maybe] :)
+			# with ssl, then without. [maybe] :)
 			socket_factories = interlace(
 				zip(repeat(False, len(socket_factories)), socket_factories),
 				zip(repeat(None, len(socket_factories)), socket_factories)
@@ -1952,17 +1950,18 @@ class Connection(pg_api.Connection):
 		# in these cases, can_skip is set to True so that the
 		# subsequent non-ssl attempt is skipped if it failed with the 'N' response.
 		can_skip = False
+		startup = self.connector._startup_parameters
+		password = self.connector._password
+		Connection3 = client.Connection
 		for (ssl, sf) in socket_factories:
 			if can_skip is True:
 				# the last attempt failed and knows this attempt will fail too.
 				can_skip = False
 				continue
-			pq = client.Connection(
-				sf, self.connector._startup_parameters,
-				password = self.connector._password,
-			)
+			pq = Connection3(sf, startup, password = password,)
 			if hasattr(self, 'tracer'):
 				pq.tracer = self.tracer
+
 			# Grab the negotiation transaction before
 			# connecting as it will be needed later if successful.
 			neg = pq.xact
@@ -1970,7 +1969,8 @@ class Connection(pg_api.Connection):
 
 			didssl = getattr(pq, 'ssl_negotiation', -1)
 
-			# It successfully connected if pq.xact is None.
+			# It successfully connected if pq.xact is None;
+			# The startup/negotiation xact completed.
 			if pq.xact is None:
 				self.pq = pq
 				self.security = 'ssl' if didssl is True else None
@@ -2019,9 +2019,7 @@ class Connection(pg_api.Connection):
 			# it's over.
 			raise could_not_connect_err
 		##
-		# connected, now initialize metadata
-		# Use the version_info and integer_datetimes setting to identify
-		# the necessary binary type i/o functions to use.
+		# connected, now initialize connection information.
 		self.backend_id = self.pq.backend_id
 
 		sv = self.settings.cache.get("server_version", "0.0")
@@ -2029,20 +2027,17 @@ class Connection(pg_api.Connection):
 		# manual binding
 		self.sys = pg_lib.Binding(self, pg_lib.sys)
 
-		# Get the *full* version string.
-		self.version = self.prepare("SELECT pg_catalog.version()").first()
+		if self.version_info <= (8,0):
+			meth = self.sys.startup_data_no_start
+		else:
+			meth = self.sys.startup_data
+		# connection info
+		self.version, self.backend_start, \
+		self.client_address, self.client_port = meth()
+
 		# First word from the version string.
 		self.type = self.version.split()[0]
 
-		r = self.sys.activity_for(self.backend_id)
-		if r is not None:
-			# conditional initialization of client_address.
-			# pythons without ipaddr will likely give strings.
-			ca = r.get('client_addr')
-			if ca is not None:
-				self.client_address = ca.split('/')[0]
-			self.client_port = r.get('client_port')
-			self.backend_start = r.get('backend_start')
 		##
 		# Set standard_conforming_strings
 		scstr = self.settings.get('standard_conforming_strings')

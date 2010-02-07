@@ -61,6 +61,9 @@ class Symbol(Element):
 	)
 	_e_label = 'SYMBOL'
 	_e_factors = ('library', 'source',)
+
+	# The statement execution methods; symbols allow this to be specified
+	# in order for a default method to be selected.
 	execution_methods = {
 		'first',
 		'rows',
@@ -96,6 +99,8 @@ class Symbol(Element):
 		"""
 		Provide the source of the query's symbol.
 		"""
+		# Explicitly run str() on source as it is expected that a
+		# given symbol's source may be generated.
 		return str(self.source)
 
 class Library(Element):
@@ -145,6 +150,7 @@ class SymbolCollection(Library):
 		'preload',
 		'const',
 		'proc',
+		'transient',
 	)
 
 	def __init__(self, symbols, preface = None):
@@ -356,7 +362,9 @@ class Binding(object):
 					r = list(r)
 				bs = s[name] = r
 			else:
-				bs = s[name] = BoundSymbol(sym, db)
+				bs = BoundSymbol(sym, db)
+				if sym.type != 'transient':
+					s[name] = bs
 		return bs
 
 class Category(pg_api.Category):
