@@ -288,6 +288,11 @@ that can be used in ILF libraries:
   the symbol method *should not* be specified as the method annotation will be
   automatically resolved based on the procedure's signature.
 
+ ``transient``
+  The Symbol is a statement that should *not* be retained. Specifically, it is
+  a statement object that will be discarded when the user discard the referenced
+  Symbol. Used in cases where the statement is used once or very infrequently.
+
 
 Symbol Execution Methods
 ========================
