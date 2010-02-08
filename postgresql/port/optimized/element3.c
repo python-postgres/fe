@@ -81,7 +81,7 @@ _pack_tuple_data(PyObject *tup)
 		if (ob == Py_None)
 		{
 			uint32_t attsize = 0xFFFFFFFFL; /* Indicates NULL */
-			memcpy(bufpos, &attsize, 4);
+			Py_MEMCPY(bufpos, &attsize, 4);
 			bufpos = bufpos + 4;
 		}
 		else
@@ -96,9 +96,9 @@ _pack_tuple_data(PyObject *tup)
 				);
 			}
 			msg_size = local_ntohl((uint32_t) size);
-			memcpy(bufpos, &msg_size, 4);
+			Py_MEMCPY(bufpos, &msg_size, 4);
 			bufpos = bufpos + 4;
-			memcpy(bufpos, PyBytes_AS_STRING(ob), PyBytes_GET_SIZE(ob));
+			Py_MEMCPY(bufpos, PyBytes_AS_STRING(ob), PyBytes_GET_SIZE(ob));
 			bufpos = bufpos + PyBytes_GET_SIZE(ob);
 		}
 	}
@@ -134,7 +134,7 @@ _unpack_tuple_data(PyObject *dst, uint16_t natts, const char *data, Py_ssize_t d
 			return(-1);
 		}
 
-		memcpy(&attsize, data + position, 4);
+		Py_MEMCPY(&attsize, data + position, 4);
 		attsize = local_ntohl(attsize);
 		position += 4;
 		/*
@@ -218,7 +218,7 @@ parse_tuple_message(PyObject *self, PyObject *args)
 			"invalid tuple message: %d bytes is too small", dlen);
 		return(NULL);
 	}
-	memcpy(&natts, data, 2);
+	Py_MEMCPY(&natts, data, 2);
 	natts = local_ntohs(natts);
 
 	prerob = PyTuple_New(natts);
