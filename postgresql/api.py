@@ -16,8 +16,6 @@ This module is used to define PG-API. It creates a set of ABCs
 that makes up the basic interfaces used to work with a PostgreSQL server.
 """
 import os
-import sys
-import warnings
 import collections
 from abc import abstractproperty, abstractmethod
 from operator import itemgetter
