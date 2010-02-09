@@ -377,10 +377,14 @@ class FetchAll(Chunks):
 			self._pq_xp_fetchall() + (element.SynchronizeMessage,)
 		)
 		self.database._pq_push(self._xact, self)
+		STEP = self.database._pq_step
 		while self._xact.state != xact.Complete:
-			self.database._pq_step()
+			STEP()
 			for x in self._xact.messages_received():
-				if x.type == null:
+				if x.__class__ is tuple or expect == x.type:
+					# no need to step once this is seen
+					return
+				elif x.type == null:
 					self.database._pq_complete()
 					self._xact = None
 					return
@@ -391,9 +395,6 @@ class FetchAll(Chunks):
 					# the data messages would have caused an earlier
 					# return.
 					self._xact = None
-					return
-				elif x.type == expect:
-					# no need to step once this is seen
 					return
 				elif x.type in (bindcomplete, parsecomplete):
 					pass
@@ -446,13 +447,13 @@ class SingleXactFetch(FetchAll):
 	_expect = element.Tuple.type
 	_process_chunk_ = FetchAll._process_tuple_chunk_Row
 
-	def _process_chunk(self, x, tuple_type = element.Tuple.type):
+	def _process_chunk(self, x, tuple_type = tuple):
 		return self._process_chunk_((
-			y for y in x if y.type == tuple_type
+			y for y in x if y.__class__ is tuple
 		))
 
 class MultiXactStream(Chunks):
-	chunksize = 512
+	chunksize = 1024 * 10
 	# only tuple streams
 	_process_chunk = Output._process_tuple_chunk_Row
 
@@ -483,7 +484,7 @@ class MultiXactStream(Chunks):
 		self._xact = self._ins(self._bind() + self._command)
 		self.database._pq_push(self._xact, self)
 
-	def __next__(self, tuple_type = element.Tuple.type):
+	def __next__(self, tuple_type = tuple):
 		x = self._xact
 		if x is None:
 			raise StopIteration
@@ -493,7 +494,7 @@ class MultiXactStream(Chunks):
 
 		# get all the element.Tuple messages
 		chunk = [
-			y for y in x.messages_received() if y.type == tuple_type
+			y for y in x.messages_received() if y.__class__ is tuple_type
 		]
 		if len(chunk) == self.chunksize:
 			# there may be more, dispatch the request for the next chunk
@@ -625,7 +626,7 @@ class Cursor(Output, pg_api.Cursor):
 		self.database._pq_push(x, self)
 		self.database._pq_complete()
 		return self._process_tuple((
-			y for y in x.messages_received() if y.type == element.Tuple.type
+			y for y in x.messages_received() if y.__class__ is tuple
 		))
 
 	def seek(self, offset, whence = 'ABSOLUTE'):
@@ -1093,7 +1094,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			# It returned rows, look for the first tuple.
 			tuple_type = element.Tuple.type
 			for xt in x.messages_received():
-				if xt.type == tuple_type:
+				if xt.__class__ is tuple:
 					break
 			else:
 				return None

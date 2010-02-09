@@ -12,18 +12,6 @@ from . import xact3 as xact
 
 __all__ = ('Connection',)
 
-try:
-	from ..port.optimized import cat_messages
-except ImportError:
-	from ..python.structlib import long_pack
-	def cat_messages(messages, lpack = long_pack, blen = bytes.__len__):
-		return b''.join([
-			x.bytes() if x.__class__ is not bytes else (
-				b'd' + lpack(blen(x) + 4) + x
-			) for x in messages
-		])
-	del long_pack
-
 client_detected_protocol_error = element.ClientError((
 	(b'S', 'FATAL'),
 	(b'C', '08P01'),
@@ -330,7 +318,9 @@ class Connection(object):
 				raise
 		return True
 
-	def standard_write_messages(self, messages):
+	def standard_write_messages(self, messages,
+		cat_messages = element.cat_messages
+	):
 		'protocol message writer'
 		if self.writing is not self.written:
 			self.message_data += cat_messages(self.writing)

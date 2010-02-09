@@ -112,12 +112,12 @@ _pack_tuple_data(PyObject *tup)
  * dst must be of PyTuple_Type with at least natts items slots.
  */
 static int
-_unpack_tuple_data(PyObject *dst, uint16_t natts, const char *data, Py_ssize_t data_len)
+_unpack_tuple_data(PyObject *dst, uint16_t natts, register const char *data, Py_ssize_t data_len)
 {
 	PyObject *ob;
 	uint16_t cnatt = 0;
 	uint32_t attsize = 0;
-	uint32_t position = 0;
+	register uint32_t position = 0;
 
 	while (cnatt < natts)
 	{
@@ -203,7 +203,7 @@ _unpack_tuple_data(PyObject *dst, uint16_t natts, const char *data, Py_ssize_t d
 static PyObject *
 parse_tuple_message(PyObject *self, PyObject *args)
 {
-	PyObject *prerob, *rob, *temp_tup;
+	PyObject *rob;
 	PyObject *typ;
 	const char *data;
 	Py_ssize_t dlen = 0;
@@ -221,26 +221,16 @@ parse_tuple_message(PyObject *self, PyObject *args)
 	Py_MEMCPY(&natts, data, 2);
 	natts = local_ntohs(natts);
 
-	prerob = PyTuple_New(natts);
-	if (prerob == NULL)
+	rob = PyTuple_New(natts);
+	if (rob == NULL)
 		return(NULL);
 
-	if (_unpack_tuple_data(prerob, natts, data+2, dlen-2) < 0)
+	if (_unpack_tuple_data(rob, natts, data+2, dlen-2) < 0)
 	{
-		Py_DECREF(prerob);
+		Py_DECREF(rob);
 		return(NULL);
 	}
 
-	temp_tup = PyTuple_New(1);
-	if (temp_tup == NULL)
-	{
-		Py_DECREF(prerob);
-		return(NULL);
-	}
-	PyTuple_SET_ITEM(temp_tup, 0, prerob);
-
-	rob = PyObject_CallObject(typ, temp_tup);
-	Py_DECREF(temp_tup);
 	return(rob);
 }
 

@@ -579,12 +579,12 @@ class Instruction(Transaction):
 			# Check the context to identify if the state should be
 			# switched to an optimized processor.
 			last = processed[-1]
-			if type(last) is bytes:
+			if last.__class__ is bytes:
 				self.state = (Receiving, self.put_copydata)
+			elif last.__class__ is tuple:
+				self.state = (Receiving, self.put_tupledata)
 			elif last.type == element.CopyToBegin.type:
 				self.state = (Receiving, self.put_copydata)
-			elif last.type == element.Tuple.type:
-				self.state = (Receiving, self.put_tupledata)
 			elif last.type == element.CopyFromBegin.type:
 				self.CopyFailSequence = (self.CopyFailMessage,) + \
 					self.commands[offset+1:]
@@ -616,19 +616,20 @@ class Instruction(Transaction):
 		self.last = (messages, self.last[2], self.last[2],)
 		return len(messages)
 
-	def put_tupledata(self, messages):
+	def put_tupledata(self, messages,
+		p = element.Tuple.parse,
+		t = element.Tuple.type,
+	):
 		"""
 		Fast path used when inside an Execute command. As soon as tuple
 		data is seen.
 		"""
 		# Fallback to `standard_put` quickly if the last
 		# message is not tuple data.
-		if messages[-1][0] != element.Tuple.type:
+		if messages[-1][0] is not t:
 			self.state = (Receiving, self.standard_put)
 			return self.standard_put(messages)
 
-		p = element.Tuple.parse
-		t = element.Tuple.type
 		tuplemessages = [p(x[1]) for x in messages if x[0] == t]
 		if len(tuplemessages) != len(messages):
 			self.state = (Receiving, self.standard_put)

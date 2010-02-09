@@ -10,18 +10,56 @@ from struct import unpack, Struct
 from .message_types import message_types
 from ..python.structlib import ushort_pack, ushort_unpack, ulong_pack, ulong_unpack
 
-def pack_tuple_data(atts):
-	return b''.join([
-		b'\xff\xff\xff\xff'
-		if x is None
-		else (ulong_pack(len(x)) + x)
-		for x in atts
-	])
-
 try:
 	from ..port.optimized import parse_tuple_message, pack_tuple_data
 except ImportError:
-	pass
+	def pack_tuple_data(atts,
+		none = None,
+		ulong_pack = ulong_pack,
+		blen = bytes.__len__
+	):
+		return b''.join([
+			b'\xff\xff\xff\xff'
+			if x is none
+			else (ulong_pack(blen(x)) + x)
+			for x in atts
+		])
+
+try:
+	from ..port.optimized import cat_messages
+except ImportError:
+	from ..python.structlib import lH_pack, long_pack
+	# Special case tuple()'s
+	def _pack_tuple(t,
+		blen = bytes.__len__,
+		tlen = tuple.__len__,
+		pack_head = lH_pack,
+		ulong_pack = ulong_pack,
+		ptd = pack_tuple_data,
+	):
+		# NOTE: duplicated from above
+		r = b''.join([
+			b'\xff\xff\xff\xff'
+			if x is None
+			else (ulong_pack(blen(x)) + x)
+			for x in t
+		])
+		return pack_head((blen(r) + 6, tlen(t))) + r
+
+	def cat_messages(messages,
+		lpack = long_pack,
+		blen = bytes.__len__,
+		tuple = tuple,
+		pack_tuple = _pack_tuple
+	):
+		return b''.join([
+			(x.bytes() if x.__class__ is not bytes else (
+				b'd' + lpack(blen(x) + 4) + x
+			)) if x.__class__ is not tuple else (
+				b'D' + pack_tuple(x)
+			) for x in messages
+		])
+	del _pack_tuple, lH_pack, long_pack
 
 StringFormat = b'\x00\x00'
 BinaryFormat = b'\x00\x01'
@@ -412,9 +450,9 @@ class Tuple(TupleMessage):
 		return ushort_pack(len(self)) + pack_tuple_data(self)
 
 	@classmethod
-	def parse(typ, data):
+	def parse(typ, data, T = tuple, ulong_unpack = ulong_unpack):
 		natts = ushort_unpack(data[0:2])
-		atts = list()
+		atts = []
 		offset = 2
 
 		while natts > 0:
@@ -430,10 +468,11 @@ class Tuple(TupleMessage):
 				att = data[ao:offset]
 			atts.append(att)
 			natts -= 1
-		return typ(atts)
+		return T(atts)
 	try:
 		parse = classmethod(parse_tuple_message)
 	except NameError:
+		# This is an override when port.optimized is available.
 		pass
 
 class KillInformation(Message):

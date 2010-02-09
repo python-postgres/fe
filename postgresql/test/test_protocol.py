@@ -180,6 +180,53 @@ message_samples = [
 ]
 
 class test_element3(unittest.TestCase):
+	def test_catmessages(self):
+		# The optimized implementation will identify adjacent copy data, and
+		# take a more efficient route; so rigorously test the switch between the
+		# two modes.
+		self.failUnlessEqual(e3.cat_messages([]), b'')
+		self.failUnlessEqual(e3.cat_messages([b'foo']), b'd\x00\x00\x00\x07foo')
+		self.failUnlessEqual(e3.cat_messages([b'foo', b'foo']), 2*b'd\x00\x00\x00\x07foo')
+		# copy, other, copy
+		self.failUnlessEqual(e3.cat_messages([b'foo', e3.SynchronizeMessage, b'foo']),
+			b'd\x00\x00\x00\x07foo' + e3.SynchronizeMessage.bytes() + b'd\x00\x00\x00\x07foo')
+		# copy, other, copy*1000
+		self.failUnlessEqual(e3.cat_messages(1000*[b'foo', e3.SynchronizeMessage, b'foo']),
+			1000*(b'd\x00\x00\x00\x07foo' + e3.SynchronizeMessage.bytes() + b'd\x00\x00\x00\x07foo'))
+		# other, copy, copy*1000
+		self.failUnlessEqual(e3.cat_messages(1000*[e3.SynchronizeMessage, b'foo', b'foo']),
+			1000*(e3.SynchronizeMessage.bytes() + 2*b'd\x00\x00\x00\x07foo'))
+		pack_head = struct.Struct("!lH").pack
+		# tuple
+		self.failUnlessEqual(e3.cat_messages([(b'foo',),]),
+			b'D' + pack_head(7 + 4 + 2, 1) + b'\x00\x00\x00\x03foo')
+		# tuple(foo,\N)
+		self.failUnlessEqual(e3.cat_messages([(b'foo',None,),]),
+			b'D' + pack_head(7 + 4 + 4 + 2, 2) + b'\x00\x00\x00\x03foo\xFF\xFF\xFF\xFF')
+		# tuple(foo,\N,bar)
+		self.failUnlessEqual(e3.cat_messages([(b'foo',None,b'bar'),]),
+			b'D' + pack_head(7 + 7 + 4 + 4 + 2, 3) + \
+			b'\x00\x00\x00\x03foo\xFF\xFF\xFF\xFF\x00\x00\x00\x03bar')
+
+		class ThisEx(Exception):
+			pass
+		class ThatEx(Exception):
+			pass
+		class Bad(e3.Message):
+			def serialize(self):
+				raise ThisEx('foo')
+		self.failUnlessRaises(ThisEx, e3.cat_messages, [Bad()])
+		class NoType(e3.Message):
+			def serialize(self):
+				return b''
+		self.failUnlessRaises(AttributeError, e3.cat_messages, [NoType()])
+		class BadType(e3.Message):
+			type = 123
+			def serialize(self):
+				return b''
+		self.failUnlessRaises((TypeError,struct.error), e3.cat_messages, [BadType()])
+
+
 	def testSerializeParseConsistency(self):
 		for msg in message_samples:
 			smsg = msg.serialize()
@@ -474,40 +521,6 @@ class test_xact3(unittest.TestCase):
 		self.failUnless(isinstance(v, Nee))
 
 class test_client3(unittest.TestCase):
-	def test_catmessages(self):
-		# The optimized implementation will identify adjacent copy data, and
-		# take a more efficient route; so rigorously test the switch between the
-		# two modes.
-		self.failUnlessEqual(c3.cat_messages([]), b'')
-		self.failUnlessEqual(c3.cat_messages([b'foo']), b'd\x00\x00\x00\x07foo')
-		self.failUnlessEqual(c3.cat_messages([b'foo', b'foo']), 2*b'd\x00\x00\x00\x07foo')
-		# copy, other, copy
-		self.failUnlessEqual(c3.cat_messages([b'foo', e3.SynchronizeMessage, b'foo']),
-			b'd\x00\x00\x00\x07foo' + e3.SynchronizeMessage.bytes() + b'd\x00\x00\x00\x07foo')
-		# copy, other, copy*1000
-		self.failUnlessEqual(c3.cat_messages(1000*[b'foo', e3.SynchronizeMessage, b'foo']),
-			1000*(b'd\x00\x00\x00\x07foo' + e3.SynchronizeMessage.bytes() + b'd\x00\x00\x00\x07foo'))
-		# other, copy, copy*1000
-		self.failUnlessEqual(c3.cat_messages(1000*[e3.SynchronizeMessage, b'foo', b'foo']),
-			1000*(e3.SynchronizeMessage.bytes() + 2*b'd\x00\x00\x00\x07foo'))
-		class ThisEx(Exception):
-			pass
-		class ThatEx(Exception):
-			pass
-		class Bad(e3.Message):
-			def serialize(self):
-				raise ThisEx('foo')
-		self.failUnlessRaises(ThisEx, c3.cat_messages, [Bad()])
-		class NoType(e3.Message):
-			def serialize(self):
-				return b''
-		self.failUnlessRaises(AttributeError, c3.cat_messages, [NoType()])
-		class BadType(e3.Message):
-			type = 123
-			def serialize(self):
-				return b''
-		self.failUnlessRaises((TypeError,struct.error), c3.cat_messages, [BadType()])
-
 	def test_timeout(self):
 		portnum = find_available_port()
 		servsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
