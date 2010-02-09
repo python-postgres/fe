@@ -60,7 +60,7 @@ def timeTupleRead(ps):
 	)
 
 def main(count):
-	execute('CREATE TEMP TABLE samples '
+	sqlexec('CREATE TEMP TABLE samples '
 		'(i2 int2, i4 int4, i8 int8, n numeric, n2 numeric, t text, v varchar, c char(2), ts timestamp)')
 	insert_records = prepare(
 		"INSERT INTO samples VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
@@ -70,7 +70,7 @@ def main(count):
 		insertSamples(count, insert_records)
 		timeTupleRead(select_records)	
 	finally:
-		execute("DROP TABLE samples")
+		sqlexec("DROP TABLE samples")
 
 def command(args):
 	main(int((args + [25000])[1]))

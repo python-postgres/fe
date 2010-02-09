@@ -19,7 +19,7 @@ def getWord():
 	return Words[random.randrange(0, wordcount)].strip()
 
 def testSpeed(tuples = 50000 * 3):
-	execute("CREATE TEMP TABLE _copy "
+	sqlexec("CREATE TEMP TABLE _copy "
 	"(i int, t text, mt text, ts text, ty text, tx text);")
 	try:
 		Q = prepare("COPY _copy FROM STDIN")
@@ -73,7 +73,7 @@ def testSpeed(tuples = 50000 * 3):
 			)
 		)
 	finally:
-		execute("DROP TABLE _copy")
+		sqlexec("DROP TABLE _copy")
 
 if __name__ == '__main__':
 	testSpeed()
