@@ -198,6 +198,7 @@ type_samples = [
 		],
 	),
 	('timetz', [
+			# timetz retains the offset
 			datetime.time(10,10,0, tzinfo=FixedOffset(4000)),
 			datetime.time(10,10,0, tzinfo=FixedOffset(6000)),
 			datetime.time(10,10,0, tzinfo=FixedOffset(7000)),
@@ -205,6 +206,7 @@ type_samples = [
 		],
 	),
 	('interval', [
+			# no months :(
 			datetime.timedelta(40, 10, 1234),
 			datetime.timedelta(0, 0),
 			datetime.timedelta(-100, 0),
@@ -1415,14 +1417,9 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			return
 		if 'plpgsql' not in self.db.sys.languages():
 			self.db.execute("CREATE LANGUAGE plpgsql")
-		self.db.do(
-			"BEGIN CREATE TEMP TABLE do_tmp_table(i int, t text); END",
-			language = 'plpgsql')
+		self.db.do('plpgsql', "BEGIN CREATE TEMP TABLE do_tmp_table(i int, t text); END",)
 		self.failUnlessEqual(len(self.db.prepare("SELECT * FROM do_tmp_table")()), 0)
-		# now, with the default language.
-		self.db.settings["default_do_language"] = 'plpgsql'
-		self.db.do(
-			"BEGIN INSERT INTO do_tmp_table VALUES (100, 'foo'); END")
+		self.db.do('plpgsql', "BEGIN INSERT INTO do_tmp_table VALUES (100, 'foo'); END")
 		self.failUnlessEqual(len(self.db.prepare("SELECT * FROM do_tmp_table")()), 1)
 
 if __name__ == '__main__':
