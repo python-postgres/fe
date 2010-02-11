@@ -25,52 +25,55 @@ class pq_message_stream(object):
 
 	def _rtruncate(self, amt = None):
 		"[internal] remove the given amount of data"
+		strio = self._strio
 		if amt is None:
 			amt = self._strio.tell()
-		self._strio.seek(0, 2)
-		size = self._strio.tell()
+		strio.seek(0, 2)
+		size = strio.tell()
 		# if the total size is equal to the amt,
 		# then the whole thing is going to be truncated.
 		if size == amt:
-			self._strio.truncate(0)
+			strio.truncate(0)
 			return
 
 		copyto_pos = 0
 		copyfrom_pos = amt
 		while True:
-			self._strio.seek(copyfrom_pos)
-			data = self._strio.read(self._block)
+			strio.seek(copyfrom_pos)
+			data = strio.read(self._block)
 			# Next copyfrom
-			copyfrom_pos = self._strio.tell()
-			self._strio.seek(copyto_pos)
-			self._strio.write(data)
+			copyfrom_pos = strio.tell()
+			strio.seek(copyto_pos)
+			strio.write(data)
 			if len(data) != self._block:
 				break
 			# Next copyto
-			copyto_pos = self._strio.tell()
+			copyto_pos = strio.tell()
 
-		self._strio.truncate(size - amt)
+		strio.truncate(size - amt)
 
-	def has_message(self):
+	def has_message(self, xl_unpack = xl_unpack, len = len):
 		"if the buffer has a message available"
-		self._strio.seek(self._start)
-		header = self._strio.read(5)
+		strio = self._strio
+		strio.seek(self._start)
+		header = strio.read(5)
 		if len(header) < 5:
 			return False
 		length, = xl_unpack(header)
 		if length < 4:
 			raise ValueError("invalid message size '%d'" %(length,))
-		self._strio.seek(0, 2)
-		return (self._strio.tell() - self._start) >= length + 1
+		strio.seek(0, 2)
+		return (strio.tell() - self._start) >= length + 1
 
-	def __len__(self):
+	def __len__(self, xl_unpack = xl_unpack, len = len):
 		"number of messages in buffer"
 		count = 0
 		rpos = self._start
-		self._strio.seek(self._start)
+		strio = self._strio
+		strio.seek(self._start)
 		while True:
 			# get the message metadata
-			header = self._strio.read(5)
+			header = strio.read(5)
 			rpos += 5
 			if len(header) < 5:
 				# not enough data for another message
@@ -81,15 +84,20 @@ class pq_message_stream(object):
 
 			if length < 4:
 				raise ValueError("invalid message size '%d'" %(length,))
-			self._strio.seek(length - 4 - 1, 1)
+			strio.seek(length - 4 - 1, 1)
 
-			if len(self._strio.read(1)) != 1:
+			if len(strio.read(1)) != 1:
 				break
 			count += 1
 		return count
 
-	def _get_message(self, mtypes = message_types):
-		header = self._strio.read(5)
+	def _get_message(self,
+		mtypes = message_types,
+		len = len,
+		xl_unpack = xl_unpack,
+	):
+		strio = self._strio
+		header = strio.read(5)
 		if len(header) < 5:
 			return
 		length, = xl_unpack(header)
@@ -98,7 +106,7 @@ class pq_message_stream(object):
 		if length < 4:
 			raise ValueError("invalid message size '%d'" %(length,))
 		length -= 4
-		body = self._strio.read(length)
+		body = strio.read(length)
 		if len(body) < length:
 			# Not enough data for message.
 			return
@@ -127,7 +135,7 @@ class pq_message_stream(object):
 		self._start = self._strio.tell()
 		return msg
 
-	def read(self, num = 0xFFFFFFFF):
+	def read(self, num = 0xFFFFFFFF, len = len):
 		if self._start > self._limit:
 			self._rtruncate(self._start)
 			self._start = 0
