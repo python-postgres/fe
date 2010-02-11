@@ -453,7 +453,7 @@ class SingleXactFetch(FetchAll):
 		))
 
 class MultiXactStream(Chunks):
-	chunksize = 1024 * 10
+	chunksize = 1024 * 3
 	# only tuple streams
 	_process_chunk = Output._process_tuple_chunk_Row
 
