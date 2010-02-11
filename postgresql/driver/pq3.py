@@ -271,8 +271,9 @@ class Output(object):
 		proc = process_chunk,
 		from_seq = Row.from_sequence,
 	):
+		attmap = self._output_attmap
 		return [
-			from_seq(self._output_attmap, y)
+			from_seq(attmap, y)
 			for y in proc(self._output_io, x, self._raise_column_tuple_error)
 		]
 
