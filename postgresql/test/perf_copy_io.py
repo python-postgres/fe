@@ -1,8 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
-##
-# Copy I/O: To and From performance
+# test.perf_copy_io - Copy I/O: To and From performance
 ##
 import os, sys, random, time
 
@@ -39,7 +36,7 @@ def testSpeed(tuples = 50000 * 3):
 
 		sys.stderr.write("starting copy...\n")
 		start = time.time()
-		copied_in = Q.load(data)
+		copied_in = Q.load_rows(data)
 		duration = time.time() - start
 		sys.stderr.write(
 			"COPY FROM STDIN Summary,\n " \
