@@ -6,6 +6,6 @@ from . import lib
 
 oid_to_io = {
 	MACADDROID : (None, None),
-	CIDROID : (None, None)
-	INETOID : (None, None)
+	CIDROID : (None, None),
+	INETOID : (None, None),
 }
