@@ -271,11 +271,12 @@ class Output(object):
 		proc = process_chunk,
 		from_seq = Row.from_sequence,
 	):
-		attmap = self._output_attmap
-		return [
-			from_seq(attmap, y)
-			for y in proc(self._output_io, x, self._raise_column_tuple_error)
-		]
+		return proc(self._output_io, x, self._raise_column_tuple_error)
+		#attmap = self._output_attmap
+		#return [
+		#	from_seq(attmap, y)
+		#	for y in proc(self._output_io, x, self._raise_column_tuple_error)
+		#]
 
 	# Process the elemnt.Tuple messages in `x` for chunks()
 	def _process_tuple_chunk(self, x, proc = process_chunk):
