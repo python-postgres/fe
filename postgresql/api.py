@@ -498,11 +498,13 @@ class PreparedStatement(
 
 		Supporting cursors will be WITH HOLD when outside of a transaction.
 
-		`chunks` is designed for the situations involving large data sets.
+		`chunks` is designed for moving large data sets efficiently.
 
 		Each iteration returns sequences of rows *normally* of length(seq) ==
 		chunksize. If chunksize is unspecified, a default, positive integer will
-		be filled in.
+		be filled in. The rows contained in the sequences are only required to
+		support the basic `collections.Sequence` interfaces; simple and quick
+		sequence types should be used.
 		"""
 
 	@abstractmethod
