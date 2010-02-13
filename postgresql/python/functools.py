@@ -33,7 +33,7 @@ try:
 	# C implementation of the tuple processors.
 	from ..port.optimized import process_tuple, process_chunk
 except ImportError:
-	def process_tuple(procs, tup, exception_handler, len = len):
+	def process_tuple(procs, tup, exception_handler, len = len, tuple = tuple):
 		"""
 		Call each item in `procs` with the corresponding
 		item in `tup` returning the result as `type`.
@@ -60,7 +60,7 @@ except ImportError:
 			# relying on __context__
 			exception_handler(procs, tup, i)
 			raise RuntimeError("process_tuple exception handler failed to raise")
-		return r
+		return tuple(r)
 
 	def process_chunk(procs, tupc, fail, process_tuple = process_tuple):
 		return [process_tuple(procs, x, fail) for x in tupc]

@@ -132,7 +132,7 @@ class Output(object):
 		"""
 		# The local initialization for the specific cursor.
 
-	def __init__(self, cursor_id):
+	def __init__(self, cursor_id, wref = weakref.ref, ID = ID):
 		self.cursor_id = cursor_id
 		if self.statement is not None:
 			self._output = self.statement._output
@@ -140,15 +140,14 @@ class Output(object):
 			self._output_formats = self.statement._output_formats or ()
 			self._output_attmap = self.statement._output_attmap
 
-		if self.cursor_id == ID(self):
-			addgarbage = self.database.pq.garbage_cursors.append
-			typio = self.database.typio
+		self._pq_cursor_id = self.database.typio.encode(cursor_id)
+		# If the cursor's id was generated, it should be garbage collected.
+		if cursor_id == ID(self):
+			garbage = self.database.pq.garbage_cursors.append
+			cid = self._pq_cursor_id
 			# Callback for closing the cursor on remote end.
-			self._del = weakref.ref(
-				self, lambda x: addgarbage(typio.encode(cursor_id))
-			)
-		self._quoted_cursor_id = '"' + self.cursor_id.replace('"', '""') + '"'
-		self._pq_cursor_id = self.database.typio.encode(self.cursor_id)
+			self._del = wref(self, lambda x: garbage(cid))
+		self._quoted_cursor_id = '"' + cursor_id.replace('"', '""') + '"'
 		self._init()
 
 	def __iter__(self):
@@ -156,9 +155,7 @@ class Output(object):
 
 	def close(self):
 		if self.closed is False:
-			self.database.pq.garbage_cursors.append(
-				self.database.typio.encode(self.cursor_id)
-			)
+			self.database.pq.garbage_cursors.append(self._pq_cursor_id)
 		self.closed = True
 		# Don't need the weakref anymore.
 		if hasattr(self, '_del'):
@@ -271,12 +268,11 @@ class Output(object):
 		proc = process_chunk,
 		from_seq = Row.from_sequence,
 	):
-		return proc(self._output_io, x, self._raise_column_tuple_error)
-		#attmap = self._output_attmap
-		#return [
-		#	from_seq(attmap, y)
-		#	for y in proc(self._output_io, x, self._raise_column_tuple_error)
-		#]
+		attmap = self._output_attmap
+		return [
+			from_seq(attmap, y)
+			for y in proc(self._output_io, x, self._raise_column_tuple_error)
+		]
 
 	# Process the elemnt.Tuple messages in `x` for chunks()
 	def _process_tuple_chunk(self, x, proc = process_chunk):
@@ -355,8 +351,12 @@ class Chunks(Output, pg_api.Chunks):
 	pass
 
 ##
-# FetchAll is a Chunks cursor that gets all the information
-# in the cursor.
+# FetchAll - A Chunks cursor that gets *all* the records in the cursor.
+#
+# It has added complexity over other variants as in order to stream results,
+# chunks have to be removed from the protocol transaction's received messages.
+# If this wasn't done, the entire result set would be fully buffered prior
+# to processing.
 class FetchAll(Chunks):
 	_e_factors = ('statement', 'parameters',)
 	def _e_metas(self):
@@ -379,14 +379,17 @@ class FetchAll(Chunks):
 			self._pq_xp_fetchall() + (element.SynchronizeMessage,)
 		)
 		self.database._pq_push(self._xact, self)
+
+		# Get more messages until the first Tuple is seen.
 		STEP = self.database._pq_step
 		while self._xact.state != xact.Complete:
 			STEP()
 			for x in self._xact.messages_received():
 				if x.__class__ is tuple or expect == x.type:
-					# no need to step once this is seen
+					# No need to step anymore once this is seen.
 					return
 				elif x.type == null:
+					# The protocol transaction is going to be complete..
 					self.database._pq_complete()
 					self._xact = None
 					return
@@ -395,12 +398,15 @@ class FetchAll(Chunks):
 					self.database._pq_complete()
 					# If this was a select/copy cursor,
 					# the data messages would have caused an earlier
-					# return.
+					# return. It's empty.
 					self._xact = None
 					return
 				elif x.type in (bindcomplete, parsecomplete):
+					# Noise.
 					pass
 				else:
+					# This should have been caught by the protocol transaction.
+					# "Can't happen".
 					self.database._pq_complete()
 					if self._xact.fatal is None:
 						self._xact.fatal = False
@@ -412,15 +418,16 @@ class FetchAll(Chunks):
 						self.database._raise_pq_error(self._xact, controller = self)
 					return
 
-	def __next__(self):
+	def __next__(self, data_types = (tuple,bytes)):
 		x = self._xact
 		# self._xact = None; means that the cursor has been exhausted.
 		if x is None:
 			raise StopIteration
 
 		# Finish the protocol transaction.
+		STEP = self.database._pq_step
 		while x.state is not xact.Complete and not x.completed:
-			self.database._pq_step()
+			STEP()
 
 		# fatal is None == no error
 		# fatal is True == dead connection
@@ -432,10 +439,14 @@ class FetchAll(Chunks):
 		if not x.completed:
 			# Transaction has been cleaned out of completed? iterator is done.
 			self._xact = None
+			self.close()
 			raise StopIteration
 
 		# Get the chunk to be processed.
-		chunk = x.completed[0][1]
+		chunk = [
+			y for y in x.completed[0][1]
+			if y.__class__ in data_types
+		]
 		r = self._process_chunk(chunk)
 		# Remove it, it's been processed.
 		del x.completed[0]
@@ -447,21 +458,15 @@ class SingleXactCopy(FetchAll):
 
 class SingleXactFetch(FetchAll):
 	_expect = element.Tuple.type
-	_process_chunk_ = FetchAll._process_tuple_chunk_Row
-
-	def _process_chunk(self, x, tuple_type = tuple):
-		return self._process_chunk_((
-			y for y in x if y.__class__ is tuple
-		))
 
 class MultiXactStream(Chunks):
-	chunksize = 1024 * 3
+	chunksize = 1024 * 4
 	# only tuple streams
-	_process_chunk = Output._process_tuple_chunk_Row
+	_process_chunk = Output._process_tuple_chunk
 
 	def _e_metas(self):
 		yield ('chunksize', self.chunksize)
-		yield ('type', type(self).__name__)
+		yield ('type', self.__class__.__name__)
 
 	def __init__(self, statement, parameters, cursor_id):
 		self.statement = statement
@@ -505,6 +510,7 @@ class MultiXactStream(Chunks):
 		else:
 			# it's done.
 			self._xact = None
+			self.close()
 			if not chunk:
 				# chunk is empty, it's done *right* now.
 				raise StopIteration
@@ -740,38 +746,38 @@ class PreparedStatement(pg_api.PreparedStatement):
 			yield ('sql_column_types', ct)
 
 	def clone(self):
-		ps = type(self)(self.database, None, self.string)
+		ps = self.__class__(self.database, None, self.string)
 		ps._init()
 		ps._fini()
 		return ps
 
-	def __init__(self, database, statement_id, string):
+	def __init__(self,
+		database, statement_id, string,
+		wref = weakref.ref
+	):
 		self.database = database
-		self.statement_id = statement_id or ID(self)
 		self.string = string
+		self.statement_id = statement_id or ID(self)
 		self._xact = None
-		self._pq_statement_id = None
 		self.closed = None
+		self._pq_statement_id = database.typio._encode(self.statement_id)[0]
 
 		if not statement_id:
-			addgarbage = database.pq.garbage_statements.append
-			typio = database.typio
-			sid = self.statement_id
+			garbage = database.pq.garbage_statements.append
+			sid = self._pq_statement_id
 			# Callback for closing the statement on remote end.
-			self._del = weakref.ref(
-				self, lambda x: addgarbage(typio.encode(sid))
-			)
+			self._del = wref(self, lambda x: garbage(sid))
 
 	def __repr__(self):
 		return '<{mod}.{name}[{ci}] {state}>'.format(
-			mod = type(self).__module__,
-			name = type(self).__name__,
+			mod = self.__class__.__module__,
+			name = self.__class__.__name__,
 			ci = self.database.connector._pq_iri,
 			state = self.state,
 		)
 
-	def _pq_parameters(self, parameters):
-		return process_tuple(
+	def _pq_parameters(self, parameters, proc = process_tuple):
+		return proc(
 			self._input_io, parameters,
 			self._raise_parameter_tuple_error
 		)
@@ -915,9 +921,6 @@ class PreparedStatement(pg_api.PreparedStatement):
 		the return as there may be things that can be done while waiting
 		for the return. Use the _fini() to complete.
 		"""
-		self._pq_statement_id = self.database.typio._encode(
-			self.statement_id
-		)[0]
 		if self.string is not None:
 			q = self.database.typio._encode(str(self.string))[0]
 			cmd = [
@@ -993,23 +996,27 @@ class PreparedStatement(pg_api.PreparedStatement):
 				raise TypeError("statement requires %d parameters, given %d" %(
 					len(self._input), len(parameters)
 				))
+		##
 		# get em' all!
 		if self._output is None:
 			# might be a copy.
 			c = SingleXactCopy(self, parameters)
 		else:
 			c = SingleXactFetch(self, parameters)
+			c._process_chunk = c._process_tuple_chunk_Row
 
 		# iff output is None, it's not a tuple returning query.
 		# however, if it's a copy, detect that fact by SingleXactCopy's
 		# immediate return after finding the copy begin message(no complete).
-		if self._output is None and c.command() is not None:
-			return (c.command(), c.count())
-		else:
-			r = []
-			for x in c:
-				r.extend(x)
-			return r
+		if self._output is None:
+			cmd = c.command()
+			if cmd is not None:
+				return (cmd, c.count())
+		# Returns rows, accumulate in a list.
+		r = []
+		for x in c:
+			r.extend(x)
+		return r
 
 	def declare(self, *parameters):
 		if self.closed is None:
@@ -1022,7 +1029,10 @@ class PreparedStatement(pg_api.PreparedStatement):
 		return Cursor(self, parameters, self.database, None)
 
 	def rows(self, *parameters, **kw):
-		return chain.from_iterable(self.chunks(*parameters, **kw))
+		chunks = self.chunks(*parameters, **kw)
+		if chunks._output_io:
+			chunks._process_chunk = chunks._process_tuple_chunk_Row
+		return chain.from_iterable(chunks)
 	__iter__ = rows
 
 	def chunks(self, *parameters):
@@ -1033,10 +1043,12 @@ class PreparedStatement(pg_api.PreparedStatement):
 				raise TypeError("statement requires %d parameters, given %d" %(
 					len(self._input), len(parameters)
 				))
+
 		if self._output is None:
+			# It's *probably* a COPY.
 			return SingleXactCopy(self, parameters)
 		if self.database.pq.state == b'I':
-			# Currently, *not* in a transaction block, so
+			# Currently, *not* in a Transaction block, so
 			# DECLARE the statement WITH HOLD in order to allow
 			# access across transactions.
 			if self.string is not None:
@@ -1047,6 +1059,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				# This happens when statement_from_id is used.
 				return SingleXactFetch(self, parameters)
 		else:
+			# Likely, the best possible case. It gets to use Execute messages.
 			return MultiXactInsideBlock(self, parameters, None)
 
 	def column(self, *parameters, **kw):
@@ -1056,12 +1069,15 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 	def first(self, *parameters):
 		if self.closed is None:
+			# Not fully initialized; assume interrupted.
 			self._fini()
 		if self._input is not None:
+			# Use a regular TypeError.
 			if len(parameters) != len(self._input):
 				raise TypeError("statement requires %d parameters, given %d" %(
 					len(self._input), len(parameters)
 				))
+
 		# Parameters? Build em'.
 		db = self.database
 
@@ -1084,10 +1100,12 @@ class PreparedStatement(pg_api.PreparedStatement):
 				),
 				# Get all
 				element.Execute(b'', 0xFFFFFFFF),
+				element.ClosePortal(b''),
 				element.SynchronizeMessage
 			),
 			asynchook = db._receive_async
 		)
+		# Push and complete protocol transaction.
 		db._pq_push(x, self)
 		db._pq_complete()
 
@@ -1102,6 +1120,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				return None
 
 			if len(self._output_io) > 1:
+				# Multiple columns, return a Row.
 				return Row.from_sequence(
 					self._output_attmap,
 					process_tuple(
@@ -1110,6 +1129,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 					),
 				)
 			else:
+				# Single column output.
 				if xt[0] is None:
 					return None
 				io = self._output_io[0] or self.database.typio.decode
