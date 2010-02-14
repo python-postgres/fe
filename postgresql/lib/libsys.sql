@@ -130,6 +130,13 @@ SELECT
  client_port
 FROM pg_catalog.pg_stat_activity WHERE procpid = pg_catalog.pg_backend_pid();
 
+[startup_data_only_version:transient:first]
+SELECT
+ pg_catalog.version()::text,
+ NULL::text AS backend_start,
+ NULL::text AS client_addr,
+ NULL::text AS client_port;
+
 [sizeof_db:transient:first]
 SELECT pg_catalog.pg_database_size(current_database())::bigint
 

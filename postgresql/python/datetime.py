@@ -1,11 +1,15 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# python.datetime - parts needed to use stdlib.datetime
 ##
-"""
-datetime extras
-"""
 import datetime
+
+##
+# stdlib.datetime representation of PostgreSQL 'infinity' and '-infinity'.
+infinity_datetime = datetime.datetime(datetime.MAXYEAR, 12, 31, 23, 59, 59, 999999)
+negative_infinity_datetime = datetime.datetime(datetime.MINYEAR, 1, 1, 0, 0, 0, 0)
+
+infinity_date = datetime.date(datetime.MAXYEAR, 12, 31)
+negative_infinity_date = datetime.date(datetime.MINYEAR, 1, 1)
 
 class FixedOffset(datetime.tzinfo):
 	def __init__(self, offset_in_seconds, tzname = None):

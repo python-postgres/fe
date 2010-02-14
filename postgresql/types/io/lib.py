@@ -60,6 +60,15 @@ def path_unpack(data, long_unpack = long_unpack, unpack = struct.unpack):
 	return unpack("!4x%dd" %(long_unpack(data[:4]),), data)
 polygon_pack, polygon_unpack = path_pack, path_unpack
 
+##
+# Binary representations of infinity for datetimes.
+time_infinity = b'\x7f\xf0\x00\x00\x00\x00\x00\x00'
+time_negative_infinity = b'\xff\xf0\x00\x00\x00\x00\x00\x00'
+time64_infinity = b'\x7f\xff\xff\xff\xff\xff\xff\xff'
+time64_negative_infinity = b'\x80\x00\x00\x00\x00\x00\x00\x00'
+date_infinity = b'\x7f\xff\xff\xff'
+date_negative_infinity = b'\x80\x00\x00\x00'
+
 # time types
 date_pack, date_unpack = long_pack, long_unpack
 

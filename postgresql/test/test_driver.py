@@ -14,7 +14,9 @@ import uuid
 from itertools import chain, islice
 from operator import itemgetter
 
-from ..python.datetime import FixedOffset
+from ..python.datetime import FixedOffset, \
+	negative_infinity_datetime, infinity_datetime, \
+	negative_infinity_date, infinity_date
 from .. import types as pg_types
 from ..types.io.stdlib_xml_etree import etree
 from .. import exceptions as pg_exc
@@ -172,6 +174,8 @@ type_samples = [
 			datetime.datetime(2000,1,1,5,25,10),
 			datetime.datetime(500,1,1,5,25,10),
 			datetime.datetime(250,1,1,5,25,10),
+			infinity_datetime,
+			negative_infinity_datetime,
 		],
 	),
 	('date', [
@@ -195,6 +199,8 @@ type_samples = [
 			datetime.datetime(1950,1,1,10,10,0, tzinfo=FixedOffset(7000)),
 			datetime.datetime(1800,1,1,10,10,0, tzinfo=FixedOffset(2000)),
 			datetime.datetime(2400,1,1,10,10,0, tzinfo=FixedOffset(2000)),
+			infinity_datetime,
+			negative_infinity_datetime,
 		],
 	),
 	('timetz', [
@@ -203,11 +209,13 @@ type_samples = [
 			datetime.time(10,10,0, tzinfo=FixedOffset(6000)),
 			datetime.time(10,10,0, tzinfo=FixedOffset(7000)),
 			datetime.time(10,10,0, tzinfo=FixedOffset(2000)),
+			datetime.time(22,30,0, tzinfo=FixedOffset(0)),
 		],
 	),
 	('interval', [
 			# no months :(
 			datetime.timedelta(40, 10, 1234),
+			datetime.timedelta(0, 0, 4321),
 			datetime.timedelta(0, 0),
 			datetime.timedelta(-100, 0),
 			datetime.timedelta(-100, -400),
@@ -271,10 +279,6 @@ type_samples = [
 			Varbit('1010'),
 			Varbit('01010101011111011010110101010101111'),
 			Varbit('010111101111'),
-		],
-	),
-	('uuid', [
-			uuid.uuid1(),
 		],
 	),
 ]
@@ -1023,6 +1027,30 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			),
 			(tostr(foo), tostr(bar))
 		)
+
+	def testUUID(self):
+		# doesn't exist in all versions supported by py-postgresql.
+		has_uuid = self.db.prepare(
+			"select true from pg_type where lower(typname) = 'uuid'").first()
+		if has_uuid:
+			ps = self.db.prepare('select $1::uuid').first
+			x = uuid.uuid1()
+			self.failUnlessEqual(ps(x), x)
+
+	def testInfinity_stdlib_datetime(self):
+		ps = self.db.prepare('SELECT $1::timestamp, $2::timestamptz').first
+		# Can't test the special text case because we don't get the text back.
+		ts, tstz = ps('infinity', 'infinity')
+		self.failUnlessEqual(ts, infinity_datetime)
+		self.failUnlessEqual(tstz, infinity_datetime)
+		ts, tstz = ps('-infinity', '-infinity')
+		self.failUnlessEqual(ts, negative_infinity_datetime)
+		self.failUnlessEqual(tstz, negative_infinity_datetime)
+
+	def testInfinity_stdlib_date(self):
+		ps = self.db.prepare('SELECT $1::date::text').first
+		self.failUnlessEqual(ps('infinity'), 'infinity')
+		self.failUnlessEqual(ps('-infinity'), '-infinity')
 
 	def testTypeIOError(self):
 		original = dict(self.db.typio._cache)

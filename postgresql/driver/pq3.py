@@ -2050,8 +2050,8 @@ class Connection(pg_api.Connection):
 		# manual binding
 		self.sys = pg_lib.Binding(self, pg_lib.sys)
 
-		if self.version_info <= (8,0):
-			meth = self.sys.startup_data_no_start
+		if self.version_info[:2] <= (8,0):
+			meth = self.sys.startup_data_only_version
 		else:
 			meth = self.sys.startup_data
 		# connection info

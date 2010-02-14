@@ -1,28 +1,17 @@
 ##
-# datetime - timewise
+# stdlib_datetime - support for the stdlib's datetime.
 #
 # I/O routines for date, time, timetz, timestamp, timestamptz, and interval.
 # Supported by the datetime module.
 ##
-"""
- time_io
-  Floating-point based time I/O.
-
- time_noday_io
-  Floating-point based time I/O with noday-intervals.
-
- time64_io
-  long-long based time I/O.
-
- time64_noday_io
-  long-long based time I/O with noday-intervals.
-"""
 import datetime
 import warnings
 from functools import partial
 from operator import methodcaller, add
 
-from ...python.datetime import UTC, FixedOffset
+from ...python.datetime import UTC, FixedOffset, \
+	infinity_date, infinity_datetime, \
+	negative_infinity_date, negative_infinity_datetime
 from ...python.functools import Composition as compose
 from ...exceptions import TypeConversionWarning
 
@@ -47,18 +36,51 @@ oid_to_type = {
 pg_epoch_datetime = datetime.datetime(2000, 1, 1)
 pg_epoch_date = pg_epoch_datetime.date()
 pg_date_offset = pg_epoch_date.toordinal()
+pg_minus_date_offset = -pg_date_offset
 
 ## Difference between PostgreSQL epoch and Unix epoch.
 ## Used to convert a PostgreSQL ordinal to an ordinal usable by datetime
 pg_time_days = (pg_date_offset - datetime.date(1970, 1, 1).toordinal())
 
-toordinal = methodcaller("toordinal")
 convert_to_utc = methodcaller('astimezone', UTC)
 remove_tzinfo = methodcaller('replace', tzinfo = None)
 set_as_utc = methodcaller('replace', tzinfo = UTC)
 
+##
+# Constants used to special case infinity and -infinity.
+time64_pack_constants = {
+	infinity_datetime: lib.time64_infinity,
+	negative_infinity_datetime: lib.time64_negative_infinity,
+	'infinity': lib.time64_infinity,
+	'-infinity': lib.time64_negative_infinity,
+}
+time_pack_constants = {
+	infinity_datetime: lib.time_infinity,
+	negative_infinity_datetime: lib.time_negative_infinity,
+	'infinity': lib.time_infinity,
+	'-infinity': lib.time_negative_infinity,
+}
+date_pack_constants = {
+	infinity_date: lib.date_infinity,
+	negative_infinity_date: lib.date_negative_infinity,
+	'infinity': lib.date_infinity,
+	'-infinity': lib.date_negative_infinity,
+}
+time64_unpack_constants = {
+	lib.time64_infinity: infinity_datetime,
+	lib.time64_negative_infinity: negative_infinity_datetime,
+}
+time_unpack_constants = {
+	lib.time_infinity: infinity_datetime,
+	lib.time_negative_infinity: negative_infinity_datetime,
+}
+date_unpack_constants = {
+	lib.date_infinity: infinity_date,
+	lib.date_negative_infinity: negative_infinity_date,
+}
+
 date_pack = compose((
-	toordinal, partial(add, -pg_date_offset), lib.date_pack,
+	methodcaller("toordinal"), partial(add, pg_minus_date_offset), lib.date_pack,
 ))
 date_unpack = compose((
 	lib.date_unpack, partial(add, pg_date_offset), datetime.date.fromordinal
@@ -91,7 +113,7 @@ def time_pack(x):
 		x.microsecond
 	)
 
-def time_unpack(seconds_ms, time = datetime.time):
+def time_unpack(seconds_ms, time = datetime.time, divmod = divmod):
 	"""
 	Create a `datetime.time` instance from a (seconds, microseconds) pair.
 	Seconds being offset from epoch.
@@ -106,9 +128,7 @@ def interval_pack(x):
 	Create a (months, days, (seconds, microseconds)) tuple from a
 	`datetime.timedelta` instance.
 	"""
-	return (
-		0, x.days, (x.seconds, x.microseconds)
-	)
+	return (0, x.days, (x.seconds, x.microseconds))
 
 def interval_unpack(mds, timedelta = datetime.timedelta):
 	"""
@@ -117,6 +137,7 @@ def interval_unpack(mds, timedelta = datetime.timedelta):
 	"""
 	months, days, seconds_ms = mds
 	if months != 0:
+		# XXX: Should this raise an exception?
 		w = pg_exc.TypeConversionWarning(
 			"datetime.timedelta cannot represent relative intervals",
 			details = {
@@ -153,6 +174,13 @@ IntTimes = True
 NoDay = True
 WithDay = False
 
+# Used to handle the special cases: infinity and -infinity.
+def proc_when_not_in(proc, dict):
+	def _proc(x):
+		r = dict.get(x)
+		return r or proc(x)
+	return _proc
+
 id_to_io = {
 	(FloatTimes, TIMEOID) : (
 		compose((time_pack, lib.time_pack)),
@@ -165,13 +193,13 @@ id_to_io = {
 		datetime.time
 	),
 	(FloatTimes, TIMESTAMPOID) : (
-		compose((timestamp_pack, lib.time_pack)),
-		compose((lib.time_unpack, timestamp_unpack)),
+		proc_when_not_in(compose((timestamp_pack, lib.time_pack)), time_pack_constants),
+		proc_when_not_in(compose((lib.time_unpack, timestamp_unpack)), time_unpack_constants),
 		datetime.datetime
 	),
 	(FloatTimes, TIMESTAMPTZOID) : (
-		compose((convert_to_utc, remove_tzinfo, timestamp_pack, lib.time_pack)),
-		compose((lib.time_unpack, timestamp_unpack, set_as_utc)),
+		proc_when_not_in(compose((convert_to_utc, remove_tzinfo, timestamp_pack, lib.time_pack)), time_pack_constants),
+		proc_when_not_in(compose((lib.time_unpack, timestamp_unpack, set_as_utc)), time_unpack_constants),
 		datetime.datetime
 	),
 	(FloatTimes, WithDay, INTERVALOID): (
@@ -196,13 +224,13 @@ id_to_io = {
 		datetime.time
 	),
 	(IntTimes, TIMESTAMPOID) : (
-		compose((timestamp_pack, lib.time64_pack)),
-		compose((lib.time64_unpack, timestamp_unpack)),
+		proc_when_not_in(compose((timestamp_pack, lib.time64_pack)), time64_pack_constants),
+		proc_when_not_in(compose((lib.time64_unpack, timestamp_unpack)), time64_unpack_constants),
 		datetime.datetime
 	),
 	(IntTimes, TIMESTAMPTZOID) : (
-		compose((convert_to_utc, remove_tzinfo, timestamp_pack, lib.time64_pack)),
-		compose((lib.time64_unpack, timestamp_unpack, set_as_utc)),
+		proc_when_not_in(compose((convert_to_utc, remove_tzinfo, timestamp_pack, lib.time64_pack)), time64_pack_constants),
+		proc_when_not_in(compose((lib.time64_unpack, timestamp_unpack, set_as_utc)), time64_unpack_constants),
 		datetime.datetime
 	),
 	(IntTimes, WithDay, INTERVALOID) : (
@@ -233,10 +261,14 @@ def select_format(oid, typio, get = id_to_io.__getitem__):
 	return get((time_type(typio), oid))
 
 def select_day_format(oid, typio, get = id_to_io.__getitem__):
-	return get((time_type(typio), typio.database.version_info <= (8,0), oid))
+	return get((time_type(typio), typio.database.version_info[:2] <= (8,0), oid))
 
 oid_to_io = {
-	DATEOID : (date_pack, date_unpack, datetime.date),
+	DATEOID : (
+		proc_when_not_in(date_pack, date_pack_constants),
+		proc_when_not_in(date_unpack, date_unpack_constants),
+		datetime.date,
+	),
 	TIMEOID : select_format,
 	TIMETZOID : select_format,
 	TIMESTAMPOID : select_format,

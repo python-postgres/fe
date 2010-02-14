@@ -21,3 +21,5 @@ Changes
    protocol.element3.Tuple
  * Alter Statement.chunks() to return chunks of builtins.tuple. Being
    an interface intended for speed, types.Row() impedes its performance.
+ * Fix handling of infinity values with timestamptz, timestamp, and date.
+   Bug reported by Axel Rau.
