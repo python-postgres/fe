@@ -1,9 +1,5 @@
 /*
- * copyright 2009, James William Pye
- * http://python.projects.postgresql.org
- *
- *//*
- * Optimizations for protocol modules.
+ * module.c - optimizations for various parts of py-postgresql
  *
  * This module.c file ties together other classified C source.
  * Each filename describing the part of the protocol package that it
@@ -45,7 +41,6 @@ static short (*local_ntohs)(short) = NULL;
 #include "structlib.c"
 #include "functools.c"
 #include "buffer.c"
-#include "client3.c"
 #include "element3.c"
 
 
@@ -54,7 +49,6 @@ static short (*local_ntohs)(short) = NULL;
 	{#name, (PyCFunction) name, typ, PyDoc_STR(doc)},
 static PyMethodDef optimized_methods[] = {
 	include_element3_functions
-	include_client3_functions
 	include_structlib_functions
 	include_functools_functions
 	{NULL}
