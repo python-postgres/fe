@@ -1038,19 +1038,33 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			self.failUnlessEqual(ps(x), x)
 
 	def testInfinity_stdlib_datetime(self):
-		ps = self.db.prepare('SELECT $1::timestamp, $2::timestamptz').first
+		ps = self.db.prepare('SELECT $1::timestamp, $2::timestamptz, $3::date').first
 		# Can't test the special text case because we don't get the text back.
-		ts, tstz = ps('infinity', 'infinity')
+		ts, tstz, date = ps('infinity', 'infinity', 'infinity')
 		self.failUnlessEqual(ts, infinity_datetime)
 		self.failUnlessEqual(tstz, infinity_datetime)
-		ts, tstz = ps('-infinity', '-infinity')
+		self.failUnlessEqual(date, infinity_date)
+		ts, tstz, date = ps('-infinity', '-infinity', '-infinity')
 		self.failUnlessEqual(ts, negative_infinity_datetime)
 		self.failUnlessEqual(tstz, negative_infinity_datetime)
-
-	def testInfinity_stdlib_date(self):
-		ps = self.db.prepare('SELECT $1::date::text').first
-		self.failUnlessEqual(ps('infinity'), 'infinity')
-		self.failUnlessEqual(ps('-infinity'), '-infinity')
+		self.failUnlessEqual(date, negative_infinity_date)
+		self.failUnlessEqual(
+			ps(infinity_datetime, infinity_datetime, infinity_date),
+			(infinity_datetime, infinity_datetime, infinity_date),
+		)
+		self.failUnlessEqual(
+			ps(negative_infinity_datetime, negative_infinity_datetime, negative_infinity_date),
+			(negative_infinity_datetime, negative_infinity_datetime, negative_infinity_date),
+		)
+		ps = self.db.prepare('SELECT $1::timestamp::text, $2::timestamptz::text, $3::date::text').first
+		self.failUnlessEqual(
+			ps('infinity', 'infinity', 'infinity'),
+			('infinity', 'infinity', 'infinity')
+		)
+		self.failUnlessEqual(
+			ps('-infinity', '-infinity', '-infinity'),
+			('-infinity', '-infinity', '-infinity')
+		)
 
 	def testTypeIOError(self):
 		original = dict(self.db.typio._cache)
