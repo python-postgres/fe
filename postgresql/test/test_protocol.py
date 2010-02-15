@@ -180,7 +180,7 @@ message_samples = [
 ]
 
 class test_element3(unittest.TestCase):
-	def test_catmessages(self):
+	def test_cat_messages(self):
 		# The optimized implementation will identify adjacent copy data, and
 		# take a more efficient route; so rigorously test the switch between the
 		# two modes.
@@ -207,6 +207,9 @@ class test_element3(unittest.TestCase):
 		self.failUnlessEqual(e3.cat_messages([(b'foo',None,b'bar'),]),
 			b'D' + pack_head(7 + 7 + 4 + 4 + 2, 3) + \
 			b'\x00\x00\x00\x03foo\xFF\xFF\xFF\xFF\x00\x00\x00\x03bar')
+		# too many attributes
+		self.failUnlessRaises((OverflowError, struct.error),
+			e3.cat_messages, [(None,) * 0x10000])
 
 		class ThisEx(Exception):
 			pass

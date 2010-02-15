@@ -241,10 +241,40 @@ pack_tuple_data(PyObject *self, PyObject *tup)
 	return(_pack_tuple_data(tup));
 }
 
+/*
+ * Check for overflow before incrementing the buffer size for cat_messages.
+ */
+#define INCSIZET(XVAR, AMT) do { \
+	size_t _amt_ = AMT; \
+	size_t _newsize_ = XVAR + _amt_; \
+	if (_newsize_ >= XVAR) XVAR = _newsize_; else { \
+		PyErr_Format(PyExc_OverflowError, \
+			"buffer size overflowed, was %zd bytes, but could not add %d more", XVAR, _amt_); \
+		goto fail; } \
+} while(0)
+
+#define INCMSGSIZE(XVAR, AMT) do { \
+	uint32_t _amt_ = AMT; \
+	uint32_t _newsize_ = XVAR + _amt_; \
+	if (_newsize_ >= XVAR) XVAR = _newsize_; else { \
+		PyErr_Format(PyExc_OverflowError, \
+			"message size too large, was %u bytes, but could not add %u more", XVAR, _amt_); \
+		goto fail; } \
+} while(0)
+
+/*
+ * cat_messages - cat the serialized form of the messages in the given list
+ *
+ * This offers a fast way to construct the final bytes() object to be sent to
+ * the wire. It avoids re-creating bytes() objects by calculating the serialized
+ * size of contiguous, homogenous messages, allocating or extending the buffer
+ * to accommodate for the needed size, and finally, copying the data into the
+ * newly available space.
+ */
 static PyObject *
 cat_messages(PyObject *self, PyObject *messages_in)
 {
-	const static uint32_t null_attribute = 0xFFFFFFFFL;
+	const static char null_attribute[4] = {0xff,0xff,0xff,0xff};
 	PyObject *msgs = NULL;
 	Py_ssize_t nmsgs = 0;
 	Py_ssize_t cmsg = 0;
@@ -254,8 +284,8 @@ cat_messages(PyObject *self, PyObject *messages_in)
 	 */
 	char *buf = NULL;
 	char *nbuf = NULL;
-	Py_ssize_t bufsize = 0;
-	Py_ssize_t bufpos = 0;
+	size_t bufsize = 0;
+	size_t bufpos = 0;
 
 	/*
 	 * Get a List object for faster rescanning when dealing with copy data.
@@ -263,6 +293,7 @@ cat_messages(PyObject *self, PyObject *messages_in)
 	msgs = PyObject_CallFunctionObjArgs((PyObject *) &PyList_Type, messages_in, NULL);
 	if (msgs == NULL)
 		return(NULL);
+
 	nmsgs = PyList_GET_SIZE(msgs);
 
 	while (cmsg < nmsgs)
@@ -276,13 +307,13 @@ cat_messages(PyObject *self, PyObject *messages_in)
 		if (PyBytes_CheckExact(ob))
 		{
 			Py_ssize_t eofc = cmsg;
-			Py_ssize_t xsize = 0;
+			size_t xsize = 0;
 			/* find the last of the copy data (eofc) */
 			do
 			{
 				++eofc;
 				/* increase in size to allocate for the adjacent copy messages */
-				xsize += PyBytes_GET_SIZE(ob);
+				INCSIZET(xsize, PyBytes_GET_SIZE(ob));
 				if (eofc >= nmsgs)
 					break; /* end of messages in the list? */
 
@@ -296,8 +327,8 @@ cat_messages(PyObject *self, PyObject *messages_in)
 			 */
 
 			/* realloc the buf for the new copy data */
-			xsize = xsize + (5 * (eofc - cmsg));
-			bufsize = bufsize + xsize;
+			INCSIZET(xsize, (5 * (eofc - cmsg)));
+			INCSIZET(bufsize, xsize);
 			nbuf = realloc(buf, bufsize);
 			if (nbuf == NULL)
 			{
@@ -320,17 +351,17 @@ cat_messages(PyObject *self, PyObject *messages_in)
 			 */
 			while (cmsg < eofc)
 			{
-				uint32_t msg_length;
+				uint32_t msg_length = 0;
 				char *localbuf = buf + bufpos + 1;
 				buf[bufpos] = 'd'; /* COPY data message type */
 
 				ob = PyList_GET_ITEM(msgs, cmsg);
-				msg_length = PyBytes_GET_SIZE(ob) + 4;
+				INCMSGSIZE(msg_length, (uint32_t) PyBytes_GET_SIZE(ob) + 4);
 
-				bufpos = bufpos + 1 + msg_length;
+				INCSIZET(bufpos, 1 + msg_length);
 				msg_length = local_ntohl(msg_length);
-				memcpy(localbuf, &msg_length, 4);
-				memcpy(localbuf + 4, PyBytes_AS_STRING(ob), PyBytes_GET_SIZE(ob));
+				Py_MEMCPY(localbuf, &msg_length, 4);
+				Py_MEMCPY(localbuf + 4, PyBytes_AS_STRING(ob), PyBytes_GET_SIZE(ob));
 				++cmsg;
 			}
 		}
@@ -340,7 +371,7 @@ cat_messages(PyObject *self, PyObject *messages_in)
 			 * Handle 'D' tuple data from a raw Python tuple.
 			 */
 			Py_ssize_t eofc = cmsg;
-			Py_ssize_t xsize = 0;
+			size_t xsize = 0;
 
 			/* find the last of the tuple data (eofc) */
 			do
@@ -359,17 +390,17 @@ cat_messages(PyObject *self, PyObject *messages_in)
 				 * The items take *at least* 4 bytes each.
 				 * (The attribute count is considered later)
 				 */
-				xsize = xsize + (nitems * 4);
+				INCSIZET(xsize, (nitems * 4));
 
 				for (current_item = 0; current_item < nitems; ++current_item)
 				{
 					PyObject *att = PyTuple_GET_ITEM(ob, current_item);
 
 					/*
-					 * Attributes are expected to be bytes() or None.
+					 * Attributes *must* be bytes() or None.
 					 */
 					if (PyBytes_CheckExact(att))
-						xsize = xsize + PyBytes_GET_SIZE(att);
+						INCSIZET(xsize, PyBytes_GET_SIZE(att));
 					else if (att != Py_None)
 					{
 						PyErr_Format(PyExc_TypeError,
@@ -378,7 +409,7 @@ cat_messages(PyObject *self, PyObject *messages_in)
 						goto fail;
 					}
 					/*
-					 * else it's Py_None and the size has been specified.
+					 * else it's Py_None and the size will be included later.
 					 */
 				}
 
@@ -403,15 +434,15 @@ cat_messages(PyObject *self, PyObject *messages_in)
 			 *  4 for the message size
 			 *  2 for the attribute count
 			 */
-			xsize = xsize + (7 * (eofc - cmsg));
-			bufsize = bufsize + xsize;
+			INCSIZET(xsize, (7 * (eofc - cmsg)));
+			INCSIZET(bufsize, xsize);
 			nbuf = realloc(buf, bufsize);
 			if (nbuf == NULL)
 			{
 				PyErr_Format(
 					PyExc_MemoryError,
-					"failed to allocate %lu bytes of memory for out-going messages",
-					(unsigned long) bufsize
+					"failed to allocate %zd bytes of memory for out-going messages",
+					bufsize
 				);
 				goto fail;
 			}
@@ -433,7 +464,7 @@ cat_messages(PyObject *self, PyObject *messages_in)
 				Py_ssize_t current_item, nitems;
 				uint32_t msg_length, out_msg_len;
 				uint16_t natts;
-				char *localbuf = buf + bufpos + 5; /* skipping the header for now */
+				char *localbuf = (buf + bufpos) + 5; /* skipping the header for now */
 				buf[bufpos] = 'D'; /* Tuple data message type */
 
 				ob = PyList_GET_ITEM(msgs, cmsg);
@@ -474,7 +505,7 @@ cat_messages(PyObject *self, PyObject *messages_in)
 						Py_MEMCPY(localbuf, PyBytes_AS_STRING(att), attsize);
 						localbuf = localbuf + attsize;
 
-						msg_length = msg_length + attsize;
+						INCSIZET(msg_length, attsize);
 					}
 				}
 
@@ -488,7 +519,7 @@ cat_messages(PyObject *self, PyObject *messages_in)
 				 * Filled in the data while summing the message size, so
 				 * adjust the buffer position for the next message.
 				 */
-				bufpos = bufpos + 1 + msg_length;
+				INCSIZET(bufpos, 1 + msg_length);
 				++cmsg;
 			}
 		}
@@ -542,7 +573,8 @@ cat_messages(PyObject *self, PyObject *messages_in)
 			msg_type_size = PyBytes_GET_SIZE(msg_type);
 
 			/* realloc the buf for the new copy data */
-			bufsize = bufsize + 4 + msg_type_size + PyBytes_GET_SIZE(serialized);
+			INCSIZET(bufsize, 4 + msg_type_size);
+			INCSIZET(bufsize, PyBytes_GET_SIZE(serialized));
 			nbuf = realloc(buf, bufsize);
 			if (nbuf == NULL)
 			{
@@ -565,10 +597,11 @@ cat_messages(PyObject *self, PyObject *messages_in)
 			 * All necessary information acquired, so fill in the message's data.
 			 */
 			buf[bufpos] = *(PyBytes_AS_STRING(msg_type));
-			msg_length = PyBytes_GET_SIZE(serialized) + 4;
+			msg_length = PyBytes_GET_SIZE(serialized);
+			INCMSGSIZE(msg_length, 4);
 			msg_length = local_ntohl(msg_length);
-			memcpy(buf + bufpos + msg_type_size, &msg_length, 4);
-			memcpy(
+			Py_MEMCPY(buf + bufpos + msg_type_size, &msg_length, 4);
+			Py_MEMCPY(
 				buf + bufpos + 4 + msg_type_size,
 				PyBytes_AS_STRING(serialized),
 				PyBytes_GET_SIZE(serialized)
