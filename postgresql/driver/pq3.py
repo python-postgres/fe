@@ -2050,13 +2050,14 @@ class Connection(pg_api.Connection):
 		# manual binding
 		self.sys = pg_lib.Binding(self, pg_lib.sys)
 
-		if self.version_info[:2] <= (8,0):
-			meth = self.sys.startup_data_only_version
+		vi = self.version_info[:2]
+		if vi <= (8,1):
+			sd = self.sys.startup_data_only_version()
 		else:
-			meth = self.sys.startup_data
+			sd = self.sys.startup_data()
 		# connection info
 		self.version, self.backend_start, \
-		self.client_address, self.client_port = meth()
+		self.client_address, self.client_port = sd
 
 		# First word from the version string.
 		self.type = self.version.split()[0]
@@ -2064,7 +2065,7 @@ class Connection(pg_api.Connection):
 		##
 		# Set standard_conforming_strings
 		scstr = self.settings.get('standard_conforming_strings')
-		if scstr is None or (self.version_info[0] == 8 and self.version_info[1] == 1):
+		if scstr is None or vi == (8,1):
 			# There used to be a warning emitted here.
 			# It was noisy, and had little added value
 			# over a nice WARNING at the top of the driver documentation.

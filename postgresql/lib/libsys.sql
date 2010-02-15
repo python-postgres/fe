@@ -115,27 +115,37 @@ FROM
 	pg_catalog.generate_series(1, array_upper(($1::text[][]), 1)) g(i)
 
 [startup_data:transient:first]
+-- 8.2 and greater
 SELECT
- pg_catalog.version()::text,
+ pg_catalog.version()::text AS version,
  backend_start::text,
  client_addr::text,
- client_port
-FROM pg_catalog.pg_stat_activity WHERE procpid = pg_catalog.pg_backend_pid();
+ client_port::int
+FROM pg_catalog.pg_stat_activity WHERE procpid = pg_catalog.pg_backend_pid()
+UNION ALL SELECT
+ pg_catalog.version()::text AS version,
+ NULL::text AS backend_start,
+ NULL::text AS client_addr,
+ NULL::int AS client_port
+LIMIT 1;
 
 [startup_data_no_start:transient:first]
+-- 8.1 only, but is unused as often the backend's activity row is not
+-- immediately present.
 SELECT
- pg_catalog.version()::text,
+ pg_catalog.version()::text AS version,
  NULL::text AS backend_start,
  client_addr::text,
- client_port
+ client_port::int
 FROM pg_catalog.pg_stat_activity WHERE procpid = pg_catalog.pg_backend_pid();
 
 [startup_data_only_version:transient:first]
+-- In 8.0, there's nothing there.
 SELECT
- pg_catalog.version()::text,
+ pg_catalog.version()::text AS version,
  NULL::text AS backend_start,
  NULL::text AS client_addr,
- NULL::text AS client_port;
+ NULL::int AS client_port;
 
 [sizeof_db:transient:first]
 SELECT pg_catalog.pg_database_size(current_database())::bigint
