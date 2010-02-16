@@ -84,6 +84,7 @@ def date_pack(x,
 	get = date_pack_constants.get,
 ):
 	return get(x) or pack(x.toordinal() - offset)
+
 def date_unpack(x,
 	unpack = lib.date_unpack,
 	offset = pg_date_offset,
@@ -104,12 +105,12 @@ def timestamp_pack(x,
 
 def timestamp_unpack(seconds,
 	timedelta = datetime.timedelta,
-	pg_epoch_datetime = pg_epoch_datetime,
+	relative_to = pg_epoch_datetime.__add__,
 ):
 	"""
 	Create a `datetime.datetime` instance from a (seconds, microseconds) pair.
 	"""
-	return pg_epoch_datetime + timedelta(0, *seconds)
+	return relative_to(timedelta(0, *seconds))
 
 def timestamptz_pack(x,
 	seconds_in_day = seconds_in_day,
@@ -124,12 +125,12 @@ def timestamptz_pack(x,
 
 def timestamptz_unpack(seconds,
 	timedelta = datetime.timedelta,
-	pg_epoch_datetime_utc = pg_epoch_datetime_utc,
+	relative_to = pg_epoch_datetime_utc.__add__,
 ):
 	"""
 	Create a `datetime.datetime` instance from a (seconds, microseconds) pair.
 	"""
-	return pg_epoch_datetime_utc + timedelta(0, *seconds)
+	return relative_to(timedelta(0, *seconds))
 
 def time_pack(x):
 	"""
