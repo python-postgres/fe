@@ -33,6 +33,9 @@ oid_to_type = {
 	INTERVALOID: datetime.timedelta,
 }
 
+seconds_in_day = 24 * 60 * 60
+seconds_in_hour = 60 * 60
+
 pg_epoch_datetime = datetime.datetime(2000, 1, 1)
 pg_epoch_date = pg_epoch_datetime.date()
 pg_date_offset = pg_epoch_date.toordinal()
@@ -79,15 +82,19 @@ date_unpack_constants = {
 	lib.date_negative_infinity: negative_infinity_date,
 }
 
-date_pack = compose((
-	methodcaller("toordinal"), partial(add, pg_minus_date_offset), lib.date_pack,
-))
-date_unpack = compose((
-	lib.date_unpack, partial(add, pg_date_offset), datetime.date.fromordinal
-))
-
-seconds_in_day = 24 * 60 * 60
-seconds_in_hour = 60 * 60
+def date_pack(x,
+	pack = lib.date_pack,
+	offset = pg_date_offset,
+	get = date_pack_constants.get,
+):
+	return get(x) or pack(x.toordinal() - offset)
+def date_unpack(x,
+	unpack = lib.date_unpack,
+	offset = pg_date_offset,
+	from_ord = datetime.date.fromordinal,
+	get = date_unpack_constants.get,
+):
+	return get(x) or from_ord(unpack(x) + pg_date_offset)
 
 def timestamp_pack(x):
 	"""
@@ -264,11 +271,7 @@ def select_day_format(oid, typio, get = id_to_io.__getitem__):
 	return get((time_type(typio), typio.database.version_info[:2] <= (8,0), oid))
 
 oid_to_io = {
-	DATEOID : (
-		proc_when_not_in(date_pack, date_pack_constants),
-		proc_when_not_in(date_unpack, date_unpack_constants),
-		datetime.date,
-	),
+	DATEOID : (date_pack, date_unpack, datetime.date,),
 	TIMEOID : select_format,
 	TIMETZOID : select_format,
 	TIMESTAMPOID : select_format,
