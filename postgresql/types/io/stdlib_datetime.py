@@ -37,9 +37,9 @@ seconds_in_day = 24 * 60 * 60
 seconds_in_hour = 60 * 60
 
 pg_epoch_datetime = datetime.datetime(2000, 1, 1)
+pg_epoch_datetime_utc = pg_epoch_datetime.replace(tzinfo = UTC)
 pg_epoch_date = pg_epoch_datetime.date()
 pg_date_offset = pg_epoch_date.toordinal()
-pg_minus_date_offset = -pg_date_offset
 
 ## Difference between PostgreSQL epoch and Unix epoch.
 ## Used to convert a PostgreSQL ordinal to an ordinal usable by datetime
@@ -96,20 +96,43 @@ def date_unpack(x,
 ):
 	return get(x) or from_ord(unpack(x) + pg_date_offset)
 
-def timestamp_pack(x):
+def timestamp_pack(x,
+	seconds_in_day = seconds_in_day,
+	pg_epoch_datetime = pg_epoch_datetime,
+):
 	"""
 	Create a (seconds, microseconds) pair from a `datetime.datetime` instance.
 	"""
-	d = (x - pg_epoch_datetime)
-	return ((d.days * seconds_in_day) + d.seconds, d.microseconds)
+	x = (x - pg_epoch_datetime)
+	return ((x.days * seconds_in_day) + x.seconds, x.microseconds)
 
-def timestamp_unpack(seconds, timedelta = datetime.timedelta):
+def timestamp_unpack(seconds,
+	timedelta = datetime.timedelta,
+	pg_epoch_datetime = pg_epoch_datetime,
+):
 	"""
 	Create a `datetime.datetime` instance from a (seconds, microseconds) pair.
 	"""
-	return pg_epoch_datetime + timedelta(
-		seconds = seconds[0], microseconds = seconds[1]
-	)
+	return pg_epoch_datetime + timedelta(0, *seconds)
+
+def timestamptz_pack(x,
+	seconds_in_day = seconds_in_day,
+	pg_epoch_datetime_utc = pg_epoch_datetime_utc,
+):
+	"""
+	Create a (seconds, microseconds) pair from a `datetime.datetime` instance.
+	"""
+	x = (x - pg_epoch_datetime_utc)
+	return ((x.days * seconds_in_day) + x.seconds, x.microseconds)
+
+def timestamptz_unpack(seconds,
+	timedelta = datetime.timedelta,
+	pg_epoch_datetime_utc = pg_epoch_datetime_utc,
+):
+	"""
+	Create a `datetime.datetime` instance from a (seconds, microseconds) pair.
+	"""
+	return pg_epoch_datetime_utc + timedelta(0, *seconds)
 
 def time_pack(x):
 	"""
@@ -153,13 +176,14 @@ def interval_unpack(mds, timedelta = datetime.timedelta):
 			source = 'DRIVER'
 		)
 		warnings.warn(w)
-	sec, ms = seconds_ms
 	return timedelta(
 		days = days + (months * 30),
-		seconds = sec, microseconds = ms
+		seconds = seconds_ms[0], microseconds = seconds_ms[1]
 	)
 
-def timetz_pack(x):
+def timetz_pack(x,
+	time_pack = time_pack,
+):
 	"""
 	Create a ((seconds, microseconds), timezone) tuple from a `datetime.time`
 	instance.
@@ -168,7 +192,10 @@ def timetz_pack(x):
 	seconds = (td.days * seconds_in_day + td.seconds)
 	return (time_pack(x), seconds)
 
-def timetz_unpack(tstz):
+def timetz_unpack(tstz,
+	time_unpack = time_unpack,
+	FixedOffset = FixedOffset,
+):
 	"""
 	Create a `datetime.time` instance from a ((seconds, microseconds), timezone)
 	tuple.
@@ -183,9 +210,8 @@ WithDay = False
 
 # Used to handle the special cases: infinity and -infinity.
 def proc_when_not_in(proc, dict):
-	def _proc(x):
-		r = dict.get(x)
-		return r or proc(x)
+	def _proc(x, get=dict.get):
+		return get(x) or proc(x)
 	return _proc
 
 id_to_io = {
@@ -205,8 +231,8 @@ id_to_io = {
 		datetime.datetime
 	),
 	(FloatTimes, TIMESTAMPTZOID) : (
-		proc_when_not_in(compose((convert_to_utc, remove_tzinfo, timestamp_pack, lib.time_pack)), time_pack_constants),
-		proc_when_not_in(compose((lib.time_unpack, timestamp_unpack, set_as_utc)), time_unpack_constants),
+		proc_when_not_in(compose((convert_to_utc, timestamptz_pack, lib.time_pack)), time_pack_constants),
+		proc_when_not_in(compose((lib.time_unpack, timestamptz_unpack)), time_unpack_constants),
 		datetime.datetime
 	),
 	(FloatTimes, WithDay, INTERVALOID): (
@@ -236,8 +262,8 @@ id_to_io = {
 		datetime.datetime
 	),
 	(IntTimes, TIMESTAMPTZOID) : (
-		proc_when_not_in(compose((convert_to_utc, remove_tzinfo, timestamp_pack, lib.time64_pack)), time64_pack_constants),
-		proc_when_not_in(compose((lib.time64_unpack, timestamp_unpack, set_as_utc)), time64_unpack_constants),
+		proc_when_not_in(compose((convert_to_utc, timestamptz_pack, lib.time64_pack)), time64_pack_constants),
+		proc_when_not_in(compose((lib.time64_unpack, timestamptz_unpack)), time64_unpack_constants),
 		datetime.datetime
 	),
 	(IntTimes, WithDay, INTERVALOID) : (
