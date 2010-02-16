@@ -45,10 +45,6 @@ pg_date_offset = pg_epoch_date.toordinal()
 ## Used to convert a PostgreSQL ordinal to an ordinal usable by datetime
 pg_time_days = (pg_date_offset - datetime.date(1970, 1, 1).toordinal())
 
-convert_to_utc = methodcaller('astimezone', UTC)
-remove_tzinfo = methodcaller('replace', tzinfo = None)
-set_as_utc = methodcaller('replace', tzinfo = UTC)
-
 ##
 # Constants used to special case infinity and -infinity.
 time64_pack_constants = {
@@ -118,11 +114,12 @@ def timestamp_unpack(seconds,
 def timestamptz_pack(x,
 	seconds_in_day = seconds_in_day,
 	pg_epoch_datetime_utc = pg_epoch_datetime_utc,
+	UTC = UTC,
 ):
 	"""
 	Create a (seconds, microseconds) pair from a `datetime.datetime` instance.
 	"""
-	x = (x - pg_epoch_datetime_utc)
+	x = (x.astimezone(UTC) - pg_epoch_datetime_utc)
 	return ((x.days * seconds_in_day) + x.seconds, x.microseconds)
 
 def timestamptz_unpack(seconds,
@@ -231,7 +228,7 @@ id_to_io = {
 		datetime.datetime
 	),
 	(FloatTimes, TIMESTAMPTZOID) : (
-		proc_when_not_in(compose((convert_to_utc, timestamptz_pack, lib.time_pack)), time_pack_constants),
+		proc_when_not_in(compose((timestamptz_pack, lib.time_pack)), time_pack_constants),
 		proc_when_not_in(compose((lib.time_unpack, timestamptz_unpack)), time_unpack_constants),
 		datetime.datetime
 	),
@@ -262,7 +259,7 @@ id_to_io = {
 		datetime.datetime
 	),
 	(IntTimes, TIMESTAMPTZOID) : (
-		proc_when_not_in(compose((convert_to_utc, timestamptz_pack, lib.time64_pack)), time64_pack_constants),
+		proc_when_not_in(compose((timestamptz_pack, lib.time64_pack)), time64_pack_constants),
 		proc_when_not_in(compose((lib.time64_unpack, timestamptz_unpack)), time64_unpack_constants),
 		datetime.datetime
 	),
