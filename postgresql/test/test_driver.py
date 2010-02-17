@@ -1460,5 +1460,25 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.db.do('plpgsql', "BEGIN INSERT INTO do_tmp_table VALUES (100, 'foo'); END")
 		self.failUnlessEqual(len(self.db.prepare("SELECT * FROM do_tmp_table")()), 1)
 
+	def testNotify(self):
+		self.db.listen('foo', 'bar')
+		self.db.listen('foo', 'bar')
+		self.db.notify('foo')
+		self.db.execute('')
+		self.failUnlessEqual(self.db._notifies[0].channel, b'foo')
+		self.failUnlessEqual(self.db._notifies[0].pid, self.db.backend_id)
+		self.failUnlessEqual(self.db._notifies[0].payload, b'')
+		del self.db._notifies[0]
+		self.db.notify('bar')
+		self.db.execute('')
+		self.failUnlessEqual(self.db._notifies[0].channel, b'bar')
+		self.failUnlessEqual(self.db._notifies[0].pid, self.db.backend_id)
+		self.failUnlessEqual(self.db._notifies[0].payload, b'')
+		del self.db._notifies[0]
+		self.db.unlisten('foo')
+		self.db.notify('foo')
+		self.db.execute('')
+		self.failUnlessEqual(self.db._notifies, [])
+
 if __name__ == '__main__':
 	unittest.main()

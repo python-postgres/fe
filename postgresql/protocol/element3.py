@@ -196,23 +196,23 @@ class EmptyMessage(Message):
 class Notify(Message):
 	'Asynchronous notification message'
 	type = message_types[b'A'[0]]
-	__slots__ = ('pid', 'relation', 'parameter')
+	__slots__ = ('pid', 'channel', 'payload',)
 
-	def __init__(self, pid, relation, parameter = b''):
+	def __init__(self, pid, channel, payload = b''):
 		self.pid = pid
-		self.relation = relation
-		self.parameter = parameter
+		self.channel = channel
+		self.payload = payload
 
 	def serialize(self):
 		return ulong_pack(self.pid) + \
-			self.relation + b'\x00' + \
-			self.parameter + b'\x00'
+			self.channel + b'\x00' + \
+			self.payload + b'\x00'
 
 	@classmethod
 	def parse(typ, data):
-		pid = ulong_unpack(data[0:4])
-		relname, param, nothing = data[4:].split(b'\x00', 2)
-		return typ(pid, relname, param)
+		pid = ulong_unpack(data)
+		channel, payload, _ = data[4:].split(b'\x00', 2)
+		return typ(pid, channel, payload)
 
 class ShowOption(Message):
 	"""ShowOption(name, value)
