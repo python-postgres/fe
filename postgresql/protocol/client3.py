@@ -226,7 +226,7 @@ class Connection(object):
 		# probably not postgresql.
 		return None
 
-	def read_into(self):
+	def read_into(self, Complete = xact.Complete):
 		"""
 		read data from the wire and write it into the message buffer.
 		"""
@@ -234,6 +234,7 @@ class Connection(object):
 		BUFFER_WRITE_MSG = self.message_buffer.write
 		RECV_DATA = self.socket.recv
 		RECV_BYTES = self.recvsize
+		XACT = self.xact
 		while not BUFFER_HAS_MSG():
 			if self.read_data is not None:
 				BUFFER_WRITE_MSG(self.read_data)
@@ -247,10 +248,10 @@ class Connection(object):
 				msg = self.socket_factory.fatal_exception_message(e)
 				if msg is not None:
 					self.socket.close()
-					self.xact.state = xact.Complete
-					self.xact.fatal = True
-					self.xact.exception = e
-					self.xact.error_message = element.ClientError((
+					XACT.state = Complete
+					XACT.fatal = True
+					XACT.exception = e
+					XACT.error_message = element.ClientError((
 						(b'S', 'FATAL'),
 						(b'C', '08006'),
 						(b'M', msg),
@@ -265,9 +266,9 @@ class Connection(object):
 			# nothing read from a blocking socket? it's over.
 			if self.read_data == b'':
 				self.socket.close()
-				self.xact.state = xact.Complete
-				self.xact.fatal = True
-				self.xact.error_message = eof_error
+				XACT.state = Complete
+				XACT.fatal = True
+				XACT.error_message = eof_error
 				return False
 
 			# Got data. Put it in the buffer and clear read_data.
