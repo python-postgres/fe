@@ -1481,9 +1481,7 @@ class Settings(pg_api.Settings):
 
 	def update(self, d):
 		kvl = [list(x) for x in dict(d).items()]
-		self.cache.update(
-			self.database.sys.setting_update(kvl)
-		)
+		self.cache.update(self.database.sys.setting_update(kvl))
 
 	def _notify(self, msg):
 		subs = getattr(self, '_subscriptions', {})
@@ -2222,11 +2220,7 @@ class Connection(pg_api.Connection):
 			m.creator = c
 			m.raise_message()
 		elif msg.type == notify:
-			subs = getattr(self, '_subscriptions', {})
-			for x in subs.get(msg.relation, ()):
-				x(self, msg)
-			if None in subs:
-				subs[None](self, msg)
+			self._notifies.append(msg)
 		else:
 			w = self._warning_lookup("-1000")
 			w(
@@ -2239,11 +2233,35 @@ class Connection(pg_api.Connection):
 		c.connect()
 		return c
 
+	def notify(self, channel, payload = None,
+		notify_with_payload = "NOTIFY \"{0}\", '{1}'".format,
+		notify_without_payload = "NOTIFY \"{0}\"".format,
+	):
+		if payload is not None:
+			return self.execute(notify_with_payload(
+				channel.replace('"', '""'),
+				payload.replace("'", "''"),
+			))
+		else:
+			return self.execute(notify_without_payload(
+				channel.replace('"', '""'),
+			))
+
+	def listen(self, *channels):
+		qstr = ';'.join(('LISTEN ' + x.replace('"', '""') for x in channels))
+		return self.execute(qstr)
+
+	def unlisten(self, *channels):
+		qstr = ';'.join(('UNLISTEN ' + x.replace('"', '""') for x in channels))
+		return self.execute(qstr)
+
 	def __init__(self, connector, *args, **kw):
 		"""
 		Create a connection based on the given connector.
 		"""
 		self.connector = connector
+		# raw notify messages
+		self._notifies = []
 		self.typio = TypeIO(self)
 		self.typio.set_encoding('ascii')
 		self.settings = Settings(self)

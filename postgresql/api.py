@@ -1010,6 +1010,31 @@ class Database(Element):
 		is being recycled.
 		"""
 
+	@abstractmethod
+	def notify(self, channel, payload = None) -> None:
+		"""
+		NOTIFY the channel with the given payload.
+
+		Equivalent to issuing "NOTIFY <channel>" or "NOTIFY <channel>, <payload>"
+		if a payload is given.
+		"""
+
+	@abstractmethod
+	def listen(self, *channels) -> None:
+		"""
+		Start listening to the given channels.
+
+		Equivalent to issuing "LISTEN <x>" for x in channels.
+		"""
+
+	@abstractmethod
+	def unlisten(self, *channels) -> None:
+		"""
+		Stop listening to the given channels.
+
+		Equivalent to issuing "UNLISTEN <x>" for x in channels.
+		"""
+
 class SocketFactory(object):
 	@propertydoc
 	@abstractproperty
