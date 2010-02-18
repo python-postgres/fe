@@ -378,7 +378,7 @@ class FunctionResult(Message):
 	def serialize(self):
 		return self.result is None and b'\xff\xff\xff\xff' or \
 			ulong_pack(len(self.result)) + self.result
-	
+
 	@classmethod
 	def parse(typ, data):
 		if data == b'\xff\xff\xff\xff':
