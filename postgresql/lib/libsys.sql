@@ -1,5 +1,5 @@
 ##
-# libsys.sql
+# libsys.sql - SQL to support driver features
 ##
 -- Queries for dealing with the PostgreSQL catalogs for supporting the driver.
 
@@ -161,3 +161,11 @@ SELECT pg_reload_conf()
 
 [languages:transient:column]
 SELECT lanname FROM pg_catalog.pg_language
+
+[listening_channels:transient:column]
+SELECT channel FROM pg_catalog.pg_listening_channels() AS x(channel)
+
+[listening_relations:transient:column]
+-- listening_relations: old version of listening_channels.
+SELECT relname as channel FROM pg_catalog.pg_listener
+WHERE listenerpid = pg_catalog.pg_backend_pid();

@@ -1479,6 +1479,9 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.db.notify('foo')
 		self.db.execute('')
 		self.failUnlessEqual(self.db._notifies, [])
+		# Invoke an error to show that listen() is all or none.
+		self.failUnlessRaises(Exception, self.db.listen, 'doesntexist', 'x'*64)
+		self.failUnless('doesntexist' not in self.db.listening_channels())
 
 if __name__ == '__main__':
 	unittest.main()

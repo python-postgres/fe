@@ -2247,12 +2247,28 @@ class Connection(pg_api.Connection):
 				channel.replace('"', '""'),
 			))
 
-	def listen(self, *channels):
-		qstr = ';'.join(('LISTEN ' + x.replace('"', '""') for x in channels))
+	def listening_channels(self):
+		if self.version_info[:2] > (8,4):
+			return self.sys.listening_channels()
+		else:
+			return self.sys.listening_relations()
+
+	def listen(self, *channels, len = len):
+		qstr = ''
+		for x in channels:
+			# XXX: hardcoded identifier length?
+			if len(x) > 63:
+				raise ValueError("channel name too long: " + x)
+			qstr += '; LISTEN ' + x.replace('"', '""')
 		return self.execute(qstr)
 
-	def unlisten(self, *channels):
-		qstr = ';'.join(('UNLISTEN ' + x.replace('"', '""') for x in channels))
+	def unlisten(self, *channels, len = len):
+		qstr = ''
+		for x in channels:
+			# XXX: hardcoded identifier length?
+			if len(x) > 63:
+				raise ValueError("channel name too long: " + x)
+			qstr += '; UNLISTEN ' + x.replace('"', '""')
 		return self.execute(qstr)
 
 	def __init__(self, connector, *args, **kw):

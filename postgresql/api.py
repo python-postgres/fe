@@ -1035,6 +1035,12 @@ class Database(Element):
 		Equivalent to issuing "UNLISTEN <x>" for x in channels.
 		"""
 
+	@abstractmethod
+	def listening_channels(self) -> ["channel name", ...]:
+		"""
+		Return an *iterator* to all the channels currently being listened to.
+		"""
+
 class SocketFactory(object):
 	@propertydoc
 	@abstractproperty
