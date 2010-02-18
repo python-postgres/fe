@@ -1994,6 +1994,8 @@ class Connection(pg_api.Connection):
 			# The startup/negotiation xact completed.
 			if pq.xact is None:
 				self.pq = pq
+				if hasattr(self.pq.socket, 'fileno'):
+					self.fileno = self.pq.socket.fileno
 				self.security = 'ssl' if didssl is True else None
 				showoption_type = element.ShowOption.type
 				for x in neg.asyncs:
@@ -2070,6 +2072,7 @@ class Connection(pg_api.Connection):
 			pass
 		elif scstr.lower() not in ('on','true','yes'):
 			self.settings['standard_conforming_strings'] = 'on'
+
 		super().connect()
 
 	def _pq_push(self, xact, controller = None):
