@@ -378,14 +378,19 @@ the connection is made:
   The result of ``SELECT version()``.
 
  ``db.version_info``
-  A ``sys.version_info`` form of the ``server_version`` setting. eg. ``(8, 1, 2,
-  'final', 0)``.
+  A ``sys.version_info`` form of the ``server_version`` setting. eg.
+  ``(8, 1, 2, 'final', 0)``.
 
  ``db.security``
   `None` if no security. ``'ssl'`` if SSL is enabled.
 
  ``db.backend_id``
   The process-id of the backend process.
+
+ ``db.fileno()``
+  Method to get the file descriptor number of the connection's socket. This
+  attribute will not exist if the socket object does not have a ``fileno``
+  attribute. Under normal circumstances, it will be available.
 
  ``db.backend_start``
   When backend was started. ``datetime.datetime`` instance.
