@@ -133,8 +133,10 @@ def interval_noday_unpack(data, dl_unpack = dl_unpack, mktimetuple = mktimetuple
 	tim, month = dl_unpack(data)
 	return (month, 0, mktimetuple(tim))
 
-time64_pack = compose((mktime64, longlong_pack))
-time64_unpack = compose((longlong_unpack, mktimetuple64))
+def time64_pack(data, mktime64 = mktime64, longlong_pack = longlong_pack):
+	return longlong_pack(mktime64(data))
+def time64_unpack(data, longlong_unpack = longlong_unpack, mktimetuple64 = mktimetuple64):
+	return mktimetuple64(longlong_unpack(data))
 
 def interval64_pack(m_d_timetup, qll_pack = qll_pack, mktime64 = mktime64):
 	"""
