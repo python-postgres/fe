@@ -23,3 +23,6 @@ Changes
    an interface intended for speed, types.Row() impedes its performance.
  * Fix handling of infinity values with timestamptz, timestamp, and date.
    Bug reported by Axel Rau.
+ * Correct representation of PostgreSQL ARRAYs by properly recording
+   lowerbounds and upperbounds. Internally, sub-ARRAYs have their own
+   element lists.

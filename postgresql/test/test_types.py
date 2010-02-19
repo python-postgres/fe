@@ -6,6 +6,7 @@ from ..python.functools import process_tuple
 from .. import types as pg_types
 from ..types.io import lib as typlib
 from ..types.io import builtins
+from ..types import Array
 
 # this must pack to that, and
 # that must unpack to this
@@ -361,6 +362,129 @@ class test_io(unittest.TestCase):
 							name, x, packed, unpacked
 						)
 					)
+
+# Make some slices
+slice_samples = [
+	slice(0, None, x+1) for x in range(10)
+] + [
+	slice(x, None, 1) for x in range(10)
+] + [
+	slice(None, x, 1) for x in range(10)
+] + [
+	slice(None, -x, 70) for x in range(10)
+]
+
+class test_Array(unittest.TestCase):
+	def emptyArray(self, a):
+		self.failUnlessEqual(len(a), 0)
+		self.failUnlessEqual(list(a.elements()), [])
+		self.failUnlessEqual(a.dimensions, ())
+		self.failUnlessEqual(a.lowerbounds, ())
+		self.failUnlessEqual(a.upperbounds, ())
+		self.failUnlessRaises(IndexError, a.__getitem__, 0)
+
+	def testArrayInstantiation(self):
+		a = Array([])
+		self.emptyArray(a)
+		# exercise default upper/lower
+		a = Array((1,2,3,))
+		self.failUnlessEqual((a[0],a[1],a[2]), (1,2,3,))
+		# Python interface, Python semantics.
+		self.failUnlessRaises(IndexError, a.__getitem__, 3)
+		self.failUnlessEqual(a.dimensions, (3,))
+		self.failUnlessEqual(a.lowerbounds, (1,))
+		self.failUnlessEqual(a.upperbounds, (3,))
+
+	def testNestedArrayInstantiation(self):
+		a = Array(([1,2],[3,4]))
+		# Python interface, Python semantics.
+		self.failUnlessRaises(IndexError, a.__getitem__, 3)
+		self.failUnlessEqual(a.dimensions, (2,2,))
+		self.failUnlessEqual(a.lowerbounds, (1,1))
+		self.failUnlessEqual(a.upperbounds, (2,2))
+		self.failUnlessEqual(list(a.elements()), [1,2,3,4])
+		self.failUnlessEqual(list(a),
+			[
+				Array([1, 2]),
+				Array([3, 4]),
+			]
+		)
+
+		a = Array(([[1],[2]],[[3],[4]]))
+		self.failUnlessRaises(IndexError, a.__getitem__, 3)
+		self.failUnlessEqual(a.dimensions, (2,2,1))
+		self.failUnlessEqual(a.lowerbounds, (1,1,1))
+		self.failUnlessEqual(a.upperbounds, (2,2,1))
+		self.failUnlessEqual(list(a),
+			[
+				Array([[1], [2]]),
+				Array([[3], [4]]),
+			]
+		)
+
+	def testSlicing(self):
+		elements = [1,2,3,4,5,6,7,8]
+		d1 = Array([1,2,3,4,5,6,7,8])
+		for x in slice_samples:
+			self.failUnlessEqual(
+				d1[x], Array(elements[x])
+			)
+		elements = [[1,2],[3,4],[5,6],[7,8]]
+		d2 = Array(elements)
+		for x in slice_samples:
+			self.failUnlessEqual(
+				d2[x], Array(elements[x])
+			)
+
+	def testFromElements(self):
+		a = Array.from_elements(())
+		self.emptyArray(a)
+
+		# exercise default upper/lower
+		a = Array.from_elements((1,2,3,))
+		self.failUnlessEqual((a[0],a[1],a[2]), (1,2,3,))
+		# Python interface, Python semantics.
+		self.failUnlessRaises(IndexError, a.__getitem__, 3)
+		self.failUnlessEqual(a.dimensions, (3,))
+		self.failUnlessEqual(a.lowerbounds, (1,))
+		self.failUnlessEqual(a.upperbounds, (3,))
+
+		# exercise default upper/lower
+		a = Array.from_elements([3,2,1], lowerbounds = (2,), upperbounds = (4,))
+		self.failUnlessEqual(a.dimensions, (3,))
+		self.failUnlessEqual(a.lowerbounds, (2,))
+		self.failUnlessEqual(a.upperbounds, (4,))
+
+	def testEmptyDimension(self):
+		self.failUnlessRaises(ValueError,
+			Array, [[]]
+		)
+		self.failUnlessRaises(ValueError,
+			Array, [[2],[]]
+		)
+		self.failUnlessRaises(ValueError,
+			Array, [[],[],[]]
+		)
+		self.failUnlessRaises(ValueError,
+			Array, [[2],[3],[]]
+		)
+
+	def testExcessive(self):
+		# lowerbounds too high for upperbounds
+		self.failUnlessRaises(ValueError,
+			Array.from_elements, [1], lowerbounds = (2,), upperbounds = (1,)
+		)
+
+	def testNegatives(self):
+		a = Array.from_elements([0], lowerbounds = (-1,), upperbounds = (-1,))
+		self.failUnlessEqual(a[0], 0)
+		self.failUnlessEqual(a[-1], 0)
+		# upperbounds at zero
+		a = Array.from_elements([1,2], lowerbounds = (-1,), upperbounds = (0,))
+		self.failUnlessEqual(a[0], 1)
+		self.failUnlessEqual(a[1], 2)
+		self.failUnlessEqual(a[-2], 1)
+		self.failUnlessEqual(a[-1], 2)
 
 if __name__ == '__main__':
 	from types import ModuleType

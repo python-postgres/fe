@@ -338,7 +338,10 @@ def record_pack(seq,
 		for x, y in seq
 	])
 
-def elements_pack(elements, null_sequence = null_sequence, long_pack = long_pack):
+def elements_pack(elements,
+	null_sequence = null_sequence,
+	long_pack = long_pack, len = len
+):
 	"""
 	Pack the elements for containment within a serialized array.
 
@@ -373,8 +376,7 @@ def array_pack(array_data, llL_pack = llL_pack, len = len, long_pack = long_pack
 	second dimension is then defined by the last two elements in the sequence.
 	"""
 	(flags, typid, dlb, elements) = array_data
-	header = llL_pack((len(dlb) // 2, flags, typid))
-	return header + \
+	return llL_pack((len(dlb) // 2, flags, typid)) + \
 		b''.join(map(long_pack, dlb)) + \
 		b''.join(elements_pack(elements))
 
@@ -407,7 +409,7 @@ def array_unpack(data, llL_unpack = llL_unpack, unpack = struct.unpack_from):
 	if ndim < 0:
 		raise ValueError("invalid number of dimensions: %d" %(ndim,))
 	# "ndim" number of pairs of longs
-	end = 4 * 2 * ndim + 12
+	end = (4 * 2 * ndim) + 12
 	# Dimension Bounds
 	dlb = unpack("!%dl"%(2 * ndim,), data, 12)
 	return (flags, typid, dlb, elements_unpack(data, end))

@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye.
-# http://python.projects.postgresql.org
+# types. - Package for I/O and PostgreSQL specific types.
 ##
 """
 PostgreSQL types and identifiers.
@@ -95,6 +94,7 @@ ANYOID = 2276
 ANYNONARRAYOID = 2776
 ANYENUMOID = 3500
 
+#: Mapping of type Oid to SQL type name.
 oid_to_sql_name = {
 	BPCHAROID : 'CHARACTER',
 	VARCHAROID : 'CHARACTER VARYING',
@@ -130,6 +130,7 @@ oid_to_sql_name = {
 	XMLOID : 'XML',
 }
 
+#: Mapping of type Oid to name.
 oid_to_name = {
 	RECORDOID : 'record',
 	BOOLOID : 'bool',
@@ -225,12 +226,27 @@ name_to_oid = dict(
 
 class Array(object):
 	"""
-	Type used to mimic PostgreSQL arrays.
+	Type used to mimic PostgreSQL arrays. While there are many semantic
+	differences, the primary one is that the elements contained by an Array
+	instance are not strongly typed. The purpose of this class is to provide
+	some consistency with PostgreSQL with respect to the structure of an Array.
 
-	It primarily implements the Python sequence interfaces for treating a
-	PostgreSQL array like nested Python lists.
+	The structure consists of three parts:
+
+	 * The elements of the array.
+	 * The lower boundaries.
+	 * The upper boundaries.
+
+	There is also a `dimensions` property, but it is derived from the
+	`lowerbounds` and `upperbounds` to yield a normalized description of the
+	structure.
+
+	The Python interfaces, such as __getitem__, are *not* subjected to the
+	semantics of the lower and upper bounds. Rather, the normalized dimensions
+	provide the primary influence for these interfaces. So, unlike SQL
+	indirection, getting an index that does *not* exist will raise a Python
+	`IndexError`.
 	"""
-
 	# return an iterator over the absolute elements of a nested sequence
 	@staticmethod
 	def unroll_nest(hier, dimensions):
@@ -254,114 +270,146 @@ class Array(object):
 	# Detect the dimensions of a nested sequence
 	@staticmethod
 	def detect_dimensions(hier, len = len):
-		while hier.__class__ is list:
-			l = len(hier)
-			if l > 0:
-				# boundary consistency checks come later.
+		# if the list is empty, it's a zero-dimension array.
+		if hier:
+			yield len(hier)
+			hier = hier[0]
+			depth = 1
+			while hier.__class__ is list:
+				depth += 1
+				l = len(hier)
+				if l < 1:
+					raise ValueError("axis {0} is empty".format(depth))
+				yield l
 				hier = hier[0]
-			else:
-				break
-			yield l
 
 	@classmethod
-	def from_nest(typ, nest, offset = None):
-		'Create an array from a nested sequence'
-		dims = tuple(typ.detect_dimensions(nest))
-		if offset:
-			dims = dims[:len(dims)-offset]
-		return typ.from_elements(list(typ.unroll_nest(nest, dims)), dims)
-
-	@classmethod
-	def from_elements(subtype,
+	def from_elements(typ,
 		elements : "iterable of elements in the array",
-		dimensions : "size of each axis" = (),
-		lowerbounds : "beginning of each axis" = (),
+		lowerbounds : "beginning of each axis" = None,
+		upperbounds : "upper bounds; size of each axis" = None,
 		len = len,
 	):
+		"""
+		Instantiate an Array from the given elements, lowerbounds, and upperbounds.
+
+		The given elements are bound to the array which provides them with the
+		structure defined by the lower boundaries and the upper boundaries.
+
+		A `ValueError` will be raised in the following situations:
+
+		 * The number of elements given are inconsistent with the number of elements
+		   described by the upper and lower bounds.
+		 * The lower bounds at a given axis exceeds the upper bounds at a given
+		   axis.
+		 * The number of lower bounds is inconsistent with the number of upper
+		   bounds.
+		"""
 		# resolve iterable
 		elements = list(elements)
+		nelements = len(elements)
 
-		if dimensions:
-			# dimensions were given, so check.
-			elcount = 1
-			for x in dimensions:
-				elcount = x * elcount
-			if len(elements) != elcount:
-				raise ValueError("array element count inconsistent with dimensions")
+		# If ndims is zero, lowerbounds will be ()
+		if lowerbounds is None:
+			if upperbounds:
+				lowerbounds = (1,) * len(upperbounds)
+			elif nelements == 0:
+				# special for empty ARRAY; no dimensions.
+				lowerbounds = ()
+			else:
+				# one dimension.
+				lowerbounds = (1,)
+		else:
+			lowerbounds = tuple(lowerbounds)
+
+		if upperbounds is not None:
+			upperbounds = tuple(upperbounds)
+			dimensions = []
+			# upperbounds were given, so check.
+			if upperbounds:
+				elcount = 1
+				for lb, ub in zip(lowerbounds, upperbounds):
+					x = ub - lb + 1
+					if x < 1:
+						# special case empty ARRAYs
+						if nelements == 0:
+							upperbounds = ()
+							lowerbounds = ()
+							dimensions = ()
+							elcount = 0
+							break
+						raise ValueError("lowerbounds exceeds upperbounds")
+					# physical dimensions.
+					dimensions.append(x)
+					elcount = x * elcount
+			else:
+				elcount = 0
+			if nelements != elcount:
+				raise ValueError("element count inconsistent with boundaries")
 			dimensions = tuple(dimensions)
 		else:
 			# fill in default
-			elcount = len(elements)
-			dimensions = (elcount,)
-		d1 = dimensions[0]
-		ndims = len(dimensions)
+			if nelements == 0:
+				upperbounds = ()
+				dimensions = ()
+			else:
+				upperbounds = (nelements,)
+				dimensions = (nelements,)
 
-		if not lowerbounds:
-			lowerbounds = (1,) * ndims
+		# consistency..
+		if len(lowerbounds) != len(upperbounds):
+			raise ValueError("number of lowerbounds inconsistent with upperbounds")
 
-		# lowerbounds can be just about anything, so no checks here.
-		if len(lowerbounds) != ndims:
-			raise ValueError("number of bounds inconsistent with number of dimensions")
-		# XXX: class is not ready for this check just yet
-		#elif not lowerbounds <= dimensions:
-		#	raise ValueError("lowerbounds exceeds upperbounds")
-
-		rob = super().__new__(subtype)
-		rob.elements = elements
-		rob.dimensions = dimensions
+		rob = super().__new__(typ)
+		rob._elements = elements
 		rob.lowerbounds = lowerbounds
-		rob.position = ()
-		rob.slice = slice(0, d1)
-
-		weight = []
-		cw = 1
-		rdim = list(dimensions)
-		rdim.reverse()
-		for x in rdim[:-1]:
-			cw *= x
-			weight.insert(0, cw)
-		rob.weight = tuple(weight)
-
+		rob.upperbounds = upperbounds
+		rob.dimensions = dimensions
+		rob.ndims = len(dimensions)
+		rob._weight = len(rob._elements) // (dimensions and dimensions[0] or 1)
 		return rob
 
-	def __new__(subtype, elements, *args, **kw):
-		if elements.__class__ is Array:
-			return elements
-		return subtype.from_nest(list(elements), **kw)
-
-	def arrayslice(self, subpos):
-		rob = object.__new__(type(self))
-		rob.elements = self.elements
-		rob.dimensions = self.dimensions
-		rob.position = self.position
-		rob.weight = self.weight
-		d = self.dimensions[len(self.position)]
-		newslice = slice(
-			self.slice.start + (subpos.start or 0),
-			# Can't extend the slice, so grab whatever is the least.
-			min((
-				self.slice.start + (subpos.stop or d),
-				self.slice.stop or d
-			))
+	# Method used to create an Array() from nested lists.
+	@classmethod
+	def from_nest(typ, nest):
+		dims = tuple(typ.detect_dimensions(nest))
+		return typ.from_elements(
+			list(typ.unroll_nest(nest, dims)),
+			upperbounds = dims,
+			# lowerbounds is implied to (1,)*len(upper)
 		)
-		rob.slice = newslice
-		return rob
 
-	def subarray(self, idx):
-		rob = object.__new__(type(self))
-		rob.elements = self.elements
-		rob.dimensions = self.dimensions
-		rob.weight = self.weight
-		idx = self.slice.start + idx
-		rob.position = self.position + (slice(idx, self.slice.stop),)
-		rob.slice = slice(0, rob.dimensions[len(rob.position)])
-		return rob
+	def __new__(typ, nested_elements):
+		"""
+		Create an types.Array() using the given nested lists. The boundaries of
+		the array are detected by traversing the first items of the nested
+		lists::
+
+			Array([[1,2,4],[3,4,8]])
+
+		Lists are used to define the boundaries so that tuples may be used to
+		represent any complex elements. The above array will the `lowerbounds`
+		``(1,1)``, and the `upperbounds` ``(2,3)``.
+		"""
+		if nested_elements.__class__ is Array:
+			return nested_elements
+		return typ.from_nest(list(nested_elements))
+
+	def elements(self):
+		"""
+		Returns an iterator to the elements of the Array. The elements are
+		produced in physical order.
+		"""
+		return iter(self._elements)
 
 	def nest(self, seqtype = list):
-		'Transform the array into a nested sequence'
+		"""
+		Transform the array into a nested list.
+		"""
 		rl = []
+		typ = self.__class__
 		for x in self:
-			if type(self) is type(x):
+			if x.__class__ is typ:
 				rl.append(x.nest())
 			else:
 				rl.append(x)
@@ -375,8 +423,7 @@ class Array(object):
 		)
 
 	def __len__(self):
-		sl = self.slice
-		return sl.stop - sl.start
+		return self.dimensions and self.dimensions[0] or 0
 
 	def __eq__(self, ob):
 		return list(self) == ob
@@ -397,35 +444,45 @@ class Array(object):
 		return list(self) >= ob
 
 	def __getitem__(self, item):
+		if self.ndims < 2:
+			# Array with 1dim is more or less a list.
+			return self._elements[item]
 		if isinstance(item, slice):
-			return self.arrayslice(item)
-		else:
-			if item < 0:
-				item = item + (self.slice.stop - self.slice.start)
-
-			npos = len(self.position)
-			ndim = len(self.dimensions)
-			if npos == ndim - 1:
-				# get the actual element
-				idx = self.slice.start + item
-				if not (0 <= idx < self.dimensions[-1]):
-					return None
-				for x in range(npos):
-					pos = self.position[x]
-					dim = self.dimensions[x]
-					# Out of bounds position
-					if not (0 <= pos.start < dim) or pos.start >= pos.stop:
-						return None
-					idx += pos.start * self.weight[x]
-
-				return self.elements[idx]
+			# get a sub-array slice
+			l = len(self)
+			n = 0
+			r = []
+			# for each offset in the slice, get the elements and add them
+			# to the new elements list used to build the new Array().
+			for x in range(*(item.indices(l))):
+				n = n + 1
+				r.extend(
+					self._elements[slice(self._weight*x,self._weight*(x+1))]
+				)
+			if n:
+				return self.__class__.from_elements(r,
+					lowerbounds = (1,) + self.lowerbounds[1:],
+					upperbounds = (n,) + self.upperbounds[1:],
+				)
 			else:
-				# get a new array at that level
-				return self.subarray(item)
+				# Empty
+				return self.__class__.from_elements(())
+		else:
+			# get a sub-array
+			l = len(self)
+			if item > l:
+				raise IndexError("index {0} is out of range".format(l))
+			return self.__class__.from_elements(
+				self._elements[self._weight*item:self._weight*(item+1)],
+				lowerbounds = self.lowerbounds[1:],
+				upperbounds = self.upperbounds[1:],
+			)
 
 	def __iter__(self):
-		for x in range(len(self)):
-			yield self[x]
+		if self.ndims < 2:
+			# Special case empty and single dimensional ARRAYs
+			return self.elements()
+		return (self[x] for x in range(len(self)))
 
 from operator import itemgetter
 get0 = itemgetter(0)

@@ -1,12 +1,11 @@
 ##
-# types.io.pg_container
-#
-# construct I/O for container types
+# types.io.pg_container - construct I/O pairs for container types
 ##
 from . import lib
 from .. import Row, Array, ANYARRAYOID, RECORDOID
 from ... import exceptions as pg_exc
 from ...python.functools import process_tuple
+from ...python.itertools import interlace
 from operator import itemgetter
 
 ##
@@ -17,19 +16,18 @@ def array_io_factory(
 	typoid, hasbin_input, hasbin_output,
 	array_pack = lib.array_pack,
 	array_unpack = lib.array_unpack,
+	ArrayType = Array,
+	interlace = interlace
 ):
 	if hasbin_input:
 		def pack_an_array(data):
-			if not data.__class__ is Array:
-				data = Array(data)
-			dlb = []
-			for x in data.dimensions:
-				dlb.append(x)
-				dlb.append(1) # XXX: need to be able to specify lowerbounds
+			if not data.__class__ is ArrayType:
+				# Assume the data is a nested list.
+				data = ArrayType(data)
 			return array_pack((
 				0, # unused flags
-				typoid, dlb,
-				(x if x is None else pack_element(x) for x in data.elements),
+				typoid, tuple(interlace(data.dimensions, data.lowerbounds)),
+				(x if x is None else pack_element(x) for x in data.elements()),
 			))
 	else:
 		# signals string formatting
@@ -38,12 +36,15 @@ def array_io_factory(
 	if hasbin_output:
 		def unpack_an_array(data):
 			flags, typoid, dlb, elements = array_unpack(data)
-			dim = []
+			upper = []
+			lower = []
 			for x in range(0, len(dlb), 2):
-				dim.append(dlb[x] - (dlb[x+1] or 1) + 1)
+				lb = dlb[x+1]
+				lower.append(lb)
+				upper.append(dlb[x] + lb - 1)
 			return Array.from_elements(
 				(x if x is None else unpack_element(x) for x in elements),
-				dimensions = dim
+				lowerbounds = lower, upperbounds = upper,
 			)
 	else:
 		# signals string formatting
