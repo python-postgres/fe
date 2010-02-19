@@ -244,18 +244,19 @@ class Complete(StringMessage):
 		"""
 		Extract the last set of digits as an integer.
 		"""
-		rms = self.data.strip().split()
-		if rms[0].lower() == b'copy':
-			if len(rms) > 1:
-				return int(rms[-1])
-		elif rms[-1].isdigit():
-			return int(rms[-1])
+		# Find the last sequence of digits.
+		# If there are no fields consisting only of digits, there is no count.
+		for x in reversed(self.data.split()):
+			if x.isdigit():
+				return int(x)
+		return None
 
 	def extract_command(self):
-		t = self.data.strip().split()
-		if t:
-			return t[0]
-		return None
+		"""
+		Strip all the *surrounding* digits and spaces from the command tag,
+		and return that string.
+		"""
+		return self.data.strip(b'\c\n\t 0123456789') or None
 
 class Null(EmptyMessage):
 	'Null command'

@@ -250,8 +250,26 @@ class test_element3(unittest.TestCase):
 		self.failUnlessEqual(E[b'P'], b'foobar')
 		self.failUnlessEqual(len(N), 4)
 		self.failUnlessEqual(len(E), 4)
+
+	def testCompleteExtracts(self):
+		x = e3.Complete(b'FOO BAR 1321')
+		self.failUnlessEqual(x.extract_command(), b'FOO BAR')
+		self.failUnlessEqual(x.extract_count(), 1321)
+		x = e3.Complete(b' CREATE  	TABLE 13210  ')
+		self.failUnlessEqual(x.extract_command(), b'CREATE  	TABLE')
+		self.failUnlessEqual(x.extract_count(), 13210)
+		x = e3.Complete(b'  CREATE  	TABLE  \t713210  ')
+		self.failUnlessEqual(x.extract_command(), b'CREATE  	TABLE')
+		self.failUnlessEqual(x.extract_count(), 713210)
+		x = e3.Complete(b'  CREATE  	TABLE  0 \t13210  ')
+		self.failUnlessEqual(x.extract_command(), b'CREATE  	TABLE')
+		self.failUnlessEqual(x.extract_count(), 13210)
+		x = e3.Complete(b' 0 \t13210 ')
+		self.failUnlessEqual(x.extract_command(), None)
+		self.failUnlessEqual(x.extract_count(), 13210)
+
 ##
-# xact3 tests
+# .protocol.xact3 tests
 ##
 
 xact_samples = [

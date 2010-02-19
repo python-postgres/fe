@@ -78,7 +78,7 @@ class test_lib(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(b.sym_const_column, [1])
 		self.failUnlessEqual(b.sym_const_rows, [(1,)])
 		self.failUnlessEqual(b.sym_const_chunks, [[(1,)]])
-		self.failUnlessEqual(b.sym_const_ddl, ('CREATE', None))
+		self.failUnlessEqual(b.sym_const_ddl, ('CREATE TABLE', None))
 		self.failUnlessEqual(b.sym_preload(), 1)
 		# now stored procs
 		self.failUnlessEqual(b.sym_proc(2,), 2)
