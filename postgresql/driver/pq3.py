@@ -817,7 +817,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 	def _raise_column_tuple_error(self, procs, tup, itemnum):
 		# Find the SQL type name. This should *not* hit the server.
 		typ = self.database.typio.sql_type_from_oid(
-			self.pg_column_types(itemnum)
+			self.pg_column_types[itemnum]
 		) or '<unknown>'
 
 		# Representation of the bad column.
