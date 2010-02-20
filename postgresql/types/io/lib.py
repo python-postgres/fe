@@ -303,7 +303,7 @@ def record_unpack(data,
 	Given serialized record data, return a tuple of tuples of type Oids and
 	attributes.
 	"""
-	columns = long_unpack(data[0:4])
+	columns = long_unpack(data)
 	offset = 4
 
 	for x in range(columns):
