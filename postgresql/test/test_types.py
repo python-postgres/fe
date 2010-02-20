@@ -372,6 +372,10 @@ slice_samples = [
 	slice(None, x, 1) for x in range(10)
 ] + [
 	slice(None, -x, 70) for x in range(10)
+] + [
+	slice(x+1, x, -1) for x in range(10)
+] + [
+	slice(x+4, x, -2) for x in range(10)
 ]
 
 class test_Array(unittest.TestCase):
@@ -434,6 +438,21 @@ class test_Array(unittest.TestCase):
 		for x in slice_samples:
 			self.failUnlessEqual(
 				d2[x], Array(elements[x])
+			)
+		elements = [
+			[[[1,2],[3,4]]],
+			[[[5,6],[791,8]]],
+			[[[1,2],[333,4]]],
+			[[[1,2],[3,4]]],
+			[[[5,10],[7,8]]],
+			[[[0,6],[7,8]]],
+			[[[1,2],[3,4]]],
+			[[[5,6],[7,8]]],
+		]
+		d3 = Array(elements)
+		for x in slice_samples:
+			self.failUnlessEqual(
+				d3[x], Array(elements[x])
 			)
 
 	def testFromElements(self):
