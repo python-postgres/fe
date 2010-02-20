@@ -32,7 +32,7 @@ import sys
 import os
 from functools import partial
 from operator import attrgetter
-from . import api as pg_api
+from .message import Message
 from . import sys as pg_sys
 
 PythonException = Exception
@@ -46,7 +46,7 @@ class LoadError(Exception):
 class Disconnection(Exception):
 	'Exception identifying errors that result in disconnection'
 
-class Warning(pg_api.Message):
+class Warning(Message):
 	code = '01000'
 	_e_label = property(attrgetter('__class__.__name__'))
 
@@ -80,7 +80,7 @@ class NoDataWarning(Warning):
 class NoMoreSetsReturned(NoDataWarning):
 	code = '02001'
 
-class Error(pg_api.Message, Exception):
+class Error(Message, Exception):
 	'A PostgreSQL Error'
 	_e_label = 'ERROR'
 	code = ''

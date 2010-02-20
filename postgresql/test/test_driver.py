@@ -22,6 +22,7 @@ from ..types.io.stdlib_xml_etree import etree
 from .. import exceptions as pg_exc
 from .. import unittest as pg_unittest
 from .. import lib as pg_lib
+from .. import message as pg_msg
 from ..types.bitwise import Bit, Varbit
 
 type_samples = [
@@ -1482,6 +1483,37 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		# Invoke an error to show that listen() is all or none.
 		self.failUnlessRaises(Exception, self.db.listen, 'doesntexist', 'x'*64)
 		self.failUnless('doesntexist' not in self.db.listening_channels())
+
+	def testMessageHook(self):
+		create = self.db.prepare('CREATE TEMP TABLE msghook (i INT PRIMARY KEY)')
+		drop = self.db.prepare('DROP TABLE msghook')
+		parts = [
+			create,
+			self.db,
+			self.db.connector,
+			self.db.connector.driver,
+		]
+		notices = []
+		def add(x):
+			notices.append(x)
+			# inhibit
+			return True
+		with self.db.xact():
+			self.db.settings['client_min_messages'] = 'NOTICE'
+			# test an installed msghook at each level
+			for x in parts:
+				x.msghook = add
+				create()
+				del x.msghook
+				drop()
+		self.failUnlessEqual(len(notices), len(parts))
+		last = None
+		for x in notices:
+			if last is None:
+				last = x
+				continue
+			self.failUnlessEqual(x, last)
+			last = x
 
 if __name__ == '__main__':
 	unittest.main()

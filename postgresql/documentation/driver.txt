@@ -1578,35 +1578,37 @@ Database Messages
 By default, py-postgresql gives detailed reports of messages emitted by the
 database. Often, the verbosity is excessive due to single target processes or
 existing application infrastructure for tracing the sources of various events.
+Normally, this verbosity is not a significant problem as the driver defaults the
+``client_min_messages`` setting to ``'WARNING'`` by default.
 
-PostgreSQL itself provides a noise reduction tool for the client via the
-``client_min_messages`` setting. Altering this setting to a preferred level
-either temporarily or permanently can be an appropriate solution in many cases.
+However, if ``NOTICE`` or ``INFO`` messages are needed, finer grained control
+over message propagation may be desired, py-postgresql's object relationship
+model provides a common protocol for controlling message propagation and,
+ultimately, display.
 
-When finer grained control over message details is needed, py-postgresql's
-object relationship model provides a common protocol for controlling message
-propagation and, ultimately, display.
-
-The ``msghook`` attribute on elements is absent by default. However, when
-present on an object that contributed the cause of a message event, it will
-be invoked with the Message, `postgresql.api.Message`, object as
-its sole parameter. The attribute of the object that is closest to the event is
-checked first, if present it will be called. If the ``msghook()`` call returns
-a `True` value(specficially, ``bool(x) is True``), the message will not be
-propagated any further. However, if a `False` value is returned, the next
-element is checked until the list is exhausted and the message is given to
-`postgresql.sys.msghook`. The normal list of elements is as follows::
+The ``msghook`` attribute on elements--for instance, Statements, Connections,
+and Connectors--is absent by default. However, when present on an object that
+contributed the cause of a message event, it will be invoked with the Message,
+`postgresql.message.Message`, object as its sole parameter. The attribute of
+the object that is closest to the event is checked first, if present it will
+be called. If the ``msghook()`` call returns a `True`
+value(specficially, ``bool(x) is True``), the message will *not* be
+propagated any further. However, if a `False` value--notably, `None`--is
+returned, the next element is checked until the list is exhausted and the
+message is given to `postgresql.sys.msghook`. The normal list of elements is
+as follows::
 
 	Output → Statement → Connection → Connector → Driver → postgresql.sys
 
 Where ``Output`` can be a `postgresql.api.Cursor` object produced by
 ``declare(...)`` or an implicit output management object used *internally* by
-``__call__()`` and other statement execution methods. Setting the ``msghook``
-attribute on `postgresql.api.PreparedStatement` gives very fine control over
-raised messages. Consider filtering the notice message on create table
-statements that implicitly create indexes::
+``Statement.__call__()`` and other statement execution methods. Setting the
+``msghook`` attribute on `postgresql.api.PreparedStatement` gives very fine
+control over raised messages. Consider filtering the notice message on create
+table statements that implicitly create indexes::
 
 	>>> db = postgresql.open(...)
+	>>> db.settings['client_min_messages'] = 'NOTICE'
 	>>> ct_this = db.prepare('CREATE TEMP TABLE "this" (i int PRIMARY KEY)')
 	>>> ct_that = db.prepare('CREATE TEMP TABLE "that" (i int PRIMARY KEY)')
 	>>> def filter_notices(msg):
@@ -1616,10 +1618,10 @@ statements that implicitly create indexes::
 	>>> ct_that()
 	NOTICE: CREATE TABLE / PRIMARY KEY will create implicit index "that_pkey" for table "that"
 	...
-	('CREATE', None)
+	('CREATE TABLE', None)
 	>>> ct_this.msghook = filter_notices
 	>>> ct_this()
-	('CREATE', None)
+	('CREATE TABLE', None)
 	>>>
 
 The above illustrates the quality of an installed ``msghook`` that simply
@@ -1630,6 +1632,7 @@ notices coming from objects derived from the ``ct_this``
 Subsequently, if the filter is installed on the connection's ``msghook``::
 
 	>>> db = postgresql.open(...)
+	>>> db.settings['client_min_messages'] = 'NOTICE'
 	>>> ct_this = db.prepare('CREATE TEMP TABLE "this" (i int PRIMARY KEY)')
 	>>> ct_that = db.prepare('CREATE TEMP TABLE "that" (i int PRIMARY KEY)')
 	>>> def filter_notices(msg):
@@ -1638,9 +1641,9 @@ Subsequently, if the filter is installed on the connection's ``msghook``::
 	...
 	>>> db.msghook = filter_notices
 	>>> ct_that()
-	('CREATE', None)
+	('CREATE TABLE', None)
 	>>> ct_this()
-	('CREATE', None)
+	('CREATE TABLE', None)
 	>>>
 
 Any message with ``'NOTICE'`` severity coming from the connection, ``db``, will be
@@ -1653,7 +1656,7 @@ objects.
 Message Metadata
 ----------------
 
-PostgreSQL messages, `postgresql.api.Message`, are primarily described in three
+PostgreSQL messages, `postgresql.message.Message`, are primarily described in three
 parts: the SQL-state code, the main message string, and a mapping defining the
 details. The follow attributes are available on message objects:
 

@@ -22,6 +22,7 @@ from .. import iri as pg_iri
 from .. import exceptions as pg_exc
 from .. import string as pg_str
 from .. import api as pg_api
+from .. import message as pg_msg
 from ..encodings import aliases as pg_enc_aliases
 
 from ..python.itertools import interlace, chunk
@@ -37,7 +38,7 @@ from .pg_type import TypeIO
 from ..types import Row
 
 # Map element3.Notice field identifiers
-# to names used by api.Message.
+# to names used by message.Message.
 notice_field_to_name = {
 	message_types[b'S'[0]] : 'severity',
 	message_types[b'C'[0]] : 'code',
@@ -2182,7 +2183,7 @@ class Connection(pg_api.Connection):
 				m, code = c, details = dmsg, source = source
 			)
 		else:
-			mo = pg_api.Message(
+			mo = pg_msg.Message(
 				m, code = c, details = dmsg, source = source
 			)
 		mo.database = self
