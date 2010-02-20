@@ -426,6 +426,23 @@ class test_Array(unittest.TestCase):
 			]
 		)
 
+		self.failUnlessRaises(ValueError, Array, [
+			[1], [2,3]
+		])
+		self.failUnlessRaises(ValueError, Array, [
+			[1], []
+		])
+		self.failUnlessRaises(ValueError, Array, [
+			[[1]],
+			[[],2]
+		])
+		self.failUnlessRaises(ValueError, Array, [
+			[[[[[1,2,3]]]]],
+			[[[[[1,2,3]]]]],
+			[[[[[1,2,3]]]]],
+			[[[[[2,2]]]]],
+		])
+
 	def testSlicing(self):
 		elements = [1,2,3,4,5,6,7,8]
 		d1 = Array([1,2,3,4,5,6,7,8])

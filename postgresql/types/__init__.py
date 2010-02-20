@@ -252,10 +252,11 @@ class Array(object):
 	def unroll_nest(typ, hier, dimensions, depth = 0):
 		dsize = dimensions and dimensions[depth] or 0
 		if len(hier) != dsize:
-			raise ValueError("list size not consistent with dimensions at axis " + str(depth))
+			raise ValueError("list size not consistent with dimensions at depth " + str(depth))
 		r = []
 		ndepth = depth + 1
 		if ndepth == len(dimensions):
+			# at the bottom
 			r = hier
 		else:
 			# go deeper
