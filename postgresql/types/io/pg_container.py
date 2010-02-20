@@ -5,7 +5,6 @@ from . import lib
 from .. import Row, Array, ANYARRAYOID, RECORDOID
 from ... import exceptions as pg_exc
 from ...python.functools import process_tuple
-from ...python.itertools import interlace
 from operator import itemgetter
 
 ##
@@ -13,12 +12,13 @@ from operator import itemgetter
 ##
 def array_io_factory(
 	pack_element, unpack_element,
-	typoid, hasbin_input, hasbin_output,
+	typoid, # array element id
+	hasbin_input, hasbin_output,
 	array_pack = lib.array_pack,
 	array_unpack = lib.array_unpack,
 	ArrayType = Array,
-	interlace = interlace
 ):
+	packed_typoid = lib.ulong_pack(typoid)
 	if hasbin_input:
 		def pack_an_array(data):
 			if not data.__class__ is ArrayType:
@@ -26,7 +26,7 @@ def array_io_factory(
 				data = ArrayType(data)
 			return array_pack((
 				0, # unused flags
-				typoid, tuple(interlace(data.dimensions, data.lowerbounds)),
+				typoid, data.dimensions, data.lowerbounds,
 				(x if x is None else pack_element(x) for x in data.elements()),
 			))
 	else:
@@ -35,16 +35,11 @@ def array_io_factory(
 
 	if hasbin_output:
 		def unpack_an_array(data):
-			flags, typoid, dlb, elements = array_unpack(data)
-			upper = []
-			lower = []
-			for x in range(0, len(dlb), 2):
-				lb = dlb[x+1]
-				lower.append(lb)
-				upper.append(dlb[x] + lb - 1)
+			flags, typoid, dims, lbs, elements = array_unpack(data)
 			return Array.from_elements(
-				(x if x is None else unpack_element(x) for x in elements),
-				lowerbounds = lower, upperbounds = upper,
+				map(unpack_element, elements),
+				lowerbounds = lbs,
+				upperbounds = [x + lb - 1 for x, lb in zip(dims, lbs)]
 			)
 	else:
 		# signals string formatting

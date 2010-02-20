@@ -1,6 +1,7 @@
 import struct
 from math import floor
 from ...python.functools import Composition as compose
+from ...python.itertools import interlace
 from ...python.structlib import \
 	short_pack, short_unpack, \
 	ulong_pack, ulong_unpack, \
@@ -77,10 +78,9 @@ def mktimetuple(ts, floor = floor):
 	seconds = floor(ts)
 	return (int(seconds), int(1000000 * (ts - seconds)))
 
-def mktimetuple64(ts):
+def mktimetuple64(ts, divmod = divmod):
 	'make a pair of (seconds, microseconds) out of the given long'
-	seconds = ts // 1000000
-	return (seconds, ts - (seconds * 1000000))
+	return divmod(ts, 1000000)
 
 def mktime(seconds_ms, float = float):
 	'make a double out of the pair of (seconds, microseconds)'
@@ -354,30 +354,35 @@ def elements_pack(elements,
 			yield long_pack(len(x))
 			yield x
 
-def array_pack(array_data, llL_pack = llL_pack, len = len, long_pack = long_pack):
+def array_pack(array_data,
+	llL_pack = llL_pack,
+	len = len,
+	long_pack = long_pack,
+	interlace = interlace
+):
 	"""
 	Pack a raw array. A raw array consists of flags, type oid, sequence of lower
 	and upper bounds, and an iterable of already serialized element data:
 
 		(0, element type oid, (lower bounds, upper bounds, ...), iterable of element_data)
-	
+
 	The lower bounds and upper bounds specifies boundaries of the dimension. So the length
 	of the boundaries sequence is two times the number of dimensions that the array has.
 
-	array_pack((flags, type_id, lower_upper_bounds, element_data))
+	array_pack((flags, type_id, dims, lowers, element_data))
 
 	The format of ``lower_upper_bounds`` is a sequence of lower bounds and upper
 	bounds. First lower then upper inlined within the sequence:
 
 		[lower, upper, lower, upper]
-	
+
 	The above array `dlb` has two dimensions. The lower and upper bounds of the
 	first dimension is defined by the first two elements in the sequence. The
 	second dimension is then defined by the last two elements in the sequence.
 	"""
-	(flags, typid, dlb, elements) = array_data
-	return llL_pack((len(dlb) // 2, flags, typid)) + \
-		b''.join(map(long_pack, dlb)) + \
+	(flags, typid, dims, lbs, elements) = array_data
+	return llL_pack((len(dims), flags, typid)) + \
+		b''.join(map(long_pack, interlace(dims, lbs))) + \
 		b''.join(elements_pack(elements))
 
 def elements_unpack(data, offset,
@@ -399,17 +404,23 @@ def elements_unpack(data, offset,
 			yield data[offset:offset+sizeof_el]
 			offset += sizeof_el
 
-def array_unpack(data, llL_unpack = llL_unpack, unpack = struct.unpack_from):
+def array_unpack(data,
+	llL_unpack = llL_unpack,
+	unpack = struct.unpack_from,
+	long_unpack = long_unpack
+):
 	"""
 	Given a serialized array, unpack it into a tuple:
 
-		(flags, typid, (lower bounds, upper bounds, ...), [elements])
+		(flags, typid, (dims, lower bounds, ...), [elements])
 	"""
 	ndim, flags, typid = llL_unpack(data)
 	if ndim < 0:
 		raise ValueError("invalid number of dimensions: %d" %(ndim,))
 	# "ndim" number of pairs of longs
 	end = (4 * 2 * ndim) + 12
-	# Dimension Bounds
-	dlb = unpack("!%dl"%(2 * ndim,), data, 12)
-	return (flags, typid, dlb, elements_unpack(data, end))
+	# Dimensions and lower bounds; split the two early.
+	#dlb = unpack("!%dl"%(2 * ndim,), data, 12)
+	dims = [long_unpack(data[x:x+4]) for x in range(12, end, 8)]
+	lbs = [long_unpack(data[x:x+4]) for x in range(16, end, 8)]
+	return (flags, typid, dims, lbs, elements_unpack(data, end))

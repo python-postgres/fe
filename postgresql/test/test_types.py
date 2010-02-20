@@ -119,11 +119,11 @@ expectation_samples = {
 	],
 
 	('array', typlib.array_pack, typlib.array_unpack) : [
-		([0, 0xf, (1, 0), (b'foo',)],
+		([0, 0xf, (1,), (0,), (b'foo',)],
 			b'\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x0f\x00\x00\x00\x01' \
 			b'\x00\x00\x00\x00\x00\x00\x00\x03foo'
 		),
-		([0, 0xf, (1, 0), (None,)],
+		([0, 0xf, (1,), (0,), (None,)],
 			b'\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x0f\x00\x00\x00\x01' \
 			b'\x00\x00\x00\x00\xff\xff\xff\xff'
 		)
@@ -172,17 +172,17 @@ consistency_samples = {
 	],
 
 	('array', typlib.array_pack, typlib.array_unpack) : [
-		[0, 0xf, (), ()],
-		[0, 0xf, (0, 0), ()],
-		[0, 0xf, (1, 0), (b'foo',)],
-		[0, 0xf, (1, 0), (None,)],
-		[0, 0xf, (2, 0), (None,None)],
-		[0, 0xf, (2, 0), (b'foo',None)],
-		[0, 0xff, (2, 0), (None,b'foo',)],
-		[0, 0xffffffff, (3, 0), (None,b'foo',None)],
-		[1, 0xffffffff, (3, 0), (None,b'foo',None)],
-		[1, 0xffffffff, (3, 0, 1, 0), (None,b'foo',None)],
-		[1, 0xffffffff, (3, 0, 2, 0), (None,b'one',b'foo',b'two',None,b'three')],
+		[0, 0xf, (), (), ()],
+		[0, 0xf, (0,), (0,), ()],
+		[0, 0xf, (1,), (0,), (b'foo',)],
+		[0, 0xf, (1,), (0,), (None,)],
+		[0, 0xf, (2,), (0,), (None,None)],
+		[0, 0xf, (2,), (0,), (b'foo',None)],
+		[0, 0xff, (2,), (0,), (None,b'foo',)],
+		[0, 0xffffffff, (3,), (0,), (None,b'foo',None)],
+		[1, 0xffffffff, (3,), (0,), (None,b'foo',None)],
+		[1, 0xffffffff, (3, 1), (0, 0), (None,b'foo',None)],
+		[1, 0xffffffff, (3, 2), (0, 0), (None,b'one',b'foo',b'two',None,b'three')],
 	],
 
 	# Just some random data; it's just an integer, so nothing fancy.

@@ -451,10 +451,14 @@ class Tuple(TupleMessage):
 		return ushort_pack(len(self)) + pack_tuple_data(self)
 
 	@classmethod
-	def parse(typ, data, T = tuple, ulong_unpack = ulong_unpack):
+	def parse(typ, data,
+		T = tuple, ulong_unpack = ulong_unpack,
+		len = len
+	):
 		natts = ushort_unpack(data[0:2])
 		atts = []
 		offset = 2
+		add = atts.append
 
 		while natts > 0:
 			alo = offset
@@ -467,7 +471,7 @@ class Tuple(TupleMessage):
 				ao = offset
 				offset = ao + al
 				att = data[ao:offset]
-			atts.append(att)
+			add(att)
 			natts -= 1
 		return T(atts)
 	try:
