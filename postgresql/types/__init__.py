@@ -239,7 +239,7 @@ class Array(object):
 
 	There is also a `dimensions` property, but it is derived from the
 	`lowerbounds` and `upperbounds` to yield a normalized description of the
-	structure.
+	ARRAY's structure.
 
 	The Python interfaces, such as __getitem__, are *not* subjected to the
 	semantics of the lower and upper bounds. Rather, the normalized dimensions
@@ -405,15 +405,71 @@ class Array(object):
 	def nest(self, seqtype = list):
 		"""
 		Transform the array into a nested list.
+
+		The `seqtype` keyword can be used to override the type used to represent
+		the elements of a given axis.
 		"""
-		rl = []
-		typ = self.__class__
-		for x in self:
-			if x.__class__ is typ:
-				rl.append(x.nest())
+		if self.ndims < 2:
+			return seqtype(self._elements)
+		else:
+			rl = []
+			for x in self:
+				rl.append(x.nest(seqtype = seqtype))
+			return seqtype(rl)
+
+	def get_element(self, address,
+		idxerr = "index {0} at axis {1} is out of range {2}".format
+	):
+		"""
+		Get an element in the array using the given axis sequence.
+
+		>>> a=Array([[1,2],[3,4]])
+		>>> a.get_element((0,0)) == 1
+		True
+		>>> a.get_element((1,1)) == 4
+		True
+
+		This is similar to getting items in a nested list::
+
+		>>> l=[[1,2],[3,4]]
+		>>> l[0][0] == 1
+		True
+		"""
+		if not self.dimensions:
+			raise IndexError("array is empty")
+		if len(address) != len(self.dimensions):
+			raise ValueError("given axis sequence is inconsistent with number of dimensions")
+
+		# normalize axis specification (-N + DIM), check for IndexErrors, and
+		# resolve the element's position.
+		cur = 0
+		nelements = len(self._elements)
+		for n, a, dim in zip(range(len(address)), address, self.dimensions):
+			if a < 0:
+				a = a + dim
+				if a < 0:
+					raise IndexError(idxerr(a, n, dim))
 			else:
-				rl.append(x)
-		return seqtype(rl)
+				if a >= dim:
+					raise IndexError(idxerr(a, n, dim))
+			nelements = nelements // dim
+			cur += (a * nelements)
+		return self._elements[cur]
+
+	def sql_get_element(self, address):
+		"""
+		Like `get_element`, but with SQL indirection semantics. Notably, returns
+		`None` on IndexError.
+		"""
+		try:
+			a = [a - lb for (a, lb) in zip(address, self.lowerbounds)]
+			# get_element accepts negatives, so check the converted sequence.
+			for x in a:
+				if x < 0:
+					return None
+			return self.get_element(a)
+		except IndexError:
+			return None
 
 	def __repr__(self):
 		return '%s.%s(%r)' %(
