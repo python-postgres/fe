@@ -248,24 +248,20 @@ class Array(object):
 	`IndexError`.
 	"""
 	# return an iterator over the absolute elements of a nested sequence
-	@staticmethod
-	def unroll_nest(hier, dimensions):
-		weight = []
-		elc = 1
-		dims = list(dimensions[:-1])
-		dims.reverse()
-		for x in dims:
-			weight.insert(0, elc)
-			elc *= x
-
-		for x in range(elc):
-			v = hier
-			for w in weight:
-				d, r = divmod(x, w)
-				v = v[d]
-				x = r
-			for i in v:
-				yield i
+	@classmethod
+	def unroll_nest(typ, hier, dimensions, depth = 0):
+		dsize = dimensions and dimensions[depth] or 0
+		if len(hier) != dsize:
+			raise ValueError("list size not consistent with dimensions at axis " + str(depth))
+		r = []
+		ndepth = depth + 1
+		if ndepth == len(dimensions):
+			r = hier
+		else:
+			# go deeper
+			for x in hier:
+				r.extend(typ.unroll_nest(x, dimensions, ndepth))
+		return r
 
 	# Detect the dimensions of a nested sequence
 	@staticmethod
