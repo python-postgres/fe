@@ -49,6 +49,10 @@ class Message(Message):
 	)
 
 	def isconsistent(self, other):
+		"""
+		Return `True` if the all the fields of the message in `self` are
+		equivalent to the fields in `other`.
+		"""
 		if not isinstance(other, self.__class__):
 			return False
 		# creator is contextual information
@@ -99,6 +103,10 @@ class Message(Message):
 
 	@property
 	def location_string(self):
+		"""
+		A single line representation of the 'file', 'line', and 'function' keys
+		in the `details` dictionary.
+		"""
 		details = self.details
 		loc = [
 			details.get(k, '?') for k in ('file', 'line', 'function')
