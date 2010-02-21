@@ -48,9 +48,9 @@ class Message(Message):
 		'CLIENT',
 	)
 
-	def __eq__(self, other):
+	def isconsistent(self, other):
 		if not isinstance(other, self.__class__):
-			return NotImplemented
+			return False
 		# creator is contextual information
 		return (
 			self.code == other.code and \
@@ -58,8 +58,6 @@ class Message(Message):
 			self.details == other.details and \
 			self.source == other.source
 		)
-
-	__hash__ = object.__hash__
 
 	def __init__(self,
 		message : "The primary information of the message",

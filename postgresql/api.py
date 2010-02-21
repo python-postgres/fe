@@ -101,6 +101,20 @@ class Message(Element):
 		 * 'internal_query'
 		"""
 
+	@abstractmethod
+	def isconsistent(self, other) -> bool:
+		"""
+		Whether the fields of the `other` Message object is consistent with the
+		fields of `self`.
+
+		This *must* return the result of the comparison of code, source, message,
+		and details.
+
+		This method is provided as the alternative to overriding equality;
+		often, pointer equality is the desirable means for comparison, but
+		equality of the fields is also necessary.
+		"""
+
 class Result(Element):
 	"""
 	A result is an object managing the results of a prepared statement.

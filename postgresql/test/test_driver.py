@@ -1512,7 +1512,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			if last is None:
 				last = x
 				continue
-			self.failUnlessEqual(x, last)
+			self.failUnless(x.isconsistent(last))
 			last = x
 
 if __name__ == '__main__':
