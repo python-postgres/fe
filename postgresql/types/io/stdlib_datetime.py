@@ -132,7 +132,7 @@ def timestamptz_unpack(seconds,
 	"""
 	return relative_to(timedelta(0, *seconds))
 
-def time_pack(x):
+def time_pack(x, seconds_in_hour = seconds_in_hour):
 	"""
 	Create a (seconds, microseconds) pair from a `datetime.time` instance.
 	"""
