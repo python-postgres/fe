@@ -1,27 +1,20 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .api - ABCs for database interface elements
 ##
 """
-Application Programmer Interface specifications for PostgreSQL (ABCs).
+Application Programmer Interfaces for PostgreSQL.
 
-PG-API
-======
+``postgresql.api`` is a collection of Python APIs for the PostgreSQL DBMS. It
+is designed to take full advantage of PostgreSQL's features to provide the
+Python programmer with substantial convenience.
 
-``postgresql.api`` is a Python API for the PostgreSQL DBMS. It is designed to take
-full advantage of PostgreSQL's features to provide the Python programmer with
-substantial convenience.
-
-This module is used to define PG-API. It creates a set of ABCs
+This module is used to define "PG-API". It creates a set of ABCs
 that makes up the basic interfaces used to work with a PostgreSQL server.
 """
-import os
 import collections
 from abc import abstractproperty, abstractmethod
-from operator import itemgetter
 
-from . import sys as pg_sys
-from .python.element import Element, prime_factor
+from .python.element import Element
 from .python.doc import Doc
 from .python.decorlib import propertydoc
 
