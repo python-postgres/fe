@@ -169,3 +169,8 @@ SELECT channel FROM pg_catalog.pg_listening_channels() AS x(channel)
 -- listening_relations: old version of listening_channels.
 SELECT relname as channel FROM pg_catalog.pg_listener
 WHERE listenerpid = pg_catalog.pg_backend_pid();
+
+[notify::first]
+-- 9.0 and greater
+SELECT COUNT(pg_catalog.pg_notify(($1::text[])[i][1], $1[i][2]) IS NULL)
+FROM generate_series(1, array_upper($1, 1)) AS g(i)

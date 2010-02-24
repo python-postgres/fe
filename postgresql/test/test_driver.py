@@ -1461,6 +1461,15 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.db.do('plpgsql', "BEGIN INSERT INTO do_tmp_table VALUES (100, 'foo'); END")
 		self.failUnlessEqual(len(self.db.prepare("SELECT * FROM do_tmp_table")()), 1)
 
+	def testListeningChannels(self):
+		self.db.listen('foo', 'bar')
+		self.failUnlessEqual(set(self.db.listening_channels()), {'foo','bar'})
+		self.db.unlisten('bar')
+		self.db.listen('foo', 'bar')
+		self.failUnlessEqual(set(self.db.listening_channels()), {'foo','bar'})
+		self.db.unlisten('foo', 'bar')
+		self.failUnlessEqual(set(self.db.listening_channels()), set())
+
 	def testNotify(self):
 		self.db.listen('foo', 'bar')
 		self.db.listen('foo', 'bar')
@@ -1514,6 +1523,129 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				continue
 			self.failUnless(x.isconsistent(last))
 			last = x
+
+	def testNotificationManager(self):
+		from ..driver.notifyman import NotificationManager as NM
+		# signals each other
+		db = self.db
+		alt = self.db.clone()
+		with alt:
+			nm = NM(db, alt)
+			db.listen('foo')
+			alt.listen('bar')
+			# notify the other.
+			alt.notify('foo')
+			db.notify('bar')
+			# we can separate these here because there's no timeout
+			for ndb, notifies in nm:
+				for n in notifies:
+					if ndb is db:
+						self.failUnlessEqual(n[0], 'foo')
+						self.failUnlessEqual(n[1], '')
+						self.failUnlessEqual(n[2], alt.backend_id)
+						nm.connections.discard(db)
+					elif ndb is alt:
+						self.failUnlessEqual(n[0], 'bar')
+						self.failUnlessEqual(n[1], '')
+						self.failUnlessEqual(n[2], db.backend_id)
+						nm.connections.discard(alt)
+					else:
+						self.fail("unknown connection received notify..")
+
+	def testNotificationManagerTimeout(self):
+		from ..driver.notifyman import NotificationManager as NM
+		nm = NM(self.db, timeout = 0.1)
+		self.db.listen('foo')
+		count = 0
+		for event in nm:
+			if event is None:
+				# do this a few times, then break out of the loop
+				self.db.notify('foo')
+				continue
+			ndb, notifies = event
+			self.failUnlessEqual(ndb, self.db)
+			for n in notifies:
+				self.failUnlessEqual(n[0], 'foo')
+				self.failUnlessEqual(n[1], '')
+				self.failUnlessEqual(n[2], self.db.backend_id)
+				count = count + 1
+			if count > 3:
+				break
+
+	def testNotificationManagerZeroTimeout(self):
+		# Zero-timeout means raise StopIteration when
+		# there are no notifications to emit.
+		# It checks the wire, but does *not* wait for data.
+		from ..driver.notifyman import NotificationManager as NM
+		nm = NM(self.db, timeout = 0)
+		self.db.listen('foo')
+		self.failUnlessEqual(list(nm), [])
+		self.db.notify('foo')
+		time.sleep(0.01)
+		self.failUnlessEqual(list(nm), [('foo','',self.db.backend_id)]) # bit of a race
+
+	def testWait(self):
+		# db.wait() simplification of NotificationManager
+		alt = self.db.clone()
+		alt.listen('foo')
+		alt.listen('close')
+		def get_notices(db, l):
+			with db:
+				for x in db.wait():
+					if x[0] == 'close':
+						break
+					l.append(x)
+		rl = []
+		t = threading.Thread(target = get_notices, args = (alt, rl,))
+		t.start()
+		self.db.notify('foo')
+		while not rl:
+			time.sleep(0.05)
+		channel, payload, pid = rl.pop(0)
+		self.failUnlessEqual(channel, 'foo')
+		self.failUnlessEqual(payload, '')
+		self.failUnlessEqual(pid, self.db.backend_id)
+		self.db.notify('close')
+
+	def testNotificationManagerZeroTimeout(self):
+		# Zero-timeout means raise StopIteration when
+		# there are no notifications to emit.
+		# It checks the wire, but does *not* wait for data.
+		from ..driver.notifyman import NotificationManager as NM
+		self.db.listen('foo')
+		self.failUnlessEqual(list(self.db.wait(0)), [])
+		self.db.notify('foo')
+		time.sleep(0.01)
+		self.failUnlessEqual(list(self.db.wait(0)), [('foo','',self.db.backend_id)]) # bit of a race
+
+	def testNotificationManagerOnClosed(self):
+		# When the connection goes away, the NM iterator
+		# should raise a Stop.
+		db = self.db.clone()
+		db.listen('foo')
+		db.notify('foo')
+		for n in db.wait():
+			db.close()
+		self.failUnlessEqual(db.closed, True)
+		# closer, after an idle
+		db = self.db.clone()
+		db.listen('foo')
+		for n in db.wait(0.2):
+			if n is None:
+				# In the loop, notify, and expect to
+				# get the notification even though the
+				# connection was closed.
+				db.notify('foo')
+				db.execute('')
+				db.close()
+				hit = False
+			else:
+				hit = True
+		# hit should get set two times.
+		# once on the first idle, and once on the event
+		# received after the close.
+		self.failUnlessEqual(db.closed, True)
+		self.failUnlessEqual(hit, True)
 
 if __name__ == '__main__':
 	unittest.main()

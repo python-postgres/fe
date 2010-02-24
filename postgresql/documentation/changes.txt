@@ -26,3 +26,6 @@ Changes
  * Correct representation of PostgreSQL ARRAYs by properly recording
    lowerbounds and upperbounds. Internally, sub-ARRAYs have their own
    element lists.
+ * Implement a NotificationManager for managing the NOTIFYs received
+   by a connection. The class can manage NOTIFYs from multiple
+   connections, whereas the db.wait() method is modified for single targets.

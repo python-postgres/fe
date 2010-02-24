@@ -35,6 +35,7 @@ from ..protocol import client3 as client
 from ..protocol.message_types import message_types
 
 from .pg_type import TypeIO
+from ..notifyman import NotificationManager
 from ..types import Row
 
 # Map element3.Notice field identifiers
@@ -2274,6 +2275,15 @@ class Connection(pg_api.Connection):
 				raise ValueError("channel name too long: " + x)
 			qstr += '; UNLISTEN ' + x.replace('"', '""')
 		return self.execute(qstr)
+
+	def wait(self, timeout = None):
+		nm = NotificationManager(self, timeout = timeout)
+		for x in nm:
+			if x is None:
+				yield None
+			else:
+				for y in x[1]:
+					yield y
 
 	def __init__(self, connector, *args, **kw):
 		"""

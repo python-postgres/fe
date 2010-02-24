@@ -964,9 +964,9 @@ class Database(Element):
 		"""
 
 	@abstractmethod
-	def notify(self, channel, payload = None) -> None:
+	def notify(self, *channels, **channel_and_payload) -> int:
 		"""
-		NOTIFY the channel with the given payload.
+		NOTIFY the channels with the given payload.
 
 		Equivalent to issuing "NOTIFY <channel>" or "NOTIFY <channel>, <payload>"
 		if a payload is given.
@@ -992,6 +992,22 @@ class Database(Element):
 	def listening_channels(self) -> ["channel name", ...]:
 		"""
 		Return an *iterator* to all the channels currently being listened to.
+		"""
+
+	@abstractmethod
+	def wait(self, timeout = None) -> collections.Iterator:
+		"""
+		Return an iterator to the notifications received by the connection. The
+		iterator *must* produce triples in the form ``(channel, payload, pid)``.
+
+		If timeout is not `None`, `None` *must* be emitted at the specified
+		timeout interval. If the timeout is zero, all the pending notifications
+		*must* be yielded by the iterator and then `StopIteration` *must* be
+		raised.
+
+		If the connection is closed for any reason, the iterator *must* silently
+		stop by raising `StopIteration`. Further error control is then the
+		responsibility of the user.
 		"""
 
 class SocketFactory(object):
