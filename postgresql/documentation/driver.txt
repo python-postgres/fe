@@ -1936,7 +1936,7 @@ Advisory locks can be used by directly executing the stored procedures in the
 database or by using the :class:`postgresql.alock.ALock` subclasses, which
 provides a context manager that uses those stored procedures.
 
-Currently, only two subclasses exists, each representing the lock mode
+Currently, only two subclasses exist. Each represents the lock mode
 supported by PostgreSQL's advisory locks:
 
  * :class:`postgresql.alock.ShareLock`
