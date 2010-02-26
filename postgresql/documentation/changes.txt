@@ -22,10 +22,12 @@ Changes
  * Alter Statement.chunks() to return chunks of builtins.tuple. Being
    an interface intended for speed, types.Row() impedes its performance.
  * Fix handling of infinity values with timestamptz, timestamp, and date.
-   Bug reported by Axel Rau.
+   [Bug reported by Axel Rau.]
  * Correct representation of PostgreSQL ARRAYs by properly recording
    lowerbounds and upperbounds. Internally, sub-ARRAYs have their own
    element lists.
  * Implement a NotificationManager for managing the NOTIFYs received
    by a connection. The class can manage NOTIFYs from multiple
    connections, whereas the db.wait() method is modified for single targets.
+ * Implement an ALock class for managing advisory locks using the
+   threading.Lock APIs. [Feedback from Valentine Gogichashvili]

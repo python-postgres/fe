@@ -172,5 +172,75 @@ WHERE listenerpid = pg_catalog.pg_backend_pid();
 
 [notify::first]
 -- 9.0 and greater
-SELECT COUNT(pg_catalog.pg_notify(($1::text[])[i][1], $1[i][2]) IS NULL)
-FROM generate_series(1, array_upper($1, 1)) AS g(i)
+SELECT
+	COUNT(pg_catalog.pg_notify(($1::text[])[i][1], $1[i][2]) IS NULL)
+FROM
+	pg_catalog.generate_series(1, array_upper($1, 1)) AS g(i)
+
+[release_advisory_shared]
+SELECT
+	CASE WHEN ($2::int8[])[i] IS NULL
+	THEN
+		pg_catalog.pg_advisory_unlock_shared(($1::int4[])[i][1], $1[i][2])
+	ELSE
+		pg_catalog.pg_advisory_unlock_shared($2[i])
+	END AS released
+FROM
+	pg_catalog.generate_series(1, array_upper(COALESCE($1::int4[],$2::int8[]), 1)) AS g(i)
+
+[acquire_advisory_shared]
+SELECT COUNT((
+	CASE WHEN ($2::int8[])[i] IS NULL
+	THEN
+		pg_catalog.pg_advisory_lock_shared(($1::int4[])[i][1], $1[i][2])
+	ELSE
+		pg_catalog.pg_advisory_lock_shared($2[i])
+	END
+) IS NULL) AS acquired
+FROM
+	pg_catalog.generate_series(1, array_upper(COALESCE($1::int4[],$2::int8[]), 1)) AS g(i)
+
+[try_advisory_shared]
+SELECT
+	CASE WHEN ($2::int8[])[i] IS NULL
+	THEN
+		pg_catalog.pg_try_advisory_lock_shared(($1::int4[])[i][1], $1[i][2])
+	ELSE
+		pg_catalog.pg_try_advisory_lock_shared($2[i])
+	END AS acquired
+FROM
+	pg_catalog.generate_series(1, array_upper(COALESCE($1::int4[],$2::int8[]), 1)) AS g(i)
+
+[release_advisory_exclusive]
+SELECT
+	CASE WHEN ($2::int8[])[i] IS NULL
+	THEN
+		pg_catalog.pg_advisory_unlock(($1::int4[])[i][1], $1[i][2])
+	ELSE
+		pg_catalog.pg_advisory_unlock($2[i])
+	END AS released
+FROM
+	pg_catalog.generate_series(1, array_upper(COALESCE($1::int4[],$2::int8[]), 1)) AS g(i)
+
+[acquire_advisory_exclusive]
+SELECT COUNT((
+	CASE WHEN ($2::int8[])[i] IS NULL
+	THEN
+		pg_catalog.pg_advisory_lock(($1::int4[])[i][1], $1[i][2])
+	ELSE
+		pg_catalog.pg_advisory_lock($2[i])
+	END
+) IS NULL) AS acquired -- Guaranteed to be acquired once complete.
+FROM
+	pg_catalog.generate_series(1, array_upper(COALESCE($1::int4[],$2::int8[]), 1)) AS g(i)
+
+[try_advisory_exclusive]
+SELECT
+	CASE WHEN ($2::int8[])[i] IS NULL
+	THEN
+		pg_catalog.pg_try_advisory_lock(($1::int4[])[i][1], $1[i][2])
+	ELSE
+		pg_catalog.pg_try_advisory_lock($2[i])
+	END AS acquired
+FROM
+	pg_catalog.generate_series(1, array_upper(COALESCE($1::int4[],$2::int8[]), 1)) AS g(i)
