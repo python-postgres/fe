@@ -18,10 +18,13 @@ Driver Parameters:
 	pq://user@host/?[driver_param]=value&[other_param]=value?setting=val
 """
 from .resolved import riparse as ri
-from . import string as pg_str
-import operator
-import re
+from .string import split_ident
 
+from operator import itemgetter
+get0 = itemgetter(0)
+del itemgetter
+
+import re
 escape_path_re = re.compile('[%s]' %(re.escape(ri.unescaped + ','),))
 
 def structure(d, fieldproc = ri.unescape):
@@ -85,9 +88,7 @@ def construct_path(x, re = escape_path_re):
 	"""
 	Join a path sequence using ',' and escaping ',' in the pieces.
 	"""
-	return ','.join((
-		re.sub(ri.re_pct_encode, y) for y in x
-	))
+	return ','.join((re.sub(ri.re_pct_encode, y) for y in x))
 
 def construct(x, obscure_password = False):
 	'Construct a RI dictionary from a clientparams dictionary'
@@ -111,7 +112,7 @@ def construct(x, obscure_password = False):
 
 	# It could be a string search_path, split if it is.
 	if search_path is not None and isinstance(search_path, str):
-		search_path = pg_str.split_ident(search_path, sep = ',')
+		search_path = split_ident(search_path, sep = ',')
 
 	port = None
 	if 'unix' in x:
@@ -142,7 +143,7 @@ def construct(x, obscure_password = False):
 			'path', 'host', 'unix', 'ipv','settings'
 		)
 	}.items())
-	driver_params.sort(key=operator.itemgetter(0))
+	driver_params.sort(key=get0)
 
 	return (
 		'pqs' if x.get('ssl', False) is True else 'pq',
