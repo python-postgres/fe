@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .release.distutils - distutils data
 ##
 """
 Python distutils data provisions module.
@@ -127,7 +126,8 @@ def prefixed_extensions(
 		yield Extension(
 			pkg_prefix + mod,
 			[os.path.join(path_prefix, src) for src in data['sources']],
-			libraries = data.get('libraries', ())
+			libraries = data.get('libraries', ()),
+			optional = True,
 		)
 
 def prefixed_packages(
