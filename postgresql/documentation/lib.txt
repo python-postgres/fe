@@ -336,6 +336,36 @@ effect it will have when invoked:
   ... FROM STDIN``, the iterable must produce COPY lines.
 
 
+Reference Symbols
+=================
+
+Reference Symbols provide a way to construct a Bound Symbol using the Symbol's
+query. When invoked, A Reference Symbol's query is executed in order to produce
+an SQL statement to be used as a Bound Symbol. In ILF files, a reference is
+identified by its symbol name being prefixed with an ampersand::
+
+	[&refsym::first]
+	SELECT 'SELECT 1::int4'::text
+
+Then executed::
+
+	>>> # Runs the 'refsym' SQL, and creates a Bound Symbol using the results.
+	>>> sym = lib.refsym()
+	>>> assert sym() == 1
+
+The Reference Symbol's type and execution method are inherited by the created
+Bound Symbol. With one exception, ``const`` reference symbols are
+special in that they immediately resolved into the target Bound Symbol.
+
+A Reference Symbol's source query *must* produce rows of text columns. Multiple
+columns and multiple rows may be produced by the query, but they must be
+character types as the results are promptly joined together with whitespace so
+that the target statement may be prepared.
+
+Reference Symbols are most likely to be used in dynamic DDL and DML situations,
+or, somewhat more specifically, any query whose definition depends on a
+generated column list.
+
 Distributing and Usage
 ======================
 
@@ -347,7 +377,7 @@ connection is made using the category.
 For mere Python extensions, however, ``distutils`` has a feature that can
 aid in ILF distribution. The ``package_data`` setup keyword can be used to
 include ILF files alongside the Python modules that make up a project. See
-http://docs.python.org/3.0/distutils/setupscript.html#installing-package-data
+http://docs.python.org/3.1/distutils/setupscript.html#installing-package-data
 for more detailed information on the keyword parameter.
 
 The recommended way to manage libraries for extending projects is to
@@ -476,6 +506,10 @@ The following terms are used throughout this chapter:
   An interface to an individual Symbol ready for execution against the subject
   database.
 
+ Bound Reference
+  An interface to an individual Reference Symbol that will produce a Bound
+  Symbol when executed.
+
  ILF
   INI-style Library Format. "lib{NAME}.sql" files.
 
@@ -492,6 +526,9 @@ The following terms are used throughout this chapter:
  Symbol
   An named database operation provided by a Library. Usually, an SQL statement
   with Annotations.
+
+ Reference Symbol
+  A Symbol whose SQL statement *produces* the source for a Bound Symbol.
 
  Category
   An object supporting a classification for connectors that provides database

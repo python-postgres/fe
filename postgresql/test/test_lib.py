@@ -53,6 +53,21 @@ test_ilf_proc(int)
 
 [sym_srf_proc:proc]
 test_ilf_srf_proc(int)
+
+[&sym_reference]
+SELECT 'SELECT 1';
+
+[&sym_reference_params]
+SELECT 'SELECT ' || $1::text;
+
+[&sym_reference_first::first]
+SELECT 'SELECT 1::int4';
+
+[&sym_reference_const:const:first]
+SELECT 'SELECT 1::int4';
+
+[&sym_reference_proc:proc]
+SELECT 'test_ilf_proc(int)'::text
 """
 
 class test_lib(pg_unittest.TestCaseWithCluster):
@@ -84,6 +99,13 @@ class test_lib(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(b.sym_proc(2,), 2)
 		self.failUnlessEqual(list(b.sym_srf_proc(2,)), [2])
 		self.failUnlessRaises(AttributeError, getattr, b, 'LIES')
+		# reference symbols
+		self.failUnlessEqual(b.sym_reference()(), [(1,)])
+		self.failUnlessEqual(b.sym_reference_params('1::int')(), [(1,)])
+		self.failUnlessEqual(b.sym_reference_params("'foo'::text")(), [('foo',)])
+		self.failUnlessEqual(b.sym_reference_first()(), 1)
+		self.failUnlessEqual(b.sym_reference_const(), 1)
+		self.failUnlessEqual(b.sym_reference_proc()(2,), 2)
 
 	def testILF_from_lines(self):
 		lib = pg_lib.ILF.from_lines([l + '\n' for l in ilf.splitlines()])

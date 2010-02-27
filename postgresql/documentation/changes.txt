@@ -31,3 +31,6 @@ Changes
    connections, whereas the db.wait() method is modified for single targets.
  * Implement an ALock class for managing advisory locks using the
    threading.Lock APIs. [Feedback from Valentine Gogichashvili]
+ * Implement reference symbols. Allow libraries to define symbols that
+   are used to create queries that inherit the original symbol's type and
+   execution method. ``db.prepare(db.prepare(...).first())``

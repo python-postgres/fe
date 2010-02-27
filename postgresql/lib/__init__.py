@@ -1,13 +1,12 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .lib - query libraries; manage SQL outside of Python.
 ##
 """
 PostgreSQL query libraries.
 
 The purpose of query libraries is provide a means to manage a mapping of symbols
-to database operations. These operations can be simple statements, procedures,
-or something more complex.
+to database operations or objects. These operations can be simple statements,
+procedures, or something more complex.
 
 Libraries are intended to allow the programmer to isolate and manage SQL outside
 of a system's code-flow. It provides a means to construct the basic Python
@@ -15,8 +14,6 @@ interfaces to a PostgreSQL-based application.
 """
 import io
 import os.path
-import operator
-get0 = operator.itemgetter(0)
 from types import ModuleType
 from abc import abstractmethod, abstractproperty
 from ..python.element import Element, ElementSet
@@ -24,6 +21,7 @@ from .. import api as pg_api
 from .. import sys as pg_sys
 from .. import exceptions as pg_exc
 from ..python.itertools import find
+from itertools import chain
 
 try:
 	libdir = os.path.abspath(os.path.dirname(__file__))
@@ -83,6 +81,7 @@ class Symbol(Element):
 		method = None,
 		type = None,
 		parameters = None,
+		reference = False,
 	):
 		self.library = library
 		self.source = source
@@ -94,6 +93,7 @@ class Symbol(Element):
 		self.method = method
 		self.type = type
 		self.parameters = parameters
+		self.reference = reference
 
 	def __str__(self):
 		"""
@@ -163,15 +163,22 @@ class SymbolCollection(Library):
 		self._name = None
 		s = self.symbolsd = {}
 		self.preload = set()
-		for name, (typ, exe, doc, query) in symbols:
+		for name, (isref, typ, exe, doc, query) in symbols:
 			if typ and typ not in self.symtypes:
-				raise ValueError("symbol %r has an invalid type: %r" %(name, typ))
+				raise ValueError(
+					"symbol %r has an invalid type: %r" %(name, typ)
+				)
 			if typ == 'preload':
 				self.preload.add(name)
 				typ = None
 			elif typ == 'proc':
 				pass
-			SYM = Symbol(self, query, name = name, method = exe, type = typ)
+			SYM = Symbol(self, query,
+				name = name,
+				method = exe,
+				type = typ,
+				reference = isref
+			)
 			s[name] = SYM
 
 class ILF(SymbolCollection):
@@ -195,27 +202,6 @@ class ILF(SymbolCollection):
 
 	def symbols(self):
 		return self.symbolsd.keys()
-
-	def __init__(self, symbols, preface = None):
-		"""
-		Given an iterable of (symtype, symexe, doc, sql) tuples, create an
-		anonymous ILF library.
-		"""
-		self.preface = preface
-		self._address = None
-		self._name = None
-		s = self.symbolsd = {}
-		self.preload = set()
-		for name, (typ, exe, doc, query) in symbols:
-			if typ and typ not in self.symtypes:
-				raise ValueError("symbol %r has an invalid type: %r" %(name, typ))
-			if typ == 'preload':
-				self.preload.add(name)
-				typ = None
-			elif typ == 'proc':
-				pass
-			SYM = Symbol(self, query, name = name, method = exe, type = typ)
-			s[name] = SYM
 
 	@classmethod
 	def from_lines(typ, lines):
@@ -247,7 +233,9 @@ class ILF(SymbolCollection):
 			# symbol name
 			# symbol type
 			# how to execute symbol
-			name, styp, exe, *_ = (tuple(symdesc.strip().strip('[]').split(':')) + (None, None))
+			name, styp, exe, *_ = (tuple(
+				symdesc.strip().strip('[]').split(':')
+			) + (None, None))
 			doc = ''
 			endofcomment = 0
 			# resolve any symbol references; only one per line.
@@ -266,7 +254,12 @@ class ILF(SymbolCollection):
 			query = ''.join(block[endofcomment:])
 			if styp == 'proc':
 				query = query.strip()
-			syms.append((name, (styp, exe, doc, query)))
+			if name.startswith('&'):
+				name = name[1:]
+				isref = True
+			else:
+				isref = False
+			syms.append((name, (isref, styp, exe, doc, query)))
 		return typ(syms, preface = preface)
 
 	@classmethod
@@ -303,9 +296,38 @@ class BoundSymbol(object):
 	def __call__(self, *args, **kw):
 		return self.method(*args, **kw)
 
+class BoundReference(object):
+	"""
+	A symbol bound to a database whose results make up the source of a symbol
+	that will be created upon the execution of this symbol.
+
+	A reference to a symbol.
+	"""
+
+	def __init__(self, symbol, database):
+		self.symbol = symbol
+		self.database = database
+		self.method = database.prepare(symbol).chunks
+
+	def __call__(self, *args, **kw):
+		chunks = chain.from_iterable(self.method(*args, **kw))
+		# Join columns with a space, and rows with a newline.
+		src = '\n'.join([' '.join(row) for row in chunks])
+		return BoundSymbol(
+			Symbol(
+				self.symbol.library, src,
+				name = self.symbol.name,
+				method = self.symbol.method,
+				type = self.symbol.type,
+				parameters = self.symbol.parameters,
+				reference = False,
+			),
+			self.database,
+		)
+
 class Binding(object):
 	"""
-	Interface to a library bound to a database(connection).
+	Library bound to a database(connection).
 	"""
 	def __init__(self, database, library):
 		self.__dict__.update({
@@ -328,8 +350,8 @@ class Binding(object):
 
 	def __getattr__(self, name):
 		"""
-		Return a BoundSymbol against the Binding's database with the symbol named
-		``name`` in the Binding's library.
+		Return a BoundSymbol against the Binding's database with the
+		symbol named ``name`` in the Binding's library.
 		"""
 		d = self.__dict__
 		s = d['__symbol_cache__']
@@ -339,6 +361,9 @@ class Binding(object):
 		bs = s.get(name)
 		if bs is None:
 			# No symbol cached with that name.
+			# Everything is crammed in here because
+			# we do *not* want methods on this object.
+			# The namespace is primarily reserved for symbols.
 			sym = lib.get_symbol(name)
 			if sym is None:
 				raise AttributeError(
@@ -346,25 +371,33 @@ class Binding(object):
 						name, lib.address
 					)
 				)
-			if not isinstance(sym, Symbol):
-				# subjective symbol...
-				sym = sym(db)
-				if not isinstance(sym, Symbol):
-					raise TypeError(
-						"callable symbol, %r, did not produce Symbol instance" %(
-							name,
-						)
-					)
-			if sym.type == 'const':
-				r = BoundSymbol(sym, db)()
-				if sym.method in ('chunks', 'rows', 'column'):
-					# resolve the iterator
-					r = list(r)
-				bs = s[name] = r
-			else:
-				bs = BoundSymbol(sym, db)
+			if sym.reference:
+				# Reference.
+				bs = BoundReference(sym, db)
+				if sym.type == 'const':
+					# Constant Reference means a BoundSymbol.
+					bs = bs()
 				if sym.type != 'transient':
 					s[name] = bs
+			else:
+				if not isinstance(sym, Symbol):
+					# subjective symbol...
+					sym = sym(db)
+					if not isinstance(sym, Symbol):
+						raise TypeError(
+							"callable symbol, %r, did not produce " \
+							"Symbol instance" %(name,)
+						)
+				if sym.type == 'const':
+					r = BoundSymbol(sym, db)()
+					if sym.method in ('chunks', 'rows', 'column'):
+						# resolve the iterator
+						r = list(r)
+					bs = s[name] = r
+				else:
+					bs = BoundSymbol(sym, db)
+					if sym.type != 'transient':
+						s[name] = bs
 		return bs
 
 class Category(pg_api.Category):
