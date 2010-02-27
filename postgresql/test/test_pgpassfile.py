@@ -7,9 +7,13 @@ from .. import pgpassfile as client_pgpass
 from io import StringIO
 
 passfile_sample = """
+# host:1111:dbname:user:password1
 host:1111:dbname:user:password1
 *:1111:dbname:user:password2
 *:*:dbname:user:password3
+
+# Comment
+
 *:*:*:user:password4
 *:*:*:usern:password4.5
 *:*:*:*:password5
