@@ -1,10 +1,7 @@
 /*
- * copyright 2009, James William Pye
- * http://python.projects.postgresql.org
- *
- *//*
- * PQ message stream
- *
+ * .port.optimized.pq_message_buffer - PQ message stream
+ */
+/*
  * PQ messages normally take the form {type, (size), data}
  */
 #define include_buffer_types \
@@ -510,6 +507,54 @@ p_next_message(PyObject *self)
 	return(rob);
 }
 
+/*
+ * p_getvalue - get the unconsumed data in the buffer
+ *
+ * Normally used in conjunction with truncate to transfer
+ * control of the wire to another state machine.
+ */
+static PyObject *
+p_getvalue(PyObject *self)
+{
+	struct p_buffer *pb = ((struct p_buffer *) self);
+	struct p_list *l;
+	uint32_t initial_offset;
+	PyObject *rob;
+
+	initial_offset = pb->position.offset;
+	l = pb->position.list;
+	if (l == NULL)
+	{
+		return(PyBytes_FromString(""));
+	}
+
+	/*
+	 * Get the first chunk.
+	 */
+	rob = PyBytes_FromStringAndSize(
+		(PyBytes_AS_STRING(l->data) + initial_offset),
+		PyBytes_GET_SIZE(l->data) - initial_offset
+	);
+	if (rob == NULL)
+		return(NULL);
+
+	l = l->next;
+	while (l != NULL)
+	{
+		PyBytes_ConcatAndDel(&rob, l->data);
+		if (PyErr_Occurred())
+		{
+			Py_XDECREF(rob);
+			rob = NULL;
+			break;
+		}
+
+		l = l->next;
+	}
+
+	return(rob);
+}
+
 static PyMethodDef p_methods[] = {
 	{"write", p_write, METH_O,
 		PyDoc_STR("write the string to the buffer"),},
@@ -521,6 +566,8 @@ static PyMethodDef p_methods[] = {
 		PyDoc_STR("whether the buffer has a message ready"),},
 	{"next_message", (PyCFunction) p_next_message, METH_NOARGS,
 		PyDoc_STR("get and remove the next message--None if none."),},
+	{"getvalue", (PyCFunction) p_getvalue, METH_NOARGS,
+		PyDoc_STR("get the unprocessed data in the buffer")},
 	{NULL}
 };
 

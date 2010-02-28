@@ -1,7 +1,12 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .protocol.pbuffer
 ##
+"""
+Pure Python message buffer implementation.
+
+Given data read from the wire, buffer the data until a complete message has been
+received.
+"""
 __all__ = ['pq_message_stream']
 
 from io import BytesIO
@@ -156,3 +161,7 @@ class pq_message_stream(object):
 		# Always append data; it's a stream, damnit..
 		self._strio.seek(0, 2)
 		self._strio.write(data)
+
+	def getvalue(self):
+		self._strio.seek(self._start)
+		return self._strio.read()

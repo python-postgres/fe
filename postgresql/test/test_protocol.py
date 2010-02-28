@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .test.test_protocol
 ##
 import sys
 import unittest
@@ -20,6 +19,10 @@ def pair(msg):
 	return (msg.type, msg.serialize())
 def pairs(*msgseq):
 	return list(map(pair, msgseq))
+
+long = struct.Struct("!L")
+packl = long.pack
+unpackl = long.unpack
 
 class test_buffer(object):
 	def setUp(self):
@@ -71,14 +74,57 @@ class test_buffer(object):
 		b = self.buffer
 		factor = 1024
 		r = 10000
-		b.write(b'X' + struct.pack("!L", factor * r + 4))
+		b.write(b'X' + packl(factor * r + 4))
 		segment = b'\x00' * factor
 		for x in range(r-1):
 			b.write(segment)
 		b.write(segment)
 		msg = b.next_message()
 		self.failUnless(msg is not None)
-		self.failUnless(msg[0] == b'X')
+		self.failUnlessEqual(msg[0], b'X')
+
+	def test_getvalue(self):
+		# Make sure that getvalue() only applies to messages
+		# that have not been read.
+		b = self.buffer
+		# It should be empty.
+		self.failUnlessEqual(b.getvalue(), b'')
+		d = b'F' + packl(27)
+		b.write(d)
+		self.failUnlessEqual(b.getvalue(), d)
+		b.write(b'01'*12)
+		self.failUnlessEqual(b.getvalue(), d + (b'01' * 12))
+		b.write(nd)
+		nd = b'N'
+		out = b.read()
+		self.failUnlessEqual(b.getvalue(), b'N')
+		b.write(packl(4))
+		self.failUnlessEqual(b.read(), [(b'N', b'')])
+		self.failUnlessEqual(b.getvalue(), b'')
+		# partial; read one message to exercise
+		# that the appropriate fragment of the first
+		# chunk in the buffer is picked up.
+		first_body = (b'1234' * 3)
+		first = b'v' + packl(len(first_body) + 4)
+		second_body = (b'4321' * 5)
+		second = b'z' + packl(len(second_body) + 4)
+		b.write(first + second)
+		self.failUnlessEqual(b.getvalue(), first + second)
+		self.failUnlessEqual(b.read(1), [(b'v', first_body)])
+		self.failUnlessEqual(b.getvalue(), second)
+		self.failUnlessEqual(b.read(1), [(b'z', second_body)])
+		# now, with a third full message in the next chunk
+		third_body = (b'9876' * 10)
+		third = b'3' + packl(len(third_body) + 4)
+		b.write(first + second)
+		b.write(third)
+		self.failUnlessEqual(b.getvalue(), first + second + third)
+		self.failUnlessEqual(b.read(1), [(b'v', first_body)])
+		self.failUnlessEqual(b.getvalue(), second + third)
+		self.failUnlessEqual(b.read(1), [(b'z', second_body)])
+		self.failUnlessEqual(b.getvalue(), third)
+		self.failUnlessEqual(b.read(1), [(b'3', third_body)])
+		self.failUnlessEqual(b.getvalue(), b'')
 
 ##
 # element3 tests
