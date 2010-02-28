@@ -1527,7 +1527,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 
 	# XXX: relocate some of these tests into their own module
 	def testNotificationManager(self):
-		from ..driver.notifyman import NotificationManager as NM
+		from ..notifyman import NotificationManager as NM
 		# signals each other
 		db = self.db
 		alt = self.db.clone()
@@ -1555,7 +1555,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 						self.fail("unknown connection received notify..")
 
 	def testNotificationManagerTimeout(self):
-		from ..driver.notifyman import NotificationManager as NM
+		from ..notifyman import NotificationManager as NM
 		nm = NM(self.db, timeout = 0.1)
 		self.db.listen('foo')
 		count = 0
@@ -1578,7 +1578,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		# Zero-timeout means raise StopIteration when
 		# there are no notifications to emit.
 		# It checks the wire, but does *not* wait for data.
-		from ..driver.notifyman import NotificationManager as NM
+		from ..notifyman import NotificationManager as NM
 		nm = NM(self.db, timeout = 0)
 		self.db.listen('foo')
 		self.failUnlessEqual(list(nm), [])
@@ -1613,7 +1613,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		# Zero-timeout means raise StopIteration when
 		# there are no notifications to emit.
 		# It checks the wire, but does *not* wait for data.
-		from ..driver.notifyman import NotificationManager as NM
+		from ..notifyman import NotificationManager as NM
 		self.db.listen('foo')
 		self.failUnlessEqual(list(self.db.wait(0)), [])
 		self.db.notify('foo')
