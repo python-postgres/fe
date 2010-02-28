@@ -475,7 +475,7 @@ class Tuple(TupleMessage):
 			natts -= 1
 		return T(atts)
 	try:
-		parse = classmethod(parse_tuple_message)
+		parse = parse_tuple_message
 	except NameError:
 		# This is an override when port.optimized is available.
 		pass

@@ -1,13 +1,9 @@
 /*
- * copyright 2009, James William Pye
- * http://python.projects.postgresql.org
- *
- *//*
- * element3 optimizations.
+ * .port.optimized - .protocol.element3 optimizations
  */
 #define include_element3_functions \
 	mFUNC(cat_messages, METH_O, "cat the serialized form of the messages in the given list") \
-	mFUNC(parse_tuple_message, METH_VARARGS, "parse the given tuple data into a tuple of raw data") \
+	mFUNC(parse_tuple_message, METH_O, "parse the given tuple data into a tuple of raw data") \
 	mFUNC(pack_tuple_data, METH_O, "serialize the give tuple message[tuple of bytes()]") \
 
 /*
@@ -202,15 +198,14 @@ _unpack_tuple_data(PyObject *dst, uint16_t natts, register const char *data, Py_
 }
 
 static PyObject *
-parse_tuple_message(PyObject *self, PyObject *args)
+parse_tuple_message(PyObject *self, PyObject *arg)
 {
 	PyObject *rob;
-	PyObject *typ;
 	const char *data;
 	Py_ssize_t dlen = 0;
 	uint16_t natts = 0;
 
-	if (!PyArg_ParseTuple(args, "Oy#", &typ, &data, &dlen))
+	if (PyObject_AsReadBuffer(arg, (const void **) &data, &dlen))
 		return(NULL);
 
 	if (dlen < 2)
