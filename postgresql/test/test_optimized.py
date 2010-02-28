@@ -139,6 +139,41 @@ class test_optimized(unittest.TestCase):
 		self.failUnlessRaises(OverflowError, optimized.swap_int4_pack, (-2**31)-1)
 		self.failUnlessRaises(OverflowError, optimized.int4_pack, (-2**31)-1)
 
+	def test_int8(self):
+		d = b'\x00\x00\x00\x00\x00\x00\x00\x01'
+		rd = b'\x01\x00\x00\x00\x00\x00\x00\x00'
+		s = optimized.swap_int8_unpack(d)
+		n = optimized.int8_unpack(d)
+		sd = optimized.swap_int8_pack(1)
+		nd = optimized.int8_pack(1)
+		if sys.byteorder == 'little':
+			self.failUnlessEqual(0x1, s)
+			self.failUnlessEqual(0x100000000000000, n)
+			self.failUnlessEqual(d, sd)
+			self.failUnlessEqual(rd, nd)
+		else:
+			self.failUnlessEqual(0x1, n)
+			self.failUnlessEqual(0x100000000000000, s)
+			self.failUnlessEqual(d, nd)
+			self.failUnlessEqual(rd, sd)
+		self.failUnlessEqual(optimized.swap_int8_pack(-1), b'\xFF\xFF\xFF\xFF'*2)
+		self.failUnlessEqual(optimized.int8_pack(-1), b'\xFF\xFF\xFF\xFF'*2)
+		self.failUnlessRaises(OverflowError, optimized.swap_int8_pack, 2**63)
+		self.failUnlessRaises(OverflowError, optimized.int8_pack, 2**63)
+		self.failUnlessRaises(OverflowError, optimized.swap_int8_pack, (-2**63)-1)
+		self.failUnlessRaises(OverflowError, optimized.int8_pack, (-2**63)-1)
+		# edge I/O
+		int8_max = ((2**63) - 1)
+		int8_min = (-(2**63))
+		swap_max = optimized.swap_int8_pack(int8_max)
+		max = optimized.int8_pack(int8_max)
+		swap_min = optimized.swap_int8_pack(int8_min)
+		min = optimized.int8_pack(int8_min)
+		self.failUnlessEqual(optimized.swap_int8_unpack(swap_max), int8_max)
+		self.failUnlessEqual(optimized.int8_unpack(max), int8_max)
+		self.failUnlessEqual(optimized.swap_int8_unpack(swap_min), int8_min)
+		self.failUnlessEqual(optimized.int8_unpack(min), int8_min)
+
 	def test_uint2(self):
 		d = b'\x00\x01'
 		rd = b'\x01\x00'
@@ -186,6 +221,30 @@ class test_optimized(unittest.TestCase):
 		self.failUnlessRaises(OverflowError, optimized.uint4_pack, 2**32)
 		self.failUnlessEqual(optimized.uint4_pack(2**32-1), b'\xFF\xFF\xFF\xFF')
 		self.failUnlessEqual(optimized.swap_uint4_pack(2**32-1), b'\xFF\xFF\xFF\xFF')
+
+	def test_uint8(self):
+		d = b'\x00\x00\x00\x00\x00\x00\x00\x01'
+		rd = b'\x01\x00\x00\x00\x00\x00\x00\x00'
+		s = optimized.swap_uint8_unpack(d)
+		n = optimized.uint8_unpack(d)
+		sd = optimized.swap_uint8_pack(1)
+		nd = optimized.uint8_pack(1)
+		if sys.byteorder == 'little':
+			self.failUnlessEqual(0x1, s)
+			self.failUnlessEqual(0x100000000000000, n)
+			self.failUnlessEqual(d, sd)
+			self.failUnlessEqual(rd, nd)
+		else:
+			self.failUnlessEqual(0x1, n)
+			self.failUnlessEqual(0x100000000000000, s)
+			self.failUnlessEqual(d, nd)
+			self.failUnlessEqual(rd, sd)
+		self.failUnlessRaises(OverflowError, optimized.swap_uint8_pack, -1)
+		self.failUnlessRaises(OverflowError, optimized.uint8_pack, -1)
+		self.failUnlessRaises(OverflowError, optimized.swap_uint8_pack, 2**64)
+		self.failUnlessRaises(OverflowError, optimized.uint8_pack, 2**64)
+		self.failUnlessEqual(optimized.uint8_pack((2**64)-1), b'\xFF\xFF\xFF\xFF'*2)
+		self.failUnlessEqual(optimized.swap_uint8_pack((2**64)-1), b'\xFF\xFF\xFF\xFF'*2)
 
 if __name__ == '__main__':
 	from types import ModuleType
