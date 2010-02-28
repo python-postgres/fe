@@ -1,6 +1,5 @@
 /*
- * copyright 2009, James William Pye
- * http://python.projects.postgresql.org
+ * .port.optimized - pack and unpack int2, int4, and int8.
  */
 
 /*
@@ -130,6 +129,7 @@ int2_pack(PyObject *self, PyObject *arg)
 	s = (short) l;
 	return(PyBytes_FromStringAndSize((const char *) &s, 2));
 }
+
 static PyObject *
 swap_int2_pack(PyObject *self, PyObject *arg)
 {
@@ -159,14 +159,12 @@ int2_unpack(PyObject *self, PyObject *arg)
 	Py_ssize_t len;
 	PyObject *rob;
 
-	c = PyBytes_AsString(arg);
-	if (PyErr_Occurred())
+	if (PyObject_AsReadBuffer(arg, (const void **) &c, &len))
 		return(NULL);
 
-	len = PyBytes_Size(arg);
-	if (len != 2)
+	if (len < 2)
 	{
-		PyErr_SetString(PyExc_ValueError, "invalid size of data for int2_unpack");
+		PyErr_SetString(PyExc_ValueError, "not enough data for int2_unpack");
 		return(NULL);
 	}
 
@@ -175,6 +173,7 @@ int2_unpack(PyObject *self, PyObject *arg)
 	rob = PyLong_FromLong(l);
 	return(rob);
 }
+
 static PyObject *
 swap_int2_unpack(PyObject *self, PyObject *arg)
 {
@@ -184,14 +183,12 @@ swap_int2_unpack(PyObject *self, PyObject *arg)
 	Py_ssize_t len;
 	PyObject *rob;
 
-	c = PyBytes_AsString(arg);
-	if (PyErr_Occurred())
+	if (PyObject_AsReadBuffer(arg, (const void **) &c, &len))
 		return(NULL);
 
-	len = PyBytes_Size(arg);
-	if (len != 2)
+	if (len < 2)
 	{
-		PyErr_SetString(PyExc_ValueError, "invalid size of data for swap_int2_unpack");
+		PyErr_SetString(PyExc_ValueError, "not enough data for swap_int2_unpack");
 		return(NULL);
 	}
 
@@ -221,6 +218,7 @@ int4_pack(PyObject *self, PyObject *arg)
 	i = (int32_t) l;
 	return(PyBytes_FromStringAndSize((const char *) &i, 4));
 }
+
 static PyObject *
 swap_int4_pack(PyObject *self, PyObject *arg)
 {
@@ -249,20 +247,19 @@ int4_unpack(PyObject *self, PyObject *arg)
 	int32_t i;
 	Py_ssize_t len;
 
-	c = PyBytes_AsString(arg);
-	if (PyErr_Occurred())
+	if (PyObject_AsReadBuffer(arg, (const void **) &c, &len))
 		return(NULL);
 
-	len = PyBytes_Size(arg);
-	if (len != 4)
+	if (len < 4)
 	{
-		PyErr_SetString(PyExc_ValueError, "invalid size of data for int4_unpack");
+		PyErr_SetString(PyExc_ValueError, "not enough data for int4_unpack");
 		return(NULL);
 	}
 	i = *((int32_t *) c);
 
 	return(PyLong_FromLong((long) i));
 }
+
 static PyObject *
 swap_int4_unpack(PyObject *self, PyObject *arg)
 {
@@ -270,14 +267,12 @@ swap_int4_unpack(PyObject *self, PyObject *arg)
 	int32_t i;
 	Py_ssize_t len;
 
-	c = PyBytes_AsString(arg);
-	if (PyErr_Occurred())
+	if (PyObject_AsReadBuffer(arg, (const void **) &c, &len))
 		return(NULL);
 
-	len = PyBytes_Size(arg);
-	if (len != 4)
+	if (len < 4)
 	{
-		PyErr_SetString(PyExc_ValueError, "invalid size of data for swap_int4_unpack");
+		PyErr_SetString(PyExc_ValueError, "not enough data for swap_int4_unpack");
 		return(NULL);
 	}
 
@@ -307,6 +302,7 @@ uint2_pack(PyObject *self, PyObject *arg)
 	s = (unsigned short) l;
 	return(PyBytes_FromStringAndSize((const char *) &s, 2));
 }
+
 static PyObject *
 swap_uint2_pack(PyObject *self, PyObject *arg)
 {
@@ -339,14 +335,12 @@ uint2_unpack(PyObject *self, PyObject *arg)
 	Py_ssize_t len;
 	PyObject *rob;
 
-	c = PyBytes_AsString(arg);
-	if (PyErr_Occurred())
+	if (PyObject_AsReadBuffer(arg, (const void **) &c, &len))
 		return(NULL);
 
-	len = PyBytes_GET_SIZE(arg);
-	if (len != 2)
+	if (len < 2)
 	{
-		PyErr_SetString(PyExc_ValueError, "invalid size of data for uint2_unpack");
+		PyErr_SetString(PyExc_ValueError, "not enough data for uint2_unpack");
 		return(NULL);
 	}
 
@@ -355,6 +349,7 @@ uint2_unpack(PyObject *self, PyObject *arg)
 	rob = PyLong_FromLong(l);
 	return(rob);
 }
+
 static PyObject *
 swap_uint2_unpack(PyObject *self, PyObject *arg)
 {
@@ -364,14 +359,11 @@ swap_uint2_unpack(PyObject *self, PyObject *arg)
 	Py_ssize_t len;
 	PyObject *rob;
 
-	c = PyBytes_AsString(arg);
-	if (PyErr_Occurred())
+	if (PyObject_AsReadBuffer(arg, (const void **) &c, &len))
 		return(NULL);
-
-	len = PyBytes_GET_SIZE(arg);
-	if (len != 2)
+	if (len < 2)
 	{
-		PyErr_SetString(PyExc_ValueError, "invalid size of data for swap_uint2_unpack");
+		PyErr_SetString(PyExc_ValueError, "not enough data for swap_uint2_unpack");
 		return(NULL);
 	}
 
@@ -402,6 +394,7 @@ uint4_pack(PyObject *self, PyObject *arg)
 	i = (uint32_t) l;
 	return(PyBytes_FromStringAndSize((const char *) &i, 4));
 }
+
 static PyObject *
 swap_uint4_pack(PyObject *self, PyObject *arg)
 {
@@ -431,20 +424,19 @@ uint4_unpack(PyObject *self, PyObject *arg)
 	uint32_t i;
 	Py_ssize_t len;
 
-	len = PyBytes_Size(arg);
-	if (len != 4)
+	if (PyObject_AsReadBuffer(arg, (const void **) &c, &len))
+		return(NULL);
+
+	if (len < 4)
 	{
-		PyErr_SetString(PyExc_ValueError,
-			"invalid size of data for uint4_unpack");
+		PyErr_SetString(PyExc_ValueError, "not enough data for uint4_unpack");
 		return(NULL);
 	}
-	c = PyBytes_AsString(arg);
-	if (PyErr_Occurred())
-		return(NULL);
-	i = *((uint32_t *) c);
 
+	i = *((uint32_t *) c);
 	return(PyLong_FromUnsignedLong((unsigned long) i));
 }
+
 static PyObject *
 swap_uint4_unpack(PyObject *self, PyObject *arg)
 {
@@ -452,15 +444,12 @@ swap_uint4_unpack(PyObject *self, PyObject *arg)
 	uint32_t i;
 	Py_ssize_t len;
 
-	c = PyBytes_AsString(arg);
-	if (PyErr_Occurred())
+	if (PyObject_AsReadBuffer(arg, (const void **) &c, &len))
 		return(NULL);
-
-	len = PyBytes_Size(arg);
-	if (len != 4)
+	if (len < 4)
 	{
 		PyErr_SetString(PyExc_ValueError,
-			"invalid size of data for swap_uint4_unpack");
+			"not enough data for swap_uint4_unpack");
 		return(NULL);
 	}
 
@@ -485,6 +474,7 @@ int8_pack(PyObject *self, PyObject *arg)
 
 	return(PyBytes_FromStringAndSize((const char *) &l, 8));
 }
+
 static PyObject *
 swap_int8_pack(PyObject *self, PyObject *arg)
 {
@@ -509,6 +499,7 @@ uint8_pack(PyObject *self, PyObject *arg)
 
 	return(PyBytes_FromStringAndSize((const char *) &l, 8));
 }
+
 static PyObject *
 swap_uint8_pack(PyObject *self, PyObject *arg)
 {
@@ -526,43 +517,38 @@ static PyObject *
 uint8_unpack(PyObject *self, PyObject *arg)
 {
 	char *c;
+	Py_ssize_t len;
 	unsigned PY_LONG_LONG i;
 
-	if (PyBytes_Size(arg) != 8)
+	if (PyObject_AsReadBuffer(arg, (const void **) &c, &len))
+		return(NULL);
+	if (len < 8)
 	{
-		PyErr_SetString(PyExc_ValueError,
-			"invalid size of data for uint8_unpack");
+		PyErr_SetString(PyExc_ValueError, "not enough data for uint8_unpack");
 		return(NULL);
 	}
 
-	c = PyBytes_AsString(arg);
-	if (PyErr_Occurred())
-		return(NULL);
-
 	i = *((unsigned PY_LONG_LONG *) c);
-
 	return(PyLong_FromUnsignedLongLong(i));
 }
 static PyObject *
 swap_uint8_unpack(PyObject *self, PyObject *arg)
 {
 	char *c;
+	Py_ssize_t len;
 	unsigned PY_LONG_LONG i;
 
-	c = PyBytes_AsString(arg);
-	if (PyErr_Occurred())
+	if (PyObject_AsReadBuffer(arg, (const void **) &c, &len))
 		return(NULL);
-
-	if (PyBytes_Size(arg) != 8)
+	if (len < 8)
 	{
 		PyErr_SetString(PyExc_ValueError,
-			"invalid size of data for swap_uint8_unpack");
+			"not enough data for swap_uint8_unpack");
 		return(NULL);
 	}
 
 	i = *((unsigned PY_LONG_LONG *) c);
 	swap8(((char *) &i));
-
 	return(PyLong_FromUnsignedLongLong(i));
 }
 
@@ -570,41 +556,44 @@ static PyObject *
 int8_unpack(PyObject *self, PyObject *arg)
 {
 	char *c;
+	Py_ssize_t len;
 	PY_LONG_LONG i;
 
-	if (PyBytes_Size(arg) != 8)
+	if (PyObject_AsReadBuffer(arg, (const void **) &c, &len))
+		return(NULL);
+	if (len < 8)
 	{
 		PyErr_SetString(PyExc_ValueError,
-			"invalid size of data for int8_unpack");
+			"not enough data for int8_unpack");
 		return(NULL);
 	}
-	c = PyBytes_AsString(arg);
-	if (PyErr_Occurred())
-		return(NULL);
 
 	i = *((PY_LONG_LONG *) c);
 	return(PyLong_FromLongLong((PY_LONG_LONG) i));
 }
+
 static PyObject *
 swap_int8_unpack(PyObject *self, PyObject *arg)
 {
 	char *c;
+	Py_ssize_t len;
 	PY_LONG_LONG i;
 
 	c = PyBytes_AsString(arg);
 	if (PyErr_Occurred())
 		return(NULL);
 
-	if (PyBytes_Size(arg) != 8)
+	if (PyObject_AsReadBuffer(arg, (const void **) &c, &len))
+		return(NULL);
+	if (len < 8)
 	{
 		PyErr_SetString(PyExc_ValueError,
-			"invalid size of data for swap_int8_unpack");
+			"not enough data for swap_int8_unpack");
 		return(NULL);
 	}
 
 	i = *((PY_LONG_LONG *) c);
 	swap8(((char *) &i));
-
 	return(PyLong_FromLongLong(i));
 }
 #endif /* longlong_funcs */
