@@ -1,12 +1,10 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .protocol.xact3 - protocol state machine
 ##
 'PQ version 3.0 client transactions'
 import sys
 import os
 from abc import ABCMeta, abstractmethod
-from pprint import pformat
 from itertools import chain
 from operator import itemgetter
 get0 = itemgetter(0)
@@ -17,6 +15,11 @@ from . import element3 as element
 
 from hashlib import md5
 from ..resolved.crypt import crypt
+
+try:
+	from ..port.optimized import consume_tuple_messages
+except ImportError:
+	pass
 
 Receiving = True
 Sending = False
@@ -434,19 +437,25 @@ class Instruction(Transaction):
 		'Received and validate messages'
 		return chain.from_iterable(map(get1, self.completed))
 
-	def reverse(self):
+	def reverse(self,
+		chaining = chain.from_iterable,
+		map = map,
+		transform = compose((get1, reversed)),
+		reversed = reversed
+	):
 		"""
 		A iterator that producing the completed messages in reverse
 		order. Last in, first out.
 		"""
-		return chain.from_iterable(
-			map(
-				compose((get1, reversed)),
-				reversed(self.completed)
-			)
-		)
+		return chaining(map(transform, reversed(self.completed)))
 
-	def standard_put(self, messages):
+	def standard_put(self, messages,
+		SWITCH_TYPES = element.Execute.type + element.Query.type,
+		ERROR_TYPE = element.Error.type,
+		READY_TYPE = element.Ready.type,
+		ERROR_PARSE = element.Error.parse,
+		len = len,
+	):
 		"""
 		Attempt to forward the state of the transaction using the given
 		messages. "put" messages into the transaction for processing.
@@ -454,6 +463,9 @@ class Instruction(Transaction):
 		If an invalid command is initialized on the `Transaction` object, an
 		`IndexError` will be thrown.
 		"""
+		COMMANDS = self.commands
+		NCOMMANDS = len(COMMANDS)
+		HOOK = self.hook
 		# We processed it, but apparently something went wrong,
 		# so go ahead and reprocess it.
 		if messages is self.last[0]:
@@ -463,8 +475,8 @@ class Instruction(Transaction):
 			offset, current_step = self.last[2]
 			# it's a new set, so we can clear the asyncs record.
 			self._asyncs = []
-		cmd = self.commands[offset]
-		paths = self.hook[cmd.type]
+		cmd = COMMANDS[offset]
+		paths = HOOK[cmd.type]
 		processed = []
 		count = 0
 
@@ -476,8 +488,8 @@ class Instruction(Transaction):
 
 			if path is None:
 				# No path for message type, could be a protocol error.
-				if x[0] == element.Error.type:
-					em = element.Error.parse(x[1])
+				if x[0] == ERROR_TYPE:
+					em = ERROR_PARSE(x[1])
 					self.fatal = fatal = em[b'S'].upper() != b'ERROR'
 					self.error_message = em
 					if fatal is True:
@@ -490,8 +502,8 @@ class Instruction(Transaction):
 					if cmd.type not in (
 						element.Function.type, element.Query.type
 					):
-						for offset in range(offset, len(self.commands)):
-							if self.commands[offset] is element.SynchronizeMessage:
+						for offset in range(offset, NCOMMANDS):
+							if COMMANDS[offset] is element.SynchronizeMessage:
 								break
 						else:
 							##
@@ -501,8 +513,8 @@ class Instruction(Transaction):
 					##
 					# Not quite done, the state(Ready) message still
 					# needs to be received.
-					cmd = self.commands[offset]
-					paths = self.hook[cmd.type]
+					cmd = COMMANDS[offset]
+					paths = HOOK[cmd.type]
 					# On a new command, setup the new step.
 					current_step = 0
 					continue
@@ -532,7 +544,7 @@ class Instruction(Transaction):
 					self.state = Complete
 					return count
 			else:
-				# Valid message
+				# Process a valid message.
 				r = path(x[1])
 				processed.append(r)
 
@@ -540,7 +552,7 @@ class Instruction(Transaction):
 					current_step = next_step
 				else:
 					current_step = 0
-					if r.type == element.Ready.type:
+					if r.type == READY_TYPE:
 						self.last_ready = r.xact_state
 					# Done with the current command. Increment the offset, and
 					# try to process the new command with the remaining data.
@@ -551,11 +563,11 @@ class Instruction(Transaction):
 						offset += 1
 						# If the offset is the length,
 						# the transaction is complete.
-						if offset == len(self.commands):
+						if offset == NCOMMANDS:
 							# Done with transaction.
 							break
-						cmd = self.commands[offset]
-						paths = self.hook[cmd.type]
+						cmd = COMMANDS[offset]
+						paths = HOOK[cmd.type]
 					else:
 						# More commands to process in this transaction.
 						continue
@@ -571,11 +583,10 @@ class Instruction(Transaction):
 		# Store the state for the next transition.
 		self.last = (messages, self.last[2], (offset, current_step),)
 
-		if offset == len(self.commands):
+		if offset == NCOMMANDS:
 			# transaction complete.
 			self.state = Complete
-		elif cmd.type in (element.Execute.type, element.Query.type) and \
-		processed:
+		elif cmd.type in SWITCH_TYPES and processed:
 			# Check the context to identify if the state should be
 			# switched to an optimized processor.
 			last = processed[-1]
@@ -616,29 +627,46 @@ class Instruction(Transaction):
 		self.last = (messages, self.last[2], self.last[2],)
 		return len(messages)
 
-	def put_tupledata(self, messages,
-		p = element.Tuple.parse,
-		t = element.Tuple.type,
-	):
-		"""
-		Fast path used when inside an Execute command. As soon as tuple
-		data is seen.
-		"""
-		# Fallback to `standard_put` quickly if the last
-		# message is not tuple data.
-		if messages[-1][0] is not t:
-			self.state = (Receiving, self.standard_put)
-			return self.standard_put(messages)
+	try:
+		def put_tupledata(self, messages,
+			consume = consume_tuple_messages,
+		):
+			tuplemessages = consume(messages)
+			if not tuplemessages:
+				# bad handler switch?
+				self.state = (Receiving, self.standard_put)
+				return self.standard_put(messages)
 
-		tuplemessages = [p(x[1]) for x in messages if x[0] == t]
-		if len(tuplemessages) != len(messages):
-			self.state = (Receiving, self.standard_put)
-			return self.standard_put(messages)
+			if not self.completed or self.completed[-1][0] != id(messages):
+				self.completed.append(((id(messages), tuplemessages)))
+			self.last = (messages, self.last[2], self.last[2],)
+			return len(tuplemessages)
+	except NameError:
+		##
+		# No consume_tuple_messages function.
+		def put_tupledata(self, messages,
+			p = element.Tuple.parse,
+			t = element.Tuple.type,
+		):
+			"""
+			Fast path used when inside an Execute command. As soon as tuple
+			data is seen.
+			"""
+			# Fallback to `standard_put` quickly if the last
+			# message is not tuple data.
+			if messages[-1][0] is not t:
+				self.state = (Receiving, self.standard_put)
+				return self.standard_put(messages)
 
-		if not self.completed or self.completed[-1][0] != id(messages):
-			self.completed.append(((id(messages), tuplemessages)))
-		self.last = (messages, self.last[2], self.last[2],)
-		return len(messages)
+			tuplemessages = [p(x[1]) for x in messages if x[0] == t]
+			if len(tuplemessages) != len(messages):
+				self.state = (Receiving, self.standard_put)
+				return self.standard_put(messages)
+
+			if not self.completed or self.completed[-1][0] != id(messages):
+				self.completed.append(((id(messages), tuplemessages)))
+			self.last = (messages, self.last[2], self.last[2],)
+			return len(messages)
 
 	def standard_sent(self):
 		"""

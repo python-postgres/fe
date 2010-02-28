@@ -5,26 +5,62 @@ import unittest
 import struct
 import sys
 from ..port import optimized
+from ..python.itertools import interlace
+
+# Curious... Seems too dangerous for real use..
+class SerializeNULL_Type(bytes):
+	def __len__(self):
+		return 0xFFFFFFFF
+SerializeNULL = SerializeNULL_Type(b'')
+
+def pack_tuple(*data,
+	packH = struct.Struct("!H").pack,
+	packL = struct.Struct("!L").pack
+):
+	return packH(len(data)) + b''.join(interlace(map(packL, map(len, data)), data))
+
+tuplemessages = (
+	(b'D', pack_tuple(b'foo', b'bar')),
+	(b'D', pack_tuple(b'foo', SerializeNULL, b'bar')),
+	(b'N', b'fee'),
+	(b'D', pack_tuple(b'foo', SerializeNULL, b'bar')),
+	(b'D', pack_tuple(b'foo', b'bar')),
+)
 
 class test_optimized(unittest.TestCase):
+	def test_consume_tuple_messages(self):
+		ctm = optimized.consume_tuple_messages
+		# expecting a tuple of pairs.
+		self.failUnlessRaises(TypeError, ctm, [])
+		self.failUnlessEqual(ctm(()), [])
+		# Make sure that the slicing is working.
+		self.failUnlessEqual(ctm(tuplemessages), [
+			(b'foo', b'bar'),
+			(b'foo', None, b'bar'),
+		])
+		# Not really checking consume here, but we are validating that
+		# it's properly propagating exceptions.
+		self.failUnlessRaises(ValueError, ctm, ((b'D', b'\xff\xff\xff\xfefoo'),))
+		self.failUnlessRaises(ValueError, ctm, ((b'D', b'\x00\x00\x00\x04foo'),))
+
 	def test_parse_tuple_message(self):
 		ptm = optimized.parse_tuple_message
-		self.failUnlessRaises(TypeError, ptm, tuple, "stringzor")
-		self.failUnlessRaises(TypeError, ptm, tuple, 123)
-		self.failUnlessRaises(ValueError, ptm, tuple, b'')
-		self.failUnlessRaises(ValueError, ptm, tuple, b'0')
+		self.failUnlessRaises(TypeError, ptm, "stringzor")
+		self.failUnlessRaises(TypeError, ptm, 123)
+		self.failUnlessRaises(ValueError, ptm, b'')
+		self.failUnlessRaises(ValueError, ptm, b'0')
 
 		notenoughdata = struct.pack('!H', 2)
-		self.failUnlessRaises(ValueError, ptm, tuple, notenoughdata)
+		self.failUnlessRaises(ValueError, ptm, notenoughdata)
 
 		wraparound = struct.pack('!HL', 2, 10) + (b'0' * 10) + struct.pack('!L', 0xFFFFFFFE)
-		self.failUnlessRaises(ValueError, ptm, tuple, wraparound)
+		self.failUnlessRaises(ValueError, ptm, wraparound)
 
 		oneatt_notenough = struct.pack('!HL', 2, 10) + (b'0' * 10) + struct.pack('!L', 15)
-		self.failUnlessRaises(ValueError, ptm, tuple, oneatt_notenough)
+		self.failUnlessRaises(ValueError, ptm, oneatt_notenough)
 
 		toomuchdata = struct.pack('!HL', 1, 3) + (b'0' * 10)
-		self.failUnlessRaises(ValueError, ptm, tuple, toomuchdata)
+		self.failUnlessRaises(ValueError, ptm, toomuchdata)
 
 		class faketup(tuple):
 			def __new__(subtype, geeze):
@@ -32,7 +68,7 @@ class test_optimized(unittest.TestCase):
 				r.foo = geeze
 				return r
 		zerodata = struct.pack('!H', 0)
-		r = ptm(tuple, zerodata)
+		r = ptm(zerodata)
 		self.failUnlessRaises(AttributeError, getattr, r, 'foo')
 		self.failUnlessRaises(AttributeError, setattr, r, 'foo', 'bar')
 		self.failUnlessEqual(len(r), 0)

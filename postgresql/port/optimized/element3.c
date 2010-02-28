@@ -5,6 +5,7 @@
 	mFUNC(cat_messages, METH_O, "cat the serialized form of the messages in the given list") \
 	mFUNC(parse_tuple_message, METH_O, "parse the given tuple data into a tuple of raw data") \
 	mFUNC(pack_tuple_data, METH_O, "serialize the give tuple message[tuple of bytes()]") \
+	mFUNC(consume_tuple_messages, METH_O, "create a list of parsed tuple data tuples") \
 
 /*
  * Given a tuple of bytes and None objects, join them into a
@@ -109,67 +110,60 @@ _pack_tuple_data(PyObject *tup)
  * dst must be of PyTuple_Type with at least natts items slots.
  */
 static int
-_unpack_tuple_data(PyObject *dst, uint16_t natts, register const char *data, Py_ssize_t data_len)
+_unpack_tuple_data(PyObject *dst, register uint16_t natts, register const char *data, Py_ssize_t data_len)
 {
-	PyObject *ob;
-	uint16_t cnatt = 0;
-	uint32_t attsize = 0;
-	register uint32_t position = 0;
+	static const unsigned char null_sequence[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+	register PyObject *ob;
+	register uint16_t cnatt = 0;
+	register uint32_t attsize;
+	register const char *next;
+	register const char *eod = data + data_len;
+	char attsize_buf[4];
 
 	while (cnatt < natts)
 	{
 		/*
 		 * Need enough data for the attribute size.
 		 */
-		if (position + 4 > data_len)
+		next = data + 4;
+		if (next > eod)
 		{
 			PyErr_Format(PyExc_ValueError,
 				"not enough data available for attribute %d's size header: "
 				"needed %d bytes, but only %lu remain at position %lu",
-				cnatt, 4, data_len - position, position
+				cnatt, 4, eod - data, data_len - (eod - data)
 			);
 			return(-1);
 		}
 
-		Py_MEMCPY(&attsize, data + position, 4);
-		attsize = local_ntohl(attsize);
-		position += 4;
-		/*
-		 * NULL.
-		 */
-		if (attsize == (uint32_t) 0xFFFFFFFFL)
+		Py_MEMCPY(attsize_buf, data, 4);
+		data = next;
+		if ((*((uint32_t *) attsize_buf)) == (*((uint32_t *) null_sequence)))
 		{
+			/*
+			 * NULL.
+			 */
 			Py_INCREF(Py_None);
 			PyTuple_SET_ITEM(dst, cnatt, Py_None);
 		}
 		else
 		{
-			if ((position + attsize) < position)
+			attsize = local_ntohl(*((uint32_t *) attsize_buf));
+
+			next = data + attsize;
+			if (next > eod || next < data)
 			{
 				/*
-				 * Likely a "limitation" over the pure-Python version, *but*
-				 * the message content size is limited to 0xFFFFFFFF-4 anyways,
-				 * so it is unexpected for an attsize to cause wrap-around.
+				 * Increment caused wrap...
 				 */
 				PyErr_Format(PyExc_ValueError,
-					"tuple data caused position (uint32_t) "
-					"to wrap on attribute %d, position %lu + size %lu",
-					cnatt, position, attsize
+					"attribute %d has invalid size %lu",
+					cnatt, attsize
 				);
 				return(-1);
 			}
 
-			if (position + attsize > data_len)
-			{
-				PyErr_Format(PyExc_ValueError,
-					"not enough data for attribute %d, size %lu, "
-					"as only %lu bytes remain in message",
-					cnatt, attsize, data_len - position
-				);
-				return(-1);
-			}
-
-			ob = PyBytes_FromStringAndSize(data + position, attsize);
+			ob = PyBytes_FromStringAndSize(data, attsize);
 			if (ob == NULL)
 			{
 				/*
@@ -178,18 +172,18 @@ _unpack_tuple_data(PyObject *dst, uint16_t natts, register const char *data, Py_
 				return(-1);
 			}
 			PyTuple_SET_ITEM(dst, cnatt, ob);
-			position += attsize;
+			data = next;
 		}
 
 		cnatt++;
 	}
 
-	if (position != data_len)
+	if (data != eod)
 	{
 		PyErr_Format(PyExc_ValueError,
 			"invalid tuple(D) message, %lu remaining "
 			"bytes after processing %d attributes",
-			data_len - position, cnatt
+			(unsigned long) (eod - data), cnatt
 		);
 		return(-1);
 	}
@@ -225,6 +219,72 @@ parse_tuple_message(PyObject *self, PyObject *arg)
 	{
 		Py_DECREF(rob);
 		return(NULL);
+	}
+
+	return(rob);
+}
+
+static PyObject *
+consume_tuple_messages(PyObject *self, PyObject *list)
+{
+	Py_ssize_t i;
+	PyObject *rob; /* builtins.list */
+
+	if (!PyTuple_Check(list))
+	{
+		PyErr_SetString(PyExc_TypeError,
+			"consume_tuple_messages requires a tuple");
+		return(NULL);
+	}
+	rob = PyList_New(PyTuple_GET_SIZE(list));
+	if (rob == NULL)
+		return(NULL);
+
+	for (i = 0; i < PyTuple_GET_SIZE(list); ++i)
+	{
+		register PyObject *data;
+		PyObject *msg, *typ, *ptm;
+
+		msg = PyTuple_GET_ITEM(list, i);
+		if (!PyTuple_CheckExact(msg) || PyTuple_GET_SIZE(msg) != 2)
+		{
+			Py_DECREF(rob);
+			PyErr_SetString(PyExc_TypeError,
+				"consume_tuple_messages requires tuples items to be tuples (pairs)");
+			return(NULL);
+		}
+
+		typ = PyTuple_GET_ITEM(msg, 0);
+		if (!PyBytes_CheckExact(typ) || PyBytes_GET_SIZE(typ) != 1)
+		{
+			Py_DECREF(rob);
+			PyErr_SetString(PyExc_TypeError,
+				"consume_tuple_messages requires pairs to consist of bytes");
+			return(NULL);
+		}
+
+		/*
+		 * End of tuple messages.
+		 */
+		if (*(PyBytes_AS_STRING(typ)) != 'D')
+			break;
+
+		data = PyTuple_GET_ITEM(msg, 1);
+		ptm = parse_tuple_message(NULL, data);
+		if (ptm == NULL)
+		{
+			Py_DECREF(rob);
+			return(NULL);
+		}
+		PyList_SET_ITEM(rob, i, ptm);
+	}
+
+	if (i < PyTuple_GET_SIZE(list))
+	{
+		PyObject *newrob;
+		newrob = PyList_GetSlice(rob, 0, i);
+		Py_DECREF(rob);
+		rob = newrob;
 	}
 
 	return(rob);
