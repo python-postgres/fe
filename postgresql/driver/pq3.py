@@ -11,6 +11,7 @@ import socket
 from traceback import format_exception
 from itertools import repeat, chain
 from abc import abstractmethod
+
 from operator import itemgetter
 get0 = itemgetter(0)
 get1 = itemgetter(1)
@@ -59,10 +60,9 @@ notice_field_from_name = dict(
 	(v, k) for (k, v) in notice_field_to_name.items()
 )
 
-IDNS = 'py:%s'
-def ID(s, title = None):
+def ID(s, title = None, IDNS = 'py:'):
 	'generate an id for a client statement or cursor'
-	return IDNS %(hex(id(s)),)
+	return IDNS + hex(id(s))
 
 def declare_statement_string(
 	cursor_id,
