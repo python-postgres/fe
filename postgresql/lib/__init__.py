@@ -467,7 +467,7 @@ def load(libref):
 				for x in find_libsql(libref, pg_sys.libpath):
 					break
 				else:
-					raise LoadError("library %r not in postgresql.sys.libpath")
+					raise pg_exc.LoadError("library %r not in postgresql.sys.libpath" % (libref,))
 				lib = ILF.open(x)
 		except pg_exc.LoadError:
 			raise
