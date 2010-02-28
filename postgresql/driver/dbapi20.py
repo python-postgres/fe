@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .driver.dbapi20 - DB-API 2.0 Implementation
 ##
 """
 DB-API 2.0 conforming interface using postgresql.driver.
@@ -140,7 +139,7 @@ class Cursor(object):
 		self.__portals = []
 
 	# Describe the "real" cursor as a "portal".
-	# This should keep ambiguous terminology out of adaptor.
+	# This should keep ambiguous terminology out of the adaptation.
 	def _portal():
 		def fget(self):
 			if self.__portals is None:
@@ -209,6 +208,9 @@ class Cursor(object):
 	def nextset(self):
 		del self._portal
 		return len(self.__portals) or None
+
+	def fileno(self):
+		return self.database.fileno()
 
 	def _convert_query(self, string):
 		parts = list(pg_str.split(string))
