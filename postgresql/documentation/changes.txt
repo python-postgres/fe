@@ -9,6 +9,9 @@ Changes
  * Fix db.tracer and pg_python's --pq-trace=
  * Fix typo/dropped parts of a raise LoadError in .lib.
    [Reported by Vlad Pranskevichus]
+ * Fix count return from .first() method. Failed to provide an empty
+   tuple for the rformats of the bind statement.
+   [Reported by dou dou]
 
 0.9.3 released on 2010-01-01
 ----------------------------
