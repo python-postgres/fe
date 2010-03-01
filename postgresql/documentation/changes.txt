@@ -34,3 +34,5 @@ Changes
  * Implement reference symbols. Allow libraries to define symbols that
    are used to create queries that inherit the original symbol's type and
    execution method. ``db.prepare(db.prepare(...).first())``
+ * Fix type/dropped parts of a raise LoadError in .lib.
+   [Reported by Vlad Pranskevichus]
