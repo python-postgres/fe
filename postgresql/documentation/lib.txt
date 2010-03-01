@@ -1,14 +1,14 @@
-Categories and Query Libraries
-******************************
+Categories and Libraries
+************************
 
 This chapter discusses the usage and implementation of connection categories and
-query libraries.
+libraries.
 
 .. note::
  First-time users are encouraged to read the `Audience and Motivation`_
  section first.
 
-Query libraries are a collection of SQL statements that can be bound to a
+Libraries are a collection of SQL statements that can be bound to a
 connection. Libraries are *normally* bound directly to the connection object as
 an attribute using a name specified by the library.
 
@@ -24,19 +24,19 @@ statement is to be used. The user may state the default execution method of
 the statement object, or whether the symbol is to be preloaded at bind
 time--these properties are Symbol Annotations.
 
-The purpose of query libraries is to provide a means to manage statements on
+The purpose of libraries are to provide a means to manage statements on
 disk and at runtime. ILFs provide a means to reference a collection
 of statements on disk, and, when loaded, the symbol bindings provides means to
 reference a statement already prepared for use on a given connection.
 
 The `postgresql.lib` package-module provides fundamental classes for supporting
-categories and query libraries.
+categories and libraries.
 
 
-Writing Query Libraries
-=======================
+Writing Libraries
+=================
 
-ILF files are the recommended way to build a query library. These files use the
+ILF files are the recommended way to build a library. These files use the
 naming convention "lib{NAME}.sql". The prefix and suffix are used describe the
 purpose of the file and to provide a hint to editors that SQL highlighting
 should be used. The format of an ILF takes the form::
@@ -179,8 +179,8 @@ In use::
  will be returned.
 
 
-Using Query Libraries
-=====================
+Using Libraries
+===============
 
 After a library is created, it must be loaded before it can be bound using
 programmer interfaces. The `postgresql.lib.load` interface provides the
@@ -297,11 +297,10 @@ that can be used in ILF libraries:
 Symbol Execution Methods
 ========================
 
-One of the primary features of query libraries is the ability to state how a
-statement is going to be used. Specifically, which
-`postgresql.api.PreparedStatement` method should be executed when a Bound Symbol
-is called. The following is a list of the symbol execution methods and the
-effect it will have when invoked:
+The Symbol Execution Method provides a way to specify how a statement is going
+to be used. Specifically, which `postgresql.api.PreparedStatement` method
+should be executed when a Bound Symbol is called. The following is a list of
+the symbol execution methods and the effect it will have when invoked:
 
  ``<default>`` (Empty component)
   Returns the entire result set in a single list object. If the statement does
@@ -434,7 +433,7 @@ Audience and Motivation
 =======================
 
 This chapter covers advanced material. It is **not** recommended that categories
-and query libraries be used for trivial applications or introductory projects.
+and libraries be used for trivial applications or introductory projects.
 
 .. note::
  Libraries and categories are not likely to be of interest to ORM or DB-API users.
@@ -473,9 +472,9 @@ simple, but it will be exhausting if repeated and error prone if the
 initialization condition is not factored out. Additionally, if access to statement
 metadata is needed, the above example is still lacking as it would require
 execution of the statement and further protocol expectations to be established.
-This is the province of query libraries: direct database interface management.
+This is the province of libraries: direct database interface management.
 
-Query libraries and categories are used to factor out and simplify
+Categories and Libraries are used to factor out and simplify
 the above functionality so re-implementation is unnecessary. For example, an
 ILF library containing the symbol::
 
@@ -532,6 +531,6 @@ The following terms are used throughout this chapter:
 
  Category
   An object supporting a classification for connectors that provides database
-  initialization facilities for produced connections. For query libraries,
+  initialization facilities for produced connections. For libraries,
   `postgresql.lib.Category` objects are a set of Libraries,
   `postgresql.lib.Library`.
