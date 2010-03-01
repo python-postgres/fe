@@ -1098,7 +1098,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 					self._pq_statement_id,
 					self._input_formats,
 					params,
-					self._output_formats,
+					self._output_formats or (),
 				),
 				# Get all
 				element.Execute(b'', 0xFFFFFFFF),

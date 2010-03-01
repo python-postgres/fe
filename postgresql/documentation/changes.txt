@@ -36,3 +36,7 @@ Changes
    execution method. ``db.prepare(db.prepare(...).first())``
  * Fix typo/dropped parts of a raise LoadError in .lib.
    [Reported by Vlad Pranskevichus]
+ * Fix db.tracer and pg_python's --pq-trace=
+ * Fix count return from .first() method. Failed to provide an empty
+   tuple for the rformats of the bind statement.
+   [Reported by dou dou]

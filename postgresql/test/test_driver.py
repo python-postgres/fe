@@ -422,6 +422,20 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		ps = self.db.prepare("SELECT 1, 2 UNION ALL SELECT 3, 4")
 		self.failUnlessEqual(ps(), [(1,2),(3,4)])
 
+	def testStatementFirstDML(self):
+		self.db.execute("CREATE TEMP TABLE first (i int)")
+		fins = self.db.prepare("INSERT INTO first VALUES (123)").first
+		fupd = self.db.prepare("UPDATE first SET i = 321 WHERE i = 123").first
+		fdel = self.db.prepare("DELETE FROM first").first
+		self.failUnlessEqual(fins(), 1)
+		self.failUnlessEqual(fdel(), 1)
+		self.failUnlessEqual(fins(), 1)
+		self.failUnlessEqual(fupd(), 1)
+		self.failUnlessEqual(fins(), 1)
+		self.failUnlessEqual(fins(), 1)
+		self.failUnlessEqual(fupd(), 2)
+		self.failUnlessEqual(fdel(), 3)
+
 	def testStatementRowsPersistence(self):
 		# validate that rows' cursor will persist beyond a transaction.
 		ps = self.db.prepare("SELECT i FROM generate_series($1::int, $2::int) AS g(i)")
