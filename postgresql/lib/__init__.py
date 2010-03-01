@@ -1,10 +1,10 @@
 ##
-# .lib - query libraries; manage SQL outside of Python.
+# .lib - libraries; manage SQL outside of Python.
 ##
 """
-PostgreSQL query libraries.
+PostgreSQL statement and object libraries.
 
-The purpose of query libraries is provide a means to manage a mapping of symbols
+The purpose of a library is provide a means to manage a mapping of symbols
 to database operations or objects. These operations can be simple statements,
 procedures, or something more complex.
 
