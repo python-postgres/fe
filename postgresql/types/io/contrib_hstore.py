@@ -7,7 +7,7 @@ from ...python.itertools import chunk
 ##
 # Build the hstore I/O pair for a given typio.
 # It primarily need typio for decode and encode.
-def hstore_factory(typio,
+def hstore_factory(oid, typio,
 	unpack_err = "expected {0} items in hstore, but found {1}".format
 ):
 	def pack_hstore(x,
