@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .types.io - I/O routines for packing and unpacking data
 ##
 """
 PostgreSQL type I/O routines--packing and unpacking functions.
@@ -77,6 +76,10 @@ io_modules = {
 
 	'stdlib_xml_etree' : (
 		pg_types.XMLOID,
+	),
+
+	'contrib_hstore' : (
+		'contrib_hstore',
 	),
 }
 

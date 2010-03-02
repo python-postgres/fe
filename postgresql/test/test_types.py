@@ -1,12 +1,23 @@
 ##
-# test.test_types
+# .test.test_types - test type representations and I/O
 ##
 import unittest
+import struct
 from ..python.functools import process_tuple
 from .. import types as pg_types
 from ..types.io import lib as typlib
 from ..types.io import builtins
+from ..types.io.contrib_hstore import hstore_factory
 from ..types import Array
+
+class fake_typio(object):
+	@staticmethod
+	def encode(x):
+		return x.encode('utf-8')
+	@staticmethod
+	def decode(x):
+		return x.decode('utf-8')
+hstore_pack, hstore_unpack = hstore_factory(fake_typio)
 
 # this must pack to that, and
 # that must unpack to this
@@ -127,6 +138,14 @@ expectation_samples = {
 			b'\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x0f\x00\x00\x00\x01' \
 			b'\x00\x00\x00\x00\xff\xff\xff\xff'
 		)
+	],
+
+	('hstore', hstore_pack, hstore_unpack) : [
+		({}, b'\x00\x00\x00\x00'),
+		({'b' : None}, b'\x00\x00\x00\x01\x00\x00\x00\x01b\xff\xff\xff\xff'),
+		({'b' : 'k'}, b'\x00\x00\x00\x01\x00\x00\x00\x01b\x00\x00\x00\x01k'),
+		({'foo' : 'bar'}, b'\x00\x00\x00\x01\x00\x00\x00\x03foo\x00\x00\x00\x03bar'),
+		({'foo' : None}, b'\x00\x00\x00\x01\x00\x00\x00\x03foo\xff\xff\xff\xff'),
 	],
 }
 expectation_samples[('box', typlib.box_pack, typlib.box_unpack)] = \
@@ -363,7 +382,31 @@ class test_io(unittest.TestCase):
 						)
 					)
 
-# Make some slices
+	##
+	# Further hstore tests.
+	def test_hstore(self):
+		# Can't do some tests with the consistency checks
+		# because we are not using ordered dictionaries.
+		self.failUnlessRaises((ValueError, struct.error), hstore_unpack, b'\x00\x00\x00\x00foo')
+		self.failUnlessRaises(ValueError, hstore_unpack, b'\x00\x00\x00\x01')
+		self.failUnlessRaises(ValueError, hstore_unpack, b'\x00\x00\x00\x02\x00\x00\x00\x01G\x00\x00\x00\x01G')
+		sample = [
+			([('foo','bar'),('k',None),('zero','heroes')],
+				b'\x00\x00\x00\x03\x00\x00\x00\x03foo' + \
+				b'\x00\x00\x00\x03bar\x00\x00\x00\x01k\xFF\xFF\xFF\xFF' + \
+				b'\x00\x00\x00\x04zero\x00\x00\x00\x06heroes'),
+			([('foo',None),('k',None),('zero',None)],
+				b'\x00\x00\x00\x03\x00\x00\x00\x03foo' + \
+				b'\xff\xff\xff\xff\x00\x00\x00\x01k\xFF\xFF\xFF\xFF' + \
+				b'\x00\x00\x00\x04zero\xFF\xFF\xFF\xFF'),
+			([], b'\x00\x00\x00\x00'),
+		]
+		for x in sample:
+			src, serialized = x
+			self.failUnlessEqual(hstore_pack(src), serialized)
+			self.failUnlessEqual(hstore_unpack(serialized), dict(src))
+
+# Make some slices; used by testSlicing
 slice_samples = [
 	slice(0, None, x+1) for x in range(10)
 ] + [
