@@ -1107,11 +1107,10 @@ Of course, more than one column can be transformed::
 	>>> row.transform(None, str, str)
 	('XX9301423', '2', '4.92')
 
-More advanced usage can make use of `postgresql.python.functools.Composition`
-or lambdas for compound transformations in a single pass of the row::
+More advanced usage can make use of lambdas for compound transformations in a
+single pass of the row::
 
-	>>> from postgresql.python.functools import Composition as compose
-	>>> strip_and_int = compose((stripxx, int))
+	>>> strip_and_int = lambda x: int(stripxx(x))
 	>>> row.transform(strip_and_int)
 	(9301423, 2, Decimal("4.92"))
 
