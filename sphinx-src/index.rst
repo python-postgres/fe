@@ -29,8 +29,8 @@ Reference
 
    bin
 
-Sample PG-API Code
-------------------
+Sample Code
+-----------
 
 Using `postgresql.driver`::
 
@@ -60,3 +60,5 @@ Using `postgresql.driver`::
 Of course, if DB-API 2.0 is desired, the module is located at
 `postgresql.driver.dbapi20`. DB-API extends PG-API, so the features
 illustrated above are available on DB-API connections.
+
+See :ref:`db_interface` for more information.

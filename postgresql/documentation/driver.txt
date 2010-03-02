@@ -1,3 +1,5 @@
+.. _db_interface:
+
 ******
 Driver
 ******
@@ -944,8 +946,9 @@ is scrollable.
  Scrollable cursors never pre-fetch in order to provide guaranteed positioning.
 
 The cursor interface supports scrolling using the ``seek`` method. Like
-``read``, it is semantically similar to a file object's ``seek()``. ``seek``
-takes two arguments: ``position`` and ``whence``:
+``read``, it is semantically similar to a file object's ``seek()``.
+
+``seek`` takes two arguments: ``position`` and ``whence``:
 
  ``position``
   The position to scroll to. The meaning of this is determined by ``whence``.
