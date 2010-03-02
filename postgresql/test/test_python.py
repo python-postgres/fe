@@ -1,14 +1,16 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .test.test_python
 ##
 import unittest
 import socket
 import errno
+import struct
 from itertools import chain
 from operator import methodcaller
 from contextlib import contextmanager
 
+from ..python.itertools import interlace
+from ..python.structlib import split_sized_data
 from ..python.contextlib import *
 from ..python import functools
 from ..python import itertools
@@ -160,6 +162,27 @@ class test_contextlib(unittest.TestCase):
 		with NoCM as foo:
 			pass
 		self.failUnlessEqual(foo, None)
+
+def join_sized_data(*data,
+	packL = struct.Struct("!L").pack,
+	getlen = lambda x: len(x) if x is not None else 0xFFFFFFFF
+):
+	return b''.join(interlace(map(packL, map(getlen, data)), (x if x is not None else b'' for x in data)))
+
+class test_structlib(unittest.TestCase):
+	def testSizedSplit(self):
+		sample = [
+			(b'foo', b'bar'),
+			(b'foo', None, b'bar'),
+			(b'foo', None, b'bar'),
+			(b'foo', b'bar'),
+			(),
+			(None,None,None),
+			(b'x', None,None,None, b'yz'),
+		]
+		packed_sample = [join_sized_data(*x) for x in sample]
+		self.failUnlessRaises(ValueError, split_sized_data(b'\xFF\xFF\xFF\x01foo').__next__)
+		self.failUnlessEqual(sample, [tuple(split_sized_data(x)) for x in packed_sample])
 
 if __name__ == '__main__':
 	from types import ModuleType

@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .python.structlib - module for extracting serialized data
 ##
 import struct
 from .functools import Composition as compose
@@ -76,3 +75,30 @@ except ImportError:
 	ushort_pack, ushort_unpack = mk_pack("H")
 	long_pack, long_unpack = mk_pack("l")
 	ulong_pack, ulong_unpack = mk_pack("L")
+
+def split_sized_data(
+	data,
+	ulong_unpack = ulong_unpack,
+	null_field = 0xFFFFFFFF,
+	len = len,
+	errmsg = "insufficient data in field {0}, required {1} bytes, {2} remaining".format
+):
+	"""
+	Given serialized record data, return a tuple of tuples of type Oids and
+	attributes.
+	"""
+	v = memoryview(data)
+	f = 1
+	while v:
+		l = ulong_unpack(v)
+		if l == null_field:
+			v = v[4:]
+			yield None
+			continue
+		l += 4
+		d = v[4:l].tobytes()
+		if len(d) < l-4:
+			raise ValueError(errmsg(f, l - 4, len(d)))
+		v = v[l:]
+		f += 1
+		yield d

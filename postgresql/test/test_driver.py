@@ -850,7 +850,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			list((x[0] for x in gs.rows())),
 			list(range(1, 10001))
 		)
-		# exercise ``for x in chunks: dst.load(x)``
+		# exercise ``for x in chunks: dst.load_rows(x)``
 		with self.db.connector() as db2:
 			db2.execute(
 				"""
