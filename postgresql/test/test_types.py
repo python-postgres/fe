@@ -17,7 +17,7 @@ class fake_typio(object):
 	@staticmethod
 	def decode(x):
 		return x.decode('utf-8')
-hstore_pack, hstore_unpack = hstore_factory(fake_typio)
+hstore_pack, hstore_unpack = hstore_factory(0, fake_typio)
 
 # this must pack to that, and
 # that must unpack to this
