@@ -1243,18 +1243,6 @@ class PreparedStatement(pg_api.PreparedStatement):
 			self.database.pq.synchronize()
 			raise
 
-	def load(self, iterable, tps = None):
-		"""
-		WARNING: Deprecated, use load_chunks and load_rows instead.
-		"""
-		if self.closed is None:
-			self._fini()
-		if isinstance(iterable, Chunks):
-			l = self.load_chunks
-		else:
-			l = self.load_rows
-		return l(iterable)
-
 	def load_chunks(self, chunks):
 		"""
 		Execute the query for each row-parameter set in `iterable`.
