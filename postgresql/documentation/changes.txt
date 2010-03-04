@@ -28,7 +28,7 @@ Changes
    element lists.
  * Implement a NotificationManager for managing the NOTIFYs received
    by a connection. The class can manage NOTIFYs from multiple
-   connections, whereas the db.wait() method is modified for single targets.
+   connections, whereas the db.wait() method is tailored for single targets.
  * Implement an ALock class for managing advisory locks using the
    threading.Lock APIs. [Feedback from Valentine Gogichashvili]
  * Implement reference symbols. Allow libraries to define symbols that
@@ -40,3 +40,4 @@ Changes
  * Fix count return from .first() method. Failed to provide an empty
    tuple for the rformats of the bind statement.
    [Reported by dou dou]
+ * Add support for binary hstore.
