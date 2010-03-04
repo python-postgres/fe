@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .python.element
 ##
 import os
 from abc import ABCMeta, abstractproperty, abstractmethod
@@ -93,6 +92,7 @@ class ElementSet(Element, set):
 	def _e_metas(self):
 		yield (None, len(self))
 		for x in self:
+			yield (None, '--')
 			yield (None, format_element(x))
 
 def prime_factor(obj):
