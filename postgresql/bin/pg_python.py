@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .bin.pg_python - Python console with a connection.
 ##
 """
 Python command with a PG-API connection(``db``).
@@ -116,6 +115,10 @@ def command(argv = sys.argv):
 				rv = pythonexec(
 					context = pycmd.postmortem(os.environ.get('PYTHON_POSTMORTEM'))
 				)
+				exc = getattr(sys, 'last_type', None)
+				if rv and exc and not issubclass(exc, Exception):
+					# Don't try to close it if wasn't an Exception.
+					del connection.pq.socket
 		finally:
 			# restore __builtins__
 			builtins_d.update(restore)

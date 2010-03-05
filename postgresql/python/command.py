@@ -1,5 +1,5 @@
 ##
-# copyright 2008, James William Pye. http://jwp.name
+# .python.command - Python command emulation module.
 ##
 """
 Create and Execute Python Commands
@@ -568,6 +568,8 @@ class Execution(object):
 				# shouldn't cause an exception.
 				rv = e.code
 				e, v, tb = sys.exc_info()
+				sys.last_type = e
+				sys.last_value = v
 				sys.last_traceback = (tb.tb_next or tb)
 			except:
 				if exe_exception is False:
@@ -575,6 +577,8 @@ class Execution(object):
 				rv = 1
 				e, v, tb = sys.exc_info()
 				print_exception(e, v, tb.tb_next or tb)
+				sys.last_type = e
+				sys.last_value = v
 				sys.last_traceback = (tb.tb_next or tb)
 
 			return rv

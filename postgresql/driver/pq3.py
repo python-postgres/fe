@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .driver.pq3
 ##
 """
 PG-API interface for PostgreSQL using PQ version 3.0.
@@ -1585,7 +1584,7 @@ class Transaction(pg_api.Transaction):
 						"The prepared transaction was not " \
 						"prepared prior to the block's exit."
 					raise
-		else:
+		elif issubclass(typ, Exception):
 			# There's an exception, so only rollback if the connection
 			# exists. If the rollback() was called here, it would just
 			# contribute noise to the error.
@@ -1801,8 +1800,9 @@ class Connection(pg_api.Connection):
 		return self
 
 	def __exit__(self, type, value, tb):
-		'Close the connection on exit.'
-		self.close()
+		# Don't bother closing unless it's a normal exception.
+		if type is None or issubclass(type, Exception):
+			self.close()
 
 	def interrupt(self, timeout = None):
 		self.pq.interrupt(timeout = timeout)
