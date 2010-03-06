@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .test.test_driver
 ##
 import sys
 import os
@@ -20,11 +19,10 @@ from ..python.datetime import FixedOffset, \
 from .. import types as pg_types
 from ..types.io.stdlib_xml_etree import etree
 from .. import exceptions as pg_exc
-from .. import unittest as pg_unittest
 from .. import lib as pg_lib
 from .. import message as pg_msg
 from ..types.bitwise import Bit, Varbit
-from .. import alock
+from ..temporal import pg_tmp
 
 type_samples = [
 	('smallint', (
@@ -317,14 +315,12 @@ if False:
 		],
 	))
 
-class test_driver(pg_unittest.TestCaseWithCluster):
-	"""
-	postgresql.driver *interface* tests.
-	"""
+class test_driver(unittest.TestCase):
+	@pg_tmp
 	def testInterrupt(self):
 		def pg_sleep(l):
 			try:
-				self.db.execute("SELECT pg_sleep(5)")
+				db.execute("SELECT pg_sleep(5)")
 			except Exception:
 				l.append(sys.exc_info())
 			else:
@@ -335,7 +331,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		t.start()
 		time.sleep(0.2)
 		while t.is_alive():
-			self.db.interrupt()
+			db.interrupt()
 			time.sleep(0.1)
 
 		def raise_exc(l):
@@ -344,10 +340,11 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				raise v
 		self.failUnlessRaises(pg_exc.QueryCanceledError, raise_exc, rl)
 
+	@pg_tmp
 	def testClones(self):
-		self.db.execute('create table _can_clone_see_this (i int);')
+		db.execute('create table _can_clone_see_this (i int);')
 		try:
-			with self.db.clone() as db2:
+			with db.clone() as db2:
 				self.failUnlessEqual(db2.prepare('select 1').first(), 1)
 				self.failUnlessEqual(db2.prepare(
 						"select count(*) FROM information_schema.tables " \
@@ -355,13 +352,16 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 					).first(), 1
 				)
 		finally:
-			self.db.execute('drop table _can_clone_see_this')
-		# check already open
-		db = self.db.clone()
-		self.failUnlessEqual(db.prepare('select 1').first(), 1)
-		db.close()
+			db.execute('drop table _can_clone_see_this')
 
-		ps = self.db.prepare('select 1')
+		# check already open
+		db3 = db.clone()
+		try:
+			self.failUnlessEqual(db3.prepare('select 1').first(), 1)
+		finally:
+			db3.close()
+
+		ps = db.prepare('select 1')
 		ps2 = ps.clone()
 		self.failUnlessEqual(ps2.first(), ps.first())
 		ps2.close()
@@ -369,8 +369,9 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		c2 = c.clone()
 		self.failUnlessEqual(c.read(), c2.read())
 
+	@pg_tmp
 	def testItsClosed(self):
-		ps = self.db.prepare("SELECT 1")
+		ps = db.prepare("SELECT 1")
 		# If scroll is False it will pre-fetch, and no error will be thrown.
 		c = ps.declare()
 		#
@@ -381,52 +382,55 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		ps.close()
 		self.failUnlessRaises(pg_exc.StatementNameError, ps.first)
 		#
-		self.db.close()
+		db.close()
 		self.failUnlessRaises(
 			pg_exc.ConnectionDoesNotExistError,
-			self.db.execute, "foo"
+			db.execute, "foo"
 		)
 		# No errors, it's already closed.
 		ps.close()
 		c.close()
-		self.db.close()
+		db.close()
 
+	@pg_tmp
 	def testGarbage(self):
-		ps = self.db.prepare('select 1')
+		ps = db.prepare('select 1')
 		sid = ps.statement_id
 		ci = ps.chunks()
 		ci_id = ci.cursor_id
 		c = ps.declare()
 		cid = c.cursor_id
 		# make sure there are no remaining xact references..
-		self.db._pq_complete()
+		db._pq_complete()
 		# ci and c both hold references to ps, so they must
 		# be removed before we can observe the effects __del__
 		del c
 		gc.collect()
-		self.failUnless(self.db.typio.encode(cid) in self.db.pq.garbage_cursors)
+		self.failUnless(db.typio.encode(cid) in db.pq.garbage_cursors)
 		del ci
 		gc.collect()
-		self.failUnless(self.db.typio.encode(ci_id) in self.db.pq.garbage_cursors)
+		self.failUnless(db.typio.encode(ci_id) in db.pq.garbage_cursors)
 		del ps
 		gc.collect()
-		self.failUnless(self.db.typio.encode(sid) in self.db.pq.garbage_statements)
+		self.failUnless(db.typio.encode(sid) in db.pq.garbage_statements)
 
+	@pg_tmp
 	def testStatementCall(self):
-		ps = self.db.prepare("SELECT 1")
+		ps = db.prepare("SELECT 1")
 		r = ps()
 		self.failUnless(isinstance(r, list))
 		self.failUnlessEqual(ps(), [(1,)])
-		ps = self.db.prepare("SELECT 1, 2")
+		ps = db.prepare("SELECT 1, 2")
 		self.failUnlessEqual(ps(), [(1,2)])
-		ps = self.db.prepare("SELECT 1, 2 UNION ALL SELECT 3, 4")
+		ps = db.prepare("SELECT 1, 2 UNION ALL SELECT 3, 4")
 		self.failUnlessEqual(ps(), [(1,2),(3,4)])
 
+	@pg_tmp
 	def testStatementFirstDML(self):
-		self.db.execute("CREATE TEMP TABLE first (i int)")
-		fins = self.db.prepare("INSERT INTO first VALUES (123)").first
-		fupd = self.db.prepare("UPDATE first SET i = 321 WHERE i = 123").first
-		fdel = self.db.prepare("DELETE FROM first").first
+		db.execute("CREATE TEMP TABLE first (i int)")
+		fins = db.prepare("INSERT INTO first VALUES (123)").first
+		fupd = db.prepare("UPDATE first SET i = 321 WHERE i = 123").first
+		fdel = db.prepare("DELETE FROM first").first
 		self.failUnlessEqual(fins(), 1)
 		self.failUnlessEqual(fdel(), 1)
 		self.failUnlessEqual(fins(), 1)
@@ -436,9 +440,10 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(fupd(), 2)
 		self.failUnlessEqual(fdel(), 3)
 
+	@pg_tmp
 	def testStatementRowsPersistence(self):
 		# validate that rows' cursor will persist beyond a transaction.
-		ps = self.db.prepare("SELECT i FROM generate_series($1::int, $2::int) AS g(i)")
+		ps = db.prepare("SELECT i FROM generate_series($1::int, $2::int) AS g(i)")
 		# create the iterator inside the transaction
 		rows = ps.rows(0, 10000-1)
 		ps(0,1)
@@ -454,24 +459,26 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			list(range(5000, 10000))
 		)
 
+	@pg_tmp
 	def testStatementParameters(self):
 		# too few and takes one
-		ps = self.db.prepare("select $1::integer")
+		ps = db.prepare("select $1::integer")
 		self.failUnlessRaises(TypeError, ps)
 
 		# too many and takes one
 		self.failUnlessRaises(TypeError, ps, 1, 2)
 
 		# too many and takes none
-		ps = self.db.prepare("select 1")
+		ps = db.prepare("select 1")
 		self.failUnlessRaises(TypeError, ps, 1)
 
 		# too many and takes some
-		ps = self.db.prepare("select $1::int, $2::text")
+		ps = db.prepare("select $1::int, $2::text")
 		self.failUnlessRaises(TypeError, ps, 1, "foo", "bar")
 
+	@pg_tmp
 	def testStatementAndCursorMetadata(self):
-		ps = self.db.prepare("SELECT $1::integer AS my_int_column")
+		ps = db.prepare("SELECT $1::integer AS my_int_column")
 		self.failUnlessEqual(tuple(ps.column_names), ('my_int_column',))
 		self.failUnlessEqual(tuple(ps.sql_column_types), ('INTEGER',))
 		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('INTEGER',))
@@ -483,7 +490,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(tuple(c.sql_column_types), ('INTEGER',))
 		self.failUnlessEqual(tuple(c.column_types), (int,))
 
-		ps = self.db.prepare("SELECT $1::text AS my_text_column")
+		ps = db.prepare("SELECT $1::text AS my_text_column")
 		self.failUnlessEqual(tuple(ps.column_names), ('my_text_column',))
 		self.failUnlessEqual(tuple(ps.sql_column_types), ('pg_catalog.text',))
 		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text',))
@@ -496,7 +503,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(tuple(c.pg_column_types), (pg_types.TEXTOID,))
 		self.failUnlessEqual(tuple(c.column_types), (str,))
 
-		ps = self.db.prepare("SELECT $1::text AS my_column1, $2::varchar AS my_column2")
+		ps = db.prepare("SELECT $1::text AS my_column1, $2::varchar AS my_column2")
 		self.failUnlessEqual(tuple(ps.column_names), ('my_column1','my_column2'))
 		self.failUnlessEqual(tuple(ps.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING'))
 		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text', 'CHARACTER VARYING'))
@@ -510,9 +517,9 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(tuple(c.pg_column_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
 		self.failUnlessEqual(tuple(c.column_types), (str,str))
 
-		self.db.execute("CREATE TYPE public.myudt AS (i int)")
-		myudt_oid = self.db.prepare("select oid from pg_type WHERE typname='myudt'").first()
-		ps = self.db.prepare("SELECT $1::text AS my_column1, $2::varchar AS my_column2, $3::public.myudt AS my_column3")
+		db.execute("CREATE TYPE public.myudt AS (i int)")
+		myudt_oid = db.prepare("select oid from pg_type WHERE typname='myudt'").first()
+		ps = db.prepare("SELECT $1::text AS my_column1, $2::varchar AS my_column2, $3::public.myudt AS my_column3")
 		self.failUnlessEqual(tuple(ps.column_names), ('my_column1','my_column2', 'my_column3'))
 		self.failUnlessEqual(tuple(ps.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
 		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
@@ -532,9 +539,10 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		))
 		self.failUnlessEqual(tuple(c.column_types), (str,str,pg_types.Row))
 
+	@pg_tmp
 	def testRowInterface(self):
 		data = (1, '0', decimal.Decimal('0.00'), datetime.datetime(1982,5,18,12,30,0))
-		ps = self.db.prepare(
+		ps = db.prepare(
 			"SELECT 1::int2 AS col0, " \
 			"'0'::text AS col1, 0.00::numeric as col2, " \
 			"'1982-05-18 12:30:00'::timestamp as col3;"
@@ -598,33 +606,40 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			self.failUnlessEqual(i, row.index_from_key('col' + str(i)))
 			self.failUnlessEqual('col' + str(i), row.key_from_index(i))
 
-	def testColumn(self):
-		g_i = self.db.prepare('SELECT i FROM generate_series(1,10) as g(i)').column
+	def column_test(self):
+		g_i = db.prepare('SELECT i FROM generate_series(1,10) as g(i)').column
 		# ignore the second column.
-		g_ii = self.db.prepare('SELECT i, i+10 as i2 FROM generate_series(1,10) as g(i)').column
+		g_ii = db.prepare('SELECT i, i+10 as i2 FROM generate_series(1,10) as g(i)').column
 		self.failUnlessEqual(tuple(g_i()), tuple(g_ii()))
 		self.failUnlessEqual(tuple(g_i()), (1,2,3,4,5,6,7,8,9,10))
 
-	def testColumnInXact(self):
-		with self.db.xact():
-			self.testColumn()
+	@pg_tmp
+	def testColumn(self):
+		self.column_test()
 
+	@pg_tmp
+	def testColumnInXact(self):
+		with db.xact():
+			self.column_test()
+
+	@pg_tmp
 	def testStatementFromId(self):
-		self.db.execute("PREPARE foo AS SELECT 1 AS colname;")
-		ps = self.db.statement_from_id('foo')
+		db.execute("PREPARE foo AS SELECT 1 AS colname;")
+		ps = db.statement_from_id('foo')
 		self.failUnlessEqual(ps.first(), 1)
 		self.failUnlessEqual(ps(), [(1,)])
 		self.failUnlessEqual(list(ps), [(1,)])
 		self.failUnlessEqual(tuple(ps.column_names), ('colname',))
 
+	@pg_tmp
 	def testCursorFromId(self):
-		self.db.execute("DECLARE foo CURSOR WITH HOLD FOR SELECT 1")
-		c = self.db.cursor_from_id('foo')
+		db.execute("DECLARE foo CURSOR WITH HOLD FOR SELECT 1")
+		c = db.cursor_from_id('foo')
 		self.failUnlessEqual(c.read(), [(1,)])
-		self.db.execute(
+		db.execute(
 			"DECLARE bar SCROLL CURSOR WITH HOLD FOR SELECT i FROM generate_series(0, 99) AS g(i)"
 		)
-		c = self.db.cursor_from_id('bar')
+		c = db.cursor_from_id('bar')
 		c.seek(50)
 		self.failUnlessEqual([x for x, in c.read(10)], list(range(50,60)))
 		c.seek(0,2)
@@ -632,109 +647,119 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		c.seek(0)
 		self.failUnlessEqual([x for x, in c.read()], list(range(100)))
 
+	@pg_tmp
 	def testCopyToSTDOUT(self):
-		with self.db.xact():
-			self.db.execute("CREATE TABLE foo (i int)")
-			foo = self.db.prepare('insert into foo values ($1)')
+		with db.xact():
+			db.execute("CREATE TABLE foo (i int)")
+			foo = db.prepare('insert into foo values ($1)')
 			foo.load_rows(((x,) for x in range(500)))
 
-			copy_foo = self.db.prepare('copy foo to stdout')
+			copy_foo = db.prepare('copy foo to stdout')
 			foo_content = set(copy_foo)
 			expected = set((str(i).encode('ascii') + b'\n' for i in range(500)))
 			self.failUnlessEqual(expected, foo_content)
 			self.failUnlessEqual(expected, set(copy_foo()))
 			self.failUnlessEqual(expected, set(chain.from_iterable(copy_foo.chunks())))
 			self.failUnlessEqual(expected, set(copy_foo.rows()))
-			self.db.execute("DROP TABLE foo")
+			db.execute("DROP TABLE foo")
 
+	@pg_tmp
 	def testCopyFromSTDIN(self):
-		with self.db.xact():
-			self.db.execute("CREATE TABLE foo (i int)")
-			foo = self.db.prepare('copy foo from stdin')
+		with db.xact():
+			db.execute("CREATE TABLE foo (i int)")
+			foo = db.prepare('copy foo from stdin')
 			foo.load_rows((str(i).encode('ascii') + b'\n' for i in range(200)))
 			foo_content = list((
-				x for (x,) in self.db.prepare('select * from foo order by 1 ASC')
+				x for (x,) in db.prepare('select * from foo order by 1 ASC')
 			))
 			self.failUnlessEqual(foo_content, list(range(200)))
-			self.db.execute("DROP TABLE foo")
+			db.execute("DROP TABLE foo")
 
+	@pg_tmp
 	def testLookupProcByName(self):
-		self.db.execute(
+		db.execute(
 			"CREATE OR REPLACE FUNCTION public.foo() RETURNS INT LANGUAGE SQL AS 'SELECT 1'"
 		)
-		self.db.settings['search_path'] = 'public'
-		f = self.db.proc('foo()')
-		f2 = self.db.proc('public.foo()')
+		db.settings['search_path'] = 'public'
+		f = db.proc('foo()')
+		f2 = db.proc('public.foo()')
 		self.failUnless(f.oid == f2.oid,
 			"function lookup incongruence(%r != %r)" %(f, f2)
 		)
 
+	@pg_tmp
 	def testLookupProcById(self):
-		gsoid = self.db.prepare(
+		gsoid = db.prepare(
 			"select oid from pg_proc where proname = 'generate_series' limit 1"
 		).first()
-		gs = self.db.proc(gsoid)
-		self.failUnlessEqual(
-			list(gs(1, 100)), list(range(1, 101))
-		)
+		gs = db.proc(gsoid)
+		self.failUnlessEqual(list(gs(1, 100)), list(range(1, 101)))
 
-	def testProcExecution(self):
-		ver = self.db.proc("version()")
+	def execute_proc(self):
+		ver = db.proc("version()")
 		ver()
-		self.db.execute(
+		db.execute(
 			"CREATE OR REPLACE FUNCTION ifoo(int) RETURNS int LANGUAGE SQL AS 'select $1'"
 		)
-		ifoo = self.db.proc('ifoo(int)')
+		ifoo = db.proc('ifoo(int)')
 		self.failUnlessEqual(ifoo(1), 1)
 		self.failUnlessEqual(ifoo(None), None)
-		self.db.execute(
+		db.execute(
 			"CREATE OR REPLACE FUNCTION ifoo(varchar) RETURNS text LANGUAGE SQL AS 'select $1'"
 		)
-		ifoo = self.db.proc('ifoo(varchar)')
+		ifoo = db.proc('ifoo(varchar)')
 		self.failUnlessEqual(ifoo('1'), '1')
 		self.failUnlessEqual(ifoo(None), None)
-		self.db.execute(
+		db.execute(
 			"CREATE OR REPLACE FUNCTION ifoo(varchar,int) RETURNS text LANGUAGE SQL AS 'select ($1::int + $2)::varchar'"
 		)
-		ifoo = self.db.proc('ifoo(varchar,int)')
+		ifoo = db.proc('ifoo(varchar,int)')
 		self.failUnlessEqual(ifoo('1',1), '2')
 		self.failUnlessEqual(ifoo(None,1), None)
 		self.failUnlessEqual(ifoo('1',None), None)
 		self.failUnlessEqual(ifoo('2',2), '4')
 
+	@pg_tmp
+	def testProcExecution(self):
+		self.execute_proc()
+
+	@pg_tmp
 	def testProcExecutionInXact(self):
-		with self.db.xact():
-			self.testProcExecution()
+		with db.xact():
+			self.execute_proc()
 
+	@pg_tmp
 	def testProcExecutionInSubXact(self):
-		with self.db.xact(), self.db.xact():
-			self.testProcExecution()
+		with db.xact(), db.xact():
+			self.execute_proc()
 
+	@pg_tmp
 	def testNULL(self):
 		# Directly commpare (SELECT NULL) is None
 		self.failUnless(
-			self.db.prepare("SELECT NULL")()[0][0] is None,
+			db.prepare("SELECT NULL")()[0][0] is None,
 			"SELECT NULL did not return None"
 		)
 		# Indirectly compare (select NULL) is None
 		self.failUnless(
-			self.db.prepare("SELECT $1::text")(None)[0][0] is None,
+			db.prepare("SELECT $1::text")(None)[0][0] is None,
 			"[SELECT $1::text](None) did not return None"
 		)
 
+	@pg_tmp
 	def testBool(self):
-		fst, snd = self.db.prepare("SELECT true, false").first()
+		fst, snd = db.prepare("SELECT true, false").first()
 		self.failUnless(fst is True)
 		self.failUnless(snd is False)
 
-	def testSelect(self):
+	def select(self):
 		#self.failUnlessEqual(
-		#	self.db.prepare('')().command(),
+		#	db.prepare('')().command(),
 		#	None,
 		#	'Empty statement has command?'
 		#)
 		# Test SELECT 1.
-		s1 = self.db.prepare("SELECT 1 as name")
+		s1 = db.prepare("SELECT 1 as name")
 		p = s1()
 		tup = p[0]
 		self.failUnless(tup[0] == 1)
@@ -745,12 +770,17 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		for tup in s1:
 			self.failUnlessEqual(tup["name"], 1)
 
-	def testSelectInXact(self):
-		with self.db.xact():
-			self.testSelect()
+	@pg_tmp
+	def testSelect(self):
+		self.select()
 
-	def testCursorRead(self):
-		ps = self.db.prepare("SELECT i FROM generate_series(0, (2^8)::int - 1) AS g(i)")
+	@pg_tmp
+	def testSelectInXact(self):
+		with db.xact():
+			self.select()
+
+	def cursor_read(self):
+		ps = db.prepare("SELECT i FROM generate_series(0, (2^8)::int - 1) AS g(i)")
 		c = ps.declare()
 		self.failUnlessEqual(c.read(0), [])
 		self.failUnlessEqual(c.read(0), [])
@@ -775,18 +805,24 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			self.failUnlessEqual(r, list(range(v, top)))
 			v = top
 
-	def testCursorReadInXact(self):
-		with self.db.xact():
-			self.testCursorRead()
+	@pg_tmp
+	def testCursorRead(self):
+		self.cursor_read()
 
+	@pg_tmp
+	def testCursorReadInXact(self):
+		with db.xact():
+			self.cursor_read()
+
+	@pg_tmp
 	def testScroll(self, direction = True):
 		# Use a large row-set.
 		imin = 0
 		imax = 2**16
 		if direction:
-			ps = self.db.prepare("SELECT i FROM generate_series(0, (2^16)::int) AS g(i)")
+			ps = db.prepare("SELECT i FROM generate_series(0, (2^16)::int) AS g(i)")
 		else:
-			ps = self.db.prepare("SELECT i FROM generate_series((2^16)::int, 0, -1) AS g(i)")
+			ps = db.prepare("SELECT i FROM generate_series((2^16)::int, 0, -1) AS g(i)")
 		c = ps.declare()
 		c.direction = direction
 		if not direction:
@@ -825,33 +861,35 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(r1, c.read(10))
 
 	def testScrollBackwards(self):
+		# testScroll again, but backwards this time.
 		self.testScroll(direction = False)
 
+	@pg_tmp
 	def testWithHold(self):
-		with self.db.xact():
-			ps = self.db.prepare("SELECT 1")
+		with db.xact():
+			ps = db.prepare("SELECT 1")
 			c = ps.declare()
 			cid = c.cursor_id
 		self.failUnlessEqual(c.read()[0][0], 1)
 		# make sure it's not cheating
 		self.failUnlessEqual(c.cursor_id, cid)
 		# check grabs beyond the default chunksize.
-		with self.db.xact():
-			ps = self.db.prepare("SELECT i FROM generate_series(0, 99) as g(i)")
+		with db.xact():
+			ps = db.prepare("SELECT i FROM generate_series(0, 99) as g(i)")
 			c = ps.declare()
 			cid = c.cursor_id
 		self.failUnlessEqual([x for x, in c.read()], list(range(100)))
 		# make sure it's not cheating
 		self.failUnlessEqual(c.cursor_id, cid)
 
-	def testLoadRows(self):
-		gs = self.db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
+	def load_rows(self):
+		gs = db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
 		self.failUnlessEqual(
 			list((x[0] for x in gs.rows())),
 			list(range(1, 10001))
 		)
 		# exercise ``for x in chunks: dst.load_rows(x)``
-		with self.db.connector() as db2:
+		with db.connector() as db2:
 			db2.execute(
 				"""
 				CREATE TABLE chunking AS
@@ -859,34 +897,39 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				FROM generate_series(1, 10000) g(i);
 				"""
 			)
-			read = self.db.prepare('select * FROM chunking').rows()
+			read = db.prepare('select * FROM chunking').rows()
 			write = db2.prepare('insert into chunking values ($1, $2)').load_rows
 			with db2.xact():
 				write(read)
 			del read, write
 
 			self.failUnlessEqual(
-				self.db.prepare('select count(*) FROM chunking').first(),
+				db.prepare('select count(*) FROM chunking').first(),
 				20000
 			)
 			self.failUnlessEqual(
-				self.db.prepare('select count(DISTINCT i) FROM chunking').first(),
+				db.prepare('select count(DISTINCT i) FROM chunking').first(),
 				10000
 			)
-		self.db.execute('DROP TABLE chunking')
+		db.execute('DROP TABLE chunking')
 
+	@pg_tmp
+	def testLoadRows(self):
+		self.load_rows()
+
+	@pg_tmp
 	def testLoadRowsInXact(self):
-		with self.db.xact():
-			self.testLoadRows()
+		with db.xact():
+			self.load_rows()
 
-	def testLoadChunk(self):
-		gs = self.db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
+	def load_chunks(self):
+		gs = db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
 		self.failUnlessEqual(
 			list((x[0] for x in chain.from_iterable(gs.chunks()))),
 			list(range(1, 10001))
 		)
 		# exercise ``for x in chunks: dst.load_chunks(x)``
-		with self.db.connector() as db2:
+		with db.connector() as db2:
 			db2.execute(
 				"""
 				CREATE TABLE chunking AS
@@ -894,31 +937,37 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				FROM generate_series(1, 10000) g(i);
 				"""
 			)
-			read = self.db.prepare('select * FROM chunking').chunks()
+			read = db.prepare('select * FROM chunking').chunks()
 			write = db2.prepare('insert into chunking values ($1, $2)').load_chunks
 			with db2.xact():
 				write(read)
 			del read, write
 
 			self.failUnlessEqual(
-				self.db.prepare('select count(*) FROM chunking').first(),
+				db.prepare('select count(*) FROM chunking').first(),
 				20000
 			)
 			self.failUnlessEqual(
-				self.db.prepare('select count(DISTINCT i) FROM chunking').first(),
+				db.prepare('select count(DISTINCT i) FROM chunking').first(),
 				10000
 			)
-		self.db.execute('DROP TABLE chunking')
+		db.execute('DROP TABLE chunking')
 
+	@pg_tmp
+	def testLoadChunks(self):
+		self.load_chunks()
+
+	@pg_tmp
 	def testLoadChunkInXact(self):
-		with self.db.xact():
-			self.testLoadChunk()
+		with db.xact():
+			self.load_chunks()
 
+	@pg_tmp
 	def testSimpleDML(self):
-		self.db.execute("CREATE TEMP TABLE emp(emp_name text, emp_age int)")
+		db.execute("CREATE TEMP TABLE emp(emp_name text, emp_age int)")
 		try:
-			mkemp = self.db.prepare("INSERT INTO emp VALUES ($1, $2)")
-			del_all_emp = self.db.prepare("DELETE FROM emp")
+			mkemp = db.prepare("INSERT INTO emp VALUES ($1, $2)")
+			del_all_emp = db.prepare("DELETE FROM emp")
 			command, count = mkemp('john', 35)
 			self.failUnlessEqual(command, 'INSERT')
 			self.failUnlessEqual(count, 1)
@@ -929,15 +978,15 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			self.failUnlessEqual(command, 'DELETE')
 			self.failUnlessEqual(count, 2)
 		finally:
-			self.db.execute("DROP TABLE emp")
+			db.execute("DROP TABLE emp")
 
-	def testDML(self):
-		self.db.execute("CREATE TEMP TABLE t(i int)")
+	def dml(self):
+		db.execute("CREATE TEMP TABLE t(i int)")
 		try:
-			insert_t = self.db.prepare("INSERT INTO t VALUES ($1)")
-			delete_t = self.db.prepare("DELETE FROM t WHERE i = $1")
-			delete_all_t = self.db.prepare("DELETE FROM t")
-			update_t = self.db.prepare("UPDATE t SET i = $2 WHERE i = $1")
+			insert_t = db.prepare("INSERT INTO t VALUES ($1)")
+			delete_t = db.prepare("DELETE FROM t WHERE i = $1")
+			delete_all_t = db.prepare("DELETE FROM t")
+			update_t = db.prepare("UPDATE t SET i = $2 WHERE i = $1")
 			self.failUnlessEqual(insert_t(1)[1], 1)
 			self.failUnlessEqual(delete_t(1)[1], 1)
 			self.failUnlessEqual(insert_t(2)[1], 1)
@@ -955,36 +1004,47 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			self.failUnlessEqual(delete_t(1)[1], 0)
 			self.failUnlessEqual(delete_t(2)[1], 1)
 		finally:
-			self.db.execute("DROP TABLE t")
+			db.execute("DROP TABLE t")
 
+	@pg_tmp
+	def testDML(self):
+		self.dml()
+
+	@pg_tmp
 	def testDMLInXact(self):
-		with self.db.xact():
-			self.testDML()
+		with db.xact():
+			self.dml()
 
-	def testBatchDML(self):
-		self.db.execute("CREATE TEMP TABLE t(i int)")
+	def batch_dml(self):
+		db.execute("CREATE TEMP TABLE t(i int)")
 		try:
-			insert_t = self.db.prepare("INSERT INTO t VALUES ($1)")
-			delete_t = self.db.prepare("DELETE FROM t WHERE i = $1")
-			delete_all_t = self.db.prepare("DELETE FROM t")
-			update_t = self.db.prepare("UPDATE t SET i = $2 WHERE i = $1")
+			insert_t = db.prepare("INSERT INTO t VALUES ($1)")
+			delete_t = db.prepare("DELETE FROM t WHERE i = $1")
+			delete_all_t = db.prepare("DELETE FROM t")
+			update_t = db.prepare("UPDATE t SET i = $2 WHERE i = $1")
 			mset = (
 				(2,), (2,), (3,), (4,), (5,),
 			)
 			insert_t.load_rows(mset)
-			content = self.db.prepare("SELECT * FROM t ORDER BY 1 ASC")
+			content = db.prepare("SELECT * FROM t ORDER BY 1 ASC")
 			self.failUnlessEqual(mset, tuple(content()))
 		finally:
-			self.db.execute("DROP TABLE t")
+			db.execute("DROP TABLE t")
 
+	@pg_tmp
+	def testBatchDML(self):
+		self.batch_dml()
+
+	@pg_tmp
 	def testBatchDMLInXact(self):
-		with self.db.xact():
-			self.testBatchDML()
+		with db.xact():
+			self.batch_dml()
 
+	@pg_tmp
 	def testTypes(self):
 		'test basic object I/O--input must equal output'
 		for (typname, sample_data) in type_samples:
-			pb = self.db.prepare(
+			pb = db.prepare(
 				"SELECT $1::" + typname
 			)
 			for sample in sample_data:
@@ -998,12 +1058,14 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 					)
 				)
 
+	@pg_tmp
 	def testXML(self):
 		try:
-			xml = self.db.prepare('select $1::xml')
-			textxml = self.db.prepare('select $1::text::xml')
+			xml = db.prepare('select $1::xml')
+			textxml = db.prepare('select $1::text::xml')
 			r = textxml.first('<foo/>')
 		except (pg_exc.FeatureError, pg_exc.UndefinedObjectError):
+			# XML is not available.
 			return
 		foo = etree.XML('<foo/>')
 		bar = etree.XML('<bar/>')
@@ -1044,17 +1106,18 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			(tostr(foo), tostr(bar))
 		)
 
+	@pg_tmp
 	def testUUID(self):
 		# doesn't exist in all versions supported by py-postgresql.
-		has_uuid = self.db.prepare(
+		has_uuid = db.prepare(
 			"select true from pg_type where lower(typname) = 'uuid'").first()
 		if has_uuid:
-			ps = self.db.prepare('select $1::uuid').first
+			ps = db.prepare('select $1::uuid').first
 			x = uuid.uuid1()
 			self.failUnlessEqual(ps(x), x)
 
 	def _infinity_test(self, typname, inf, neg):
-		ps = self.db.prepare('SELECT $1::' + typname).first
+		ps = db.prepare('SELECT $1::' + typname).first
 		val = ps('infinity')
 		self.failUnlessEqual(val, inf)
 		val = ps('-infinity')
@@ -1063,28 +1126,31 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(val, inf)
 		val = ps(neg)
 		self.failUnlessEqual(val, neg)
-		ps = self.db.prepare('SELECT $1::' + typname + '::text').first
+		ps = db.prepare('SELECT $1::' + typname + '::text').first
 		self.failUnlessEqual(ps('infinity'), 'infinity')
 		self.failUnlessEqual(ps('-infinity'), '-infinity')
 
+	@pg_tmp
 	def testInfinity_stdlib_datetime(self):
 		self._infinity_test("timestamptz", infinity_datetime, negative_infinity_datetime)
 		self._infinity_test("timestamp", infinity_datetime, negative_infinity_datetime)
 
+	@pg_tmp
 	def testInfinity_stdlib_date(self):
 		try:
-			self.db.prepare("SELECT 'infinity'::date")()
+			db.prepare("SELECT 'infinity'::date")()
 			self._infinity_test('date', infinity_date, negative_infinity_date)
 		except:
 			pass
 
+	@pg_tmp
 	def testTypeIOError(self):
-		original = dict(self.db.typio._cache)
-		ps = self.db.prepare('SELECT $1::numeric')
+		original = dict(db.typio._cache)
+		ps = db.prepare('SELECT $1::numeric')
 		self.failUnlessRaises(pg_exc.ParameterError, ps, 'foo')
 		try:
-			self.db.execute('CREATE type test_tuple_error AS (n numeric);')
-			ps = self.db.prepare('SELECT $1::test_tuple_error AS the_column')
+			db.execute('CREATE type test_tuple_error AS (n numeric);')
+			ps = db.prepare('SELECT $1::test_tuple_error AS the_column')
 			self.failUnlessRaises(pg_exc.ParameterError, ps, ('foo',))
 			try:
 				ps(('foo',))
@@ -1106,12 +1172,12 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				pass
 			def raise_ThisError(arg):
 				raise ThisError(arg)
-			pack, unpack, typ = self.db.typio.resolve(pg_types.NUMERICOID)
+			pack, unpack, typ = db.typio.resolve(pg_types.NUMERICOID)
 			# remove any existing knowledge about "test_tuple_error"
-			self.db.typio._cache = original
-			self.db.typio._cache[pg_types.NUMERICOID] = (pack, raise_ThisError, typ)
+			db.typio._cache = original
+			db.typio._cache[pg_types.NUMERICOID] = (pack, raise_ThisError, typ)
 			# Now, numeric_unpack will always raise "ThisError".
-			ps = self.db.prepare('SELECT $1::numeric as col')
+			ps = db.prepare('SELECT $1::numeric as col')
 			self.failUnlessRaises(
 				pg_exc.ColumnError, ps, decimal.Decimal("101")
 			)
@@ -1125,7 +1191,7 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				self.failUnless('col' in err.message)
 			else:
 				self.fail("failed to raise TupleError from reception")
-			ps = self.db.prepare('SELECT $1::test_tuple_error AS tte')
+			ps = db.prepare('SELECT $1::test_tuple_error AS tte')
 			try:
 				ps((decimal.Decimal("101"),))
 			except pg_exc.ColumnError as err:
@@ -1138,215 +1204,236 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 			else:
 				self.fail("failed to raise TupleError from reception")
 		finally:
-			self.db.execute('drop type test_tuple_error;')
+			db.execute('drop type test_tuple_error;')
 
+	@pg_tmp
 	def testSyntaxError(self):
 		try:
-			self.db.prepare("SELEKT 1")()
+			db.prepare("SELEKT 1")()
 		except pg_exc.SyntaxError:
 			return
 		self.fail("SyntaxError was not raised")
 
+	@pg_tmp
 	def testSchemaNameError(self):
 		try:
-			self.db.prepare("SELECT * FROM sdkfldasjfdskljZknvson.foo")()
+			db.prepare("SELECT * FROM sdkfldasjfdskljZknvson.foo")()
 		except pg_exc.SchemaNameError:
 			return
 		self.fail("SchemaNameError was not raised")
 
+	@pg_tmp
 	def testUndefinedTableError(self):
 		try:
-			self.db.prepare("SELECT * FROM public.lkansdkvsndlvksdvnlsdkvnsdlvk")()
+			db.prepare("SELECT * FROM public.lkansdkvsndlvksdvnlsdkvnsdlvk")()
 		except pg_exc.UndefinedTableError:
 			return
 		self.fail("UndefinedTableError was not raised")
 
+	@pg_tmp
 	def testUndefinedColumnError(self):
 		try:
-			self.db.prepare("SELECT x____ysldvndsnkv FROM information_schema.tables")()
+			db.prepare("SELECT x____ysldvndsnkv FROM information_schema.tables")()
 		except pg_exc.UndefinedColumnError:
 			return
 		self.fail("UndefinedColumnError was not raised")
 
+	@pg_tmp
 	def testSEARVError_avgInWhere(self):
 		try:
-			self.db.prepare("SELECT 1 WHERE avg(1) = 1")()
+			db.prepare("SELECT 1 WHERE avg(1) = 1")()
 		except pg_exc.SEARVError:
 			return
 		self.fail("SEARVError was not raised")
 
+	@pg_tmp
 	def testSEARVError_groupByAgg(self):
 		try:
-			self.db.prepare("SELECT 1 GROUP BY avg(1)")()
+			db.prepare("SELECT 1 GROUP BY avg(1)")()
 		except pg_exc.SEARVError:
 			return
 		self.fail("SEARVError was not raised")
 
+	@pg_tmp
 	def testTypeMismatchError(self):
 		try:
-			self.db.prepare("SELECT 1 WHERE 1")()
+			db.prepare("SELECT 1 WHERE 1")()
 		except pg_exc.TypeMismatchError:
 			return
 		self.fail("TypeMismatchError was not raised")
 
+	@pg_tmp
 	def testUndefinedObjectError(self):
 		try:
 			self.failUnlessRaises(
 				pg_exc.UndefinedObjectError,
-				self.db.prepare, "CREATE TABLE lksvdnvsdlksnv(i intt___t)"
+				db.prepare, "CREATE TABLE lksvdnvsdlksnv(i intt___t)"
 			)
 		except:
 			# newer versions throw the exception on execution
 			self.failUnlessRaises(
 				pg_exc.UndefinedObjectError,
-				self.db.prepare("CREATE TABLE lksvdnvsdlksnv(i intt___t)")
+				db.prepare("CREATE TABLE lksvdnvsdlksnv(i intt___t)")
 			)
 
+	@pg_tmp
 	def testZeroDivisionError(self):
 		self.failUnlessRaises(
 			pg_exc.ZeroDivisionError,
-			self.db.prepare("SELECT 1/i FROM (select 0 as i) AS g(i)").first,
+			db.prepare("SELECT 1/i FROM (select 0 as i) AS g(i)").first,
 		)
 
+	@pg_tmp
 	def testTransactionCommit(self):
-		with self.db.xact():
-			self.db.execute("CREATE TEMP TABLE withfoo(i int)")
-		self.db.prepare("SELECT * FROM withfoo")
+		with db.xact():
+			db.execute("CREATE TEMP TABLE withfoo(i int)")
+		db.prepare("SELECT * FROM withfoo")
 
-		self.db.execute("DROP TABLE withfoo")
+		db.execute("DROP TABLE withfoo")
 		self.failUnlessRaises(
 			pg_exc.UndefinedTableError,
-			self.db.execute, "SELECT * FROM withfoo"
+			db.execute, "SELECT * FROM withfoo"
 		)
 
+	@pg_tmp
 	def testTransactionAbort(self):
 		class SomeError(Exception):
 			pass
 		try:
-			with self.db.xact():
-				self.db.execute("CREATE TABLE withfoo (i int)")
+			with db.xact():
+				db.execute("CREATE TABLE withfoo (i int)")
 				raise SomeError
 		except SomeError:
 			pass
 		self.failUnlessRaises(
 			pg_exc.UndefinedTableError,
-			self.db.execute, "SELECT * FROM withfoo"
+			db.execute, "SELECT * FROM withfoo"
 		)
 
+	@pg_tmp
 	def testPreparedTransactionCommit(self):
-		with self.db.xact(gid='commit_gid') as x:
-			self.db.execute("create table commit_gidtable as select 'foo'::text as t;")
+		with db.xact(gid='commit_gid') as x:
+			db.execute("create table commit_gidtable as select 'foo'::text as t;")
 			x.prepare()
 			# not committed yet, so it better fail.
 			self.failUnlessRaises(pg_exc.UndefinedTableError,
-				self.db.execute, "select * from commit_gidtable"
+				db.execute, "select * from commit_gidtable"
 			)
 		# now it's committed.
 		self.failUnlessEqual(
-			self.db.prepare("select * FROM commit_gidtable").first(),
+			db.prepare("select * FROM commit_gidtable").first(),
 			'foo',
 		)
-		self.db.execute('drop table commit_gidtable;')
+		db.execute('drop table commit_gidtable;')
 
+	@pg_tmp
 	def testWithUnpreparedTransaction(self):
 		try:
-			with self.db.xact(gid='not-gonna-prepare-it') as x:
+			with db.xact(gid='not-gonna-prepare-it') as x:
 				pass
 		except pg_exc.ActiveTransactionError:
 			# *must* be okay to query again.
-			self.failUnlessEqual(self.db.prepare('select 1').first(), 1)
+			self.failUnlessEqual(db.prepare('select 1').first(), 1)
 		else:
 			self.fail("commit with gid succeeded unprepared..")
 
+	@pg_tmp
 	def testWithPreparedException(self):
 		class TheFailure(Exception):
 			pass
 		try:
-			with self.db.xact(gid='yeah,weprepare') as x:
+			with db.xact(gid='yeah,weprepare') as x:
 				x.prepare()
 				raise TheFailure()
 		except TheFailure as err:
 			# __exit__ should have issued ROLLBACK PREPARED, so let's find out.
 			# *must* be okay to query again.
-			self.failUnlessEqual(self.db.prepare('select 1').first(), 1)
-			x = self.db.xact(gid='yeah,weprepare')
+			self.failUnlessEqual(db.prepare('select 1').first(), 1)
+			x = db.xact(gid='yeah,weprepare')
 			self.failUnlessRaises(pg_exc.UndefinedObjectError, x.recover)
 		else:
 			self.fail("failure exception was not raised")
 
+	@pg_tmp
 	def testUnPreparedTransactionCommit(self):
-		x = self.db.xact(gid='never_prepared')
+		x = db.xact(gid='never_prepared')
 		x.start()
 		self.failUnlessRaises(pg_exc.ActiveTransactionError, x.commit)
 		self.failUnlessRaises(pg_exc.InFailedTransactionError, x.commit)
 
+	@pg_tmp
 	def testPreparedTransactionRollback(self):
-		x = self.db.xact(gid='rollback_gid')
+		x = db.xact(gid='rollback_gid')
 		x.start()
-		self.db.execute("create table gidtable as select 'foo'::text as t;")
+		db.execute("create table gidtable as select 'foo'::text as t;")
 		x.prepare()
 		x.rollback()
 		self.failUnlessRaises(
 			pg_exc.UndefinedTableError,
-			self.db.execute, "select * from gidtable"
+			db.execute, "select * from gidtable"
 		)
 
+	@pg_tmp
 	def testPreparedTransactionRecovery(self):
-		x = self.db.xact(gid='recover dis')
+		x = db.xact(gid='recover dis')
 		x.start()
-		self.db.execute("create table distable (i int);")
+		db.execute("create table distable (i int);")
 		x.prepare()
 		del x
-		x = self.db.xact(gid='recover dis')
+		x = db.xact(gid='recover dis')
 		x.recover()
 		x.commit()
-		self.db.execute("drop table distable;")
+		db.execute("drop table distable;")
 
+	@pg_tmp
 	def testPreparedTransactionRecoveryAbort(self):
-		x = self.db.xact(gid='recover dis abort')
+		x = db.xact(gid='recover dis abort')
 		x.start()
-		self.db.execute("create table distableabort (i int);")
+		db.execute("create table distableabort (i int);")
 		x.prepare()
 		del x
-		x = self.db.xact(gid='recover dis abort')
+		x = db.xact(gid='recover dis abort')
 		x.recover()
 		x.rollback()
 		self.failUnlessRaises(
 			pg_exc.UndefinedTableError,
-			self.db.execute, "select * from distableabort"
+			db.execute, "select * from distableabort"
 		)
 
+	@pg_tmp
 	def testPreparedTransactionFailedRecovery(self):
-		x = self.db.xact(gid="NO XACT HERE")
+		x = db.xact(gid="NO XACT HERE")
 		self.failUnlessRaises(
 			pg_exc.UndefinedObjectError,
 			x.recover
 		)
 
+	@pg_tmp
 	def testSerializeable(self):
-		with self.db.connector() as db2:
+		with db.connector() as db2:
 			db2.execute("create table some_darn_table (i int);")
 			try:
-				with self.db.xact(isolation = 'serializable'):
-					self.db.execute('insert into some_darn_table values (123);')
+				with db.xact(isolation = 'serializable'):
+					db.execute('insert into some_darn_table values (123);')
 					# db2 is in autocommit..
 					db2.execute('insert into some_darn_table values (321);')
 					self.failIfEqual(
-						list(self.db.prepare('select * from some_darn_table')),
+						list(db.prepare('select * from some_darn_table')),
 						list(db2.prepare('select * from some_darn_table')),
 					)
 			finally:
 				# cleanup
 				db2.execute("drop table some_darn_table;")
 
+	@pg_tmp
 	def testReadOnly(self):
 		class something(Exception):
 			pass
 		try:
-			with self.db.xact(mode = 'read only'):
+			with db.xact(mode = 'read only'):
 				self.failUnlessRaises(
 					pg_exc.ReadOnlyTransactionError,
-					self.db.execute, 
+					db.execute,
 					"create table ieeee(i int)"
 				)
 				raise something("yeah, it raised.")
@@ -1354,23 +1441,25 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 		except something:
 			pass
 
+	@pg_tmp
 	def testFailedTransactionBlock(self):
 		try:
-			with self.db.xact():
+			with db.xact():
 				try:
-					self.db.execute("selekt 1;")
+					db.execute("selekt 1;")
 				except pg_exc.SyntaxError:
 					pass
 			self.fail("__exit__ didn't identify failed transaction")
 		except pg_exc.InFailedTransactionError as err:
 			self.failUnlessEqual(err.source, 'CLIENT')
 
+	@pg_tmp
 	def testFailedSubtransactionBlock(self):
-		with self.db.xact():
+		with db.xact():
 			try:
-				with self.db.xact():
+				with db.xact():
 					try:
-						self.db.execute("selekt 1;")
+						db.execute("selekt 1;")
 					except pg_exc.SyntaxError:
 						pass
 				self.fail("__exit__ didn't identify failed transaction")
@@ -1378,152 +1467,166 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				# driver should have released/aborted instead
 				self.failUnlessEqual(err.source, 'CLIENT')
 
+	@pg_tmp
 	def testSuccessfulSubtransactionBlock(self):
-		with self.db.xact():
-			with self.db.xact():
-				self.db.execute("create temp table subxact_sx1(i int);")
-				with self.db.xact():
-					self.db.execute("create temp table subxact_sx2(i int);")
+		with db.xact():
+			with db.xact():
+				db.execute("create temp table subxact_sx1(i int);")
+				with db.xact():
+					db.execute("create temp table subxact_sx2(i int);")
 					# And, because I'm paranoid.
 					# The following block is used to make sure
 					# that savepoints are actually being set.
 					try:
-						with self.db.xact():
-							self.db.execute("selekt 1")
+						with db.xact():
+							db.execute("selekt 1")
 					except pg_exc.SyntaxError:
 						# Just in case the xact() aren't doing anything.
 						pass
-			with self.db.xact():
-				self.db.execute("create temp table subxact_sx3(i int);")
+			with db.xact():
+				db.execute("create temp table subxact_sx3(i int);")
 		# if it can't drop these tables, it didn't manage the subxacts
 		# properly.
-		self.db.execute("drop table subxact_sx1")
-		self.db.execute("drop table subxact_sx2")
-		self.db.execute("drop table subxact_sx3")
+		db.execute("drop table subxact_sx1")
+		db.execute("drop table subxact_sx2")
+		db.execute("drop table subxact_sx3")
 
+	@pg_tmp
 	def testCloseInSubTransactionBlock(self):
 		try:
-			with self.db.xact():
-				self.db.close()
+			with db.xact():
+				db.close()
 			self.fail("transaction __exit__ didn't identify cause ConnectionDoesNotExistError")
 		except pg_exc.ConnectionDoesNotExistError:
 			pass
 
+	@pg_tmp
 	def testCloseInSubTransactionBlock(self):
 		try:
-			with self.db.xact():
-				with self.db.xact():
-					self.db.close()
+			with db.xact():
+				with db.xact():
+					db.close()
 				self.fail("transaction __exit__ didn't identify cause ConnectionDoesNotExistError")
 			self.fail("transaction __exit__ didn't identify cause ConnectionDoesNotExistError")
 		except pg_exc.ConnectionDoesNotExistError:
 			pass
 
+	@pg_tmp
 	def testSettingsCM(self):
-		orig = self.db.settings['search_path']
-		with self.db.settings(search_path='public'):
-			self.failUnlessEqual(self.db.settings['search_path'], 'public')
-		self.failUnlessEqual(self.db.settings['search_path'], orig)
+		orig = db.settings['search_path']
+		with db.settings(search_path='public'):
+			self.failUnlessEqual(db.settings['search_path'], 'public')
+		self.failUnlessEqual(db.settings['search_path'], orig)
 
+	@pg_tmp
 	def testSettingsReset(self):
 		# <3 search_path
-		cur = self.db.settings['search_path']
-		self.db.settings['search_path'] = 'pg_catalog'
-		del self.db.settings['search_path']
-		self.failUnlessEqual(self.db.settings['search_path'], cur)
+		del db.settings['search_path']
+		cur = db.settings['search_path']
+		db.settings['search_path'] = 'pg_catalog'
+		del db.settings['search_path']
+		self.failUnlessEqual(db.settings['search_path'], cur)
 
+	@pg_tmp
 	def testSettingsCount(self):
 		self.failUnlessEqual(
-			len(self.db.settings), self.db.prepare('select count(*) from pg_settings').first()
+			len(db.settings), db.prepare('select count(*) from pg_settings').first()
 		)
 
+	@pg_tmp
 	def testSettingsGet(self):
 		self.failUnlessEqual(
-			self.db.settings['search_path'], self.db.settings.get('search_path')
+			db.settings['search_path'], db.settings.get('search_path')
 		)
-		self.failUnlessEqual(None, self.db.settings.get(' $*0293 vksnd'))
+		self.failUnlessEqual(None, db.settings.get(' $*0293 vksnd'))
 
+	@pg_tmp
 	def testSettingsGetSet(self):
-		sub = self.db.settings.getset(
+		sub = db.settings.getset(
 			('search_path', 'default_statistics_target')
 		)
-		self.failUnlessEqual(self.db.settings['search_path'], sub['search_path'])
-		self.failUnlessEqual(self.db.settings['default_statistics_target'], sub['default_statistics_target'])
+		self.failUnlessEqual(db.settings['search_path'], sub['search_path'])
+		self.failUnlessEqual(db.settings['default_statistics_target'], sub['default_statistics_target'])
 
+	@pg_tmp
 	def testSettings(self):
-		d = dict(self.db.settings)
-		d = dict(self.db.settings.items())
-		k = list(self.db.settings.keys())
-		v = list(self.db.settings.values())
+		d = dict(db.settings)
+		d = dict(db.settings.items())
+		k = list(db.settings.keys())
+		v = list(db.settings.values())
 		self.failUnlessEqual(len(k), len(d))
 		self.failUnlessEqual(len(k), len(v))
 		for x in k:
 			self.failUnless(d[x] in v)
-		all = list(self.db.settings.getset(k).items())
+		all = list(db.settings.getset(k).items())
 		all.sort(key=itemgetter(0))
 		dall = list(d.items())
 		dall.sort(key=itemgetter(0))
 		self.failUnlessEqual(dall, all)
 
+	@pg_tmp
 	def testDo(self):
 		# plpgsql is expected to be available.
-		if self.db.version_info[:2] < (8,5):
+		if db.version_info[:2] < (8,5):
 			return
-		if 'plpgsql' not in self.db.sys.languages():
-			self.db.execute("CREATE LANGUAGE plpgsql")
-		self.db.do('plpgsql', "BEGIN CREATE TEMP TABLE do_tmp_table(i int, t text); END",)
-		self.failUnlessEqual(len(self.db.prepare("SELECT * FROM do_tmp_table")()), 0)
-		self.db.do('plpgsql', "BEGIN INSERT INTO do_tmp_table VALUES (100, 'foo'); END")
-		self.failUnlessEqual(len(self.db.prepare("SELECT * FROM do_tmp_table")()), 1)
+		if 'plpgsql' not in db.sys.languages():
+			db.execute("CREATE LANGUAGE plpgsql")
+		db.do('plpgsql', "BEGIN CREATE TEMP TABLE do_tmp_table(i int, t text); END",)
+		self.failUnlessEqual(len(db.prepare("SELECT * FROM do_tmp_table")()), 0)
+		db.do('plpgsql', "BEGIN INSERT INTO do_tmp_table VALUES (100, 'foo'); END")
+		self.failUnlessEqual(len(db.prepare("SELECT * FROM do_tmp_table")()), 1)
 
+	@pg_tmp
 	def testListeningChannels(self):
-		self.db.listen('foo', 'bar')
-		self.failUnlessEqual(set(self.db.listening_channels()), {'foo','bar'})
-		self.db.unlisten('bar')
-		self.db.listen('foo', 'bar')
-		self.failUnlessEqual(set(self.db.listening_channels()), {'foo','bar'})
-		self.db.unlisten('foo', 'bar')
-		self.failUnlessEqual(set(self.db.listening_channels()), set())
+		db.listen('foo', 'bar')
+		self.failUnlessEqual(set(db.listening_channels()), {'foo','bar'})
+		db.unlisten('bar')
+		db.listen('foo', 'bar')
+		self.failUnlessEqual(set(db.listening_channels()), {'foo','bar'})
+		db.unlisten('foo', 'bar')
+		self.failUnlessEqual(set(db.listening_channels()), set())
 
+	@pg_tmp
 	def testNotify(self):
-		self.db.listen('foo', 'bar')
-		self.db.listen('foo', 'bar')
-		self.db.notify('foo')
-		self.db.execute('')
-		self.failUnlessEqual(self.db._notifies[0].channel, b'foo')
-		self.failUnlessEqual(self.db._notifies[0].pid, self.db.backend_id)
-		self.failUnlessEqual(self.db._notifies[0].payload, b'')
-		del self.db._notifies[0]
-		self.db.notify('bar')
-		self.db.execute('')
-		self.failUnlessEqual(self.db._notifies[0].channel, b'bar')
-		self.failUnlessEqual(self.db._notifies[0].pid, self.db.backend_id)
-		self.failUnlessEqual(self.db._notifies[0].payload, b'')
-		del self.db._notifies[0]
-		self.db.unlisten('foo')
-		self.db.notify('foo')
-		self.db.execute('')
-		self.failUnlessEqual(self.db._notifies, [])
+		db.listen('foo', 'bar')
+		db.listen('foo', 'bar')
+		db.notify('foo')
+		db.execute('')
+		self.failUnlessEqual(db._notifies[0].channel, b'foo')
+		self.failUnlessEqual(db._notifies[0].pid, db.backend_id)
+		self.failUnlessEqual(db._notifies[0].payload, b'')
+		del db._notifies[0]
+		db.notify('bar')
+		db.execute('')
+		self.failUnlessEqual(db._notifies[0].channel, b'bar')
+		self.failUnlessEqual(db._notifies[0].pid, db.backend_id)
+		self.failUnlessEqual(db._notifies[0].payload, b'')
+		del db._notifies[0]
+		db.unlisten('foo')
+		db.notify('foo')
+		db.execute('')
+		self.failUnlessEqual(db._notifies, [])
 		# Invoke an error to show that listen() is all or none.
-		self.failUnlessRaises(Exception, self.db.listen, 'doesntexist', 'x'*64)
-		self.failUnless('doesntexist' not in self.db.listening_channels())
+		self.failUnlessRaises(Exception, db.listen, 'doesntexist', 'x'*64)
+		self.failUnless('doesntexist' not in db.listening_channels())
 
+	@pg_tmp
 	def testMessageHook(self):
-		create = self.db.prepare('CREATE TEMP TABLE msghook (i INT PRIMARY KEY)')
-		drop = self.db.prepare('DROP TABLE msghook')
+		create = db.prepare('CREATE TEMP TABLE msghook (i INT PRIMARY KEY)')
+		drop = db.prepare('DROP TABLE msghook')
 		parts = [
 			create,
-			self.db,
-			self.db.connector,
-			self.db.connector.driver,
+			db,
+			db.connector,
+			db.connector.driver,
 		]
 		notices = []
 		def add(x):
 			notices.append(x)
 			# inhibit
 			return True
-		with self.db.xact():
-			self.db.settings['client_min_messages'] = 'NOTICE'
+		with db.xact():
+			db.settings['client_min_messages'] = 'NOTICE'
 			# test an installed msghook at each level
 			for x in parts:
 				x.msghook = add
@@ -1538,225 +1641,6 @@ class test_driver(pg_unittest.TestCaseWithCluster):
 				continue
 			self.failUnless(x.isconsistent(last))
 			last = x
-
-	# XXX: relocate some of these tests into their own module
-	def testNotificationManager(self):
-		from ..notifyman import NotificationManager as NM
-		# signals each other
-		db = self.db
-		alt = self.db.clone()
-		with alt:
-			nm = NM(db, alt)
-			db.listen('foo')
-			alt.listen('bar')
-			# notify the other.
-			alt.notify('foo')
-			db.notify('bar')
-			# we can separate these here because there's no timeout
-			for ndb, notifies in nm:
-				for n in notifies:
-					if ndb is db:
-						self.failUnlessEqual(n[0], 'foo')
-						self.failUnlessEqual(n[1], '')
-						self.failUnlessEqual(n[2], alt.backend_id)
-						nm.connections.discard(db)
-					elif ndb is alt:
-						self.failUnlessEqual(n[0], 'bar')
-						self.failUnlessEqual(n[1], '')
-						self.failUnlessEqual(n[2], db.backend_id)
-						nm.connections.discard(alt)
-					else:
-						self.fail("unknown connection received notify..")
-
-	def testNotificationManagerTimeout(self):
-		from ..notifyman import NotificationManager as NM
-		nm = NM(self.db, timeout = 0.1)
-		self.db.listen('foo')
-		count = 0
-		for event in nm:
-			if event is None:
-				# do this a few times, then break out of the loop
-				self.db.notify('foo')
-				continue
-			ndb, notifies = event
-			self.failUnlessEqual(ndb, self.db)
-			for n in notifies:
-				self.failUnlessEqual(n[0], 'foo')
-				self.failUnlessEqual(n[1], '')
-				self.failUnlessEqual(n[2], self.db.backend_id)
-				count = count + 1
-			if count > 3:
-				break
-
-	def testNotificationManagerZeroTimeout(self):
-		# Zero-timeout means raise StopIteration when
-		# there are no notifications to emit.
-		# It checks the wire, but does *not* wait for data.
-		from ..notifyman import NotificationManager as NM
-		nm = NM(self.db, timeout = 0)
-		self.db.listen('foo')
-		self.failUnlessEqual(list(nm), [])
-		self.db.notify('foo')
-		time.sleep(0.01)
-		self.failUnlessEqual(list(nm), [('foo','',self.db.backend_id)]) # bit of a race
-
-	def testWait(self):
-		# db.wait() simplification of NotificationManager
-		alt = self.db.clone()
-		alt.listen('foo')
-		alt.listen('close')
-		def get_notices(db, l):
-			with db:
-				for x in db.wait():
-					if x[0] == 'close':
-						break
-					l.append(x)
-		rl = []
-		t = threading.Thread(target = get_notices, args = (alt, rl,))
-		t.start()
-		self.db.notify('foo')
-		while not rl:
-			time.sleep(0.05)
-		channel, payload, pid = rl.pop(0)
-		self.failUnlessEqual(channel, 'foo')
-		self.failUnlessEqual(payload, '')
-		self.failUnlessEqual(pid, self.db.backend_id)
-		self.db.notify('close')
-
-	def testNotificationManagerZeroTimeout(self):
-		# Zero-timeout means raise StopIteration when
-		# there are no notifications to emit.
-		# It checks the wire, but does *not* wait for data.
-		from ..notifyman import NotificationManager as NM
-		self.db.listen('foo')
-		self.failUnlessEqual(list(self.db.wait(0)), [])
-		self.db.notify('foo')
-		time.sleep(0.01)
-		self.failUnlessEqual(list(self.db.wait(0)), [('foo','',self.db.backend_id)]) # bit of a race
-
-	def testNotificationManagerOnClosed(self):
-		# When the connection goes away, the NM iterator
-		# should raise a Stop.
-		db = self.db.clone()
-		db.listen('foo')
-		db.notify('foo')
-		for n in db.wait():
-			db.close()
-		self.failUnlessEqual(db.closed, True)
-		# closer, after an idle
-		db = self.db.clone()
-		db.listen('foo')
-		for n in db.wait(0.2):
-			if n is None:
-				# In the loop, notify, and expect to
-				# get the notification even though the
-				# connection was closed.
-				db.notify('foo')
-				db.execute('')
-				db.close()
-				hit = False
-			else:
-				hit = True
-		# hit should get set two times.
-		# once on the first idle, and once on the event
-		# received after the close.
-		self.failUnlessEqual(db.closed, True)
-		self.failUnlessEqual(hit, True)
-
-	def testALockNoWait(self):
-		alt = self.db.clone()
-		with alt:
-			ad = self.db.prepare(
-				"select count(*) FROM pg_locks WHERE locktype = 'advisory'"
-			).first
-			self.failUnlessEqual(ad(), 0)
-			with alock.ExclusiveLock(self.db, (0,0)):
-				l=alock.ExclusiveLock(alt, (0,0))
-				# should fail to acquire
-				self.failUnlessEqual(l.acquire(False), False)
-			# no alocks should exist now
-			self.failUnlessEqual(ad(), 0)
-
-	def testALock(self):
-		ad = self.db.prepare(
-			"select count(*) FROM pg_locks WHERE locktype = 'advisory'"
-		).first
-		self.failUnlessEqual(ad(), 0)
-		# test a variety..
-		lockids = [
-			(1,4),
-			-32532, 0, 2,
-			(7, -1232),
-			4, 5, 232142423,
-			(18,7),
-			2, (1,4)
-		]
-		alt = self.db.clone()
-		with alt:
-			xal1 = alock.ExclusiveLock(self.db, *lockids)
-			xal2 = alock.ExclusiveLock(self.db, *lockids)
-			sal1 = alock.ShareLock(self.db, *lockids)
-			with sal1:
-				with xal1, xal2:
-					self.failUnless(ad() > 0)
-					for x in lockids:
-						xl = alock.ExclusiveLock(alt, x)
-						self.failUnlessEqual(xl.acquire(False), False)
-					# main has exclusives on these, so this should fail.
-					xl = alock.ShareLock(alt, *lockids)
-					self.failUnlessEqual(xl.acquire(False), False)
-				for x in lockids:
-					# sal1 still holds
-					xl = alock.ExclusiveLock(alt, x)
-					self.failUnlessEqual(xl.acquire(False), False)
-					# sal1 still holds, but we want a share lock too.
-					xl = alock.ShareLock(alt, x)
-					self.failUnlessEqual(xl.acquire(False), True)
-					xl.release()
-			# no alocks should exist now
-			self.failUnlessEqual(ad(), 0)
-
-	def testPartialALock(self):
-		# Validates that release is properly cleaning up
-		ad = self.db.prepare(
-			"select count(*) FROM pg_locks WHERE locktype = 'advisory'"
-		).first
-		self.failUnlessEqual(ad(), 0)
-		held = (0,-1234)
-		wanted = [0, 324, -1232948, 7, held, 1, (2,4), (834,1)]
-		alt = self.db.clone()
-		with alt:
-			with alock.ExclusiveLock(self.db, held):
-				l=alock.ExclusiveLock(alt, *wanted)
-				# should fail to acquire, db has held
-				self.failUnlessEqual(l.acquire(False), False)
-			# No alocks should exist now.
-			# This *MUST* occur prior to alt being closed.
-			# Otherwise, we won't be testing for the recovery
-			# of a failed non-blocking acquire().
-			self.failUnlessEqual(ad(), 0)
-
-	def testALockParameterErrors(self):
-		self.failUnlessRaises(TypeError, alock.ALock)
-		l = alock.ExclusiveLock(self.db)
-		self.failUnlessRaises(RuntimeError, l.release)
-
-	def testALockOnClosed(self):
-		ad = self.db.prepare(
-			"select count(*) FROM pg_locks WHERE locktype = 'advisory'"
-		).first
-		self.failUnlessEqual(ad(), 0)
-		held = (0,-1234)
-		alt = self.db.clone()
-		with alt:
-			# __exit__ should only touch the count.
-			with alock.ExclusiveLock(alt, held) as l:
-				self.failUnlessEqual(ad(), 1)
-				self.failUnlessEqual(l.locked(), True)
-				alt.close()
-				time.sleep(0.005)
-				self.failUnlessEqual(ad(), 0)
-				self.failUnlessEqual(l.locked(), False)
 
 if __name__ == '__main__':
 	unittest.main()

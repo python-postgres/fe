@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .test.test_lib - test the .lib package
 ##
 import sys
 import os
@@ -8,9 +7,9 @@ import unittest
 import tempfile
 
 from .. import exceptions as pg_exc
-from .. import unittest as pg_unittest
 from .. import lib as pg_lib
 from .. import sys as pg_sys
+from ..temporal import pg_tmp
 
 ilf = """
 preface
@@ -70,15 +69,15 @@ SELECT 'SELECT 1::int4';
 SELECT 'test_ilf_proc(int)'::text
 """
 
-class test_lib(pg_unittest.TestCaseWithCluster):
+class test_lib(unittest.TestCase):
 	# NOTE: Module libraries are implicitly tested
 	# in postgresql.test.test_driver; much functionality
 	# depends on the `sys` library.
 	def _testILF(self, lib):
 		self.failUnless('preface' in lib.preface)
-		self.db.execute("CREATE OR REPLACE FUNCTION test_ilf_proc(int) RETURNS int language sql as 'select $1';")
-		self.db.execute("CREATE OR REPLACE FUNCTION test_ilf_srf_proc(int) RETURNS SETOF int language sql as 'select $1';")
-		b = pg_lib.Binding(self.db, lib)
+		db.execute("CREATE OR REPLACE FUNCTION test_ilf_proc(int) RETURNS int language sql as 'select $1';")
+		db.execute("CREATE OR REPLACE FUNCTION test_ilf_srf_proc(int) RETURNS SETOF int language sql as 'select $1';")
+		b = pg_lib.Binding(db, lib)
 		self.failUnlessEqual(b.sym_ref(), [(1,)])
 		self.failUnlessEqual(b.sym_ref_trail(), [])
 		self.failUnlessEqual(b.sym(), [(1,)])
@@ -107,10 +106,12 @@ class test_lib(pg_unittest.TestCaseWithCluster):
 		self.failUnlessEqual(b.sym_reference_const(), 1)
 		self.failUnlessEqual(b.sym_reference_proc()(2,), 2)
 
+	@pg_tmp
 	def testILF_from_lines(self):
 		lib = pg_lib.ILF.from_lines([l + '\n' for l in ilf.splitlines()])
 		self._testILF(lib)
 
+	@pg_tmp
 	def testILF_from_file(self):
 		f = tempfile.NamedTemporaryFile(
 			delete = False, mode = 'w', encoding = 'utf-8'
@@ -127,6 +128,7 @@ class test_lib(pg_unittest.TestCaseWithCluster):
 			# so annoying...
 			os.unlink(n)
 
+	@pg_tmp
 	def testLoad(self):
 		# gotta test it in the cwd...
 		pid = os.getpid()
@@ -137,30 +139,32 @@ class test_lib(pg_unittest.TestCaseWithCluster):
 				f.write("[foo]\nSELECT 1")
 			pg_sys.libpath.insert(0, os.path.curdir)
 			l = pg_lib.load(frag)
-			b = pg_lib.Binding(self.db, l)
+			b = pg_lib.Binding(db, l)
 			self.failUnlessEqual(b.foo(), [(1,)])
 		finally:
 			os.remove(fn)
 	
+	@pg_tmp
 	def testCategory(self):
 		lib = pg_lib.ILF.from_lines([l + '\n' for l in ilf.splitlines()])
 		# XXX: evil, careful..
 		lib._name = 'name'
 		c = pg_lib.Category(lib)
-		c(self.db)
-		self.failUnlessEqual(self.db.name.sym_first(), 1)
+		c(db)
+		self.failUnlessEqual(db.name.sym_first(), 1)
 		c = pg_lib.Category(renamed = lib)
-		c(self.db)
-		self.failUnlessEqual(self.db.renamed.sym_first(), 1)
+		c(db)
+		self.failUnlessEqual(db.renamed.sym_first(), 1)
 
+	@pg_tmp
 	def testCategoryAliases(self):
 		lib = pg_lib.ILF.from_lines([l + '\n' for l in ilf.splitlines()])
 		# XXX: evil, careful..
 		lib._name = 'name'
 		c = pg_lib.Category(lib, renamed = lib)
-		c(self.db)
-		self.failUnlessEqual(self.db.name.sym_first(), 1)
-		self.failUnlessEqual(self.db.renamed.sym_first(), 1)
+		c(db)
+		self.failUnlessEqual(db.name.sym_first(), 1)
+		self.failUnlessEqual(db.renamed.sym_first(), 1)
 
 if __name__ == '__main__':
 	unittest.main()

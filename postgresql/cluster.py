@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .cluster - PostgreSQL cluster management
 ##
 """
 Create, control, and destroy PostgreSQL clusters.
@@ -12,7 +11,6 @@ import sys
 import os
 import errno
 import time
-import io
 import subprocess as sp
 from tempfile import NamedTemporaryFile
 

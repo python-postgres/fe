@@ -1,8 +1,9 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .installation
 ##
-'pg_config Python interface; provides member based access to pg_config data'
+"""
+Collect and access PostgreSQL installation information.
+"""
 import sys
 import os
 import os.path
