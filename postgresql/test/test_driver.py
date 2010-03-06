@@ -2,7 +2,6 @@
 # .test.test_driver
 ##
 import sys
-import os
 import unittest
 import gc
 import threading
@@ -19,8 +18,6 @@ from ..python.datetime import FixedOffset, \
 from .. import types as pg_types
 from ..types.io.stdlib_xml_etree import etree
 from .. import exceptions as pg_exc
-from .. import lib as pg_lib
-from .. import message as pg_msg
 from ..types.bitwise import Bit, Varbit
 from ..temporal import pg_tmp
 
