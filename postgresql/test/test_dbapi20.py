@@ -1,13 +1,12 @@
 ##
-# postgresql.driver.dbapi20
+# .test.test_dbapi20 - test .driver.dbapi20
 ##
 import unittest
-from ..unittest import TestCaseWithCluster
 import time
-from ..python.contextlib import NoCM
+from ..temporal import pg_tmp
 
 ##
-# Various Adjustments for pg.driver.dbapi20
+# Various Adjustments for .driver.dbapi20
 #
 # Log: dbapi20.py
 # Revision 1.10  2003/10/09 03:14:14  zenzen
@@ -51,7 +50,7 @@ from ..python.contextlib import NoCM
 #   nothing
 # - Fix bugs in test_setoutputsize_basic and test_setinputsizes
 #
-class test_dbapi20(TestCaseWithCluster):
+class test_dbapi20(unittest.TestCase):
 	"""
 	Test a database self.driver for DB API 2.0 compatibility.
 	This implementation tests Gadfly, but the TestCase
@@ -109,15 +108,11 @@ class test_dbapi20(TestCaseWithCluster):
 		finally:
 			con.close()
 
-	def connection(self):
-		return NoCM
-
 	def _connect(self):
-		host, port = self.cluster.address()
+		pg_tmp.init()
+		host, port = pg_tmp.cluster.address()
 		return self.driver.connect(
-			user = 'test',
-			host = host,
-			port = port,
+			user = 'test', host = host, port = port,
 		)
 
 	def test_connect(self):
