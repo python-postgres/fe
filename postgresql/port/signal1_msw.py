@@ -1,15 +1,15 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .port.signal1_msw
 ##
 """
 Support for PG signals on Windows platforms.
 
-This implementation supports all known versions of PostgreSQL. (2009)
+This implementation supports all known versions of PostgreSQL. (2010)
 
 CallNamedPipe:
 	http://msdn.microsoft.com/en-us/library/aa365144%28VS.85%29.aspx
 """
+import errno
 from ctypes import windll, wintypes, pointer
 
 # CallNamedPipe from kernel32.
@@ -26,7 +26,7 @@ CallNamedPipeA.argtypes = (
 )
 
 from signal import SIGTERM, SIGINT, SIG_DFL
-# Values taken from the port/win32.h file.
+# SYNC: Values taken from the port/win32.h file.
 SIG_DFL=0
 SIGHUP=1
 SIGQUIT=3
@@ -45,26 +45,32 @@ SIGWINCH=28
 SIGUSR1=30
 SIGUSR2=31
 
+# SYNC: port.h
+PG_SIGNAL_COUNT = 32
+
 # In the situation of another variant, another module should be constructed.
 def kill(pid : int, signal : int, timeout = 1000, dword1 = wintypes.DWORD(1)):
 	"""
 	Re-implementation of pg_kill for win32 using ctypes.
 	"""
+	if pid <= 0:
+		raise OSError(errno.EINVAL, "process group not supported")
+	if signal < 0 or signal >= PG_SIGNAL_COUNT:
+		raise OSError(errno.EINVAL, "unsupported signal number")
 	inbuffer = pointer(wintypes.BYTE(signal))
 	outbuffer = pointer(wintypes.BYTE(0))
 	outbytes = pointer(wintypes.DWORD(0))
 	pidpipe = br'\\.\pipe\pgsignal_' + str(pid).encode('ascii')
 	timeout = wintypes.DWORD(timeout)
-	# Down to the algorithm. No need to second guess that 90-hour trial.
-	for x in range(3):
-		r = CallNamedPipeA(
-			pidpipe, inbuffer, dword1, outbuffer, dword1, outbytes, timeout
-		)
-		if r:
-			if outbuffer.contents.value == signal:
-				if outbytes.contents.value == 1:
-					# success
-					return
-			raise Exception("failed to validate output")
-	# didn't work?
+	r = CallNamedPipeA(
+		pidpipe, inbuffer, dword1, outbuffer, dword1, outbytes, timeout
+	)
+	if r:
+		if outbuffer.contents.value == signal:
+			if outbytes.contents.value == 1:
+				# success
+				return
+	# Don't bother emulating the other failure cases/abstractions.
+	# CallNamedPipeA should raise a WindowsError on those failures.
+	raise OSError(errno.ESRCH, "unexpected output from CallNamedPipeA")
 __docformat__ = 'reStructuredText'
