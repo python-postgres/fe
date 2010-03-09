@@ -51,6 +51,9 @@ class Temporal(object):
 		def incontext(*args, **kw):
 			with self:
 				return callable(*args, **kw)
+		n = getattr(callable, '__name__', None)
+		if n:
+			incontext.__name__ = n
 		return incontext
 
 	def reset(self):
@@ -60,6 +63,8 @@ class Temporal(object):
 			self.cluster = None
 			self._init_pid_ = None
 			if cluster is not None:
+				cluster.stop()
+				cluster.wait_until_stopped(timeout = 10)
 				cluster.drop()
 
 	def init(self,

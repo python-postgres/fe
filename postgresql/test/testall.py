@@ -32,8 +32,9 @@ except ImportError:
 	stderr.write("NOTICE: port.optimized could not be imported\n")
 
 from .test_driver import *
-from .test_notifyman import *
 from .test_alock import *
+from .test_notifyman import *
+from .test_copyman import *
 from .test_lib import *
 from .test_dbapi20 import *
 from .test_types import *

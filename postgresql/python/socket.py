@@ -28,6 +28,7 @@ class SocketFactory(object):
 		errno.EPIPE : 'broken connection detected on send',
 		errno.ECONNREFUSED : 'server refused connection',
 		errno.EHOSTUNREACH : 'server is not reachable',
+		errno.EBADF : 'bad file descriptor',
 	}
 	if sys.platform in ('win32', 'win64'):
 		fatal_exception_messages.update({

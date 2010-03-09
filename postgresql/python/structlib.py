@@ -11,9 +11,13 @@ null_sequence = b'\xff\xff\xff\xff'
 def mk_pack(x):
 	s = struct.Struct('!' + x)
 	if len(x) > 1:
-		return (lambda y: s.pack(*y), s.unpack_from)
+		def pack(y, p = s.pack):
+			return p(*y)
+		return (pack, s.unpack_from)
 	else:
-		return (s.pack, lambda y: s.unpack_from(y)[0])
+		def unpack(y, p = s.unpack_from):
+			return p(y)[0]
+		return (s.pack, unpack)
 
 byte_pack, byte_unpack = lambda x: bytes((x,)), lambda x: x[0]
 double_pack, double_unpack = mk_pack("d")

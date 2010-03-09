@@ -419,7 +419,10 @@ class FetchAll(Chunks):
 						self.database._raise_pq_error(self._xact, controller = self)
 					return
 
-	def __next__(self, data_types = (tuple,bytes)):
+	def __next__(self,
+		data_types = (tuple,bytes),
+		complete = element.Complete.type,
+	):
 		x = self._xact
 		# self._xact = None; means that the cursor has been exhausted.
 		if x is None:
@@ -449,6 +452,15 @@ class FetchAll(Chunks):
 			if y.__class__ in data_types
 		]
 		r = self._process_chunk(chunk)
+
+		# Scan for _complete_message.
+		# Arguably, this can fail, but it would be a case
+		# where multiple sync messages were issued. Something that's
+		# not naturally occurring.
+		for y in x.completed[0][1][-3:]:
+			if getattr(y, 'type', None) == complete:
+				self._complete_message = y
+
 		# Remove it, it's been processed.
 		del x.completed[0]
 		return r
@@ -2108,8 +2120,8 @@ class Connection(pg_api.Connection):
 		err = self._error_lookup(x.error_message)
 		fromexc = getattr(x, 'exception', None)
 		if controller is None:
-			fromcontroller = getattr(self, '_controller', self)
-		err.creator = fromcontroller
+			controller = getattr(self, '_controller', self)
+		err.creator = controller
 		if fromexc is not None:
 			err.__cause__ = fromexc
 		raise err
