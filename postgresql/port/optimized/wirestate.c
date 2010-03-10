@@ -214,7 +214,9 @@ ws_remaining_bytes(PyObject *self, void *closure)
 {
 	struct wirestate *ws;
 	ws = (struct wirestate *) self;
-	return(PyLong_FromUnsignedLong(ws->remaining_bytes));
+	return(PyLong_FromLong(
+		ws->continuation == -1 ? ws->remaining_bytes : -1
+	));
 }
 
 PyObject *
