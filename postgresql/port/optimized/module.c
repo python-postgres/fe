@@ -41,6 +41,7 @@ static short (*local_ntohs)(short) = NULL;
 #include "structlib.c"
 #include "functools.c"
 #include "buffer.c"
+#include "wirestate.c"
 #include "element3.c"
 
 
@@ -100,6 +101,8 @@ PyInit_optimized(void)
 
 	/* buffer.c */
 	include_buffer_types
+	/* wirestate.c  */
+	include_wirestate_types
 #undef mTYPE
 
 	l = 1;

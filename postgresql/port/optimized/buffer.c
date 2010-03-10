@@ -9,7 +9,7 @@
 
 struct p_list
 {
-	PyObject *data; /* PyString pushed onto the buffer */
+	PyObject *data; /* PyBytes pushed onto the buffer */
 	struct p_list *next;
 };
 
@@ -348,6 +348,7 @@ p_write(PyObject *self, PyObject *data)
 	if (PyBytes_GET_SIZE(data) > 0)
 	{
 		struct p_list *pl;
+
 		pl = malloc(sizeof(struct p_list));
 		if (pl == NULL)
 		{
@@ -359,8 +360,14 @@ p_write(PyObject *self, PyObject *data)
 		pl->data = data;
 		Py_INCREF(data);
 		pl->next = NULL;
+
 		if (pb->last == NULL)
+		{
+			/*
+			 * First and last.
+			 */
 			pb->position.list = pb->last = pl;
+		}
 		else
 		{
 			pb->last->next = pl;
@@ -521,10 +528,17 @@ p_getvalue(PyObject *self)
 	uint32_t initial_offset;
 	PyObject *rob;
 
+	/*
+	 * Don't include data from already read() messages.
+	 */
 	initial_offset = pb->position.offset;
+
 	l = pb->position.list;
 	if (l == NULL)
 	{
+		/*
+		 * Empty list.
+		 */
 		return(PyBytes_FromString(""));
 	}
 
@@ -541,13 +555,9 @@ p_getvalue(PyObject *self)
 	l = l->next;
 	while (l != NULL)
 	{
-		PyBytes_ConcatAndDel(&rob, l->data);
-		if (PyErr_Occurred())
-		{
-			Py_XDECREF(rob);
-			rob = NULL;
+		PyBytes_Concat(&rob, l->data);
+		if (rob == NULL)
 			break;
-		}
 
 		l = l->next;
 	}
