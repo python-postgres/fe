@@ -490,10 +490,11 @@ class Instruction(Transaction):
 				# No path for message type, could be a protocol error.
 				if x[0] == ERROR_TYPE:
 					em = ERROR_PARSE(x[1])
+					# Is it fatal?
 					self.fatal = fatal = em[b'S'].upper() != b'ERROR'
 					self.error_message = em
 					if fatal is True:
-						# can't sync up if it's fatal.
+						# Can't sync up if the session is closed.
 						self.state = Complete
 						return count
 					# Error occurred, so sync up with backend if
@@ -502,6 +503,7 @@ class Instruction(Transaction):
 					if cmd.type not in (
 						element.Function.type, element.Query.type
 					):
+						# Adjust the offset forward until the Sync message is found.
 						for offset in range(offset, NCOMMANDS):
 							if COMMANDS[offset] is element.SynchronizeMessage:
 								break
@@ -591,17 +593,23 @@ class Instruction(Transaction):
 			# switched to an optimized processor.
 			last = processed[-1]
 			if last.__class__ is bytes:
+				# Fast path for COPY data, 'd' messages.
 				self.state = (Receiving, self.put_copydata)
 			elif last.__class__ is tuple:
+				# Fast path for Tuples, 'D' messages.
 				self.state = (Receiving, self.put_tupledata)
-			elif last.type == element.CopyToBegin.type:
-				self.state = (Receiving, self.put_copydata)
 			elif last.type == element.CopyFromBegin.type:
+				# In this case, the commands that were sent past
+				# message starting the COPY, need to be re-issued
+				# once the COPY is complete. PG cleared its buffer.
 				self.CopyFailSequence = (self.CopyFailMessage,) + \
 					self.commands[offset+1:]
 				self.CopyDoneSequence = (element.CopyDoneMessage,) + \
 					self.commands[offset+1:]
 				self.state = (Sending, self.sent_from_stdin)
+			elif last.type == element.CopyToBegin.type:
+				# Should be seeing COPY data soon.
+				self.state = (Receiving, self.put_copydata)
 		return count
 
 	def put_copydata(self, messages):

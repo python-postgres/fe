@@ -53,6 +53,30 @@ class ReceiverFault(Fault):
 		self.manager = manager
 		self.receivers = receivers
 
+	def __str__(self):
+		return "{0} receivers faulted".format(len(self.receivers))
+
+class CopyFail(Fault):
+	"""
+	Exception thrown by the CopyManager when the COPY failed.
+	"""
+	def __init__(self, manager, reason, faults = None):
+		self.manager = manager
+		self.reason = reason
+		self.faults = faults or {}
+
+	def __str__(self):
+		return self.reason
+
+class NoReceivers(CopyFail):
+	"""
+	Exception thrown by the CopyManager when the COPY failed due to all the
+	receivers faulting out.
+	"""
+	reason = 'no receivers remained after fault'
+	def __init__(self, manager):
+		self.manager = manager
+
 # The identifier for PQv3 copy data.
 PROTOCOL_PQv3 = "PQv3"
 # The identifier for iterables of copy data sequences.
@@ -98,7 +122,8 @@ copy_protocol_mappings = {
 	(PROTOCOL_PQv3, PROTOCOL_PQv3) : lambda: NoTransformation,
 }
 
-# Used to manage the conversion of COPY data.
+# Used to manage the conversions of COPY data.
+# Notably, chunks -> PQv3 or PQv3 -> chunks.
 class CopyTransformer(object):
 	__slots__ = ('current', 'transformers', 'get')
 	def __init__(self, source_protocol, target_protocols):
@@ -256,8 +281,13 @@ class Producer(Fitting, Iterator):
 		self.total_bytes = 0
 
 	@abstractmethod
-	def reconcile(self):
+	def realign(self):
 		"""
+		Method implemented by producers that emit COPY data that is not
+		guaranteed to be aligned.
+
+		This is only necessary in failure cases where receivers still need more
+		data to complete the message.
 		"""
 
 	@abstractmethod
@@ -288,8 +318,8 @@ class NullProducer(Producer):
 	_e_factors = ()
 	protocol = PROTOCOL_NULL
 
-	def reconcile(self):
-		# Never needs to reconcile.
+	def realign(self):
+		# Never needs to realigned.
 		pass
 
 	def __next__(self):
@@ -304,8 +334,8 @@ class IteratorProducer(Producer):
 		self.__next__ = self.iterator.__next__
 		super().__init__()
 
-	def reconcile(self):
-		# Never needs to reconcile; data is emitted on message boundaries.
+	def realign(self):
+		# Never needs to realign; data is emitted on message boundaries.
 		pass
 
 	def __next__(self, next = next):
@@ -336,7 +366,7 @@ class ProtocolProducer(Producer):
 	##
 	# When a COPY is interrupted, this can be used to accommodate
 	# the original state machine to identify the message boundaries.
-	def reconcile(self):
+	def realign(self):
 		s = self._state
 
 		if s is None:
@@ -356,6 +386,8 @@ class ProtocolProducer(Producer):
 			# Don't include the already sent parts.
 			buf = header[len(self._state.size_fragment):]
 			bodylen = ulong_unpack(header) - 4
+			# This will often cause an invalid copy data error,
+			# but it doesn't matter much because we will issue a copy fail.
 			buf += b'\x00' * bodylen
 			for_receivers = buf
 		elif s.remaining_bytes > 0:
@@ -483,6 +515,12 @@ class StatementProducer(ProtocolProducer):
 			db = self.statement.database
 			if not db.closed and self._chunks._xact is not None:
 				db.interrupt()
+				if db.pq.xact:
+					try:
+						db._pq_complete()
+					except Exception:
+						# Let the copy manager indicate the failure.
+						pass
 		super().__exit__(typ, val, tb)
 
 class NullReceiver(Receiver):
@@ -538,7 +576,7 @@ class StatementReceiver(ProtocolReceiver):
 		self.xact = None
 		super().__init__(statement.database.pq.socket.send,)
 
-	# A bit of a hack...
+	# XXX: A bit of a hack...
 	# This is actually a good indication that statements need a .copy()
 	# execution method for producing a "Copy" cursor that reads or writes.
 	class WireReady(BaseException):
@@ -563,17 +601,31 @@ class StatementReceiver(ProtocolReceiver):
 		if self.xact is None:
 			# Nothing to do.
 			return super().__exit__(typ, val, tb)
+
 		if self.view:
-			# The reconciled producer emitted the necessary
+			# The realigned producer emitted the necessary
 			# data for message boundary alignment.
+			#
+			# In this case, we unconditionally fail.
 			pq = self.statement.database.pq
-			pq.message_data = (pq.message_data or b'') + bytes(self.view)
+			# There shouldn't be any message_data, atm.
+			pq.message_data = bytes(self.view)
+			self.statement.database._pq_complete()
+			# It is possible for a non-alignment view to exist in cases of
+			# faults. However, exit should *not* be called in those cases.
+			##
 		elif typ is None:
+			# Success.
 			self.xact.messages = self.xact.CopyDoneSequence
 			self.statement.database._pq_complete()
+			# Find the complete message for command and count.
 			for x in self.xact.messages_received():
 				if getattr(x, 'type', None) == Complete.type:
 					self._complete_message = x
+		elif issubclass(typ, Exception):
+			# Likely raises.
+			self.statement.database._pq_complete()
+
 		return super().__exit__(typ, val, tb)
 
 	def count(self):
@@ -645,31 +697,69 @@ class CopyManager(Element, Iterator):
 		return self
 
 	def __exit__(self, typ, val, tb):
+		##
+		# Exiting the CopyManager is a fairly complex operation.
+		#
+		# In cases of failure, re-alignment may need to happen
+		# for when the receivers are not on message boundary.
+		##
 		if typ is not None and not issubclass(typ, Exception):
 			# Don't recover on interrupts.
 			return
 
-		self.producer.reconcile()
+		# Does nothing if the COPY was successful.
+		self.producer.realign()
 		try:
+			# If the producer is not aligned to a message boundary,
+			# it can emit completion data that will put the receivers
+			# back on track.
+			# This last service call will move that data onto the receivers.
 			self.service_producer()
 		except StopIteration:
-			# No [state] reconciliation needed.
+			# No re-alignment needed.
 			pass
 
-		# Now exit after reconciliation.
 		self.producer.__exit__(typ, val, tb)
-		for x in self.receivers:
-			x.__exit__(typ, val, tb)
 
-	def reconcile_receiver(self, r):
+		# No receivers? It wasn't a success.
+		if not self.receivers:
+			if typ is NoReceivers:
+				raise
+			raise NoReceivers(self)
+
+		exit_faults = {}
+		for x in self.receivers:
+			try:
+				x.__exit__(typ, val, tb)
+			except Exception:
+				exit_faults[x] = sys.exc_info()
+		if exit_faults:
+			raise CopyFail(self, "could not exit receivers", exit_faults)
+
+		if typ:
+			raise CopyFail(self, "exception occurred during COPY operation")
+
+	def reconcile(self, r):
+		"""
+		Reconcile a receiver that faulted.
+
+		This method should be used to add back a receiver that failed to
+		complete its write operation, but is capable of completing the
+		operation at this time.
+		"""
 		if r.protocol not in self.protocols:
 			raise RuntimeError("cannot add new receivers to copy operations")
 		# XXX: Assumes that is did not fail during receive().
 		r()
+		# Okay, add it back.
 		self.receivers.add(r)
 
 	def service_producer(self):
 		# Setup current data.
+		if not self.receivers:
+			# No receivers to take the data.
+			raise NoReceivers(self)
+
 		try:
 			nextdata = next(self.producer)
 		except StopIteration:

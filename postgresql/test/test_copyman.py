@@ -258,7 +258,7 @@ class test_copyman(unittest.TestCase):
 					break
 			else:
 				self.fail("didn't pickup notify during copy")
-		# Got NOTIFY's right?
+		# Got the injected NOTIFY's, right?
 		self.failUnlessEqual(r, [('channel', 'payload', 1234)])
 
 	@pg_tmp
@@ -274,12 +274,19 @@ class test_copyman(unittest.TestCase):
 		try:
 			with copyman.CopyManager(sp, sr) as copy:
 				for x in copy:
+					# Note, the state of the receiver has changed.
+					# We may not be on a message boundary, so this test
+					# exercises cases where an interrupt occurs where
+					# re-alignment *may* need to occur.
 					raise ThisError()
-		except ThisError:
-			# yeah; error on incomplete COPY
-			pass
+		except copyman.CopyFail as cf:
+			# It's a copy failure, but due to ThisError.
+			self.failUnless(isinstance(cf.__context__, ThisError))
 		else:
-			self.fail("didn't raise ThisError")
+			self.fail("didn't raise CopyFail")
+		# Connections should be usable.
+		self.failUnlessEqual(prepare('select 1').first(), 1)
+		self.failUnlessEqual(dst.prepare('select 1').first(), 1)
 
 	@pg_tmp
 	def testRaiseInCopyOnEnter(self):
@@ -294,11 +301,11 @@ class test_copyman(unittest.TestCase):
 		try:
 			with copyman.CopyManager(sp, sr) as copy:
 				raise ThatError()
-		except ThatError:
+		except copyman.CopyFail as cf:
 			# yeah; error on incomplete COPY
-			pass
+			self.failUnless(isinstance(cf.__context__, ThatError))
 		else:
-			self.fail("didn't raise ThisError")
+			self.fail("didn't raise CopyFail")
 
 	@pg_tmp
 	def testCopyWithFailure(self):
@@ -370,6 +377,81 @@ class test_copyman(unittest.TestCase):
 		)
 		b.seek(0)
 		self.failUnlessEqual(b.read(), b'')
+
+	@pg_tmp
+	def testNoReceivers(self):
+		sqlexec(stdsource)
+		dst = new()
+		dst.execute(stddst)
+		sp = copyman.StatementProducer(prepare(srcsql))
+		sr1 = copyman.StatementReceiver(dst.prepare(dstsql))
+		done = False
+		try:
+			with copyman.CopyManager(sp, sr1) as copy:
+				while True:
+					try:
+						for x in copy:
+							if not done:
+								done = True
+								dst.pq.socket.close()
+							else:
+								self.fail("failed to detect dead socket")
+					except copyman.ReceiverFault as rf:
+						self.failUnless(sr1 in rf.receivers)
+						# Don't reconcile.
+		except copyman.NoReceivers:
+			# Success.
+			pass
+		else:
+			self.fail("did not raise expected error")
+		# Let the exception cause a failure.
+		self.failUnless(done)
+
+	@pg_tmp
+	def testReconciliation(self):
+		# cm.reconcile() test.
+		sqlexec(stdsource)
+		dst = new()
+		dst.execute(stddst)
+		sp = copyman.StatementProducer(prepare(srcsql), buffer_size = 201)
+		sr = copyman.StatementReceiver(dst.prepare(dstsql))
+
+		original_call = sr.__call__
+		class RecoverableError(Exception):
+			pass
+		def failed_write():
+			sr.__call__ = original_call
+			raise RecoverableError()
+		sr.__call__ = failed_write
+
+		done = False
+		recomputed_messages = 0
+		recomputed_bytes = 0
+		with copyman.CopyManager(sp, sr) as copy:
+			while copy.receivers:
+				try:
+					for nmsg, nbytes in copy:
+						recomputed_messages += nmsg
+						recomputed_bytes += nbytes
+					else:
+						# Done with COPY, break out of while copy.receivers.
+						break
+				except copyman.ReceiverFault as rf:
+					if isinstance(rf.faults[sr], RecoverableError):
+						if done is True:
+							self.fail("failed_write was called twice?")
+						done = True
+						self.failUnlessEqual(len(copy.receivers), 0)
+						copy.reconcile(sr)
+						self.failUnlessEqual(len(copy.receivers), 1)
+
+		# Connections should be usable.
+		self.failUnlessEqual(prepare('select 1').first(), 1)
+		self.failUnlessEqual(dst.prepare('select 1').first(), 1)
+		# validate completion
+		self.failUnlessEqual(stdrowcount, recomputed_messages)
+		self.failUnlessEqual(recomputed_bytes, sp.total_bytes)
+		self.failUnlessEqual(dst.prepare(dstcount).first(), stdrowcount)
 
 if __name__ == '__main__':
 	unittest.main()

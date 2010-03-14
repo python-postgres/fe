@@ -1177,7 +1177,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 					(), (), (),
 				),
 				element.Execute(b'', 1),
-				element.FlushMessage,
+				element.SynchronizeMessage,
 			),
 			asynchook = self.database._receive_async
 		)

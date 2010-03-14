@@ -673,6 +673,26 @@ class test_driver(unittest.TestCase):
 			db.execute("DROP TABLE foo")
 
 	@pg_tmp
+	def testCopyInvalidTermination(self):
+		class DontTrapThis(BaseException):
+			pass
+		def EvilGenerator():
+			raise DontTrapThis()
+			yield None
+		sqlexec("CREATE TABLE foo (i int)")
+		foo = prepare('copy foo from stdin')
+		try:
+			foo.load_chunks([EvilGenerator()])
+			self.fail("didn't raise the BaseException subclass")
+		except DontTrapThis:
+			pass
+		try:
+			db._pq_complete()
+		except Exception:
+			pass
+		self.failUnlessEqual(prepare('select 1').first(), 1)
+
+	@pg_tmp
 	def testLookupProcByName(self):
 		db.execute(
 			"CREATE OR REPLACE FUNCTION public.foo() RETURNS INT LANGUAGE SQL AS 'SELECT 1'"
