@@ -56,9 +56,12 @@ class Temporal(object):
 			incontext.__name__ = n
 		return incontext
 
-	def reset(self):
-		# Don't reset if it's not the initializing process.
+	def destroy(self):
+		# Don't destroy if it's not the initializing process.
 		if os.getpid() == self._init_pid_:
+			with self:
+				# Kill all the open connections.
+				db.sys.terminate_backends()
 			cluster = self.cluster
 			self.cluster = None
 			self._init_pid_ = None
@@ -80,7 +83,7 @@ class Temporal(object):
 		# Hasn't been created yet, but doesn't matter.
 		# On exit, obliterate the cluster directory.
 		self._init_pid_ = os.getpid()
-		atexit.register(self.reset)
+		atexit.register(self.destroy)
 
 		# [$HOME|.]/.pg_tmpdb_{pid}
 		self.cluster_path = os.path.join(

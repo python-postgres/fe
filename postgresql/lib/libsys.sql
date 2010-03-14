@@ -147,6 +147,24 @@ SELECT
  NULL::text AS client_addr,
  NULL::int AS client_port;
 
+[terminate_backends:transient:column]
+-- Terminate all except mine.
+SELECT
+	procpid, pg_catalog.pg_terminate_backend(procpid)
+FROM
+	pg_catalog.pg_stat_activity
+WHERE
+	procpid != pg_catalog.pg_backend_pid()
+
+[cancel_backends:transient:column]
+-- Cancel all except mine.
+SELECT
+	procpid, pg_catalog.pg_cancel_backend(procpid)
+FROM
+	pg_catalog.pg_stat_activity
+WHERE
+	procpid != pg_catalog.pg_backend_pid()
+
 [sizeof_db:transient:first]
 SELECT pg_catalog.pg_database_size(current_database())::bigint
 
