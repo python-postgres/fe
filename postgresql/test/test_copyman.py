@@ -328,8 +328,8 @@ class test_copyman(unittest.TestCase):
 					else:
 						# Done with copy.
 						break
-				except copyman.ReceiverFault as rf:
-					if sr2 not in rf.receivers:
+				except copyman.Fault as cf:
+					if sr2 not in cf.faults:
 						raise
 		self.failUnless(done)
 		self.failUnlessRaises(Exception, dst2.execute, 'select 1')
@@ -396,8 +396,8 @@ class test_copyman(unittest.TestCase):
 								dst.pq.socket.close()
 							else:
 								self.fail("failed to detect dead socket")
-					except copyman.ReceiverFault as rf:
-						self.failUnless(sr1 in rf.receivers)
+					except copyman.Fault as cf:
+						self.failUnless(sr1 in cf.faults)
 						# Don't reconcile.
 		except copyman.NoReceivers:
 			# Success.
@@ -436,8 +436,8 @@ class test_copyman(unittest.TestCase):
 					else:
 						# Done with COPY, break out of while copy.receivers.
 						break
-				except copyman.ReceiverFault as rf:
-					if isinstance(rf.faults[sr], RecoverableError):
+				except copyman.Fault as cf:
+					if isinstance(cf.faults[sr], RecoverableError):
 						if done is True:
 							self.fail("failed_write was called twice?")
 						done = True

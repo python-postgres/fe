@@ -27,36 +27,21 @@ default_buffer_size = 1024 * 100
 
 class Fault(Exception):
 	"""
-	A problem with the COPY process occurred.
-	"""
-
-class ProducerFault(Fault):
-	"""
-	Exception occurred while the producer was active.
-
-	The 'manager' attribute is the CopyManager that raised the fault.
-
-	The producer is accessible from X.manager.producer
-	"""
-	def __init__(self, manager):
-		self.manager = manager
-
-class ReceiverFault(Fault):
-	"""
 	Exception occurred while the receiver was active.
 
 	The 'manager' attribute is the CopyManager that raised the fault.
 
-	The 'receiver' attribute is the Receiver that caused the exception.
+	The 'faults' attribute is a dictionary mapping the Fitting to the exception
+	instance raised.
 	"""
-	def __init__(self, manager, receivers):
+	def __init__(self, manager, faults):
 		self.manager = manager
-		self.receivers = receivers
+		self.faults = faults
 
 	def __str__(self):
-		return "{0} receivers faulted".format(len(self.receivers))
+		return "{0} faults occurred".format(len(self.receivers))
 
-class CopyFail(Fault):
+class CopyFail(Exception):
 	"""
 	Exception thrown by the CopyManager when the COPY failed.
 	"""
@@ -765,8 +750,7 @@ class CopyManager(Element, Iterator):
 		except StopIteration:
 			# Should be over.
 			raise
-		except Exception:
-			raise ProducerFault(self)
+
 		self.transformer(nextdata)
 		# Distribute data to receivers.
 		# XXX: More of a local state update. Should probably die on failure.
@@ -780,7 +764,7 @@ class CopyManager(Element, Iterator):
 			# The CopyManager is eager.
 			for x in faults:
 				self.receivers.discard(x)
-			raise ReceiverFault(self, faults)
+			raise Fault(self, faults)
 
 	def service_receivers(self):
 		faults = {}
@@ -793,7 +777,7 @@ class CopyManager(Element, Iterator):
 		if faults:
 			for x in faults:
 				self.receivers.discard(x)
-			raise ReceiverFault(self, faults)
+			raise Fault(self, faults)
 
 	# Run the COPY to completion.
 	def run(self):
@@ -835,7 +819,7 @@ def COPY(producer, *receivers, progress = None):
 			pass
 		else:
 			cm.run()
-	except ReceiverFault as e:
-		typ, val, tb = next(iter(e.receivers.values()))
+	except Fault as e:
+		typ, val, tb = next(iter(e.faults.values()))
 		raise val
 	return (cm.producer.total_messages, cm.producer.total_bytes)
