@@ -758,8 +758,8 @@ class CopyManager(Element, Iterator):
 		for x in self.receivers:
 			try:
 				x.receive(self.transformer.get(x.protocol))
-			except Exception:
-				faults[x] = sys.exc_info()
+			except Exception as e:
+				faults[x] = e
 		if faults:
 			# The CopyManager is eager.
 			for x in faults:
@@ -772,8 +772,8 @@ class CopyManager(Element, Iterator):
 			# Process all the receivers.
 			try:
 				x()
-			except Exception:
-				faults[x] = sys.exc_info()
+			except Exception as e:
+				faults[x] = e
 		if faults:
 			for x in faults:
 				self.receivers.discard(x)

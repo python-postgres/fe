@@ -416,13 +416,13 @@ class test_copyman(unittest.TestCase):
 		sp = copyman.StatementProducer(prepare(srcsql), buffer_size = 201)
 		sr = copyman.StatementReceiver(dst.prepare(dstsql))
 
-		original_call = sr.__call__
+		original_call = sr.send
 		class RecoverableError(Exception):
 			pass
-		def failed_write():
-			sr.__call__ = original_call
+		def failed_write(*args):
+			sr.send = original_call
 			raise RecoverableError()
-		sr.__call__ = failed_write
+		sr.send = failed_write
 
 		done = False
 		recomputed_messages = 0
@@ -445,6 +445,8 @@ class test_copyman(unittest.TestCase):
 						copy.reconcile(sr)
 						self.failUnlessEqual(len(copy.receivers), 1)
 
+		self.failUnlessEqual(done, True)
+
 		# Connections should be usable.
 		self.failUnlessEqual(prepare('select 1').first(), 1)
 		self.failUnlessEqual(dst.prepare('select 1').first(), 1)
@@ -452,6 +454,60 @@ class test_copyman(unittest.TestCase):
 		self.failUnlessEqual(stdrowcount, recomputed_messages)
 		self.failUnlessEqual(recomputed_bytes, sp.total_bytes)
 		self.failUnlessEqual(dst.prepare(dstcount).first(), stdrowcount)
+
+	@pg_tmp
+	def testDroppedConnection(self):
+		# cm.reconcile() test.
+		sqlexec(stdsource)
+		dst = new()
+		dst2 = new()
+		dst2.execute(stddst)
+		dst.execute(stddst)
+		sp = copyman.StatementProducer(prepare(srcsql), buffer_size = 201)
+		sr1 = copyman.StatementReceiver(dst.prepare(dstsql))
+		sr2 = copyman.StatementReceiver(dst2.prepare(dstsql))
+
+		class TheCause(Exception):
+			pass
+		def failed_write(*args):
+			raise TheCause()
+		sr2.send = failed_write
+
+		done = False
+		recomputed_messages = 0
+		recomputed_bytes = 0
+		with copyman.CopyManager(sp, sr1, sr2) as copy:
+			while copy.receivers:
+				try:
+					for nmsg, nbytes in copy:
+						recomputed_messages += nmsg
+						recomputed_bytes += nbytes
+					else:
+						# Done with COPY, break out of while copy.receivers.
+						break
+				except copyman.Fault as cf:
+					self.failUnless(isinstance(cf.faults[sr2], TheCause))
+					if done is True:
+						self.fail("failed_write was called twice?")
+					done = True
+					self.failUnlessEqual(len(copy.receivers), 1)
+					dst2.pq.socket.close()
+					# We don't reconcile, so the manager only has one target now.
+
+		self.failUnlessEqual(done, True)
+		# May not be aligned; really, we're expecting the connection to
+		# have died.
+		self.failUnlessRaises(Exception, dst2.execute, "SELECT 1")
+
+		# Connections should be usable.
+		self.failUnlessEqual(prepare('select 1').first(), 1)
+		self.failUnlessEqual(dst.prepare('select 1').first(), 1)
+		# validate completion
+		self.failUnlessEqual(stdrowcount, recomputed_messages)
+		self.failUnlessEqual(recomputed_bytes, sp.total_bytes)
+		self.failUnlessEqual(dst.prepare(dstcount).first(), stdrowcount)
+		self.failUnlessEqual(sp.count(), stdrowcount)
+		self.failUnlessEqual(sp.command(), "COPY")
 
 if __name__ == '__main__':
 	unittest.main()
