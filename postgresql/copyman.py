@@ -240,7 +240,7 @@ class Fitting(Element):
 	@abstractproperty
 	def protocol(self):
 		"""
-		The COPY data format produced.
+		The COPY data format produced or consumed.
 		"""
 
 	# Used to setup the Receiver/Producer
@@ -408,6 +408,7 @@ class ProtocolProducer(Producer):
 		self.nextchunk = self.recv_view
 		return self.process_copy_data(view)
 
+	# The usual method for receiving more data.
 	def recv_view(self):
 		view = self.buffer_view[:self.recv_into(self.buffer, self.buffer_size)]
 		if not view:
@@ -491,6 +492,8 @@ class StatementProducer(ProtocolProducer):
 
 	def __enter__(self):
 		super().__enter__()
+		if self._chunks is not None:
+			raise RuntimeError("receiver already used")
 		self._chunks = self.statement.chunks(*self.parameters)
 		# Start by confiscating the connection state.
 		self.nextchunk = self.confiscate
@@ -695,11 +698,14 @@ class CopyManager(Element, Iterator):
 		# Does nothing if the COPY was successful.
 		self.producer.realign()
 		try:
+			##
 			# If the producer is not aligned to a message boundary,
 			# it can emit completion data that will put the receivers
 			# back on track.
 			# This last service call will move that data onto the receivers.
 			self.service_producer()
+			##
+			# The receivers need to handle any new data in their __exit__.
 		except StopIteration:
 			# No re-alignment needed.
 			pass
@@ -716,10 +722,10 @@ class CopyManager(Element, Iterator):
 		for x in self.receivers:
 			try:
 				x.__exit__(typ, val, tb)
-			except Exception:
-				exit_faults[x] = sys.exc_info()
+			except Exception as e:
+				exit_faults[x] = e
 		if exit_faults:
-			raise CopyFail(self, "could not exit receivers", exit_faults)
+			raise CopyFail(self, "could not exit all receivers", exit_faults)
 
 		if typ:
 			raise CopyFail(self, "exception occurred during COPY operation")

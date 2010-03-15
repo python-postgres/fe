@@ -457,7 +457,7 @@ class test_copyman(unittest.TestCase):
 
 	@pg_tmp
 	def testDroppedConnection(self):
-		# cm.reconcile() test.
+		# no cm.reconcile() test.
 		sqlexec(stdsource)
 		dst = new()
 		dst2 = new()
