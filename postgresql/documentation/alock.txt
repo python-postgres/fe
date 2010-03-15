@@ -1,5 +1,6 @@
+**************
 Advisory Locks
-==============
+**************
 
 `Explicit Locking in PostgreSQL <http://www.postgresql.org/docs/current/static/explicit-locking.html#ADVISORY-LOCKS>`_.
 
@@ -20,7 +21,7 @@ supported by PostgreSQL's advisory locks:
 
 
 Acquiring ALocks
-----------------
+================
 
 An ALock instance represents a sequence of advisory locks. A single ALock can
 acquire and release multiple advisory locks by creating the instance with
@@ -68,7 +69,7 @@ lastly ``1``.
 
 
 Advisory Lock Interface Points
-------------------------------
+==============================
 
 Methods and properties available on :class:`postgresql.alock.ALock` instances:
 
