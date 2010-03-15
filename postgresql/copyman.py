@@ -703,7 +703,7 @@ class CopyManager(Element, Iterator):
 			# it can emit completion data that will put the receivers
 			# back on track.
 			# This last service call will move that data onto the receivers.
-			self.service_producer()
+			self._service_producer()
 			##
 			# The receivers need to handle any new data in their __exit__.
 		except StopIteration:
@@ -745,7 +745,7 @@ class CopyManager(Element, Iterator):
 		# Okay, add it back.
 		self.receivers.add(r)
 
-	def service_producer(self):
+	def _service_producer(self):
 		# Setup current data.
 		if not self.receivers:
 			# No receivers to take the data.
@@ -772,7 +772,7 @@ class CopyManager(Element, Iterator):
 				self.receivers.discard(x)
 			raise Fault(self, faults)
 
-	def service_receivers(self):
+	def _service_receivers(self):
 		faults = {}
 		for x in self.receivers:
 			# Process all the receivers.
@@ -790,8 +790,8 @@ class CopyManager(Element, Iterator):
 		with self:
 			try:
 				while True:
-					self.service_producer()
-					self.service_receivers()
+					self._service_producer()
+					self._service_receivers()
 			except StopIteration:
 				# It's done.
 				pass
@@ -803,13 +803,13 @@ class CopyManager(Element, Iterator):
 		messages = self.producer.total_messages
 		bytes = self.producer.total_bytes
 
-		self.service_producer()
+		self._service_producer()
 		# Record the progress in case a receiver faults.
 		self._stats = (
 			self._stats[0] + (self.producer.total_messages - messages),
 			self._stats[1] + (self.producer.total_bytes - bytes),
 		)
-		self.service_receivers()
+		self._service_receivers()
 		# Return the progress.
 		current_stats = self._stats
 		self._stats = (0, 0)
