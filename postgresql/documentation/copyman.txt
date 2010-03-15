@@ -16,13 +16,13 @@ be used when transferring COPY data to and from arbitrary Python
 interfaces.
 
 Direct connection-to-connection COPY operations can be performed using the
-high-level `postgresql.copyman.COPY` function::
+high-level `postgresql.copyman.transfer` function::
 
-	>>> from postgresql.copyman import COPY
+	>>> from postgresql import copyman
 	>>> send_stmt = source.prepare("COPY (SELECT i FROM generate_series(1, 1000000) AS g(i)) TO STDOUT")
 	>>> destination.execute("CREATE TEMP TABLE loading_table (i int8)")
 	>>> receive_stmt = destination.prepare("COPY loading_table FROM STDIN")
-	>>> total_rows, total_bytes = COPY(send_stmt, receive_stmt)
+	>>> total_rows, total_bytes = copyman.transfer(send_stmt, receive_stmt)
 
 However, if more control is needed, the `postgresql.copyman.CopyManager` class
 should be used directly.

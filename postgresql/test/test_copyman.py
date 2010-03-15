@@ -360,7 +360,7 @@ class test_copyman(unittest.TestCase):
 	def testCopyOne(self):
 		from io import BytesIO
 		b = BytesIO()
-		copyman.COPY(
+		copyman.transfer(
 			prepare('COPY (SELECT 1) TO STDOUT'),
 			copyman.CallReceiver(b.writelines)
 		)
@@ -371,7 +371,7 @@ class test_copyman(unittest.TestCase):
 	def testCopyNone(self):
 		from io import BytesIO
 		b = BytesIO()
-		copyman.COPY(
+		copyman.transfer(
 			prepare('COPY (SELECT 1 LIMIT 0) TO STDOUT'),
 			copyman.CallReceiver(b.writelines)
 		)

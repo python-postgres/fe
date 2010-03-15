@@ -4,14 +4,8 @@
 """
 Manage complex COPY operations; one-to-many COPY streaming.
 
-Primarily this module houses the `CopyManager` class.
-
-	>>> import postgresql
-	>>> src = postgresql.open(...)
-	>>> dst = postgresql.open(...)
-	>>> from postgresql.copyman import COPY
-	>>> 
-	>>> COPY(src.prepare("COPY"), dst.prepare("COPY"))
+Primarily this module houses the `CopyManager` class, and the `transfer`
+function for a high-level interface to using the `CopyManager`.
 """
 import sys
 from abc import abstractmethod, abstractproperty
@@ -815,17 +809,16 @@ class CopyManager(Element, Iterator):
 		self._stats = (0, 0)
 		return current_stats
 
-def COPY(producer, *receivers, progress = None):
+def transfer(producer, *receivers):
+	"""
+	Perform a COPY operation using the given statements::
+
+		>>> import copyman
+		>>> copyman.transfer(src.prepare("COPY table TO STDOUT"), dst.prepare("COPY table FROM STDIN"))
+	"""
 	cm = CopyManager(	
 		StatementProducer(producer),
 		*[x if isinstance(x, Receiver) else StatementReceiver(x) for x in receivers]
 	)
-	try:
-		if progress:
-			pass
-		else:
-			cm.run()
-	except Fault as e:
-		typ, val, tb = next(iter(e.faults.values()))
-		raise val
+	cm.run()
 	return (cm.producer.total_messages, cm.producer.total_bytes)
