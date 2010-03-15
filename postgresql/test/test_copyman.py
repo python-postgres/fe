@@ -509,5 +509,71 @@ class test_copyman(unittest.TestCase):
 		self.failUnlessEqual(sp.count(), stdrowcount)
 		self.failUnlessEqual(sp.command(), "COPY")
 
+from ..copyman import WireState
+class test_WireState(unittest.TestCase):
+	def testNormal(self):
+		WS=WireState()
+		messages = WS.update(memoryview(b'd\x00\x00\x00\x04'))
+		self.failUnlessEqual(messages, 1)
+		self.failUnlessEqual(WS.remaining_bytes, 0)
+		self.failUnlessEqual(WS.size_fragment, b'')
+		self.failUnlessEqual(WS.final_view, None)
+
+	def testIncomplete(self):
+		WS=WireState()
+		messages = WS.update(memoryview(b'd\x00\x00\x00\x05'))
+		self.failUnlessEqual(messages, 0)
+		self.failUnlessEqual(WS.remaining_bytes, 1)
+		self.failUnlessEqual(WS.size_fragment, b'')
+		self.failUnlessEqual(WS.final_view, None)
+		messages = WS.update(memoryview(b'x'))
+		self.failUnlessEqual(messages, 1)
+		self.failUnlessEqual(WS.remaining_bytes, 0)
+		self.failUnlessEqual(WS.size_fragment, b'')
+		self.failUnlessEqual(WS.final_view, None)
+
+	def testIncompleteHeader_0size(self):
+		WS=WireState()
+		messages = WS.update(memoryview(b'd'))
+		self.failUnlessEqual(messages, 0)
+		self.failUnlessEqual(WS.remaining_bytes, -1)
+		self.failUnlessEqual(WS.size_fragment, b'')
+		self.failUnlessEqual(WS.final_view, None)
+		messages = WS.update(b'\x00\x00\x00\x04')
+		self.failUnlessEqual(messages, 1)
+
+	def testIncompleteHeader_1size(self):
+		WS=WireState()
+		messages = WS.update(memoryview(b'd\x00'))
+		self.failUnlessEqual(messages, 0)
+		self.failUnlessEqual(WS.size_fragment, b'\x00')
+		self.failUnlessEqual(WS.final_view, None)
+		self.failUnlessEqual(WS.remaining_bytes, -1)
+		messages = WS.update(memoryview(b'\x00\x00\x04'))
+		self.failUnlessEqual(messages, 1)
+		self.failUnlessEqual(WS.remaining_bytes, 0)
+
+	def testIncompleteHeader_2size(self):
+		WS=WireState()
+		messages = WS.update(memoryview(b'd\x00\x00'))
+		self.failUnlessEqual(messages, 0)
+		self.failUnlessEqual(WS.remaining_bytes, -1)
+		self.failUnlessEqual(WS.size_fragment, b'\x00\x00')
+		self.failUnlessEqual(WS.final_view, None)
+		messages = WS.update(b'\x00\x04')
+		self.failUnlessEqual(messages, 1)
+		self.failUnlessEqual(WS.remaining_bytes, 0)
+
+	def testIncompleteHeader_3size(self):
+		WS=WireState()
+		messages = WS.update(memoryview(b'd\x00\x00\x00'))
+		self.failUnlessEqual(messages, 0)
+		self.failUnlessEqual(WS.remaining_bytes, -1)
+		self.failUnlessEqual(WS.size_fragment, b'\x00\x00\x00')
+		self.failUnlessEqual(WS.final_view, None)
+		messages = WS.update(memoryview(b'\x04'))
+		self.failUnlessEqual(messages, 1)
+		self.failUnlessEqual(WS.remaining_bytes, 0)
+
 if __name__ == '__main__':
 	unittest.main()
