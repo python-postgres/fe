@@ -386,7 +386,7 @@ The methods and properties on the connection object are ready for use:
   While iterating, the connection should *not* be used in other threads.
   The optional timeout can be used to enable "idle" events in which `None`
   objects will be yielded by the iterator.
-  See `Notification Management`_ for details.
+  See :ref:`notifyman` for details.
 
 
 Connection Metadata
