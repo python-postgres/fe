@@ -1,0 +1,221 @@
+.. _pg_copyman:
+
+***************
+Copy Management
+***************
+
+The `postgresql.copyman` module provides a way to quickly move COPY data coming
+from one connection to many connections. Alternatively, it can also be sourced
+by arbitrary iterators and target arbitrary callables.
+
+Statement execution methods offer a way for running COPY operations
+with iterators, but the cost of allocating objects for each row is too
+significant for transferring gigabytes of COPY data from one connection to
+another. The interfaces available on statement objects are primarily intended to
+be used when transferring COPY data to and from arbitrary Python
+interfaces.
+
+Direct connection-to-connection COPY operations can be performed using the
+high-level `postgresql.copyman.COPY` function::
+
+	>>> from postgresql.copyman import COPY
+	>>> send_stmt = source.prepare("COPY (SELECT i FROM generate_series(1, 1000000) AS g(i)) TO STDOUT")
+	>>> destination.execute("CREATE TEMP TABLE loading_table (i int8)")
+	>>> receive_stmt = destination.prepare("COPY loading_table FROM STDIN")
+	>>> total_rows, total_bytes = COPY(send_stmt, receive_stmt)
+
+However, if more control is needed, the `postgresql.copyman.CopyManager` class
+should be used directly.
+
+
+Managers
+========
+
+The `postgresql.copyman.CopyManager` class manages the Producer and the
+Receivers involved in a COPY operation. Normally,
+`postgresql.copyman.StatementProducer` and
+`postgresql.copyman.StatementReceiver` instances. Naturally, a Producer is the
+object that produces the COPY data to be given to the manager's Receivers.
+
+Using a CopyManager directly means that there is a need for more control over
+the operation. The Manager is both a context manager and an iterator. The
+context manager interfaces handle initialization and finalization, and the
+iterator provides an event loop emitting information about the amount of
+COPY data copied this cycle. Normal usage takes the form::
+
+	>>> from postgresql import copyman
+	>>> send_stmt = source.prepare("COPY (SELECT i FROM generate_series(1, 1000000) AS g(i)) TO STDOUT")
+	>>> destination.execute("CREATE TEMP TABLE loading_table (i int8)")
+	>>> receive_stmt = destination.prepare("COPY loading_table FROM STDIN")
+	>>> producer = copyman.StatementProducer(send_stmt)
+	>>> receiver = copyman.StatementReceiver(receive_stmt)
+	>>> 
+	>>> with source.xact(), destination.xact():
+	...  with copyman.CopyManager(producer, receiver) as copy:
+	...   for num_messages, num_bytes in copy:
+	...    update_rate(num_bytes)
+
+The use of the context manager is necessary for ensuring that connection state
+is properly restored at the end of the COPY.
+
+As an alternative to a for-loop inside a with-statement block, the `run` method
+can be called to perform the operation::
+
+	>>> with source.xact(), destination.xact():
+	...  copyman.CopyManager(producer, receiver).run()
+
+
+CopyManager Interface Points
+----------------------------
+
+Primarily, the `postgresql.copyman.CopyManager` provides a context manager and
+an iterator for controlling the COPY operation.
+
+ ``CopyManager.run()``
+  Perform the entire COPY operation.
+
+ ``CopyManager.__enter__()``
+  Start the COPY operation. Connections taking part in the COPY should **not**
+  be used until ``__exit__`` is ran.
+
+ ``CopyManager.__exit__(typ, val, tb)``
+  Finish, abort, or fail the COPY operation. Aborts in the case of an incomplete
+  COPY or an unidentified exception, and fails in the case of an untrapped
+  fault.
+
+ ``CopyManager.__iter__()``
+  Returns the CopyManager instance.
+
+ ``CopyManager.__next__()``
+  Transfer the next chunk of COPY data to the receivers. Yields a tuple
+  consisting of the number of messages and bytes transferred. Raises
+  `StopIteration` when complete.
+
+ ``CopyManager.reconcile(faulted_receiver)``
+  Reconcile a faulted receiver. When a receiver faults, it will no longer
+  be in the receiver set. This method is used to signal to the manager that the
+  problem has been cleared up, and the receiver is again ready to receive.
+
+
+Faults
+======
+
+The CopyManager generalizes some exceptions that occur during transfer. While
+inside the context manager, `postgresql.copyman.Fault` may be raised if a
+Receiver raises an exception. The Manager assumes the Fault is fatal to a
+Receiver, and immediately removes it from the set of target receivers.
+Additionally, if the Fault goes untrapped, the copy will be aborted.
+
+The Fault exception references the Manager that raised the exception, and the
+actual exceptions that occurred, associated with the Receiver that caused them::
+
+	>>> from postgresql import copyman
+	>>> send_stmt = source.prepare("COPY (SELECT i FROM generate_series(1, 1000000) AS g(i)) TO STDOUT")
+	>>> destination.execute("CREATE TEMP TABLE loading_table (i int8)")
+	>>> receive_stmt = destination.prepare("COPY loading_table FROM STDIN")
+	>>> producer = copyman.StatementProducer(send_stmt)
+	>>> receiver = copyman.StatementReceiver(receive_stmt)
+	>>> 
+	>>> with source.xact(), destination.xact():
+	...  with copyman.CopyManager(producer, receiver) as copy:
+	...   while copy.receivers:
+	...    try:
+	...     for num_messages, num_bytes in copy:
+	...      update_rate(num_bytes)
+	...    except copyman.Fault as cf:
+	...     original_exception = cf.faults[receiver]
+	...     if unknown_failure(original_exception):
+	...      ...
+	...      raise
+
+
+Fault Properties
+----------------
+
+The following attributes exist on `postgresql.copyman.Fault` instances:
+
+ ``Fault.manager``
+  The `postgresql.copyman.CopyManager` instance that raised the exception; the
+  same manager that caught the fault.
+
+ ``Fault.faults``
+  A dictionary mapping the Receiver to the exception that occurred. The Manager
+  will give processing to every Receiver, so only one Fault will occur per
+  transfer cycle.
+
+Reconciliation
+--------------
+
+When a Fault occurs, it is possible that it was not fatal. In such cases the
+`postgresql.copyman.CopyManager.reconcile` method can be used to reintroduce the
+Receiver to the Manager's set. That is, when a Fault occurs, the Manager
+immediately removes the Receiver so that the COPY operation can continue.
+
+Faults should be trapped from within the Manager's context::
+
+	>>> import socket
+	>>> from postgresql import copyman
+	>>> send_stmt = source.prepare("COPY (SELECT i FROM generate_series(1, 1000000) AS g(i)) TO STDOUT")
+	>>> destination.execute("CREATE TEMP TABLE loading_table (i int8)")
+	>>> receive_stmt = destination.prepare("COPY loading_table FROM STDIN")
+	>>> producer = copyman.StatementProducer(send_stmt)
+	>>> receiver = copyman.StatementReceiver(receive_stmt)
+	>>> 
+	>>> with source.xact(), destination.xact():
+	...  with copyman.CopyManager(producer, receiver) as copy:
+	...   while copy.receivers:
+	...    try:
+	...     for num_messages, num_bytes in copy:
+	...      update_rate(num_bytes)
+	...    except copyman.Fault as cf:
+	...     if isinstance(cf.faults[receiver], socket.timeout):
+	...      copy.reconcile(receiver)
+	...     else:
+	...      raise
+
+Recovering from Faults does add significant complexity to a COPY operation,
+so, often, it's best to avoid conditions in which reconciliable Faults may
+occur.
+
+
+Terminology
+===========
+
+The following terms are regularly used to describe the implementation and
+processes of the `postgresql.copyman` module:
+
+ Manager
+  The object used to manage data coming from a Producer and being given to the
+  Receivers. It also manages the necessary initialization and finalization steps
+  required by those factors.
+
+ Producer
+  The object used to produce the COPY data to be given to the Receivers. The
+  source.
+
+ Receiver
+  An object that consumes COPY data. A target.
+
+ Fault
+  Specifically, the `postgresql.copyman.Fault` exception. A Fault is raised
+  when a Receiver raises an exception.
+
+ Reconciliation
+  Generally, the steps performed by the "reconcile" method on
+  `postgresql.copyman.CopyManager` instances. More precisely, the
+  necessary steps for a Receiver's reintroduction into the COPY operation after
+  a Fault.
+
+ Realignment
+  The process of providing compensating data to the receivers so that the
+  connection will be on a message boundary. Occurs when the COPY operation is
+  aborted.
+
+ Aborted Copy
+  An aborted copy is a COPY operation that terminated prematurely. This happens
+  if a CopyManager's for-loop is terminated early by breaking or by an
+  unidentified exception being raised.
+
+ Failed Copy
+  A failed copy is an aborted COPY operation that was
+  *terminated due to a fault*, or a producer failure.

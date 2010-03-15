@@ -16,6 +16,7 @@ Contents
 
    admin
    driver
+   copyman
    lib
    clientparameters
    gotchas
