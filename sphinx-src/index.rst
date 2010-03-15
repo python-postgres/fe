@@ -17,6 +17,8 @@ Contents
    admin
    driver
    copyman
+   notifyman
+   alock
    lib
    clientparameters
    gotchas
