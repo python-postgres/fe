@@ -225,7 +225,7 @@ class WireState(object):
 		# Emit the number of messages "consumed" this round.
 		return nmessages
 
-	def __init__(self, condition):
+	def __init__(self, condition = CopyData.type.__ne__):
 		self.remaining_bytes = 0
 		self.size_fragment = b''
 		self.final_view = None
@@ -404,7 +404,7 @@ class ProtocolProducer(Producer):
 
 	# Given a view, begin tracking the state of the wire.
 	def track_state(self, view):
-		self._state = WireState(CopyData.type.__ne__)
+		self._state = WireState()
 		self.nextchunk = self.recv_view
 		return self.process_copy_data(view)
 
