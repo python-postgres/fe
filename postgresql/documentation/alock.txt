@@ -1,3 +1,5 @@
+.. _alock:
+
 **************
 Advisory Locks
 **************
@@ -54,7 +56,14 @@ their type, will be aquired in the order that they were given to the class'
 constructor. In the above example, ``(0,0)`` is acquired first, then ``0``, and
 lastly ``1``.
 
-`postgresql.alock.ALock` subclasses:
+
+ALocks
+======
+
+`postgresql.alock.ALock` is abstract; it defines the interface and some common
+functionality. The lock mode is selected by choosing the appropriate subclass.
+
+There are two:
 
  ``postgresql.alock.ExclusiveLock(database, *identifiers)``
   Instantiate an ALock object representing the `identifiers` for use with the
@@ -68,8 +77,8 @@ lastly ``1``.
   with the same identifier will conflict.
 
 
-Advisory Lock Interface Points
-==============================
+ALock Interface Points
+----------------------
 
 Methods and properties available on :class:`postgresql.alock.ALock` instances:
 

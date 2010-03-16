@@ -28,8 +28,8 @@ However, if more control is needed, the `postgresql.copyman.CopyManager` class
 should be used directly.
 
 
-Managers
-========
+Copy Managers
+=============
 
 The `postgresql.copyman.CopyManager` class manages the Producer and the
 Receivers involved in a COPY operation. Normally,
@@ -65,8 +65,8 @@ can be called to perform the operation::
 	...  copyman.CopyManager(producer, receiver).run()
 
 
-CopyManager Interface Points
-----------------------------
+Manager Interface Points
+------------------------
 
 Primarily, the `postgresql.copyman.CopyManager` provides a context manager and
 an iterator for controlling the COPY operation.
