@@ -3,4 +3,5 @@ include LICENSE
 recursive-include postgresql *.c
 recursive-include postgresql *.sql
 recursive-include postgresql *.txt
-recursive-include sphinx-src Makefile *.rst conf.py
+recursive-include postgresql/documentation/sphinx *.rst conf.py
+recursive-include postgresql/documentation/html *

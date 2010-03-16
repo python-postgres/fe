@@ -1,0 +1,67 @@
+Administration
+==============
+
+This chapter covers the administration of py-postgresql. This includes
+installation and other aspects of working with py-postgresql such as
+environment variables and configuration files.
+
+
+Installation
+------------
+
+py-postgresql uses Python's standard distutils package to manage the
+build and installation process of the package. The normal entry point for
+this is the ``setup.py`` script contained in the root project directory.
+
+After extracting the archive and changing the into the project's directory,
+installation is normally as simple as::
+
+	$ python3 ./setup.py install
+
+However, if you need to install for use with a particular version of python,
+just use the path of the executable that should be used::
+
+	$ /usr/opt/bin/python3 ./setup.py install
+
+Under most POSIX systems, the above should work without problem if the proper
+Python executable is referenced. However, if it does fail, it is likely due
+to a C extension's inability to compile.
+
+The building of C extensions can be disable using the ``PY_BUILD_EXTENSIONS``
+environment variable::
+
+	$ env PY_BUILD_EXTENSIONS=0 python3 ./setup.py install
+
+
+Extension Modules under Windows
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+By default, a Python installation on Windows cannot build extension modules.
+py-postgresql provides optimizations for various key points, but can be
+installed and used without them. When a source installation is performed on
+'win32' systems, extension modules are *not* built by default.
+
+In order to enable the compilation of extensions, set the environment variable
+``PY_BUILD_EXTENSIONS`` to '1' before executing the ``setup.py``
+script in the prompt::
+
+	C:\-> set PY_BUILD_EXTENSIONS=1
+	C:\-> c:\python31\python setup.py install
+
+Or, compile using mingw32::
+
+	C:\-> set PY_BUILD_EXTENSIONS=1
+	C:\-> c:\python31\python setup.py build_ext --compiler=mingw32
+	C:\-> c:\python31\python setup.py install
+
+See http://www.mingw.org/ to get the compiler.
+
+
+Environment
+-----------
+
+These environment variables effect the operation of the package:
+
+ ============== ===============================================================================
+ PGINSTALLATION The path to the ``pg_config`` executable of the installation to use by default.
+ ============== ===============================================================================

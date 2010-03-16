@@ -1,0 +1,159 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Changes &mdash; py-postgresql v1.0.0dev documentation</title>
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '1.0.0dev',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="py-postgresql v1.0.0dev documentation" href="index.html" />
+    <link rel="next" title="Commands" href="bin.html" />
+    <link rel="prev" title="Gotchas" href="gotchas.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="bin.html" title="Commands"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="gotchas.html" title="Gotchas"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">py-postgresql v1.0.0dev documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="changes">
+<h1>Changes<a class="headerlink" href="#changes" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="in-development">
+<h2>1.0 in development<a class="headerlink" href="#in-development" title="Permalink to this headline">¶</a></h2>
+<blockquote>
+<ul class="simple">
+<li><strong>DEPRECATION</strong>: Removed 2PC support documentation.</li>
+<li><strong>DEPRECATION</strong>: Removed pg_python and pg_dotconf &#8216;scripts&#8217;.
+They are still accessible by python3 -m postgresql.bin.pg_*</li>
+<li>Added db.do() method for DO-statement support(convenience method).</li>
+<li>Fix handling of unix domain sockets by pg.open and driver.connect.
+[Reported by twitter.com/rintavarustus]</li>
+<li>Set the default client_min_messages level to WARNING.
+NOTICEs are often not desired by programmers, and py-postgresql&#8217;s
+high verbosity further irritates that case.</li>
+<li>Added postgresql.project module to provide project information.
+Project name, author, version, etc.</li>
+<li>Fixed db.tracer and pg_python&#8217;s &#8211;pq-trace=</li>
+<li>Increased default recvsize and chunksize for improved performance.</li>
+<li>&#8216;D&#8217; messages are special cased as builtins.tuples instead of
+protocol.element3.Tuple</li>
+<li>Alter Statement.chunks() to return chunks of builtins.tuple. Being
+an interface intended for speed, types.Row() impedes its performance.</li>
+<li>Fix handling of infinity values with timestamptz, timestamp, and date.
+[Bug reported by Axel Rau.]</li>
+<li>Correct representation of PostgreSQL ARRAYs by properly recording
+lowerbounds and upperbounds. Internally, sub-ARRAYs have their own
+element lists.</li>
+<li>Implement a NotificationManager for managing the NOTIFYs received
+by a connection. The class can manage NOTIFYs from multiple
+connections, whereas the db.wait() method is tailored for single targets.</li>
+<li>Implement an ALock class for managing advisory locks using the
+threading.Lock APIs. [Feedback from Valentine Gogichashvili]</li>
+<li>Implement reference symbols. Allow libraries to define symbols that
+are used to create queries that inherit the original symbol&#8217;s type and
+execution method. <tt class="docutils literal"><span class="pre">db.prepare(db.prepare(...).first())</span></tt></li>
+<li>Fix typo/dropped parts of a raise LoadError in .lib.
+[Reported by Vlad Pranskevichus]</li>
+<li>Fix db.tracer and pg_python&#8217;s &#8211;pq-trace=</li>
+<li>Fix count return from .first() method. Failed to provide an empty
+tuple for the rformats of the bind statement.
+[Reported by dou dou]</li>
+<li>Add support for binary hstore.</li>
+</ul>
+</blockquote>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+            <h3><a href="index.html">Table Of Contents</a></h3>
+            <ul>
+<li><a class="reference external" href="">Changes</a><ul>
+<li><a class="reference external" href="#in-development">1.0 in development</a></li>
+</ul>
+</li>
+</ul>
+
+            <h4>Previous topic</h4>
+            <p class="topless"><a href="gotchas.html"
+                                  title="previous chapter">Gotchas</a></p>
+            <h4>Next topic</h4>
+            <p class="topless"><a href="bin.html"
+                                  title="next chapter">Commands</a></p>
+            <h3>This Page</h3>
+            <ul class="this-page-menu">
+              <li><a href="_sources/changes.txt"
+                     rel="nofollow">Show Source</a></li>
+            </ul>
+          <div id="searchbox" style="display: none">
+            <h3>Quick search</h3>
+              <form class="search" action="search.html" method="get">
+                <input type="text" name="q" size="18" />
+                <input type="submit" value="Go" />
+                <input type="hidden" name="check_keywords" value="yes" />
+                <input type="hidden" name="area" value="default" />
+              </form>
+              <p class="searchtip" style="font-size: 90%">
+              Enter search terms or a module, class or function name.
+              </p>
+          </div>
+          <script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="bin.html" title="Commands"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="gotchas.html" title="Gotchas"
+             >previous</a> |</li>
+        <li><a href="index.html">py-postgresql v1.0.0dev documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+      &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
+      Last updated on Mar 15, 2010.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
+    </div>
+  </body>
+</html>
