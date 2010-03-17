@@ -190,3 +190,19 @@ class TypeIO(object, metaclass = ABCMeta):
 				# Throw warning about type without entry in pg_type?
 				typio = self.strio
 		return typio
+
+	def identify(self, **identity_mappings):
+		"""
+		Explicitly designate the I/O handler for the specified type.
+
+		Primarily used in cases involving UDTs.
+		"""
+		# get them ordered; we process separately, then recombine.
+		id = list(identity_mappings.items())
+		ios = [resolve(x[0]) for x in id]
+		oids = list(self.database.sys.regtypes([x[1] for x in id]))
+
+		self._cache.update([
+			(oid, io if io.__class__ is tuple else io(oid, self))
+			for oid, io in zip(oids, ios)
+		])

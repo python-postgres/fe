@@ -77,6 +77,10 @@ SELECT
 		ORDER BY prepared ASC
 	), ('{}'::text[]))
 
+[regtypes::column]
+SELECT (($1::text[])[i])::regtype::oid AS typoid
+FROM pg_catalog.generate_series(1, array_upper($1::text[], 1)) AS g(i)
+
 [xact_is_prepared::first]
 SELECT TRUE FROM pg_catalog.pg_prepared_xacts WHERE gid::text = $1
 
