@@ -8,8 +8,6 @@ Changes
  * **DEPRECATION**: Removed pg_python and pg_dotconf 'scripts'.
    They are still accessible by python3 -m postgresql.bin.pg_*
  * Added db.do() method for DO-statement support(convenience method).
- * Fix handling of unix domain sockets by pg.open and driver.connect.
-   [Reported by twitter.com/rintavarustus]
  * Set the default client_min_messages level to WARNING.
    NOTICEs are often not desired by programmers, and py-postgresql's
    high verbosity further irritates that case.
@@ -34,6 +32,8 @@ Changes
  * Implement reference symbols. Allow libraries to define symbols that
    are used to create queries that inherit the original symbol's type and
    execution method. ``db.prepare(db.prepare(...).first())``
+ * Fix handling of unix domain sockets by pg.open and driver.connect.
+   [Reported by twitter.com/rintavarustus]
  * Fix typo/dropped parts of a raise LoadError in .lib.
    [Reported by Vlad Pranskevichus]
  * Fix db.tracer and pg_python's --pq-trace=
