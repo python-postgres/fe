@@ -4,6 +4,7 @@
 'PQ version 3.0 client transactions'
 import sys
 import os
+import pprint
 from abc import ABCMeta, abstractmethod
 from itertools import chain
 from operator import itemgetter
@@ -111,7 +112,7 @@ class Negotiation(Transaction):
 
 	def __repr__(self):
 		s = type(self).__module__ + "." + type(self).__name__
-		s += pformat((self.startup_message, self.password)).lstrip()
+		s += pprint.pformat((self.startup_message, self.password)).lstrip()
 		return s
 
 	def messages_received(self):
@@ -430,7 +431,7 @@ class Instruction(Transaction):
 			mod = type(self).__module__,
 			name = type(self).__name__,
 			nl = os.linesep,
-			args = pformat(self.commands)
+			args = pprint.pformat(self.commands)
 		)
 
 	def messages_received(self):
