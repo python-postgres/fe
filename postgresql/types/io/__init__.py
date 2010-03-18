@@ -32,12 +32,6 @@ io_modules = {
 		pg_types.ABSTIMEOID,
 	),
 
-	# Points to the abstract type resolvers
-	'pg_container' : (
-		pg_types.RECORDOID,
-		pg_types.ANYARRAYOID,
-	),
-
 	'pg_bitwise': (
 		pg_types.BITOID,
 		pg_types.VARBITOID,
@@ -78,6 +72,7 @@ io_modules = {
 		pg_types.XMLOID,
 	),
 
+	# Must be db.typio.identify(contrib_hstore = 'hstore')'d
 	'contrib_hstore' : (
 		'contrib_hstore',
 	),
