@@ -999,6 +999,10 @@ are seen as indexes and other objects are seen as keys:</p>
 <span class="go">&#39;t&#39;</span>
 </pre></div>
 </div>
+<p>However, this extra functionality is not free. The cost of instantiating
+<cite>postgresql.types.Row</cite> objects is quite measurable, so the <cite>chunks()</cite> execution
+method will produce <cite>builtins.tuple</cite> objects for cases where performance is
+critical.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p class="last">Attributes aren&#8217;t used to provide access to values due to potential conflicts
@@ -1813,7 +1817,7 @@ parse error.</dd>
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 15, 2010.
+      Last updated on Mar 18, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>

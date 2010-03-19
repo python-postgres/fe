@@ -4,6 +4,8 @@
 Advisory Locks
 **************
 
+.. warning:: `postgresql.alock` is a new feature in v1.0.
+
 `Explicit Locking in PostgreSQL <http://www.postgresql.org/docs/current/static/explicit-locking.html#ADVISORY-LOCKS>`_.
 
 PostgreSQL's advisory locks offer a cooperative synchronization primitive.

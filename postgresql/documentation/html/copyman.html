@@ -47,6 +47,10 @@
             
   <div class="section" id="copy-management">
 <span id="pg-copyman"></span><h1>Copy Management<a class="headerlink" href="#copy-management" title="Permalink to this headline">¶</a></h1>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last"><cite>postgresql.copyman</cite> is a new feature in v1.0.</p>
+</div>
 <p>The <cite>postgresql.copyman</cite> module provides a way to quickly move COPY data coming
 from one connection to many connections. Alternatively, it can also be sourced
 by arbitrary iterators and target arbitrary callables.</p>
@@ -67,8 +71,8 @@ high-level <cite>postgresql.copyman.transfer</cite> function:</p>
 </div>
 <p>However, if more control is needed, the <cite>postgresql.copyman.CopyManager</cite> class
 should be used directly.</p>
-<div class="section" id="managers">
-<h2>Managers<a class="headerlink" href="#managers" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="copy-managers">
+<h2>Copy Managers<a class="headerlink" href="#copy-managers" title="Permalink to this headline">¶</a></h2>
 <p>The <cite>postgresql.copyman.CopyManager</cite> class manages the Producer and the
 Receivers involved in a COPY operation. Normally,
 <cite>postgresql.copyman.StatementProducer</cite> and
@@ -100,8 +104,8 @@ can be called to perform the operation:</p>
 <span class="gp">... </span> <span class="n">copyman</span><span class="o">.</span><span class="n">CopyManager</span><span class="p">(</span><span class="n">producer</span><span class="p">,</span> <span class="n">receiver</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
 </pre></div>
 </div>
-<div class="section" id="copymanager-interface-points">
-<h3>CopyManager Interface Points<a class="headerlink" href="#copymanager-interface-points" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="manager-interface-points">
+<h3>Manager Interface Points<a class="headerlink" href="#manager-interface-points" title="Permalink to this headline">¶</a></h3>
 <p>Primarily, the <cite>postgresql.copyman.CopyManager</cite> provides a context manager and
 an iterator for controlling the COPY operation.</p>
 <blockquote>
@@ -254,8 +258,8 @@ unidentified exception being raised.</dd>
             <h3><a href="index.html">Table Of Contents</a></h3>
             <ul>
 <li><a class="reference external" href="">Copy Management</a><ul>
-<li><a class="reference external" href="#managers">Managers</a><ul>
-<li><a class="reference external" href="#copymanager-interface-points">CopyManager Interface Points</a></li>
+<li><a class="reference external" href="#copy-managers">Copy Managers</a><ul>
+<li><a class="reference external" href="#manager-interface-points">Manager Interface Points</a></li>
 </ul>
 </li>
 <li><a class="reference external" href="#faults">Faults</a><ul>
@@ -313,7 +317,7 @@ unidentified exception being raised.</dd>
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 15, 2010.
+      Last updated on Mar 18, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>

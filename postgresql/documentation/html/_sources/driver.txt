@@ -1044,6 +1044,11 @@ are seen as indexes and other objects are seen as keys::
 	>>> row["col0"]
 	't'
 
+However, this extra functionality is not free. The cost of instantiating
+`postgresql.types.Row` objects is quite measurable, so the `chunks()` execution
+method will produce `builtins.tuple` objects for cases where performance is
+critical.
+
 .. note::
  Attributes aren't used to provide access to values due to potential conflicts
  with existing method and property names.

@@ -4,6 +4,8 @@
 Notification Management
 ***********************
 
+.. warning:: `postgresql.notifyman` is a new feature in v1.0.
+
 Relevant SQL commands: `NOTIFY <http://postgresql.org/docs/current/static/sql-notify.html>`_,
 `LISTEN <http://postgresql.org/docs/current/static/sql-listen.html>`_,
 `UNLISTEN <http://postgresql.org/docs/current/static/sql-unlisten.html>`_.

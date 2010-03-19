@@ -55,8 +55,6 @@
 <li><strong>DEPRECATION</strong>: Removed pg_python and pg_dotconf &#8216;scripts&#8217;.
 They are still accessible by python3 -m postgresql.bin.pg_*</li>
 <li>Added db.do() method for DO-statement support(convenience method).</li>
-<li>Fix handling of unix domain sockets by pg.open and driver.connect.
-[Reported by twitter.com/rintavarustus]</li>
 <li>Set the default client_min_messages level to WARNING.
 NOTICEs are often not desired by programmers, and py-postgresql&#8217;s
 high verbosity further irritates that case.</li>
@@ -81,6 +79,8 @@ threading.Lock APIs. [Feedback from Valentine Gogichashvili]</li>
 <li>Implement reference symbols. Allow libraries to define symbols that
 are used to create queries that inherit the original symbol&#8217;s type and
 execution method. <tt class="docutils literal"><span class="pre">db.prepare(db.prepare(...).first())</span></tt></li>
+<li>Fix handling of unix domain sockets by pg.open and driver.connect.
+[Reported by twitter.com/rintavarustus]</li>
 <li>Fix typo/dropped parts of a raise LoadError in .lib.
 [Reported by Vlad Pranskevichus]</li>
 <li>Fix db.tracer and pg_python&#8217;s &#8211;pq-trace=</li>
@@ -152,7 +152,7 @@ tuple for the rformats of the bind statement.
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 15, 2010.
+      Last updated on Mar 18, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>
