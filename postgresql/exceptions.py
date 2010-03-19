@@ -122,6 +122,8 @@ class ParameterError(TypeIOError):
 	code = '--PIO'
 class ColumnError(TypeIOError):
 	code = '--CIO'
+class CompositeError(TypeIOError):
+	code = '--cIO'
 
 class OperationError(DriverError):
 	"""

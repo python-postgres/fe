@@ -120,7 +120,7 @@ class Message(Message):
 	# keys to filter in .details
 	standard_detail_coverage = frozenset(['message', 'severity', 'file', 'function', 'line',])
 
-	def raise_message(self, starting_point = None):
+	def emit(self, starting_point = None):
 		"""
 		Take the given message object and hand it to all the primary
 		factors(creator) with a msghook callable.

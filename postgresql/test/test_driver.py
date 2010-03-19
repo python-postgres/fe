@@ -1175,7 +1175,7 @@ class test_driver(unittest.TestCase):
 				# 'foo' is not a valid Decimal.
 				# Expecting a double TupleError here, one from the composite pack
 				# and one from the row pack.
-				self.failUnless(isinstance(err.__context__, pg_exc.ColumnError))
+				self.failUnless(isinstance(err.__context__, pg_exc.CompositeError))
 				self.failUnlessEqual(int(err.details['position']), 0)
 				# attribute number that the failure occurred on
 				self.failUnlessEqual(int(err.__context__.details['position']), 0)
@@ -1212,7 +1212,7 @@ class test_driver(unittest.TestCase):
 			try:
 				ps((decimal.Decimal("101"),))
 			except pg_exc.ColumnError as err:
-				self.failUnless(isinstance(err.__context__, pg_exc.ColumnError))
+				self.failUnless(isinstance(err.__context__, pg_exc.CompositeError))
 				self.failUnless(isinstance(err.__context__.__context__, ThisError))
 				# might be too inquisitive....
 				self.failUnlessEqual(int(err.details['position']), 0)

@@ -4,6 +4,8 @@
 from codecs import lookup as lookup_codecs
 from abc import ABCMeta, abstractmethod
 from operator import itemgetter
+get0 = itemgetter(0)
+get1 = itemgetter(1)
 from itertools import count
 from ..encodings.aliases import get_python_name
 from ..python.functools import Composition as compose
@@ -13,7 +15,31 @@ from ..types.io import resolve
 from ..types import Row, Array, oid_to_sql_name, oid_to_name
 from ..python.functools import process_tuple
 from .. import exceptions as pg_exc
+from ..message import Message
 from ..types.io import lib
+from ..protocol.element3 import ClientError, ClientNotice
+from ..protocol.message_types import message_types
+
+# Map element3.Notice field identifiers
+# to names used by message.Message.
+notice_field_to_name = {
+	message_types[b'S'[0]] : 'severity',
+	message_types[b'C'[0]] : 'code',
+	message_types[b'M'[0]] : 'message',
+	message_types[b'D'[0]] : 'detail',
+	message_types[b'H'[0]] : 'hint',
+	message_types[b'W'[0]] : 'context',
+	message_types[b'P'[0]] : 'position',
+	message_types[b'p'[0]] : 'internal_position',
+	message_types[b'q'[0]] : 'internal_query',
+	message_types[b'F'[0]] : 'file',
+	message_types[b'L'[0]] : 'line',
+	message_types[b'R'[0]] : 'function',
+}
+
+notice_field_from_name = dict(
+	(v, k) for (k, v) in notice_field_to_name.items()
+)
 
 class TypeIO(object, metaclass = ABCMeta):
 	"""
@@ -48,13 +74,13 @@ class TypeIO(object, metaclass = ABCMeta):
 	def decode(self, bytes_data):
 		return self._decode(bytes_data)[0]
 
-	def encodes(self, iter, get0 = itemgetter(0)):
+	def encodes(self, iter, get0 = get0):
 		"""
 		Encode the items in the iterable in the configured encoding.
 		"""
 		return map(compose((self._encode, get0)), iter)
 
-	def decodes(self, iter, get0 = itemgetter(0)):
+	def decodes(self, iter, get0 = get0):
 		"""
 		Decode the items in the iterable from the configured encoding.
 		"""
@@ -88,9 +114,6 @@ class TypeIO(object, metaclass = ABCMeta):
 			pg_types.REGCLASSOID : strio,
 		}
 		self.typinfo = {}
-
-	def row_type_factory(self, column_names):
-		pass
 
 	def sql_type_from_oid(self, oid, qi = quote_ident):
 		if oid in oid_to_sql_name:
@@ -274,8 +297,9 @@ class TypeIO(object, metaclass = ABCMeta):
 		typnames : "sequence of sql type names in order",
 		attnames : "sequence of attribute names in order",
 		composite_name : "the name of the composite type",
-		get0 = itemgetter(0),
-		get1 = itemgetter(1),
+		get0 = get0,
+		get1 = get1,
+		fmt_errmsg = "failed to {0} attribute {1}, {2}::{3}, of composite {4} from wire data".format
 	):
 		fpack = tuple(map(get0, column_io))
 		funpack = tuple(map(get1, column_io))
@@ -285,36 +309,26 @@ class TypeIO(object, metaclass = ABCMeta):
 			if len(data) > 80:
 				# Be sure not to fill screen with noise.
 				data = data[:75] + ' ...'
-			raise pg_exc.ColumnError(
-				"failed to pack attribute %d, %s::%s, of composite %s for transfer" %(
-					itemnum,
-					attnames[itemnum],
-					typnames[itemnum],
-					composite_name,
-				),
-				details = {
-					'context': data,
-					'position' : str(itemnum)
-				},
-			)
+			self.raise_client_error(ClientError((
+				(b'C', '--cIO',),
+				(b'S', 'ERROR',),
+				(b'M', fmt_errmsg('pack', itemnum, attnames[itemnum], typnames[itemnum], composite_name),),
+				(b'W', data,),
+				(b'P', str(itemnum),)
+			)))
 
 		def raise_unpack_tuple_error(procs, tup, itemnum):
 			data = repr(tup[itemnum])
 			if len(data) > 80:
 				# Be sure not to fill screen with noise.
 				data = data[:75] + ' ...'
-			raise pg_exc.ColumnError(
-				"failed to unpack attribute %d, %s::%s, of composite %s from wire data" %(
-					itemnum,
-					attnames[itemnum],
-					typnames[itemnum],
-					composite_name,
-				),
-				details = {
-					'context': data,
-					'position' : str(itemnum),
-				},
-			)
+			self.raise_client_error(ClientError((
+				(b'C', '--cIO',),
+				(b'S', 'ERROR',),
+				(b'M', fmt_errmsg('unpack', itemnum, attnames[itemnum], typnames[itemnum], composite_name),),
+				(b'W', data,),
+				(b'P', str(itemnum),),
+			)))
 
 		def unpack_a_record(data,
 			unpack = lib.record_unpack,
@@ -340,3 +354,119 @@ class TypeIO(object, metaclass = ABCMeta):
 				))
 			)
 		return (pack_a_record, unpack_a_record, Row)
+
+	def raise_client_error(self, error_message, cause = None, creator = None):
+		m = {
+			notice_field_to_name[k] : v
+			for k, v in error_message.items()
+			# don't include unknown messages in this list.
+			if k in notice_field_to_name
+		}
+		c = m.pop('code')
+		ms = m.pop('message')
+		client_error = self.lookup_exception(c)
+		client_error = client_error(ms, code = c, details = m, source = 'CLIENT', creator = creator or self.database)
+		client_error.database = self.database
+		if cause is not None:
+			raise client_error from cause
+		else:
+			raise client_error
+
+	def lookup_exception(self, code, errorlookup = pg_exc.ErrorLookup,):
+		return errorlookup(code)
+
+	def lookup_warning(self, code, warninglookup = pg_exc.WarningLookup,):
+		return warninglookup(code)
+
+	def raise_server_error(self, error_message, cause = None, creator = None):
+		m = dict(self.decode_notice(error_message))
+		c = m.pop('code')
+		ms = m.pop('message')
+		server_error = self.lookup_exception(c)
+		server_error = server_error(ms, code = c, details = m, source = 'SERVER', creator = creator or self.database)
+		server_error.database = self.database
+		if cause is not None:
+			raise server_error from cause
+		else:
+			raise server_error
+
+	def raise_error(self, error_message, ClientError = ClientError, **kw):
+		if 'creator' not in kw:
+			kw['creator'] = getattr(self.database, '_controller', self.database) or self.database
+
+		if error_message.__class__ is ClientError:
+			self.raise_client_error(error_message, **kw)
+		else:
+			self.raise_server_error(error_message, **kw)
+
+	##
+	# Used by decode_notice()
+	def _decode_failsafe(self, data):
+		decode = self._decode
+		i = iter(data)
+		for x in i:
+			try:
+				# prematurely optimized for your viewing displeasure.
+				v = x[1]
+				yield (x[0], decode(v)[0])
+				for x in i:
+					v = x[1]
+					yield (x[0], decode(v)[0])
+			except UnicodeDecodeError:
+				# Fallback to the bytes representation.
+				# This should be sufficiently informative in most cases,
+				# and in the cases where it isn't, an element traceback should
+				# ultimately yield the pertinent information
+				yield (x[0], repr(data[1])[2:-1])
+
+	def decode_notice(self, notice):
+		notice = self._decode_failsafe(notice.items())
+		return {
+			notice_field_to_name[k] : v
+			for k, v in notice
+			# don't include unknown messages in this list.
+			if k in notice_field_to_name
+		}
+
+	def emit_server_message(self, message, creator = None,
+		MessageType = Message
+	):
+		fields = self.decode_notice(message)
+		m = fields.pop('message')
+		c = fields.pop('code')
+
+		if fields['severity'].upper() == 'WARNING':
+			MessageType = self.lookup_warning(c)
+
+		message = Message(m, code = c, details = fields,
+			creator = creator, source = 'SERVER')
+		message.database = self.database
+		message.emit()
+		return message
+
+	def emit_client_message(self, message, creator = None,
+		MessageType = Message
+	):
+		fields = {
+			notice_field_to_name[k] : v
+			for k, v in message.items()
+			# don't include unknown messages in this list.
+			if k in notice_field_to_name
+		}
+		m = fields.pop('message')
+		c = fields.pop('code')
+
+		if fields['severity'].upper() == 'WARNING':
+			MessageType = self.lookup_warning(c)
+
+		message = MessageType(m, code = c, details = fields,
+			creator = creator, source = 'CLIENT')
+		message.database = self.database
+		message.emit()
+		return message
+
+	def emit_message(self, message, ClientNotice = ClientNotice, **kw):
+		if message.__class__ is ClientNotice:
+			return self.emit_client_message(message, **kw)
+		else:
+			return self.emit_server_message(message, **kw)

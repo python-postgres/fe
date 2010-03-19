@@ -32,32 +32,16 @@ from ..python.functools import process_tuple, process_chunk
 from ..protocol import xact3 as xact
 from ..protocol import element3 as element
 from ..protocol import client3 as client
-from ..protocol.message_types import message_types
 
 from .pg_type import TypeIO
 from ..notifyman import NotificationManager
 from ..types import Row
 
-# Map element3.Notice field identifiers
-# to names used by message.Message.
-notice_field_to_name = {
-	message_types[b'S'[0]] : 'severity',
-	message_types[b'C'[0]] : 'code',
-	message_types[b'M'[0]] : 'message',
-	message_types[b'D'[0]] : 'detail',
-	message_types[b'H'[0]] : 'hint',
-	message_types[b'W'[0]] : 'context',
-	message_types[b'P'[0]] : 'position',
-	message_types[b'p'[0]] : 'internal_position',
-	message_types[b'q'[0]] : 'internal_query',
-	message_types[b'F'[0]] : 'file',
-	message_types[b'L'[0]] : 'line',
-	message_types[b'R'[0]] : 'function',
-}
-
-notice_field_from_name = dict(
-	(v, k) for (k, v) in notice_field_to_name.items()
-)
+could_not_connect = element.ClientError((
+	(b'S', 'FATAL'),
+	(b'C', '08001'),
+	(b'M', "could not establish connection to server"),
+))
 
 def ID(s, title = None, IDNS = 'py:'):
 	'generate an id for a client statement or cursor'
@@ -302,9 +286,7 @@ class Output(object):
 			(b'H', "Try casting the column to 'text'."),
 			(b'P', str(itemnum)),
 		))
-		self.database._raise_a_pq_error(em, controller = self)
-		# "can't happen"
-		raise RuntimeError("failed to raise client error")
+		self.database.typio.raise_client_error(em, creator = self)
 
 	@property
 	def state(self):
@@ -416,7 +398,7 @@ class FetchAll(Chunks):
 							(b'C', "--000"),
 							(b'M', "unexpected message type " + repr(x.type))
 						))
-						self.database._raise_pq_error(self._xact, controller = self)
+						self.database.typio.raise_client_error(self._xact.error_message, creator = self)
 					return
 
 	def __next__(self,
@@ -437,7 +419,7 @@ class FetchAll(Chunks):
 		# fatal is True == dead connection
 		# fatal is False == dead transaction
 		if x.fatal is not None:
-			self.database._raise_pq_error(x, controller = self)
+			self.database.typio.raise_error(x.error_message, creator = getattr(self, '_controller', self) or self)
 
 		# no messages to process?
 		if not x.completed:
@@ -704,7 +686,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			# be very careful not to trigger an exception.
 			# even in the cases of effective protocol errors, 
 			# it is important not to bomb out.
-			pos = self._xact.error_message.get('position')
+			pos = self._xact.error_message.get(b'P')
 			if pos is not None and pos.isdigit():
 				try:
 					pos = int(pos)
@@ -822,8 +804,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			(b'H', "Try casting the parameter to 'text', then to the target type."),
 			(b'P', str(itemnum))
 		))
-		self.database._raise_a_pq_error(em, controller = self)
-		raise RuntimeError("failed to raise client error")
+		self.database.typio.raise_client_error(em, creator = self)
 
 	##
 	# Similar to the parameter variant.
@@ -850,8 +831,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			(b'H', "Try casting the column to 'text'."),
 			(b'P', str(itemnum)),
 		))
-		self.database._raise_a_pq_error(em, controller = self)
-		raise RuntimeError("failed to raise client error")
+		self.database.typio.raise_client_error(em, creator = self)
 
 	@property
 	def state(self) -> str:
@@ -1200,8 +1180,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				(b'C', '--OPE'),
 				(b'M', "_load_copy_chunks() used on a non-COPY FROM STDIN query"),
 			))
-			self.database._raise_pq_error(x, controller = self)
-			raise RuntimeError("failed to raise client error")
+			self.database.typio.raise_client_error(x.error_message, creator = self)
 
 		for chunk in chunks:
 			x.messages = list(chunk)
@@ -1567,7 +1546,7 @@ class Transaction(pg_api.Transaction):
 					(b'M', 'invalid transaction block exit detected'),
 					(b'H', "Database was in an error-state, but no exception was raised.")
 				))
-				self.database._raise_a_pq_error(em, self)
+				self.database.typio.raise_client_error(em, creator = self)
 			else:
 				# No exception, and no error state. Everything is good.
 				try:
@@ -1630,7 +1609,7 @@ class Transaction(pg_api.Transaction):
 				(b'M', "transactions cannot be restarted"),
 				(b'H', 'Create a new transaction object instead of re-using an old one.')
 			))
-			self.database._raise_a_pq_error(em, self)
+			self.database.typio.raise_client_error(em, creator = self)
 
 		if self.database.pq.state == b'I':
 			self.type = 'block'
@@ -1647,7 +1626,7 @@ class Transaction(pg_api.Transaction):
 					(b'M', "configured transaction used inside a transaction block"),
 					(b'H', 'A transaction block was already started.'),
 				))
-				self.database._raise_a_pq_error(em, self)
+				self.database.typio.raise_client_error(em, creator = self)
 			q = self._savepoint_xact_string(hex(id(self)))
 		self.database.execute(q)
 		self.state = 'open'
@@ -1672,14 +1651,14 @@ class Transaction(pg_api.Transaction):
 				(b'C', '--OPE'),
 				(b'M', "transaction state must be 'open' in order to prepare"),
 			))
-			self.database._raise_a_pq_error(em, self)
+			self.database.typio.raise_client_error(em, creator = self)
 		if self.type != 'block':
 			em = element.ClientError((
 				(b'S', 'ERROR'),
 				(b'C', '--OPE'),
 				(b'M', "improper transaction type to prepare"),
 			))
-			self.database._raise_a_pq_error(em, self)
+			self.database.typio.raise_client_error(em, creator = self)
 		q = self._prepare_string(self.gid)
 		self.database.execute(q)
 		self.state = 'prepared'
@@ -1691,7 +1670,7 @@ class Transaction(pg_api.Transaction):
 				(b'C', '--OPE'),
 				(b'M', "improper state for prepared transaction recovery"),
 			))
-			self.database._raise_a_pq_error(em, self)
+			self.database.typio.raise_client_error(em, creator = self)
 		if self.database.sys.xact_is_prepared(self.gid):
 			self.state = 'prepared'
 			self.type = 'block'
@@ -1701,7 +1680,7 @@ class Transaction(pg_api.Transaction):
 				(b'C', '42704'), # UndefinedObjectError
 				(b'M', "prepared transaction does not exist"),
 			))
-			self.database._raise_a_pq_error(em, self)
+			self.database.typio.raise_client_error(em, creator = self)
 
 	def commit(self):
 		if self.state == 'committed':
@@ -1712,7 +1691,7 @@ class Transaction(pg_api.Transaction):
 				(b'C', '--OPE'),
 				(b'M', "commit attempted on transaction with unexpected state, " + repr(self.state)),
 			))
-			self.database._raise_a_pq_error(em, self)
+			self.database.typio.raise_client_error(em, creator = self)
 
 		if self.type == 'block':
 			if self.gid is not None:
@@ -1727,7 +1706,7 @@ class Transaction(pg_api.Transaction):
 					(b'C', '--OPE'),
 					(b'M', "savepoint configured with global identifier"),
 				))
-				self.database._raise_a_pq_error(em, self)
+				self.database.typio.raise_client_error(em, creator = self)
 			q = self._release_string(hex(id(self)))
 		self.database.execute(q)
 		self.state = 'committed'
@@ -1745,7 +1724,7 @@ class Transaction(pg_api.Transaction):
 				(b'C', '--OPE'),
 				(b'M', "ABORT attempted on transaction with unexpected state, " + repr(self.state)),
 			))
-			self.database._raise_a_pq_error(em, self)
+			self.database.typio.raise_client_error(em, creator = self)
 
 		if self.type == 'block':
 			if self.state == 'prepared':
@@ -1923,10 +1902,8 @@ class Connection(pg_api.Connection):
 
 		if hasattr(self, 'pq'):
 			# It's closed, *but* there's a PQ connection..
-			self._raise_pq_error()
-			# gah, the fatality of the connection does not
-			# appear to exist...
-			raise RuntimeError("closed connection has no fatal error")
+			x = self.pq.xact
+			self.typio.raise_error(x.error_message, cause = getattr(x, 'exception', None), creator = self)
 
 		self.pq = None
 		# if any exception occurs past this point, the connection
@@ -2023,26 +2000,20 @@ class Connection(pg_api.Connection):
 					# when 'allow', the first attempt
 					# is marked with dossl is "None"
 					can_skip = True
-			err = self._error_lookup(pq.xact.error_message)
-			pq.error = err
+
+			try:
+				self.typio.raise_error(pq.xact.error_message, creator = self)
+			except Exception as error:
+				pq.error = error
 			if getattr(pq.xact, 'exception', None) is not None:
-				err.__cause__ = pq.xact.exception
+				pq.error.__cause__ = pq.xact.exception
+
 			failures.append(pq)
 		else:
 			# No servers available. (see the break-statement in the for-loop)
-			msg = "could not establish connection to server"
-			ce = element.ClientError((
-				(b'S', 'FATAL'),
-				(b'C', '08001'),
-				(b'M', msg),
-			))
-			could_not_connect_err = self._error_lookup(ce)
-			could_not_connect_err.creator = self
 			self.failures = failures or ()
-			if exc is not None:
-				could_not_connect_err.__cause__ = exc
 			# it's over.
-			raise could_not_connect_err
+			self.typio.raise_client_error(could_not_connect, creator = self, cause = exc)
 		##
 		# connected, now initialize connection information.
 		self.backend_id = self.pq.backend_id
@@ -2081,7 +2052,8 @@ class Connection(pg_api.Connection):
 		x = self.pq.xact
 		if x is not None:
 			self.pq.complete()
-			self._raise_pq_error(x)
+			if x.fatal is not None:
+				self.typio.raise_error(x.error_message)
 		if controller is not None:
 			self._controller = controller
 		self.pq.push(xact)
@@ -2094,7 +2066,8 @@ class Connection(pg_api.Connection):
 			# There is a running transaction, finish it.
 			pq.complete()
 			# Raise an error *iff* one occurred.
-			self._raise_pq_error(x)
+			if x.fatal is not None:
+				self.typio.raise_error(x.error_message, cause = getattr(x, 'exception', None))
 			del self._controller
 
 	# Process the next message.
@@ -2106,135 +2079,39 @@ class Connection(pg_api.Connection):
 			# If the protocol transaction was completed by
 			# the last step, raise the error *iff* one occurred.
 			if x.state is complete_state:
-				self._raise_pq_error(x)
+				if x.fatal is not None:
+					self.typio.raise_error(x.error_message, cause = getattr(x, 'exception', None))
 				del self._controller
 
-	def _raise_pq_error(self, xact = None, controller = None):
-		if xact is not None:
-			x = xact
-		else:
-			x = self.pq.xact
-		if x.fatal is None:
-			# No error occurred..
-			return
-		err = self._error_lookup(x.error_message)
-		fromexc = getattr(x, 'exception', None)
-		if controller is None:
-			controller = getattr(self, '_controller', self)
-		err.creator = controller
-		if fromexc is not None:
-			err.__cause__ = fromexc
-		raise err
-
-	def _raise_a_pq_error(self, em, controller):
-		err = self._error_lookup(em)
-		err.creator = controller
-		raise err
-
-	##
-	# Used by _decode_pq_message()
-	def _decode_failsafe(self, data):
-		decode = self.typio._decode
-		i = iter(data)
-		for x in i:
-			try:
-				# prematurely optimized for your viewing displeasure.
-				v = x[1]
-				yield (x[0], decode(v)[0])
-				for x in i:
-					v = x[1]
-					yield (x[0], decode(v)[0])
-			except UnicodeDecodeError:
-				# Fallback to the bytes representation.
-				# This should be sufficiently informative in most cases,
-				# and in the cases where it isn't, an element traceback should
-				# ultimately yield the pertinent information
-				yield (x[0], repr(data[1])[2:-1])
-
-	def _decode_pq_message(self, notice,
-		client_message_types = (element.ClientError, element.ClientNotice)
-	):
-		if isinstance(notice, client_message_types):
-			# already in unicode
-			notice = notice.items()
-		else:
-			notice = self._decode_failsafe(notice.items())
-
-		return {
-			notice_field_to_name[k] : v
-			for k, v in notice
-			# don't include unknown messages in this list.
-			if k in notice_field_to_name
-		}
-
-	##
-	# Given an element.Notice (or Error) instance, create the appropriate
-	# Message (or Error) instance.
-	def _convert_pq_message(self, msg, source = None,):
-		dmsg = self._decode_pq_message(msg)
-		m = dmsg.pop('message')
-		c = dmsg.pop('code')
-		if source is None:
-			if isinstance(msg, client_message_types):
-				source = 'CLIENT'
-			else:
-				source = 'SERVER'
-		if dmsg['severity'].upper() == 'WARNING':
-			mo = pg_exc.WarningLookup(c)(
-				m, code = c, details = dmsg, source = source
-			)
-		else:
-			mo = pg_msg.Message(
-				m, code = c, details = dmsg, source = source
-			)
-		mo.database = self
-		return mo
-
-	##
-	# lookup a PostgreSQL error and instantiate it
-	def _error_lookup(self, om : element.Error,
-		clienterror = element.ClientError,
-		errorlookup = pg_exc.ErrorLookup,
-	) -> pg_exc.Error:
-		m = self._decode_pq_message(om)
-		src = 'SERVER'
-		if type(om) is clienterror:
-			src = 'CLIENT'
-		c = m.pop('code')
-		ms = m.pop('message')
-		err = errorlookup(c)
-		err = err(ms, code = c, details = m, source = src)
-		err.database = self
-		return err
-
-	def _receive_async(self, msg, controller = None,
+	def _receive_async(self,
+		msg, controller = None,
 		showoption = element.ShowOption.type,
 		notice = element.Notice.type,
 		notify = element.Notify.type,
 	):
 		c = controller or getattr(self, '_controller', self)
-		if msg.type == showoption:
+		typ = msg.type
+		if typ == showoption:
 			if msg.name == b'client_encoding':
 				self.typio.set_encoding(msg.value.decode('ascii'))
 			self.settings._notify(msg)
-		elif msg.type == notice:
-			src = 'SERVER'
-			if type(msg) is element.ClientNotice:
-				src = 'CLIENT'
-			m = self._convert_pq_message(msg, source = src)
-			m.creator = c
-			m.raise_message()
-		elif msg.type == notify:
+		elif typ == notice:
+			m = self.typio.emit_message(msg, creator = c)
+		elif typ == notify:
 			self._notifies.append(msg)
 		else:
-			w = self._warning_lookup("-1000")
-			w(
-				"unknown asynchronous message: " + repr(msg),
+			self.typio.emit_client_message(
+				element.ClientNotice((
+					(b'C', '-1000'),
+					(b'S', 'WARNING'),
+					(b'M', 'cannot process unrecognized asynchronous message'),
+					(b'D', repr(msg)),
+				)),
 				creator = c
-			).raise_message()
+			)
 
 	def clone(self, *args, **kw):
-		c = type(self)(self.connector, *args, **kw)
+		c = self.__class__(self.connector, *args, **kw)
 		c.connect()
 		return c
 
@@ -2366,7 +2243,7 @@ class Connector(pg_api.Connector):
 			pg_exc.IgnoredClientParameterWarning(
 				"certificate revocation lists are *not* checked",
 				creator = self,
-			).raise_message()
+			).emit()
 
 		# Startup message parameters.
 		tnkw = {

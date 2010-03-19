@@ -321,7 +321,7 @@ class Cluster(pg_api.Cluster):
 							'hint' : 'Shared memory may be leaked.'
 						},
 						creator = self
-					).raise_message()
+					).emit()
 		# Really, using rm -rf would be the best, but use this for portability.
 		for root, dirs, files in os.walk(self.data_directory, topdown = False):
 			for name in files:
