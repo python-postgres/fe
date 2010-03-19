@@ -52,8 +52,8 @@ installation and other aspects of working with py-postgresql such as
 environment variables and configuration files.</p>
 <div class="section" id="installation">
 <h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
-<p>py-postgresql uses Python&#8217;s standard distutils package to manage the
-build and installation process of the package. The normal entry point for
+<p>py-postgresql uses Python&#8217;s distutils package to manage the build and
+installation process of the package. The normal entry point for
 this is the <tt class="docutils literal"><span class="pre">setup.py</span></tt> script contained in the root project directory.</p>
 <p>After extracting the archive and changing the into the project&#8217;s directory,
 installation is normally as simple as:</p>
@@ -62,32 +62,6 @@ installation is normally as simple as:</p>
 <p>However, if you need to install for use with a particular version of python,
 just use the path of the executable that should be used:</p>
 <div class="highlight-python"><pre>$ /usr/opt/bin/python3 ./setup.py install</pre>
-</div>
-<p>Under most POSIX systems, the above should work without problem if the proper
-Python executable is referenced. However, if it does fail, it is likely due
-to a C extension&#8217;s inability to compile.</p>
-<p>The building of C extensions can be disable using the <tt class="docutils literal"><span class="pre">PY_BUILD_EXTENSIONS</span></tt>
-environment variable:</p>
-<div class="highlight-python"><pre>$ env PY_BUILD_EXTENSIONS=0 python3 ./setup.py install</pre>
-</div>
-<div class="section" id="extension-modules-under-windows">
-<h3>Extension Modules under Windows<a class="headerlink" href="#extension-modules-under-windows" title="Permalink to this headline">¶</a></h3>
-<p>By default, a Python installation on Windows cannot build extension modules.
-py-postgresql provides optimizations for various key points, but can be
-installed and used without them. When a source installation is performed on
-&#8216;win32&#8217; systems, extension modules are <em>not</em> built by default.</p>
-<p>In order to enable the compilation of extensions, set the environment variable
-<tt class="docutils literal"><span class="pre">PY_BUILD_EXTENSIONS</span></tt> to &#8216;1&#8217; before executing the <tt class="docutils literal"><span class="pre">setup.py</span></tt>
-script in the prompt:</p>
-<div class="highlight-python"><pre>C:\-&gt; set PY_BUILD_EXTENSIONS=1
-C:\-&gt; c:\python31\python setup.py install</pre>
-</div>
-<p>Or, compile using mingw32:</p>
-<div class="highlight-python"><pre>C:\-&gt; set PY_BUILD_EXTENSIONS=1
-C:\-&gt; c:\python31\python setup.py build_ext --compiler=mingw32
-C:\-&gt; c:\python31\python setup.py install</pre>
-</div>
-<p>See <a class="reference external" href="http://www.mingw.org/">http://www.mingw.org/</a> to get the compiler.</p>
 </div>
 </div>
 <div class="section" id="environment">
@@ -118,10 +92,7 @@ C:\-&gt; c:\python31\python setup.py install</pre>
             <h3><a href="index.html">Table Of Contents</a></h3>
             <ul>
 <li><a class="reference external" href="">Administration</a><ul>
-<li><a class="reference external" href="#installation">Installation</a><ul>
-<li><a class="reference external" href="#extension-modules-under-windows">Extension Modules under Windows</a></li>
-</ul>
-</li>
+<li><a class="reference external" href="#installation">Installation</a></li>
 <li><a class="reference external" href="#environment">Environment</a></li>
 </ul>
 </li>
@@ -172,7 +143,7 @@ C:\-&gt; c:\python31\python setup.py install</pre>
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 18, 2010.
+      Last updated on Mar 19, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>
