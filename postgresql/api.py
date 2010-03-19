@@ -27,6 +27,7 @@ __all__ = [
 	'Connector',
 	'Category',
 	'Database',
+	'TypeIO',
 	'Connection',
 	'Transaction',
 	'Settings',
@@ -1002,6 +1003,12 @@ class Database(Element):
 		stop by raising `StopIteration`. Further error control is then the
 		responsibility of the user.
 		"""
+
+class TypeIO(Element):
+	_e_label = 'TYPIO'
+
+	def _e_metas(self):
+		return ()
 
 class SocketFactory(object):
 	@propertydoc
