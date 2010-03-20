@@ -526,15 +526,15 @@ class test_driver(unittest.TestCase):
 		self.failUnlessEqual(tuple(ps.pg_parameter_types), (
 			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid)
 		)
-		self.failUnlessEqual(tuple(ps.parameter_types), (str,str,pg_types.Row))
-		self.failUnlessEqual(tuple(ps.column_types), (str,str,pg_types.Row))
+		self.failUnlessEqual(tuple(ps.parameter_types), (str,str,tuple))
+		self.failUnlessEqual(tuple(ps.column_types), (str,str,tuple))
 		c = ps.declare('textdata', 'varchardata', (123,))
 		self.failUnlessEqual(tuple(c.column_names), ('my_column1','my_column2', 'my_column3'))
 		self.failUnlessEqual(tuple(c.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
 		self.failUnlessEqual(tuple(c.pg_column_types), (
 			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid
 		))
-		self.failUnlessEqual(tuple(c.column_types), (str,str,pg_types.Row))
+		self.failUnlessEqual(tuple(c.column_types), (str,str,tuple))
 
 	@pg_tmp
 	def testRowInterface(self):
@@ -1658,6 +1658,29 @@ class test_driver(unittest.TestCase):
 				continue
 			self.failUnless(x.isconsistent(last))
 			last = x
+
+	@pg_tmp
+	def testRowTypeFactory(self):
+		from ..types.namedtuple import NamedTupleFactory
+		db.typio.RowTypeFactory = NamedTupleFactory
+		ps = prepare('select 1 as foo, 2 as bar')
+		first_results = ps.first()
+		self.failUnlessEqual(first_results.foo, 1)
+		self.failUnlessEqual(first_results.bar, 2)
+
+		call_results = ps()[0]
+		self.failUnlessEqual(call_results.foo, 1)
+		self.failUnlessEqual(call_results.bar, 2)
+
+		declare_results = ps.declare().read(1)[0]
+		self.failUnlessEqual(declare_results.foo, 1)
+		self.failUnlessEqual(declare_results.bar, 2)
+
+		sqlexec('create type rtf AS (foo int, bar int)')
+		ps = prepare('select ROW(1, 2)::rtf')
+		composite_results = ps.first()
+		self.failUnlessEqual(composite_results.foo, 1)
+		self.failUnlessEqual(composite_results.bar, 2)
 
 if __name__ == '__main__':
 	unittest.main()

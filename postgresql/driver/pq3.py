@@ -9,6 +9,7 @@ import weakref
 import socket
 from traceback import format_exception
 from itertools import repeat, chain, count
+from functools import partial
 from abc import abstractmethod
 from codecs import lookup as lookup_codecs
 
@@ -355,6 +356,9 @@ class TypeIO(pg_api.TypeIO):
 
 		return (pack_an_array, unpack_an_array, pg_types.Array)
 
+	def RowTypeFactory(self, attribute_map = {}, _Row = pg_types.Row.from_sequence):
+		return partial(_Row, attribute_map)
+
 	##
 	# record_io_factory - Build an I/O pair for RECORDs
 	##
@@ -371,6 +375,7 @@ class TypeIO(pg_api.TypeIO):
 	):
 		fpack = tuple(map(get0, column_io))
 		funpack = tuple(map(get1, column_io))
+		row_constructor = self.RowTypeFactory(attribute_map = attmap)
 
 		def raise_pack_tuple_error(procs, tup, itemnum):
 			data = repr(tup[itemnum])
@@ -401,12 +406,10 @@ class TypeIO(pg_api.TypeIO):
 		def unpack_a_record(data,
 			unpack = io_lib.record_unpack,
 			process_tuple = process_tuple,
-			row_from_seq = pg_types.Row.from_sequence
+			row_constructor = row_constructor
 		):
 			data = tuple([x[1] for x in unpack(data)])
-			return row_from_seq(
-				attmap, process_tuple(funpack, data, raise_unpack_tuple_error),
-			)
+			return row_constructor(process_tuple(funpack, data, raise_unpack_tuple_error))
 
 		sorted_atts = sorted(attmap.items(), key = get1)
 		def pack_a_record(data,
@@ -421,7 +424,7 @@ class TypeIO(pg_api.TypeIO):
 					process_tuple(fpack, tuple(data), raise_pack_tuple_error)
 				))
 			)
-		return (pack_a_record, unpack_a_record, pg_types.Row)
+		return (pack_a_record, unpack_a_record, tuple)
 
 	def raise_client_error(self, error_message, cause = None, creator = None):
 		m = {
@@ -565,10 +568,12 @@ class Output(object):
 	def __init__(self, cursor_id, wref = weakref.ref, ID = ID):
 		self.cursor_id = cursor_id
 		if self.statement is not None:
-			self._output = self.statement._output
-			self._output_io = self.statement._output_io
-			self._output_formats = self.statement._output_formats or ()
-			self._output_attmap = self.statement._output_attmap
+			stmt = self.statement
+			self._output = stmt._output
+			self._output_io = stmt._output_io
+			self._row_constructor = stmt._row_constructor
+			self._output_formats = stmt._output_formats or ()
+			self._output_attmap = stmt._output_attmap
 
 		self._pq_cursor_id = self.database.typio.encode(cursor_id)
 		# If the cursor's id was generated, it should be garbage collected.
@@ -696,11 +701,10 @@ class Output(object):
 	# Process the element.Tuple message in x for rows()
 	def _process_tuple_chunk_Row(self, x,
 		proc = process_chunk,
-		from_seq = pg_types.Row.from_sequence,
 	):
-		attmap = self._output_attmap
+		rc = self._row_constructor
 		return [
-			from_seq(attmap, y)
+			rc(y)
 			for y in proc(self._output_io, x, self._raise_column_tuple_error)
 		]
 
@@ -1040,11 +1044,12 @@ class Cursor(Output, pg_api.Cursor):
 			self.database._pq_complete()
 			for m in x.messages_received():
 				if m.type == tupledesc:
+					typio = self.database.typio
 					self._output = m
-					self._output_attmap = \
-						self.database.typio.attribute_map(self._output)
+					self._output_attmap = typio.attribute_map(self._output)
+					self._row_constructor = typio.RowTypeFactory(self._output_attmap)
 					# tuple output
-					self._output_io = self.database.typio.resolve_descriptor(
+					self._output_io = typio.resolve_descriptor(
 						self._output, 1 # (input, output)[1]
 					)
 					self._output_formats = [
@@ -1054,7 +1059,7 @@ class Cursor(Output, pg_api.Cursor):
 						for x in self._output_io
 					]
 					self._output_io = tuple([
-						x or self.database.typio.decode for x in self._output_io
+						x or typio.decode for x in self._output_io
 					])
 
 	def __next__(self):
@@ -1399,11 +1404,13 @@ class PreparedStatement(pg_api.PreparedStatement):
 			self._output_attmap = None
 			self._output_io = None
 			self._output_formats = None
+			self._row_constructor = None
 		else:
 			self._output = tupdesc
 			self._output_attmap = dict(
 				typio.attribute_map(tupdesc)
 			)
+			self._row_constructor = self.database.typio.RowTypeFactory(self._output_attmap)
 			# tuple output
 			self._output_io = typio.resolve_descriptor(tupdesc, 1)
 			self._output_formats = [
@@ -1559,12 +1566,11 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 			if len(self._output_io) > 1:
 				# Multiple columns, return a Row.
-				return pg_types.Row.from_sequence(
-					self._output_attmap,
+				return self._row_constructor(
 					process_tuple(
 						self._output_io, xt,
 						self._raise_column_tuple_error
-					),
+					)
 				)
 			else:
 				# Single column output.
@@ -2211,6 +2217,7 @@ class Connection(pg_api.Connection):
 		if att:
 			count = 0
 			for x in att:
+				# Format each failure without their traceback.
 				errstr = ''.join(format_exception(type(x.error), x.error, None))
 				factinfo = str(x.socket_factory)
 				if hasattr(x, 'ssl_negotiation'):
@@ -2447,9 +2454,13 @@ class Connection(pg_api.Connection):
 					can_skip = True
 
 			try:
-				self.typio.raise_error(pq.xact.error_message, creator = self)
+				self.typio.raise_error(pq.xact.error_message)
 			except Exception as error:
 				pq.error = error
+				# Otherwise, infinite recursion in the element traceback.
+				error.creator = None
+				# The tracebacks of the specific failures aren't particularly useful..
+				error.__traceback__ = None
 			if getattr(pq.xact, 'exception', None) is not None:
 				pq.error.__cause__ = pq.xact.exception
 
