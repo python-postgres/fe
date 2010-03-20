@@ -1682,5 +1682,17 @@ class test_driver(unittest.TestCase):
 		self.failUnlessEqual(composite_results.foo, 1)
 		self.failUnlessEqual(composite_results.bar, 2)
 
+	@pg_tmp
+	def testNamedTuples(self):
+		from ..types.namedtuple import namedtuples
+		ps = namedtuples(prepare('select 1 as foo, 2 as bar, $1::text as param'))
+		r = list(ps("hello"))[0]
+		self.failUnlessEqual(r[0], 1)
+		self.failUnlessEqual(r.foo, 1)
+		self.failUnlessEqual(r[1], 2)
+		self.failUnlessEqual(r.bar, 2)
+		self.failUnlessEqual(r[2], "hello")
+		self.failUnlessEqual(r.param, "hello")
+
 if __name__ == '__main__':
 	unittest.main()
