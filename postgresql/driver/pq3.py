@@ -296,7 +296,7 @@ class TypeIO(pg_api.TypeIO):
 		"""
 		# get them ordered; we process separately, then recombine.
 		id = list(identity_mappings.items())
-		ios = [resolve(x[0]) for x in id]
+		ios = [pg_types_io.resolve(x[0]) for x in id]
 		oids = list(self.database.sys.regtypes([x[1] for x in id]))
 
 		self._cache.update([
