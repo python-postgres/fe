@@ -1694,5 +1694,28 @@ class test_driver(unittest.TestCase):
 		self.failUnlessEqual(r[2], "hello")
 		self.failUnlessEqual(r.param, "hello")
 
+	@pg_tmp
+	def testBadFD(self):
+		db.pq.socket.close()
+		# bad fd now.
+		self.failUnlessRaises(
+			pg_exc.ConnectionFailureError,
+			sqlexec, "SELECT 1"
+		)
+		self.failUnless(issubclass(pg_exc.ConnectionFailureError, pg_exc.Disconnection))
+
+	@pg_tmp
+	def testAdminTerminated(self):
+		killer = new()
+		killer.sys.terminate_backends()
+		# hoping that this will guarantee that the terminate is complete
+		killer.close()
+
+		self.failUnlessRaises(
+			pg_exc.AdminShutdownError,
+			sqlexec, "SELECT 1"
+		)
+		self.failUnless(issubclass(pg_exc.AdminShutdownError, pg_exc.Disconnection))
+
 if __name__ == '__main__':
 	unittest.main()

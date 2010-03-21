@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .exceptions - Exception hierarchy for PostgreSQL database ERRORs.
 ##
 """
 PostgreSQL exceptions and warnings with associated state codes.

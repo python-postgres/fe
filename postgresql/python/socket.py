@@ -1,11 +1,8 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .python.socket - additional tools for working with sockets
 ##
-"""
-socket tools
-"""
 import sys
+import os
 import random
 import socket
 import math
@@ -23,38 +20,25 @@ class SocketFactory(object):
 	Additionally, it provides methods and attributes for abstracting
 	exception management on socket operation.
 	"""
-	fatal_exception_messages = {
-		errno.ECONNRESET : 'server explicitly closed the connection',
-		errno.EPIPE : 'broken connection detected on send',
-		errno.ECONNREFUSED : 'server refused connection',
-		errno.EHOSTUNREACH : 'server is not reachable',
-		errno.EBADF : 'bad file descriptor',
-	}
-	if sys.platform in ('win32', 'win64'):
-		fatal_exception_messages.update({
-			errno.WSAECONNABORTED : 'server aborted the connection',
-		})
 
 	timeout_exception = socket.timeout
 	fatal_exception = socket.error
 	try_again_exception = socket.error
 
 	def timed_out(self, err) -> bool:
-		return type(err) is self.timeout_exception
+		return err.__class__ is self.timeout_exception
 
-	def try_again(self, err) -> bool:
+	@staticmethod
+	def try_again(err, codes = (errno.EAGAIN, errno.EINTR, errno.EWOULDBLOCK, errno.ETIMEDOUT)) -> bool:
 		"""
-		Does the error indicate that the operation should be
-		tried again?
-		"""
-		return getattr(err, 'errno', 0) == errno.EINTR
+		Does the error indicate that the operation should be tried again?
 
-	def connection_refused(self, err) -> bool:
+		More importantly, the connection is *not* dead.
 		"""
-		Does the error indicate that the connection was explicitly
-		refused by the server?
-		"""
-		return getattr(err, 'errno', 0) == errno.ECONNREFUSED
+		errno = getattr(err, 'errno', None)
+		if errno is None:
+			return False
+		return errno in codes
 
 	@classmethod
 	def fatal_exception_message(typ, err) -> (str, None):
@@ -62,7 +46,12 @@ class SocketFactory(object):
 		If the exception was fatal to the connection,
 		what message should be given to the user?
 		"""
-		return typ.fatal_exception_messages.get(err.errno)
+		if typ.try_again(err):
+			return None
+		strerr = getattr(err, 'strerror', None)
+		if strerr is not None:
+			return str(strerr)
+		return os.strerror(err.errno)
 
 	def secure(self, socket : socket.socket) -> ssl.SSLSocket:
 		"secure a socket with SSL"
