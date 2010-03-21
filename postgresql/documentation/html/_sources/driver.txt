@@ -380,7 +380,7 @@ The methods and properties on the connection object are ready for use:
   Return an iterator producing the channel names that are currently being
   listened to.
 
- ``db.wait(timeout = None)``
+ ``db.iternotifies(timeout = None)``
   Return an iterator to the NOTIFYs received on the connection. The iterator
   will yield notification triples consisting of ``(channel, payload, pid)``.
   While iterating, the connection should *not* be used in other threads.

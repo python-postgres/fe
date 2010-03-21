@@ -71,8 +71,8 @@ could_not_connect = element.ClientError((
 	(b'M', "could not establish connection to server"),
 ))
 
+# generate an id for a client statement or cursor
 def ID(s, title = None, IDNS = 'py:'):
-	'generate an id for a client statement or cursor'
 	return IDNS + hex(id(s))
 
 def declare_statement_string(
@@ -2609,7 +2609,7 @@ class Connection(pg_api.Connection):
 			qstr += '; UNLISTEN ' + x.replace('"', '""')
 		return self.execute(qstr)
 
-	def wait(self, timeout = None):
+	def iternotifies(self, timeout = None):
 		nm = NotificationManager(self, timeout = timeout)
 		for x in nm:
 			if x is None:

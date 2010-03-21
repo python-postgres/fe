@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .driver package
 ##
 """
 Driver package for providing an interface to a PostgreSQL database.

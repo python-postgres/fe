@@ -70,14 +70,14 @@ connections. In cases where only one connection needs to be serviced, the
 <cite>postgresql.api.Database.wait</cite> method can be used to simplify the process.</p>
 <div class="section" id="listening-on-a-single-connection">
 <h2>Listening on a Single Connection<a class="headerlink" href="#listening-on-a-single-connection" title="Permalink to this headline">¶</a></h2>
-<p>The <tt class="docutils literal"><span class="pre">db.wait()</span></tt> method is a simplification of the notification manager. It
+<p>The <tt class="docutils literal"><span class="pre">db.iternotifies()</span></tt> method is a simplification of the notification manager. It
 returns an iterator to the notifications received on the subject connection.
 The iterator yields triples consisting of the <tt class="docutils literal"><span class="pre">channel</span></tt> being
 notified, the <tt class="docutils literal"><span class="pre">payload</span></tt> sent with the notification, and the <tt class="docutils literal"><span class="pre">pid</span></tt> of the
 backend that caused the notification:</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">db</span><span class="o">.</span><span class="n">listen</span><span class="p">(</span><span class="s">&#39;for_rabbits&#39;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">db</span><span class="o">.</span><span class="n">notify</span><span class="p">(</span><span class="s">&#39;for_rabbits&#39;</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">db</span><span class="o">.</span><span class="n">wait</span><span class="p">():</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">db</span><span class="o">.</span><span class="n">iternotifies</span><span class="p">():</span>
 <span class="gp">... </span> <span class="n">channel</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">pid</span> <span class="o">=</span> <span class="n">x</span>
 <span class="gp">... </span> <span class="k">break</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="k">assert</span> <span class="n">channel</span> <span class="o">==</span> <span class="s">&#39;for_rabbits&#39;</span>
@@ -91,9 +91,9 @@ backend that caused the notification:</p>
 <p>The iterator, by default, will continue listening forever unless the connection
 is terminated&#8211;thus the immediate <tt class="docutils literal"><span class="pre">break</span></tt> statement in the above loop. In
 cases where some additional activity is necessary, a timeout parameter may be
-given to the <tt class="docutils literal"><span class="pre">wait</span></tt> method in order to allow &#8220;idle&#8221; events to occur at the
-designated frequency:</p>
-<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">db</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="mf">0.5</span><span class="p">):</span>
+given to the <tt class="docutils literal"><span class="pre">iternotifies</span></tt> method in order to allow &#8220;idle&#8221; events to occur
+at the designated frequency:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">db</span><span class="o">.</span><span class="n">iternotifies</span><span class="p">(</span><span class="mf">0.5</span><span class="p">):</span>
 <span class="gp">... </span> <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
 <span class="gp">... </span>  <span class="k">break</span>
 </pre></div>
@@ -193,7 +193,7 @@ occur when the timeout is configured to zero.</p>
 this is the appropriate way to collect pending notifications on active
 connections where using the connection exclusively for waiting is not
 practical:</p>
-<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">notifies</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">notifies</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">db</span><span class="o">.</span><span class="n">iternotifies</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
 </pre></div>
 </div>
 <p>Or with a NotificationManager instance:</p>
@@ -210,7 +210,7 @@ losing any events.</p>
 <ul class="simple">
 <li>The iterator will continue until the connections die.</li>
 <li>Objects yielded by the iterator are either <cite>None</cite>, an &#8220;idle event&#8221;, or an
-individual notification triple if using <tt class="docutils literal"><span class="pre">db.wait()</span></tt>, or a
+individual notification triple if using <tt class="docutils literal"><span class="pre">db.iternotifies()</span></tt>, or a
 <tt class="docutils literal"><span class="pre">(db,</span> <span class="pre">notifies)</span></tt> pair if using the base <cite>NotificationManager</cite>.</li>
 <li>When a connection dies or raises an exception, it will be removed from
 the <tt class="docutils literal"><span class="pre">nm.connections</span></tt> set and added to the <tt class="docutils literal"><span class="pre">nm.garbage</span></tt> set.</li>
@@ -290,7 +290,7 @@ any time.</li>
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 19, 2010.
+      Last updated on Mar 20, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>

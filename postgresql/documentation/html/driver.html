@@ -379,7 +379,7 @@ Sends a batch of <tt class="docutils literal"><span class="pre">UNLISTEN</span><
 <dt><tt class="docutils literal"><span class="pre">db.listening_channels()</span></tt></dt>
 <dd>Return an iterator producing the channel names that are currently being
 listened to.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.wait(timeout</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">db.iternotifies(timeout</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
 <dd>Return an iterator to the NOTIFYs received on the connection. The iterator
 will yield notification triples consisting of <tt class="docutils literal"><span class="pre">(channel,</span> <span class="pre">payload,</span> <span class="pre">pid)</span></tt>.
 While iterating, the connection should <em>not</em> be used in other threads.
@@ -1817,7 +1817,7 @@ parse error.</dd>
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 19, 2010.
+      Last updated on Mar 20, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>

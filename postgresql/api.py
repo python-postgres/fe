@@ -989,7 +989,7 @@ class Database(Element):
 		"""
 
 	@abstractmethod
-	def wait(self, timeout = None) -> collections.Iterator:
+	def iternotifies(self, timeout = None) -> collections.Iterator:
 		"""
 		Return an iterator to the notifications received by the connection. The
 		iterator *must* produce triples in the form ``(channel, payload, pid)``.

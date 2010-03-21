@@ -32,7 +32,7 @@ connections. In cases where only one connection needs to be serviced, the
 Listening on a Single Connection
 ================================
 
-The ``db.wait()`` method is a simplification of the notification manager. It
+The ``db.iternotifies()`` method is a simplification of the notification manager. It
 returns an iterator to the notifications received on the subject connection.
 The iterator yields triples consisting of the ``channel`` being
 notified, the ``payload`` sent with the notification, and the ``pid`` of the
@@ -40,7 +40,7 @@ backend that caused the notification::
 
 	>>> db.listen('for_rabbits')
 	>>> db.notify('for_rabbits')
-	>>> for x in db.wait():
+	>>> for x in db.iternotifies():
 	...  channel, payload, pid = x
 	...  break
 	>>> assert channel == 'for_rabbits'
@@ -53,10 +53,10 @@ backend that caused the notification::
 The iterator, by default, will continue listening forever unless the connection
 is terminated--thus the immediate ``break`` statement in the above loop. In
 cases where some additional activity is necessary, a timeout parameter may be
-given to the ``wait`` method in order to allow "idle" events to occur at the
-designated frequency::
+given to the ``iternotifies`` method in order to allow "idle" events to occur
+at the designated frequency::
 
-	>>> for x in db.wait(0.5):
+	>>> for x in db.iternotifies(0.5):
 	...  if x is None:
 	...   break
 
@@ -163,7 +163,7 @@ this is the appropriate way to collect pending notifications on active
 connections where using the connection exclusively for waiting is not
 practical::
 
-	>>> notifies = list(db.wait(0))
+	>>> notifies = list(db.iternotifies(0))
 
 Or with a NotificationManager instance::
 
@@ -179,7 +179,7 @@ Summary of Characteristics
 
  * The iterator will continue until the connections die.
  * Objects yielded by the iterator are either `None`, an "idle event", or an
-   individual notification triple if using ``db.wait()``, or a
+   individual notification triple if using ``db.iternotifies()``, or a
    ``(db, notifies)`` pair if using the base `NotificationManager`.
  * When a connection dies or raises an exception, it will be removed from
    the ``nm.connections`` set and added to the ``nm.garbage`` set.

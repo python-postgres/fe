@@ -253,7 +253,7 @@ class test_copyman(unittest.TestCase):
 		seen_in_loop = 0
 		with copyman.CopyManager(sp, sr) as copy:
 			for x in copy:
-				r = list(db.wait(0))
+				r = list(db.iternotifies(0))
 				if r:
 					break
 			else:

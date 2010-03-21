@@ -68,14 +68,14 @@ class test_notifyman(unittest.TestCase):
 		self.failUnlessEqual(list(nm), [('foo','',db.backend_id)]) # bit of a race
 
 	@pg_tmp
-	def testWait(self):
-		# db.wait() simplification of NotificationManager
+	def test_iternotifies(self):
+		# db.iternotifies() simplification of NotificationManager
 		alt = new()
 		alt.listen('foo')
 		alt.listen('close')
 		def get_notices(db, l):
 			with db:
-				for x in db.wait():
+				for x in db.iternotifies():
 					if x[0] == 'close':
 						break
 					l.append(x)
@@ -97,10 +97,10 @@ class test_notifyman(unittest.TestCase):
 		# there are no notifications to emit.
 		# It checks the wire, but does *not* wait for data.
 		db.listen('foo')
-		self.failUnlessEqual(list(db.wait(0)), [])
+		self.failUnlessEqual(list(db.iternotifies(0)), [])
 		db.notify('foo')
 		time.sleep(0.01)
-		self.failUnlessEqual(list(db.wait(0)), [('foo','', db.backend_id)]) # bit of a race
+		self.failUnlessEqual(list(db.iternotifies(0)), [('foo','', db.backend_id)]) # bit of a race
 
 	@pg_tmp
 	def testNotificationManagerOnClosed(self):
@@ -109,14 +109,14 @@ class test_notifyman(unittest.TestCase):
 		db = new()
 		db.listen('foo')
 		db.notify('foo')
-		for n in db.wait():
+		for n in db.iternotifies():
 			db.close()
 		self.failUnlessEqual(db.closed, True)
 		del db
 		# closer, after an idle
 		db = new()
 		db.listen('foo')
-		for n in db.wait(0.2):
+		for n in db.iternotifies(0.2):
 			if n is None:
 				# In the loop, notify, and expect to
 				# get the notification even though the

@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .documentation.gotchas
 ##
 __doc__ = open(__file__[:__file__.rfind('.')] + '.txt').read()
 __docformat__ = 'reStructuredText'
