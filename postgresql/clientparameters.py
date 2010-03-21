@@ -39,6 +39,13 @@ from functools import partial
 
 from . import iri as pg_iri
 from . import pgpassfile as pg_pass
+from . exceptions import Error
+
+class ClientParameterError(Error):
+	code = '-*000'
+	source = '.clientparameters'
+class ServiceDoesNotExistError(ClientParameterError):
+	code = '-*srv'
 
 try:
 	from getpass import getuser, getpass
@@ -51,8 +58,10 @@ default_host = 'localhost'
 default_port = 5432
 
 pg_service_envvar = 'PGSERVICE'
+pg_service_file_envvar = 'PGSERVICEFILE'
 pg_sysconfdir_envvar = 'PGSYSCONFDIR'
 pg_service_filename = 'pg_service.conf'
+pg_service_user_filename = '.pg_service.conf'
 
 # posix
 pg_home_passfile = '.pgpass'
@@ -194,8 +203,14 @@ def envvars(environ = os.environ, modifier : "environment variable key modifier"
 	settings = [
 		(('settings', v,), environ[k]) for k, v in envvar_settings_map if k in environ
 	]
+
+	# PGSYSCONFDIR based
 	if pg_sysconfdir_envvar in environ:
 		yield ('config-pg_sysconfdir', environ[pg_sysconfdir_envvar])
+	# PGSERVICEFILE based
+	if pg_service_file_envvar in environ:
+		yield ('config-pg_service_file', environ[pg_service_file_envvar])
+
 	service = modifier('SERVICE')
 	if service in environ:
 		yield ('pg_service', environ[service])
@@ -421,46 +436,72 @@ def denormalize_parameters(p):
 def x_pq_iri(iri, config):
 	return denormalize_parameters(pg_iri.parse(iri))
 
+# Lookup service data using the `service_name`
+# Be sure to map 'dbname' to 'database'.
 def x_pg_service(service_name, config):
-	"""
-	Lookup service data using the `service_name`.
+	service_files = []
 
-	Be sure to map 'dbname' to 'database'.
-	"""
-	service_file = config.get('pg_service_file')
-	if service_file is None:
-		sysconfdir = config.get('pg_sysconfdir')
-		if sysconfdir:
-			service_filename = config.get('pg_service_filename', pg_service_filename)
-			service_file = os.path.join(sysconfdir, service_filename)
-	if not service_file or not os.path.exists(service_file):
-		return
+	f = config.get('pg_service_file')
+	if f is not None:
+		# service file override
+		service_files.append(f)
+	else:
+		# override is not specified, use the user service file
+		home = os.path.expanduser('~' + getuser())
+		service_files.append(os.path.join(home, pg_service_user_filename))
 
-	cp = configparser.RawConfigParser()
-	cp.read(service_file)
-	try:
-		s = cp.items(service_name)
-	except configparser.NoSectionError:
-		# section, indicate with None.
-		return
+	# global service file is checked next.
+	sysconfdir = config.get('pg_sysconfdir')
+	if sysconfdir:
+		sf = config.get('pg_service_filename', pg_service_filename)
+		f = os.path.join(sysconfdir, sf)
+		# existence will be checked later.
+		service_files.append(f)
 
-	for (k, v) in s:
-		k = k.lower()
-		if k == 'ldap':
-			yield ('pg_ldap', ':'.join((k, v)))
-		elif k == 'pg_service':
-			# ignore
-			pass
-		elif k == 'hostaddr':
-			# XXX: should yield ipv as well?
-			yield (('host',), v)
-		elif k == 'dbname':
-			yield (('database',), v)
-		elif k not in pg_service_driver_parameters:
-			# it's a GUC.
-			yield (('settings', k), v)
+	for sf in service_files:
+		if not os.path.exists(sf):
+			continue
+
+		cp = configparser.RawConfigParser()
+		cp.read(sf)
+		try:
+			s = cp.items(service_name)
+		except configparser.NoSectionError:
+			continue
+
+		for (k, v) in s:
+			k = k.lower()
+			if k == 'ldap':
+				yield ('pg_ldap', ':'.join((k, v)))
+			elif k == 'pg_service':
+				# ignore
+				pass
+			elif k == 'hostaddr':
+				# XXX: should yield ipv as well?
+				yield (('host',), v)
+			elif k == 'dbname':
+				yield (('database',), v)
+			elif k not in pg_service_driver_parameters:
+				# it's a GUC.
+				yield (('settings', k), v)
+			else:
+				yield ((k,), v)
 		else:
-			yield ((k,), v)
+			break
+	else:
+		# iterator exhausted; service not found
+		if sum([os.path.exists(x) for x in service_files]):
+			details = {
+				'context': ', '.join(service_files),
+			}
+		else:
+			details = {
+				'hint': "No service files could be found."
+			}
+		raise ServiceDoesNotExistError(
+			'cannot find service named "{0}"'.format(service_name),
+			details = details
+		)
 
 def x_pg_ldap(ldap_url, config):
 	raise NotImplementedError("cannot resolve ldap URLs: " + str(ldap_url))
