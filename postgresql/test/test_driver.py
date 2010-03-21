@@ -1717,5 +1717,11 @@ class test_driver(unittest.TestCase):
 		)
 		self.failUnless(issubclass(pg_exc.AdminShutdownError, pg_exc.Disconnection))
 
+class test_typio(unittest.TestCase):
+	@pg_tmp
+	def testIdentify(self):
+		# It just exercises the code path.
+		db.typio.identify(contrib_hstore = 'pg_catalog.reltime')
+
 if __name__ == '__main__':
 	unittest.main()
