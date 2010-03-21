@@ -8,6 +8,7 @@ Changes
  * **DEPRECATION**: Removed pg_python and pg_dotconf 'scripts'.
    They are still accessible by python3 -m postgresql.bin.pg_*
  * Add support for binary hstore.
+ * Add support for user service files.
  * Implement a Copy manager for direct connection-to-connection COPY operations.
  * Added db.do() method for DO-statement support(convenience method).
  * Set the default client_min_messages level to WARNING.
