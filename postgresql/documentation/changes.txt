@@ -7,6 +7,8 @@ Changes
  * **DEPRECATION**: Removed 2PC support documentation.
  * **DEPRECATION**: Removed pg_python and pg_dotconf 'scripts'.
    They are still accessible by python3 -m postgresql.bin.pg_*
+ * Add support for binary hstore.
+ * Implement a Copy manager for direct connection-to-connection COPY operations.
  * Added db.do() method for DO-statement support(convenience method).
  * Set the default client_min_messages level to WARNING.
    NOTICEs are often not desired by programmers, and py-postgresql's
@@ -40,4 +42,3 @@ Changes
  * Fix count return from .first() method. Failed to provide an empty
    tuple for the rformats of the bind statement.
    [Reported by dou dou]
- * Add support for binary hstore.
