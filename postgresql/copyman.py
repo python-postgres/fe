@@ -21,11 +21,14 @@ default_buffer_size = 1024 * 10
 
 class Fault(Exception):
 	"""
-	Exception occurred while the receiver was active.
+	Receivers raised exceptions. This happens in cases where a receiver raises
+	an exception. Faults should be trapped if recovery from an exception is
+	possible, or if the failed receiver is optional to the succes of the
+	operation.
 
 	The 'manager' attribute is the CopyManager that raised the fault.
 
-	The 'faults' attribute is a dictionary mapping the Fitting to the exception
+	The 'faults' attribute is a dictionary mapping the receiver to the exception
 	instance raised.
 	"""
 	def __init__(self, manager, faults):
