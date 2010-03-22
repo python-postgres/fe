@@ -515,9 +515,6 @@ class NullReceiver(Receiver):
 	def accept(self, data):
 		pass
 
-	def ready_for_more(self):
-		return True
-
 class ProtocolReceiver(Receiver):
 	protocol = PROTOCOL_PQv3
 	__slots__ = ('send', 'view')
@@ -539,9 +536,6 @@ class ProtocolReceiver(Receiver):
 
 	def __exit__(self, typ, val, tb):
 		pass
-
-	def ready_for_more(self):
-		return not bool(self.view)
 
 class StatementReceiver(ProtocolReceiver):
 	_e_factors = ('statement', 'parameters',)
@@ -633,9 +627,6 @@ class CallReceiver(Receiver):
 
 	def accept(self, lines):
 		self.lines = lines
-
-	def ready_for_more(self):
-		return self.lines == None
 
 class CopyManager(Element, Iterator):
 	"""
