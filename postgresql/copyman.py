@@ -52,7 +52,7 @@ class CopyFail(Exception):
 		self.faults = faults or {}
 
 	def __str__(self):
-		return self.reason or 'copy '
+		return self.reason or 'copy aborted'
 
 # The identifier for PQv3 copy data.
 PROTOCOL_PQv3 = "PQv3"
@@ -277,9 +277,9 @@ class Receiver(Fitting):
 	_e_label = 'RECEIVER'
 
 	@abstractmethod
-	def __call__(self):
+	def transmit(self):
 		"""
-		Finish the reception of data.
+		Finish the reception of the accepted data.
 		"""
 
 	@abstractmethod
@@ -508,7 +508,7 @@ class NullReceiver(Receiver):
 	protocol = PROTOCOL_NULL
 	state = 'null'
 
-	def __call__(self):
+	def transmit(self):
 		# Nothing to do.
 		pass
 
@@ -530,7 +530,7 @@ class ProtocolReceiver(Receiver):
 	def accept(self, data):
 		self.view = data
 
-	def __call__(self):
+	def transmit(self):
 		while self.view:
 			self.view = self.view[self.send(self.view):]
 
@@ -626,7 +626,7 @@ class CallReceiver(Receiver):
 		self.lines = None
 		super().__init__()
 
-	def __call__(self):
+	def transmit(self):
 		if self.lines is not None:
 			self.callable(self.lines)
 		self.lines = None
@@ -734,7 +734,7 @@ class CopyManager(Element, Iterator):
 		"""
 		if r.protocol not in self.protocols:
 			raise RuntimeError("cannot add new receivers to copy operations")
-		r()
+		r.transmit()
 		# Okay, add it back.
 		self.receivers.add(r)
 
@@ -761,7 +761,7 @@ class CopyManager(Element, Iterator):
 		for x in self.receivers:
 			# Process all the receivers.
 			try:
-				x()
+				x.transmit()
 			except Exception as e:
 				faults[x] = e
 		if faults:
