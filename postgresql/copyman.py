@@ -283,7 +283,7 @@ class Receiver(Fitting):
 		"""
 
 	@abstractmethod
-	def receive(self, data):
+	def accept(self, data):
 		"""
 		Take the data object to be processed.
 		"""
@@ -512,7 +512,7 @@ class NullReceiver(Receiver):
 		# Nothing to do.
 		pass
 
-	def receive(self, data):
+	def accept(self, data):
 		pass
 
 	def ready_for_more(self):
@@ -527,7 +527,7 @@ class ProtocolReceiver(Receiver):
 		self.send = send
 		self.view = memoryview(b'')
 
-	def receive(self, data):
+	def accept(self, data):
 		self.view = data
 
 	def __call__(self):
@@ -558,7 +558,7 @@ class StatementReceiver(ProtocolReceiver):
 
 	# XXX: A bit of a hack...
 	# This is actually a good indication that statements need a .copy()
-	# execution method for producing a "Copy" cursor that reads or writes.
+	# execution method for producing a "CopyCursor" that reads or writes.
 	class WireReady(BaseException):
 		pass
 	def raise_wire_ready(self):
@@ -631,7 +631,7 @@ class CallReceiver(Receiver):
 			self.callable(self.lines)
 		self.lines = None
 
-	def receive(self, lines):
+	def accept(self, lines):
 		self.lines = lines
 
 	def ready_for_more(self):
@@ -651,7 +651,9 @@ class CopyManager(Element, Iterator):
 
 	@property
 	def state(self):
-		return '<XXX: fail>'
+		if self.transformer is None:
+			return 'initialized'
+		return str(self.producer.total_messages) + ' messages transferred'
 
 	def __init__(self, producer, *receivers):
 		self.producer = producer
@@ -681,7 +683,7 @@ class CopyManager(Element, Iterator):
 		# Exiting the CopyManager is a fairly complex operation.
 		#
 		# In cases of failure, re-alignment may need to happen
-		# for when the receivers are not on message boundary.
+		# for when the receivers are not on a message boundary.
 		##
 		if typ is not None and not issubclass(typ, Exception):
 			# Don't recover on interrupts.
@@ -750,19 +752,10 @@ class CopyManager(Element, Iterator):
 			raise
 
 		self.transformer(nextdata)
+
 		# Distribute data to receivers.
-		# XXX: More of a local state update. Should probably die on failure.
-		faults = {}
 		for x in self.receivers:
-			try:
-				x.receive(self.transformer.get(x.protocol))
-			except Exception as e:
-				faults[x] = e
-		if faults:
-			# The CopyManager is eager.
-			for x in faults:
-				self.receivers.discard(x)
-			raise Fault(self, faults)
+			x.accept(self.transformer.get(x.protocol))
 
 	def _service_receivers(self):
 		faults = {}
@@ -773,6 +766,7 @@ class CopyManager(Element, Iterator):
 			except Exception as e:
 				faults[x] = e
 		if faults:
+			# The CopyManager is eager to continue the operation.
 			for x in faults:
 				self.receivers.discard(x)
 			raise Fault(self, faults)
