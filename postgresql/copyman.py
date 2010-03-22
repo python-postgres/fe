@@ -734,7 +734,6 @@ class CopyManager(Element, Iterator):
 		"""
 		if r.protocol not in self.protocols:
 			raise RuntimeError("cannot add new receivers to copy operations")
-		# XXX: Assumes that is did not fail during receive().
 		r()
 		# Okay, add it back.
 		self.receivers.add(r)
