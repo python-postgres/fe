@@ -81,9 +81,8 @@ an iterator for controlling the COPY operation.
   be used until ``__exit__`` is ran.
 
  ``CopyManager.__exit__(typ, val, tb)``
-  Finish, abort, or fail the COPY operation. Aborts in the case of an incomplete
-  COPY or an unidentified exception, and fails in the case of an untrapped
-  fault.
+  Finish the COPY operation. Fails in the case of an incomplete
+  COPY, or an untrapped exception.
 
  ``CopyManager.__iter__()``
   Returns the CopyManager instance.
@@ -106,7 +105,7 @@ The CopyManager generalizes some exceptions that occur during transfer. While
 inside the context manager, `postgresql.copyman.Fault` may be raised if a
 Receiver raises an exception. The Manager assumes the Fault is fatal to a
 Receiver, and immediately removes it from the set of target receivers.
-Additionally, if the Fault goes untrapped, the copy will be aborted.
+Additionally, if the Fault goes untrapped, the copy will fail.
 
 The Fault exception references the Manager that raised the exception, and the
 actual exceptions that occurred, associated with the Receiver that caused them::
@@ -210,14 +209,11 @@ processes of the `postgresql.copyman` module:
 
  Realignment
   The process of providing compensating data to the receivers so that the
-  connection will be on a message boundary. Occurs when the COPY operation is
-  aborted.
-
- Aborted Copy
-  An aborted copy is a COPY operation that terminated prematurely. This happens
-  if a CopyManager's for-loop is terminated early by breaking or by an
-  unidentified exception being raised.
+  connection will be on a message boundary. Occurs when the COPY operation
+  fails.
 
  Failed Copy
-  A failed copy is an aborted COPY operation that was
-  *terminated due to a fault*, or a producer failure.
+  A failed copy is an aborted COPY operation. This occurs in situations of
+  untrapped exceptions or an incomplete COPY. Specifically, the COPY will be
+  noted as failed in cases where the Manager's iterator is *not* ran until
+  exhaustion.
