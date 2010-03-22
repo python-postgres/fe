@@ -833,7 +833,9 @@ Cursors
 When a prepared statement is declared, ``ps.declare(...)``, a
 `postgresql.api.Cursor` is created and returned for random access to the rows in
 the result set. Direct use of cursors is primarily useful for applications that
-need to implement paging.
+need to implement paging. For situations that need to iterate over the result
+set, the ``ps.rows(...)`` or ``ps.chunks(...)`` execution methods should be
+used.
 
 Cursors can also be created directly from ``cursor_id``'s using the
 ``cursor_from_id`` method on connection objects::
@@ -843,6 +845,10 @@ Cursors can also be created directly from ``cursor_id``'s using the
 	>>> c.read()
 	[(1,)]
 	>>> c.close()
+
+.. hint::
+ If the cursor that needs to be opened is going to be treated as an iterator,
+ then a FETCH-statement should be prepared instead using ``cursor_from_id``.
 
 Like statements created from an identifier, cursors created from an identifier
 must be explicitly closed in order to destroy the object on the server.
