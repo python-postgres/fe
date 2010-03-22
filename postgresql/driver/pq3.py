@@ -1,5 +1,5 @@
 ##
-# .driver.pq3
+# .driver.pq3 - interface to PostgreSQL using PQ v3.0.
 ##
 """
 PG-API interface for PostgreSQL using PQ version 3.0.
@@ -1595,7 +1595,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 				return None
 			return cm.extract_count() or cm.extract_command()
 
-	def _load_copy_chunks(self, chunks):
+	def _load_copy_chunks(self, chunks, *parameters):
 		"""
 		Given an chunks of COPY lines, execute the COPY ... FROM STDIN
 		statement and send the copy lines produced by the iterable to
@@ -1621,10 +1621,11 @@ class PreparedStatement(pg_api.PreparedStatement):
 		while x.state is not xact.Complete:
 			step()
 			if hasattr(x, 'CopyFailSequence') and x.messages is x.CopyFailSequence:
+				# The protocol transaction has noticed that its a COPY.
 				break
 		else:
 			# Oh, it's not a COPY at all.
-			x.fatal = False
+			x.fatal = x.fatal or False
 			x.error_message = element.ClientError((
 				(b'S', 'ERROR'),
 				# OperationError
@@ -1636,6 +1637,10 @@ class PreparedStatement(pg_api.PreparedStatement):
 		for chunk in chunks:
 			x.messages = list(chunk)
 			while x.messages is not x.CopyFailSequence:
+				# Continue stepping until the transaction
+				# sets the CopyFailSequence again. That's
+				# the signal that the transaction has sent
+				# all the previously set messages.
 				step()
 		x.messages = x.CopyDoneSequence
 		self.database._pq_complete()
@@ -1684,7 +1689,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 			self.database.pq.synchronize()
 			raise
 
-	def load_chunks(self, chunks):
+	def load_chunks(self, chunks, *parameters):
 		"""
 		Execute the query for each row-parameter set in `iterable`.
 
@@ -1693,7 +1698,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 		"""
 		if self.closed is None:
 			self._fini()
-		if not self._input:
+		if not self._input or parameters:
 			return self._load_copy_chunks(chunks)
 		else:
 			return self._load_tuple_chunks(chunks)
