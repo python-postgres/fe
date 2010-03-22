@@ -15,7 +15,7 @@ with iterators, but the cost of allocating objects for each row is too
 significant for transferring gigabytes of COPY data from one connection to
 another. The interfaces available on statement objects are primarily intended to
 be used when transferring COPY data to and from arbitrary Python
-interfaces.
+objects.
 
 Direct connection-to-connection COPY operations can be performed using the
 high-level `postgresql.copyman.transfer` function::
