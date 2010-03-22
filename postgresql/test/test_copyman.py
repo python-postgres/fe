@@ -399,9 +399,9 @@ class test_copyman(unittest.TestCase):
 					except copyman.Fault as cf:
 						self.failUnless(sr1 in cf.faults)
 						# Don't reconcile.
-		except copyman.NoReceivers:
+		except copyman.CopyFail:
+			self.failUnless(not bool(copy.receivers))
 			# Success.
-			pass
 		else:
 			self.fail("did not raise expected error")
 		# Let the exception cause a failure.

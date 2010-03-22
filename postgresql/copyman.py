@@ -16,8 +16,8 @@ from .protocol.buffer import pq_message_stream
 from .protocol.element3 import CopyData, CopyDone, Complete, cat_messages
 from .protocol.xact3 import Complete as xactComplete
 
-#: 100KB buffer for COPY messages by default.
-default_buffer_size = 1024 * 100
+#: 10KB buffer for COPY messages by default.
+default_buffer_size = 1024 * 10
 
 class Fault(Exception):
 	"""
@@ -33,28 +33,26 @@ class Fault(Exception):
 		self.faults = faults
 
 	def __str__(self):
-		return "{0} faults occurred".format(len(self.receivers))
+		return "{0} faults occurred".format(len(self.faults))
 
 class CopyFail(Exception):
 	"""
-	Exception thrown by the CopyManager when the COPY failed.
+	Exception thrown by the CopyManager when the COPY operation failed.
+
+	The 'manager' attribute the CopyManager that raised the CopyFail.
+
+	The 'reason' attribute is a string indicating why it failed.
+
+	The 'faults' attribute is a mapping of receivers to exceptions that were
+	raised on exit.
 	"""
-	def __init__(self, manager, reason, faults = None):
+	def __init__(self, manager, reason = None, faults = None):
 		self.manager = manager
 		self.reason = reason
 		self.faults = faults or {}
 
 	def __str__(self):
-		return self.reason
-
-class NoReceivers(CopyFail):
-	"""
-	Exception thrown by the CopyManager when the COPY failed due to all the
-	receivers faulting out.
-	"""
-	reason = 'no receivers remained after fault'
-	def __init__(self, manager):
-		self.manager = manager
+		return self.reason or 'copy '
 
 # The identifier for PQv3 copy data.
 PROTOCOL_PQv3 = "PQv3"
@@ -708,9 +706,9 @@ class CopyManager(Element, Iterator):
 
 		# No receivers? It wasn't a success.
 		if not self.receivers:
-			if typ is NoReceivers:
+			if typ is CopyFail:
 				raise
-			raise NoReceivers(self)
+			raise CopyFail(self, "no receivers")
 
 		exit_faults = {}
 		for x in self.receivers:
@@ -743,7 +741,7 @@ class CopyManager(Element, Iterator):
 		# Setup current data.
 		if not self.receivers:
 			# No receivers to take the data.
-			raise NoReceivers(self)
+			raise CopyFail(self, "no receivers")
 
 		try:
 			nextdata = next(self.producer)
