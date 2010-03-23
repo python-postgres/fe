@@ -20,9 +20,25 @@ from .protocol.xact3 import Complete as xactComplete
 default_buffer_size = 1024 * 10
 
 class Fault(Exception):
+	pass
+
+class ProducerFault(Fault):
 	"""
-	Receivers raised exceptions. This happens in cases where a receiver raises
-	an exception. Faults should be trapped if recovery from an exception is
+	Exception raised when the Producer caused an exception.
+
+	Normally, Producer faults are fatal.
+	"""
+	def __init__(self, manager):
+		self.manager = manager
+
+	def __str__(self):
+		return "producer raised exception"
+
+class ReceiverFaults(Fault):
+	"""
+	Exception raised when Receivers cause an exception.
+
+	Faults should be trapped if recovery from an exception is
 	possible, or if the failed receiver is optional to the succes of the
 	operation.
 
@@ -46,13 +62,20 @@ class CopyFail(Exception):
 
 	The 'reason' attribute is a string indicating why it failed.
 
-	The 'faults' attribute is a mapping of receivers to exceptions that were
+	The 'receiver_faults' attribute is a mapping of receivers to exceptions that were
 	raised on exit.
+
+	The 'producer_fault' attribute specifies if the producer raise an exception
+	on exit.
 	"""
-	def __init__(self, manager, reason = None, faults = None):
+	def __init__(self, manager, reason = None,
+		receiver_faults = None,
+		producer_fault = None,
+	):
 		self.manager = manager
 		self.reason = reason
-		self.faults = faults or {}
+		self.receiver_faults = receiver_faults or {}
+		self.producer_fault = producer_fault
 
 	def __str__(self):
 		return self.reason or 'copy aborted'
@@ -683,27 +706,29 @@ class CopyManager(Element, Iterator):
 			# Don't recover on interrupts.
 			return
 
-		# Does nothing if the COPY was successful.
-		self.producer.realign()
+		profail = None
 		try:
-			##
-			# If the producer is not aligned to a message boundary,
-			# it can emit completion data that will put the receivers
-			# back on track.
-			# This last service call will move that data onto the receivers.
-			self._service_producer()
-			##
-			# The receivers need to handle any new data in their __exit__.
-		except StopIteration:
-			# No re-alignment needed.
-			pass
+			# Does nothing if the COPY was successful.
+			self.producer.realign()
+			try:
+				##
+				# If the producer is not aligned to a message boundary,
+				# it can emit completion data that will put the receivers
+				# back on track.
+				# This last service call will move that data onto the receivers.
+				self._service_producer()
+				##
+				# The receivers need to handle any new data in their __exit__.
+			except StopIteration:
+				# No re-alignment needed.
+				pass
 
-		self.producer.__exit__(typ, val, tb)
+			self.producer.__exit__(typ, val, tb)
+		except Exception as profail:
+			pass
 
 		# No receivers? It wasn't a success.
 		if not self.receivers:
-			if typ is CopyFail:
-				raise
 			raise CopyFail(self, "no receivers")
 
 		exit_faults = {}
@@ -736,13 +761,15 @@ class CopyManager(Element, Iterator):
 		# Setup current data.
 		if not self.receivers:
 			# No receivers to take the data.
-			raise CopyFail(self, "no receivers")
+			raise StopIteration
 
 		try:
 			nextdata = next(self.producer)
 		except StopIteration:
 			# Should be over.
 			raise
+		except Exception:
+			raise ProducerFault(self)
 
 		self.transformer(nextdata)
 
@@ -762,7 +789,7 @@ class CopyManager(Element, Iterator):
 			# The CopyManager is eager to continue the operation.
 			for x in faults:
 				self.receivers.discard(x)
-			raise Fault(self, faults)
+			raise ReceiverFaults(self, faults)
 
 	# Run the COPY to completion.
 	def run(self):

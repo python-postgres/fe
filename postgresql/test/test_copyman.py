@@ -328,7 +328,7 @@ class test_copyman(unittest.TestCase):
 					else:
 						# Done with copy.
 						break
-				except copyman.Fault as cf:
+				except copyman.ReceiverFaults as cf:
 					if sr2 not in cf.faults:
 						raise
 		self.failUnless(done)
@@ -388,7 +388,7 @@ class test_copyman(unittest.TestCase):
 		done = False
 		try:
 			with copyman.CopyManager(sp, sr1) as copy:
-				while True:
+				while not done:
 					try:
 						for x in copy:
 							if not done:
@@ -396,9 +396,9 @@ class test_copyman(unittest.TestCase):
 								dst.pq.socket.close()
 							else:
 								self.fail("failed to detect dead socket")
-					except copyman.Fault as cf:
+					except copyman.ReceiverFaults as cf:
 						self.failUnless(sr1 in cf.faults)
-						# Don't reconcile.
+						# Don't reconcile. Let the manager drop the receiver.
 		except copyman.CopyFail:
 			self.failUnless(not bool(copy.receivers))
 			# Success.
@@ -436,7 +436,7 @@ class test_copyman(unittest.TestCase):
 					else:
 						# Done with COPY, break out of while copy.receivers.
 						break
-				except copyman.Fault as cf:
+				except copyman.ReceiverFaults as cf:
 					if isinstance(cf.faults[sr], RecoverableError):
 						if done is True:
 							self.fail("failed_write was called twice?")
@@ -485,7 +485,7 @@ class test_copyman(unittest.TestCase):
 					else:
 						# Done with COPY, break out of while copy.receivers.
 						break
-				except copyman.Fault as cf:
+				except copyman.ReceiverFaults as cf:
 					self.failUnless(isinstance(cf.faults[sr2], TheCause))
 					if done is True:
 						self.fail("failed_write was called twice?")
@@ -509,7 +509,32 @@ class test_copyman(unittest.TestCase):
 		self.failUnlessEqual(sp.count(), stdrowcount)
 		self.failUnlessEqual(sp.command(), "COPY")
 
+	@pg_tmp
+	def testProducerFailure(self):
+		sqlexec(stdsource)
+		dst = new()
+		dst.execute(stddst)
+		sp = copyman.StatementProducer(prepare(srcsql))
+		sr = copyman.StatementReceiver(dst.prepare(dstsql))
+		done = False
+		try:
+			with copyman.CopyManager(sp, sr) as copy:
+				try:
+					for x in copy:
+						if not done:
+							done = True
+							db.pq.socket.close()
+				except copyman.ProducerFault as pf:
+					self.failUnless(pf.__context__ is not None)
+			self.fail('expected CopyManager to raise CopyFail')
+		except copyman.CopyFail as cf:
+			pass
+		self.failUnless(done)
+		self.failUnlessRaises(Exception, sqlexec, 'select 1')
+		self.failUnlessEqual(dst.prepare(dstcount).first(), 0)
+
 from ..copyman import WireState
+
 class test_WireState(unittest.TestCase):
 	def testNormal(self):
 		WS=WireState()
