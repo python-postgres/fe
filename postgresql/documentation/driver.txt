@@ -867,7 +867,7 @@ Cursor Interface Points
 For cursors that return row data, these interfaces are provided for accessing
 those results:
 
- ``c.read(quantity = None, direction = None)``
+ ``Cursor.read(quantity = None, direction = None)``
   This method name is borrowed from `file` objects, and are semantically
   similar. However, this being a cursor, rows are returned instead of bytes or
   characters. When the number of rows returned is less then the quantity
@@ -878,26 +878,26 @@ those results:
   Like, ``seek()``, the ``direction`` *property* on the cursor object effects
   this method.
 
- ``c.seek(position[, whence = 0])``
+ ``Cursor.seek(position[, whence = 0])``
   When the cursor is scrollable, this seek interface can be used to move the
   position of the cursor. See `Scrollable Cursors`_ for more information.
 
- ``next(c)``
+ ``next(Cursor)``
   This fetches the next row in the cursor object. Cursors support the iterator
   protocol. While equivalent to ``cursor.read(1)[0]``, `StopIteration` is raised
   if the returned sequence is empty. (``__next__()``)
 
- ``c.close()``
+ ``Cursor.close()``
   For cursors opened using ``cursor_from_id()``, this method must be called in
   order to ``CLOSE`` the cursor. For cursors created by invoking a prepared
   statement, this is not necessary as the garbage collection interface will take
   the appropriate steps.
 
- ``c.clone()``
+ ``Cursor.clone()``
   Create a new cursor object based on the same factors that were used to
   create ``c``.
 
- ``c.msghook(msg)``
+ ``Cursor.msghook(msg)``
   By default, the `msghook` attribute does not exist. If set to a callable, any
   message that occurs during an operation of the cursor will be given to the
   callable. See the `Database Messages`_ section for more information.
@@ -906,14 +906,10 @@ those results:
 Cursors have some additional configuration properties that may be modified
 during the use of the cursor:
 
- ``c.direction``
+ ``Cursor.direction``
   A value of `True`, the default, will cause read to fetch forwards, whereas a
   value of `False` will cause it to fetch backwards. ``'BACKWARD'`` and
   ``'FORWARD'`` can be used instead of `False` and `True`.
-
-
-Cursor Metadata
----------------
 
 Cursors normally share metadata with the statements that create them, so it is
 usually unnecessary for referencing the cursor's column descriptions directly.
@@ -921,22 +917,22 @@ However, when a cursor is opened from an identifier, the cursor interface must
 collect the metadata itself. These attributes provide the metadata in absence of
 a statement object:
 
- ``sql_column_types``
+ ``Cursor.sql_column_types``
   A sequence of SQL type names specifying the types of the columns produced by
   the cursor. `None` if the cursor does not return row-data.
 
- ``pg_column_types``
+ ``Cursor.pg_column_types``
   A sequence of PostgreSQL type Oid's specifying the types of the columns produced by
   the cursor. `None` if the cursor does not return row-data.
 
- ``column_types``
+ ``Cursor.column_types``
   A sequence of Python types that the cursor will produce.
 
- ``column_names``
+ ``Cursor.column_names``
   A sequence of `str` objects specifying the names of the columns produced by
   the cursor. `None` if the cursor does not return row-data.
 
- ``statement``
+ ``Cursor.statement``
   The statement that was executed that created the cursor. `None` if
   unknown--``db.cursor_from_id()``.
 
