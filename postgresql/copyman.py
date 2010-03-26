@@ -34,7 +34,7 @@ class ProducerFault(Fault):
 	def __str__(self):
 		return "producer raised exception"
 
-class ReceiverFaults(Fault):
+class ReceiverFault(Fault):
 	"""
 	Exception raised when Receivers cause an exception.
 
@@ -725,11 +725,12 @@ class CopyManager(Element, Iterator):
 
 			self.producer.__exit__(typ, val, tb)
 		except Exception as profail:
+			# reference profail later.
 			pass
 
 		# No receivers? It wasn't a success.
 		if not self.receivers:
-			raise CopyFail(self, "no receivers")
+			raise CopyFail(self, "no receivers", producer_fault = profail)
 
 		exit_faults = {}
 		for x in self.receivers:
@@ -737,11 +738,13 @@ class CopyManager(Element, Iterator):
 				x.__exit__(typ, val, tb)
 			except Exception as e:
 				exit_faults[x] = e
-		if exit_faults:
-			raise CopyFail(self, "could not exit all receivers", exit_faults)
 
-		if typ:
-			raise CopyFail(self, "exception occurred during COPY operation")
+		if typ or exit_faults or profail:
+			raise CopyFail(self,
+				"could not complete the COPY operation",
+				receiver_faults = exit_faults,
+				producer_fault = profail
+			)
 
 	def reconcile(self, r):
 		"""
@@ -789,7 +792,7 @@ class CopyManager(Element, Iterator):
 			# The CopyManager is eager to continue the operation.
 			for x in faults:
 				self.receivers.discard(x)
-			raise ReceiverFaults(self, faults)
+			raise ReceiverFault(self, faults)
 
 	# Run the COPY to completion.
 	def run(self):
