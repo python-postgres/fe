@@ -614,15 +614,16 @@ class StatementReceiver(ProtocolReceiver):
 			# faults. However, exit should *not* be called in those cases.
 			##
 		elif typ is None:
-			# Success.
+			# Success?
 			self.xact.messages = self.xact.CopyDoneSequence
+			# If not, this will blow up.
 			self.statement.database._pq_complete()
 			# Find the complete message for command and count.
 			for x in self.xact.messages_received():
 				if getattr(x, 'type', None) == Complete.type:
 					self._complete_message = x
 		elif issubclass(typ, Exception):
-			# Likely raises.
+			# Likely raises. CopyManager should trap.
 			self.statement.database._pq_complete()
 
 		return super().__exit__(typ, val, tb)
@@ -702,7 +703,7 @@ class CopyManager(Element, Iterator):
 		# for when the receivers are not on a message boundary.
 		##
 		if typ is not None and not issubclass(typ, Exception):
-			# Don't recover on interrupts.
+			# Don't bother, it's an interrupt or sufficient resources.
 			return
 
 		profail = None
@@ -741,7 +742,7 @@ class CopyManager(Element, Iterator):
 		if typ or exit_faults or profail:
 			raise CopyFail(self,
 				"could not complete the COPY operation",
-				receiver_faults = exit_faults,
+				receiver_faults = exit_faults or None,
 				producer_fault = profail
 			)
 
