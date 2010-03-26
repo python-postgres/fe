@@ -379,6 +379,30 @@ Sends a batch of <tt class="docutils literal"><span class="pre">UNLISTEN</span><
 <dt><tt class="docutils literal"><span class="pre">Connection.listening_channels()</span></tt></dt>
 <dd>Return an iterator producing the channel names that are currently being
 listened to.</dd>
+<dt><tt class="docutils literal"><span class="pre">Connection.notify(*channels,</span> <span class="pre">**channel_and_payload)</span></tt></dt>
+<dd><p class="first">NOTIFY the channels with the given payload. Sends a batch of <tt class="docutils literal"><span class="pre">NOTIFY</span></tt>
+statements to the server.</p>
+<p>Equivalent to issuing &#8220;NOTIFY &lt;channel&gt;&#8221; or &#8220;NOTIFY &lt;channel&gt;, &lt;payload&gt;&#8221;
+for each item in <cite>channels</cite> and <cite>channel_and_payload</cite>. All NOTIFYs issued
+will occur in the same transaction, regardless of auto-commit.</p>
+<p>The items in <cite>channels</cite> can either be a string or a tuple. If a string,
+no payload is given, but if an item is a <cite>builtins.tuple</cite>, the second item
+in the pair will be given as the payload, and the first as the channel.
+<cite>channels</cite> offers a means to issue NOTIFYs in guaranteed order:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">db</span><span class="o">.</span><span class="n">notify</span><span class="p">(</span><span class="s">&#39;channel1&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s">&#39;different_channel&#39;</span><span class="p">,</span> <span class="s">&#39;payload&#39;</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>In the above, <tt class="docutils literal"><span class="pre">NOTIFY</span> <span class="pre">&quot;channel1&quot;;</span></tt> will be issued first, followed by
+<tt class="docutils literal"><span class="pre">NOTIFY</span> <span class="pre">&quot;different_channel&quot;,</span> <span class="pre">'payload';</span></tt>.</p>
+<p>The items in <cite>channel_and_payload</cite> are all payloaded NOTIFYs where the
+keys are the channels and the values are the payloads. Order is undefined:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">db</span><span class="o">.</span><span class="n">notify</span><span class="p">(</span><span class="n">channel_name</span> <span class="o">=</span> <span class="s">&#39;payload_data&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p class="last"><cite>channels</cite> and <cite>channels_and_payload</cite> can be used together. In such cases all
+NOTIFY statements generated from <cite>channels_and_payload</cite> will follow those in
+<cite>channels</cite>.</p>
+</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.iternotifies(timeout</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
 <dd>Return an iterator to the NOTIFYs received on the connection. The iterator
 will yield notification triples consisting of <tt class="docutils literal"><span class="pre">(channel,</span> <span class="pre">payload,</span> <span class="pre">pid)</span></tt>.

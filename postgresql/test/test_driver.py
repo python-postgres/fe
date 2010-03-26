@@ -1628,6 +1628,34 @@ class test_driver(unittest.TestCase):
 		self.failUnless('doesntexist' not in db.listening_channels())
 
 	@pg_tmp
+	def testPayloads(self):
+		if db.version_info[:2] >= (9,0):
+			db.listen('foo')
+			db.notify(foo = 'bar')
+			self.failUnlessEqual(('foo', 'bar', db.backend_id), list(db.iternotifies(0))[0])
+			db.notify(('foo', 'barred'))
+			self.failUnlessEqual(('foo', 'barred', db.backend_id), list(db.iternotifies(0))[0])
+			# mixed
+			db.notify(('foo', 'barred'), 'foo', ('foo', 'bleh'), foo = 'kw')
+			self.failUnlessEqual([
+					('foo', 'barred', db.backend_id),
+					('foo', '', db.backend_id),
+					('foo', 'bleh', db.backend_id),
+					# Keywords are appened.
+					('foo', 'kw', db.backend_id),
+				], list(db.iternotifies(0))
+			)
+			# multiple keywords
+			expect = [
+				('foo', 'meh', db.backend_id),
+				('bar', 'foo', db.backend_id),
+			]
+			rexpect = list(reversed(expect))
+			db.listen('bar')
+			db.notify(foo = 'meh', bar = 'foo')
+			self.failUnless(list(db.iternotifies(0)) in [expect, rexpect])
+
+	@pg_tmp
 	def testMessageHook(self):
 		create = db.prepare('CREATE TEMP TABLE msghook (i INT PRIMARY KEY)')
 		drop = db.prepare('DROP TABLE msghook')

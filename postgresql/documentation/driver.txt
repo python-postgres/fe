@@ -380,6 +380,33 @@ The methods and properties on the connection object are ready for use:
   Return an iterator producing the channel names that are currently being
   listened to.
 
+ ``Connection.notify(*channels, **channel_and_payload)``
+  NOTIFY the channels with the given payload. Sends a batch of ``NOTIFY``
+  statements to the server.
+
+  Equivalent to issuing "NOTIFY <channel>" or "NOTIFY <channel>, <payload>"
+  for each item in `channels` and `channel_and_payload`. All NOTIFYs issued
+  will occur in the same transaction, regardless of auto-commit.
+
+  The items in `channels` can either be a string or a tuple. If a string,
+  no payload is given, but if an item is a `builtins.tuple`, the second item
+  in the pair will be given as the payload, and the first as the channel.
+  `channels` offers a means to issue NOTIFYs in guaranteed order::
+
+   >>> db.notify('channel1', ('different_channel', 'payload'))
+
+  In the above, ``NOTIFY "channel1";`` will be issued first, followed by
+  ``NOTIFY "different_channel", 'payload';``.
+
+  The items in `channel_and_payload` are all payloaded NOTIFYs where the
+  keys are the channels and the values are the payloads. Order is undefined::
+
+   >>> db.notify(channel_name = 'payload_data')
+
+  `channels` and `channels_and_payload` can be used together. In such cases all
+  NOTIFY statements generated from `channels_and_payload` will follow those in
+  `channels`.
+
  ``Connection.iternotifies(timeout = None)``
   Return an iterator to the NOTIFYs received on the connection. The iterator
   will yield notification triples consisting of ``(channel, payload, pid)``.

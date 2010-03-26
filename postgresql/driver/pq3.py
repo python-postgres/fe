@@ -2576,19 +2576,27 @@ class Connection(pg_api.Connection):
 		c.connect()
 		return c
 
-	def notify(self, channel, payload = None,
-		notify_with_payload = "NOTIFY \"{0}\", '{1}'".format,
-		notify_without_payload = "NOTIFY \"{0}\"".format,
-	):
-		if payload is not None:
-			return self.execute(notify_with_payload(
-				channel.replace('"', '""'),
-				payload.replace("'", "''"),
+	def notify(self, *channels, **channel_and_payload):
+		notifies = ""
+		if channels:
+			notifies += ';'.join((
+				'NOTIFY "' + x.replace('"', '""') + '"' # str() case
+				if x.__class__ is not tuple else (
+					# tuple() case
+					'NOTIFY "' + x[0].replace('"', '""') + """",'""" + \
+					x[1].replace("'", "''") + "'"
+				)
+				for x in channels
 			))
-		else:
-			return self.execute(notify_without_payload(
-				channel.replace('"', '""'),
+			notifies += ';'
+		if channel_and_payload:
+			notifies += ';'.join((
+				'NOTIFY "' + channel.replace('"', '""') + """",'""" + \
+				payload.replace("'", "''") + "'"
+				for channel, payload in channel_and_payload.items()
 			))
+			notifies += ';'
+		return self.execute(notifies)
 
 	def listening_channels(self):
 		if self.version_info[:2] > (8,4):

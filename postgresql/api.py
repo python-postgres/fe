@@ -963,7 +963,16 @@ class Database(Element):
 		NOTIFY the channels with the given payload.
 
 		Equivalent to issuing "NOTIFY <channel>" or "NOTIFY <channel>, <payload>"
-		if a payload is given.
+		for each item in `channels` and `channel_and_payload`. All NOTIFYs issued
+		*must* occur in the same transaction.
+
+		The items in `channels` can either be a string or a tuple. If a string,
+		no payload is given, but if an item is a `builtins.tuple`, the second item
+		will be given as the payload. `channels` offers a means to issue NOTIFYs
+		in guaranteed order.
+
+		The items in `channel_and_payload` are all payloaded NOTIFYs where the
+		keys are the channels and the values are the payloads. Order is undefined.
 		"""
 
 	@abstractmethod
