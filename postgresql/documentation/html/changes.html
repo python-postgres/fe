@@ -54,6 +54,9 @@
 <li><strong>DEPRECATION</strong>: Removed 2PC support documentation.</li>
 <li><strong>DEPRECATION</strong>: Removed pg_python and pg_dotconf &#8216;scripts&#8217;.
 They are still accessible by python3 -m postgresql.bin.pg_*</li>
+<li>Add support for binary hstore.</li>
+<li>Add support for user service files.</li>
+<li>Implement a Copy manager for direct connection-to-connection COPY operations.</li>
 <li>Added db.do() method for DO-statement support(convenience method).</li>
 <li>Set the default client_min_messages level to WARNING.
 NOTICEs are often not desired by programmers, and py-postgresql&#8217;s
@@ -87,7 +90,6 @@ execution method. <tt class="docutils literal"><span class="pre">db.prepare(db.p
 <li>Fix count return from .first() method. Failed to provide an empty
 tuple for the rformats of the bind statement.
 [Reported by dou dou]</li>
-<li>Add support for binary hstore.</li>
 </ul>
 </blockquote>
 </div>
@@ -152,7 +154,7 @@ tuple for the rformats of the bind statement.
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 20, 2010.
+      Last updated on Mar 25, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>

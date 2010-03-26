@@ -127,11 +127,14 @@ Receiver Faults
 ---------------
 
 The Manager assumes the Fault is fatal to a Receiver, and immediately removes
-it from the set of target receivers. Additionally, if the Fault goes untrapped,
-the copy will ultimately fail.
+it from the set of target receivers. Additionally, if the Fault exception goes
+untrapped, the copy will ultimately fail.
 
 The Fault exception references the Manager that raised the exception, and the
-actual exceptions that occurred, associated with the Receiver that caused them::
+actual exceptions that occurred associated with the Receiver that caused them.
+
+In order to identify the exception that caused a Fault, the ``faults`` attribute
+on the `postgresql.copyman.ReceiverFault` must be referenced::
 
 	>>> from postgresql import copyman
 	>>> send_stmt = source.prepare("COPY (SELECT i FROM generate_series(1, 1000000) AS g(i)) TO STDOUT")
@@ -164,8 +167,6 @@ The following attributes exist on `postgresql.copyman.ReceiverFault` instances:
 
  ``ReceiverFault.faults``
   A dictionary mapping the Receiver to the exception raised by that Receiver.
-  The Manager will give processing time to every Receiver, so only *one* Fault will
-  occur per transfer cycle, each iteration.
 
 
 Reconciliation
@@ -176,7 +177,7 @@ removes the Receiver so that the COPY operation can continue. Continuation of
 the COPY can occur by trapping the exception and continuing the iteration of the
 Manager. However, if the fault is recoverable, the
 `postgresql.copyman.CopyManager.reconcile` method must be used to reintroduce the
-Receiver into the Manager's set. Faults should be trapped from within the
+Receiver into the Manager's set. Faults must be trapped from within the
 Manager's context::
 
 	>>> import socket

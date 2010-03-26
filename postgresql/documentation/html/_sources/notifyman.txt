@@ -24,10 +24,6 @@ The `postgresql.notifyman.NotificationManager` class is used to wait for
 messages to come in on a set of connections, pick up the messages, and deliver
 the messages to the object's user via the `collections.Iterator` protocol.
 
-The notification manager is a simple event loop that services multiple
-connections. In cases where only one connection needs to be serviced, the
-`postgresql.api.Database.wait` method can be used to simplify the process.
-
 
 Listening on a Single Connection
 ================================
@@ -149,8 +145,57 @@ However, doing so inside the loop is not a requirement; it is safe to remove a
 connection from the set at any point.
 
 
+Notification Managers
+=====================
+
+The `postgresql.notifyman.NotificationManager` is an event loop that services
+multiple connections. In cases where only one connection needs to be serviced,
+the `postgresql.api.Database.iternotifies` method can be used to simplify the
+process.
+
+
+Notification Manager Constructors
+---------------------------------
+
+ ``NotificationManager(*connections, timeout = None)``
+  Create a NotificationManager instance that manages the notifications coming
+  from the given set of connections. The ``timeout`` keyword is optional and
+  can be configured using the ``settimeout`` method as well.
+
+
+Notification Manager Interface Points
+-------------------------------------
+
+ ``NotificationManager.__iter__()``
+  Returns the instance; it is an iterator.
+
+ ``NotificationManager.__next__()``
+  Normally, yield the pair, connection and notifications list, when the next
+  event is received. If a timeout is configured, `None` may be yielded to signal
+  an idle event. The notifications list is a list of triples:
+  ``(channel, payload, pid)``.
+
+ ``NotificationManager.settimeout(timeout : int)``
+  Set the amount of time to wait before the manager yields an idle event.
+  If zero, the manager will never wait and only yield notifications that are
+  immediately available.
+  If `None`, the manager will never emit idle events.
+
+ ``NotificationManager.gettimeout() -> [int, None]``
+  Get the configured timeout; returns either `None`, or an `int`.
+
+ ``NotificationManager.connections``
+  The set of connections that the manager is actively watching for
+  notifications. Connections may be added or removed from the set at any time.
+
+ ``NotificationManager.garbage``
+  The set of connections that failed. Normally empty, but when a connection gets
+  an exceptional condition or explicitly raises an exception, it is removed from
+  the ``connections`` set, and placed in ``garbage``.
+
+
 Zero Timeout
-============
+------------
 
 When a timeout of zero, ``0``, is configured, the notification manager will
 terminate early. Specifically, each connection will be polled for any pending
@@ -175,7 +220,7 @@ losing any events.
 
 
 Summary of Characteristics
-==========================
+--------------------------
 
  * The iterator will continue until the connections die.
  * Objects yielded by the iterator are either `None`, an "idle event", or an

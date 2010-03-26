@@ -316,71 +316,71 @@ After a connection is established::
 
 The methods and properties on the connection object are ready for use:
 
- ``db.prepare(sql_statement_string)``
+ ``Connection.prepare(sql_statement_string)``
   Create a `postgresql.api.PreparedStatement` object for querying the database.
   This provides an "SQL statement template" that can be executed multiple times.
   See `Prepared Statements`_ for more information.
 
- ``db.proc(procedure_id)``
+ ``Connection.proc(procedure_id)``
   Create a `postgresql.api.StoredProcedure` object referring to a stored
   procedure on the database. The returned object will provide a
   `collections.Callable` interface to the stored procedure on the server. See
   `Stored Procedures`_ for more information.
 
- ``db.statement_from_id(statement_id)``
+ ``Connection.statement_from_id(statement_id)``
   Create a `postgresql.api.PreparedStatement` object from an existing statement
   identifier. This is used in cases where the statement was prepared on the
   server. See `Prepared Statements`_ for more information.
 
- ``db.cursor_from_id(cursor_id)``
+ ``Connection.cursor_from_id(cursor_id)``
   Create a `postgresql.api.Cursor` object from an existing cursor identifier.
   This is used in cases where the cursor was declared on the server. See
   `Cursors`_ for more information.
 
- ``db.do(language, source)``
+ ``Connection.do(language, source)``
   Execute a DO statement on the server using the specified language.
   *DO statements are available on PostgreSQL 9.0 and greater.*
   *Executing this method on servers that do not support DO statements will*
   *likely cause a SyntaxError*.
 
- ``db.execute(sql_statements_string)``
+ ``Connection.execute(sql_statements_string)``
   Run a block of SQL on the server. This method returns `None` unless an error
   occurs. If errors occur, the processing of the statements will stop and the
   error will be raised.
 
- ``db.xact(isolation = None, mode = None)``
+ ``Connection.xact(isolation = None, mode = None)``
   The `postgresql.api.Transaction` constructor for creating transactions.
   This method creates a transaction reference. The transaction will not be
   started until it's instructed to do so. See `Transactions`_ for more
   information.
 
- ``db.settings``
+ ``Connection.settings``
   A property providing a `collections.MutableMapping` interface to the
   database's SQL settings. See `Settings`_ for more information.
 
- ``db.clone()``
+ ``Connection.clone()``
   Create a new connection object based on the same factors that were used to
   create ``db``. The new connection returned will already be connected.
 
- ``db.msghook(msg)``
+ ``Connection.msghook(msg)``
   By default, the `msghook` attribute does not exist. If set to a callable, any
   message that occurs during an operation of the database or an operation of a
   database derived object will be given to the callable. See the
   `Database Messages`_ section for more information.
 
- ``db.listen(*channels)``
+ ``Connection.listen(*channels)``
   Start listening for asynchronous notifications in the specified channels.
   Sends a batch of ``LISTEN`` statements to the server.
 
- ``db.unlisten(*channels)``
+ ``Connection.unlisten(*channels)``
   Stop listening for asynchronous notifications in the specified channels.
   Sends a batch of ``UNLISTEN`` statements to the server.
 
- ``db.listening_channels()``
+ ``Connection.listening_channels()``
   Return an iterator producing the channel names that are currently being
   listened to.
 
- ``db.iternotifies(timeout = None)``
+ ``Connection.iternotifies(timeout = None)``
   Return an iterator to the NOTIFYs received on the connection. The iterator
   will yield notification triples consisting of ``(channel, payload, pid)``.
   While iterating, the connection should *not* be used in other threads.
@@ -388,40 +388,36 @@ The methods and properties on the connection object are ready for use:
   objects will be yielded by the iterator.
   See :ref:`notifyman` for details.
 
-
-Connection Metadata
--------------------
-
-When a connection is established, certain pieces of metadata are collected from
+When a connection is established, certain pieces of information are collected from
 the backend. The following are the attributes set on the connection object after
 the connection is made:
 
- ``db.version``
-  The result of ``SELECT version()``.
+ ``Connection.version``
+  The version string of the *server*; the result of ``SELECT version()``.
 
- ``db.version_info``
+ ``Connection.version_info``
   A ``sys.version_info`` form of the ``server_version`` setting. eg.
   ``(8, 1, 2, 'final', 0)``.
 
- ``db.security``
+ ``Connection.security``
   `None` if no security. ``'ssl'`` if SSL is enabled.
 
- ``db.backend_id``
+ ``Connection.backend_id``
   The process-id of the backend process.
 
- ``db.backend_start``
+ ``Connection.backend_start``
   When backend was started. ``datetime.datetime`` instance.
 
- ``db.client_address``
+ ``Connection.client_address``
   The address of the client that the backend is communicating with.
 
- ``db.client_port``
+ ``Connection.client_port``
   The port of the client that the backend is communicating with.
 
- ``db.fileno()``
+ ``Connection.fileno()``
   Method to get the file descriptor number of the connection's socket. This
-  method will return `None` if the socket object does not have a ``fileno``
-  attribute. Under normal circumstances, it will return an `int`.
+  method will return `None` if the socket object does not have a ``fileno``.
+  Under normal circumstances, it will return an `int`.
 
 The ``backend_start``, ``client_address``, and ``client_port`` are collected
 from pg_stat_activity. If this information is unavailable, the attributes will
@@ -480,35 +476,37 @@ cursors).
 
 Prepared statement objects have a few execution methods:
 
- ``ps(*parameters)``
+ ``Statement(*parameters)``
   As shown before, statement objects can be invoked like a function to get
   the statement's results.
 
- ``ps.rows(*parameters)``
+ ``Statement.rows(*parameters)``
   Return a iterator to all the rows produced by the statement. This
   method will stream rows on demand, so it is ideal for situations where
   each individual row in a large result-set must be processed.
 
- ``iter(ps)``
+ ``iter(Statement)``
   Convenience interface that executes the ``rows()`` method without arguments.
   This enables the following syntax:
 
   >>> for table_name, in db.prepare("SELECT table_name FROM information_schema.tables"):
   ...  print(table_name)
 
- ``ps.column(*parameters)``
+ ``Statement.column(*parameters)``
   Return a iterator to the first column produced by the statement. This
   method will stream values on demand, and *should* only be used with statements
   that have a single column; otherwise, bandwidth will ultimately be wasted as
   the other columns will be dropped.
   *This execution method cannot be used with COPY statements.*
 
- ``ps.first(*parameters)``
+ ``Statement.first(*parameters)``
   For simple statements, cursor objects are unnecessary.
   Consider the data contained in ``c`` from above, 'hello world!'. To get at this
   data directly from the ``__call__(...)`` method, it looks something like::
 
+	>>> ps = db.prepare("SELECT 'hello, world!'")
 	>>> ps()[0][0]
+	'hello, world!'
 
   To simplify access to simple data, the ``first`` method will simply return
   the "first" of the result set::
@@ -535,75 +533,71 @@ Prepared statement objects have a few execution methods:
   Naturally, a statement used with ``first()`` should be crafted with these
   rules in mind.
 
- ``ps.chunks(*parameters)``
+ ``Statement.chunks(*parameters)``
   This access point is designed for situations where rows are being streamed out
   quickly. It is a method that returns a ``collections.Iterator`` that produces
   *sequences* of rows. This is the most efficient way to get rows from the
   database. The rows in the sequences are ``builtins.tuple`` objects.
 
- ``ps.declare(*parameters)``
+ ``Statement.declare(*parameters)``
   Create a scrollable cursor with hold. This returns a `postgresql.api.Cursor`
   ready for accessing random rows in the result-set. Applications that use the
   database to support paging should use this method to manage the view.
 
- ``ps.close()``
+ ``Statement.close()``
   Close the statement inhibiting further use.
 
- ``ps.load_rows(collections.Iterable(parameters))``
+ ``Statement.load_rows(collections.Iterable(parameters))``
   Given an iterable producing parameters, execute the statement for each
   iteration. Always returns `None`.
 
- ``ps.load_chunks(collections.Iterable(collections.Iterable(parameters)))``
+ ``Statement.load_chunks(collections.Iterable(collections.Iterable(parameters)))``
   Given an iterable of iterables producing parameters, execute the statement
   for each parameter produced. However, send the all execution commands with
   the corresponding parameters of each chunk before reading any results.
   Always returns `None`. This access point is designed to be used in conjunction
-  with ``ps.chunks()`` for transferring rows from one connection to another with
+  with ``Statement.chunks()`` for transferring rows from one connection to another with
   great efficiency::
 
    >>> dst.prepare(...).load_chunks(src.prepare(...).chunks())
 
- ``ps.clone()``
+ ``Statement.clone()``
   Create a new statement object based on the same factors that were used to
   create ``ps``.
 
- ``ps.msghook(msg)``
+ ``Statement.msghook(msg)``
   By default, the `msghook` attribute does not exist. If set to a callable, any
   message that occurs during an operation of the statement or an operation of a
   statement derived object will be given to the callable. See the
   `Database Messages`_ section for more information.
 
-
-Statement Metadata
-------------------
-
 In order to provide the appropriate type transformations, the driver must
 acquire metadata about the statement's parameters and results. This data is
 published via the following properties on the statement object:
 
- ``sql_parameter_types``
+ ``Statement.sql_parameter_types``
   A sequence of SQL type names specifying the types of the parameters used in
   the statement.
 
- ``sql_column_types``
+ ``Statement.sql_column_types``
   A sequence of SQL type names specifying the types of the columns produced by
   the statement. `None` if the statement does not return row-data.
 
- ``pg_parameter_types``
+ ``Statement.pg_parameter_types``
   A sequence of PostgreSQL type Oid's specifying the types of the parameters
   used in the statement.
 
- ``pg_column_types``
+ ``Statement.pg_column_types``
   A sequence of PostgreSQL type Oid's specifying the types of the columns produced by
   the statement. `None` if the statement does not return row-data.
 
- ``parameter_types``
+ ``Statement.parameter_types``
   A sequence of Python types that the statement expects.
 
- ``column_types``
+ ``Statement.column_types``
   A sequence of Python types that the statement will produce.
 
- ``column_names``
+ ``Statement.column_names``
   A sequence of `str` objects specifying the names of the columns produced by
   the statement. `None` if the statement does not return row-data.
 
@@ -833,7 +827,9 @@ Cursors
 When a prepared statement is declared, ``ps.declare(...)``, a
 `postgresql.api.Cursor` is created and returned for random access to the rows in
 the result set. Direct use of cursors is primarily useful for applications that
-need to implement paging.
+need to implement paging. For situations that need to iterate over the result
+set, the ``ps.rows(...)`` or ``ps.chunks(...)`` execution methods should be
+used.
 
 Cursors can also be created directly from ``cursor_id``'s using the
 ``cursor_from_id`` method on connection objects::
@@ -843,6 +839,10 @@ Cursors can also be created directly from ``cursor_id``'s using the
 	>>> c.read()
 	[(1,)]
 	>>> c.close()
+
+.. hint::
+ If the cursor that needs to be opened is going to be treated as an iterator,
+ then a FETCH-statement should be prepared instead using ``cursor_from_id``.
 
 Like statements created from an identifier, cursors created from an identifier
 must be explicitly closed in order to destroy the object on the server.
@@ -861,7 +861,7 @@ Cursor Interface Points
 For cursors that return row data, these interfaces are provided for accessing
 those results:
 
- ``c.read(quantity = None, direction = None)``
+ ``Cursor.read(quantity = None, direction = None)``
   This method name is borrowed from `file` objects, and are semantically
   similar. However, this being a cursor, rows are returned instead of bytes or
   characters. When the number of rows returned is less then the quantity
@@ -872,26 +872,26 @@ those results:
   Like, ``seek()``, the ``direction`` *property* on the cursor object effects
   this method.
 
- ``c.seek(position[, whence = 0])``
+ ``Cursor.seek(position[, whence = 0])``
   When the cursor is scrollable, this seek interface can be used to move the
   position of the cursor. See `Scrollable Cursors`_ for more information.
 
- ``next(c)``
+ ``next(Cursor)``
   This fetches the next row in the cursor object. Cursors support the iterator
   protocol. While equivalent to ``cursor.read(1)[0]``, `StopIteration` is raised
   if the returned sequence is empty. (``__next__()``)
 
- ``c.close()``
+ ``Cursor.close()``
   For cursors opened using ``cursor_from_id()``, this method must be called in
   order to ``CLOSE`` the cursor. For cursors created by invoking a prepared
   statement, this is not necessary as the garbage collection interface will take
   the appropriate steps.
 
- ``c.clone()``
+ ``Cursor.clone()``
   Create a new cursor object based on the same factors that were used to
   create ``c``.
 
- ``c.msghook(msg)``
+ ``Cursor.msghook(msg)``
   By default, the `msghook` attribute does not exist. If set to a callable, any
   message that occurs during an operation of the cursor will be given to the
   callable. See the `Database Messages`_ section for more information.
@@ -900,14 +900,10 @@ those results:
 Cursors have some additional configuration properties that may be modified
 during the use of the cursor:
 
- ``c.direction``
+ ``Cursor.direction``
   A value of `True`, the default, will cause read to fetch forwards, whereas a
   value of `False` will cause it to fetch backwards. ``'BACKWARD'`` and
   ``'FORWARD'`` can be used instead of `False` and `True`.
-
-
-Cursor Metadata
----------------
 
 Cursors normally share metadata with the statements that create them, so it is
 usually unnecessary for referencing the cursor's column descriptions directly.
@@ -915,22 +911,22 @@ However, when a cursor is opened from an identifier, the cursor interface must
 collect the metadata itself. These attributes provide the metadata in absence of
 a statement object:
 
- ``sql_column_types``
+ ``Cursor.sql_column_types``
   A sequence of SQL type names specifying the types of the columns produced by
   the cursor. `None` if the cursor does not return row-data.
 
- ``pg_column_types``
+ ``Cursor.pg_column_types``
   A sequence of PostgreSQL type Oid's specifying the types of the columns produced by
   the cursor. `None` if the cursor does not return row-data.
 
- ``column_types``
+ ``Cursor.column_types``
   A sequence of Python types that the cursor will produce.
 
- ``column_names``
+ ``Cursor.column_names``
   A sequence of `str` objects specifying the names of the columns produced by
   the cursor. `None` if the cursor does not return row-data.
 
- ``statement``
+ ``Cursor.statement``
   The statement that was executed that created the cursor. `None` if
   unknown--``db.cursor_from_id()``.
 
@@ -1059,54 +1055,50 @@ Row Interface Points
 
 Rows implement the `collections.Mapping` and `collections.Sequence` interfaces.
 
- ``row.keys()``
+ ``Row.keys()``
   An iterable producing the column names. Order is not guaranteed. See the
   ``column_names`` property to get an ordered sequence.
 
- ``row.values()``
+ ``Row.values()``
   Iterable to the values in the row.
 
- ``row.get(key_or_index[, default=None])``
+ ``Row.get(key_or_index[, default=None])``
   Get the item in the row. If the key doesn't exist or the index is out of
   range, return the default.
 
- ``row.items()``
+ ``Row.items()``
   Iterable of key-value pairs. Ordered by index.
 
- ``iter(row)``
+ ``iter(Row)``
   Iterable to the values in index order.
 
- ``value in row``
+ ``value in Row``
   Whether or not the value exists in the row. (__contains__)
 
- ``row[key_or_index]``
+ ``Row[key_or_index]``
   If ``key_or_index`` is an integer, return the value at that index. If the
   index is out of range, raise an `IndexError`. Otherwise, return the value
   associated with column name. If the given key, ``key_or_index``, does not
   exist, raise a `KeyError`.
 
- ``row.index_from_key(key)``
+ ``Row.index_from_key(key)``
   Return the index associated with the given key.
 
- ``row.key_from_index(index)``
+ ``Row.key_from_index(index)``
   Return the key associated with the given index.
 
- ``row.transform(*args, **kw)``
+ ``Row.transform(*args, **kw)``
   Create a new row object of the same length, with the same keys, but with new
   values produced by applying the given callables to the corresponding items.
   Callables given as ``args`` will be associated with values by their index and
   callables given as keywords will be associated with values by their key,
   column name.
 
-
-Row Metadata
-------------
-
 While the mapping interfaces will provide most of the needed information, some
 additional properties are provided for consistency with statement and cursor
 objects.
 
- ``row.column_names``
+ ``Row.column_names``
   Property providing an ordered sequence of column names. The index corresponds
   to the row value-index that the name refers to.
 
@@ -1438,29 +1430,29 @@ Settings Interface Points
 Manipulation and interrogation of the connection's settings is achieved by
 using the standard `collections.MutableMapping` interfaces.
 
- ``db.settings[k]``
+ ``Connection.settings[k]``
   Get the value of a single setting.
 
- ``db.settings[k] = v``
+ ``Connection.settings[k] = v``
   Set the value of a single setting.
 
- ``db.settings.update([(k1,v2), (k2,v2), ..., (kn,vn)])``
+ ``Connection.settings.update([(k1,v2), (k2,v2), ..., (kn,vn)])``
   Set multiple settings using a sequence of key-value pairs.
 
- ``db.settings.update({k1 : v1, k2 : v2, ..., kn : vn})``
+ ``Connection.settings.update({k1 : v1, k2 : v2, ..., kn : vn})``
   Set multiple settings using a dictionary or mapping object.
 
- ``db.settings.getset([k1, k2, ..., kn])``
+ ``Connection.settings.getset([k1, k2, ..., kn])``
   Get a set of a settings. This is the most efficient way to get multiple
   settings as it uses a single request.
 
- ``db.settings.keys()``
+ ``Connection.settings.keys()``
   Get all available setting names.
 
- ``db.settings.values()``
+ ``Connection.settings.values()``
   Get all setting values.
 
- ``db.settings.items()``
+ ``Connection.settings.items()``
   Get a sequence of key-value pairs corresponding to all settings on the
   database.
 
@@ -1527,6 +1519,7 @@ conversion function is bound.
  `postgresql.types.NUMERICOID`     `decimal.Decimal`                  numeric
  `postgresql.types.BYTEAOID`       `bytes`                            bytea
  `postgresql.types.TEXTOID`        `str`                              text
+ <contrib_hstore>                  `dict`                             hstore
  ================================= ================================== ===========
 
 The mapping in the above table *normally* goes both ways. So when a parameter
@@ -1688,20 +1681,20 @@ PostgreSQL messages, `postgresql.message.Message`, are primarily described in th
 parts: the SQL-state code, the main message string, and a mapping defining the
 details. The follow attributes are available on message objects:
 
- ``message``
+ ``Message.message``
   The primary message string.
 
- ``code``
+ ``Message.code``
   The SQL-state code associated with a given message.
 
- ``source``
+ ``Message.source``
   The origins of the message. Normally, ``'SERVER'`` or ``'CLIENT'``.
 
- ``location``
+ ``Message.location``
   A terse, textual representation of ``'file'``, ``'line'``, and ``'function'``
   provided by the associated ``details``.
 
- ``details``
+ ``Message.details``
   A mapping providing extended information about a message. This mapping
   object **can** contain the following keys:
 

@@ -65,9 +65,6 @@ receives notifications.</p>
 <p>The <cite>postgresql.notifyman.NotificationManager</cite> class is used to wait for
 messages to come in on a set of connections, pick up the messages, and deliver
 the messages to the object&#8217;s user via the <cite>collections.Iterator</cite> protocol.</p>
-<p>The notification manager is a simple event loop that services multiple
-connections. In cases where only one connection needs to be serviced, the
-<cite>postgresql.api.Database.wait</cite> method can be used to simplify the process.</p>
 <div class="section" id="listening-on-a-single-connection">
 <h2>Listening on a Single Connection<a class="headerlink" href="#listening-on-a-single-connection" title="Permalink to this headline">¶</a></h2>
 <p>The <tt class="docutils literal"><span class="pre">db.iternotifies()</span></tt> method is a simplification of the notification manager. It
@@ -182,8 +179,53 @@ terminate the event loop:</p>
 <p>However, doing so inside the loop is not a requirement; it is safe to remove a
 connection from the set at any point.</p>
 </div>
+<div class="section" id="notification-managers">
+<h2>Notification Managers<a class="headerlink" href="#notification-managers" title="Permalink to this headline">¶</a></h2>
+<p>The <cite>postgresql.notifyman.NotificationManager</cite> is an event loop that services
+multiple connections. In cases where only one connection needs to be serviced,
+the <cite>postgresql.api.Database.iternotifies</cite> method can be used to simplify the
+process.</p>
+<div class="section" id="notification-manager-constructors">
+<h3>Notification Manager Constructors<a class="headerlink" href="#notification-manager-constructors" title="Permalink to this headline">¶</a></h3>
+<blockquote>
+<dl class="docutils">
+<dt><tt class="docutils literal"><span class="pre">NotificationManager(*connections,</span> <span class="pre">timeout</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
+<dd>Create a NotificationManager instance that manages the notifications coming
+from the given set of connections. The <tt class="docutils literal"><span class="pre">timeout</span></tt> keyword is optional and
+can be configured using the <tt class="docutils literal"><span class="pre">settimeout</span></tt> method as well.</dd>
+</dl>
+</blockquote>
+</div>
+<div class="section" id="notification-manager-interface-points">
+<h3>Notification Manager Interface Points<a class="headerlink" href="#notification-manager-interface-points" title="Permalink to this headline">¶</a></h3>
+<blockquote>
+<dl class="docutils">
+<dt><tt class="docutils literal"><span class="pre">NotificationManager.__iter__()</span></tt></dt>
+<dd>Returns the instance; it is an iterator.</dd>
+<dt><tt class="docutils literal"><span class="pre">NotificationManager.__next__()</span></tt></dt>
+<dd>Normally, yield the pair, connection and notifications list, when the next
+event is received. If a timeout is configured, <cite>None</cite> may be yielded to signal
+an idle event. The notifications list is a list of triples:
+<tt class="docutils literal"><span class="pre">(channel,</span> <span class="pre">payload,</span> <span class="pre">pid)</span></tt>.</dd>
+<dt><tt class="docutils literal"><span class="pre">NotificationManager.settimeout(timeout</span> <span class="pre">:</span> <span class="pre">int)</span></tt></dt>
+<dd>Set the amount of time to wait before the manager yields an idle event.
+If zero, the manager will never wait and only yield notifications that are
+immediately available.
+If <cite>None</cite>, the manager will never emit idle events.</dd>
+<dt><tt class="docutils literal"><span class="pre">NotificationManager.gettimeout()</span> <span class="pre">-&gt;</span> <span class="pre">[int,</span> <span class="pre">None]</span></tt></dt>
+<dd>Get the configured timeout; returns either <cite>None</cite>, or an <cite>int</cite>.</dd>
+<dt><tt class="docutils literal"><span class="pre">NotificationManager.connections</span></tt></dt>
+<dd>The set of connections that the manager is actively watching for
+notifications. Connections may be added or removed from the set at any time.</dd>
+<dt><tt class="docutils literal"><span class="pre">NotificationManager.garbage</span></tt></dt>
+<dd>The set of connections that failed. Normally empty, but when a connection gets
+an exceptional condition or explicitly raises an exception, it is removed from
+the <tt class="docutils literal"><span class="pre">connections</span></tt> set, and placed in <tt class="docutils literal"><span class="pre">garbage</span></tt>.</dd>
+</dl>
+</blockquote>
+</div>
 <div class="section" id="zero-timeout">
-<h2>Zero Timeout<a class="headerlink" href="#zero-timeout" title="Permalink to this headline">¶</a></h2>
+<h3>Zero Timeout<a class="headerlink" href="#zero-timeout" title="Permalink to this headline">¶</a></h3>
 <p>When a timeout of zero, <tt class="docutils literal"><span class="pre">0</span></tt>, is configured, the notification manager will
 terminate early. Specifically, each connection will be polled for any pending
 notifications, and once all of the collected notifications have been emitted
@@ -205,7 +247,7 @@ practical:</p>
 losing any events.</p>
 </div>
 <div class="section" id="summary-of-characteristics">
-<h2>Summary of Characteristics<a class="headerlink" href="#summary-of-characteristics" title="Permalink to this headline">¶</a></h2>
+<h3>Summary of Characteristics<a class="headerlink" href="#summary-of-characteristics" title="Permalink to this headline">¶</a></h3>
 <blockquote>
 <ul class="simple">
 <li>The iterator will continue until the connections die.</li>
@@ -227,6 +269,7 @@ any time.</li>
 </blockquote>
 </div>
 </div>
+</div>
 
 
           </div>
@@ -239,8 +282,13 @@ any time.</li>
 <li><a class="reference external" href="">Notification Management</a><ul>
 <li><a class="reference external" href="#listening-on-a-single-connection">Listening on a Single Connection</a></li>
 <li><a class="reference external" href="#listening-on-multiple-connections">Listening on Multiple Connections</a></li>
+<li><a class="reference external" href="#notification-managers">Notification Managers</a><ul>
+<li><a class="reference external" href="#notification-manager-constructors">Notification Manager Constructors</a></li>
+<li><a class="reference external" href="#notification-manager-interface-points">Notification Manager Interface Points</a></li>
 <li><a class="reference external" href="#zero-timeout">Zero Timeout</a></li>
 <li><a class="reference external" href="#summary-of-characteristics">Summary of Characteristics</a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -290,7 +338,7 @@ any time.</li>
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 20, 2010.
+      Last updated on Mar 25, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>

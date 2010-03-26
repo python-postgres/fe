@@ -328,58 +328,58 @@ server is desired, a new connection <em>must</em> be established.</p>
 <p>The methods and properties on the connection object are ready for use:</p>
 <blockquote>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">db.prepare(sql_statement_string)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.prepare(sql_statement_string)</span></tt></dt>
 <dd>Create a <cite>postgresql.api.PreparedStatement</cite> object for querying the database.
 This provides an &#8220;SQL statement template&#8221; that can be executed multiple times.
 See <a class="reference internal" href="#prepared-statements">Prepared Statements</a> for more information.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.proc(procedure_id)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.proc(procedure_id)</span></tt></dt>
 <dd>Create a <cite>postgresql.api.StoredProcedure</cite> object referring to a stored
 procedure on the database. The returned object will provide a
 <cite>collections.Callable</cite> interface to the stored procedure on the server. See
 <a class="reference internal" href="#stored-procedures">Stored Procedures</a> for more information.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.statement_from_id(statement_id)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.statement_from_id(statement_id)</span></tt></dt>
 <dd>Create a <cite>postgresql.api.PreparedStatement</cite> object from an existing statement
 identifier. This is used in cases where the statement was prepared on the
 server. See <a class="reference internal" href="#prepared-statements">Prepared Statements</a> for more information.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.cursor_from_id(cursor_id)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.cursor_from_id(cursor_id)</span></tt></dt>
 <dd>Create a <cite>postgresql.api.Cursor</cite> object from an existing cursor identifier.
 This is used in cases where the cursor was declared on the server. See
 <a class="reference internal" href="#cursors">Cursors</a> for more information.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.do(language,</span> <span class="pre">source)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.do(language,</span> <span class="pre">source)</span></tt></dt>
 <dd>Execute a DO statement on the server using the specified language.
 <em>DO statements are available on PostgreSQL 9.0 and greater.</em>
 <em>Executing this method on servers that do not support DO statements will</em>
 <em>likely cause a SyntaxError</em>.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.execute(sql_statements_string)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.execute(sql_statements_string)</span></tt></dt>
 <dd>Run a block of SQL on the server. This method returns <cite>None</cite> unless an error
 occurs. If errors occur, the processing of the statements will stop and the
 error will be raised.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.xact(isolation</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">mode</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.xact(isolation</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">mode</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
 <dd>The <cite>postgresql.api.Transaction</cite> constructor for creating transactions.
 This method creates a transaction reference. The transaction will not be
 started until it&#8217;s instructed to do so. See <a class="reference internal" href="#transactions">Transactions</a> for more
 information.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.settings</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.settings</span></tt></dt>
 <dd>A property providing a <cite>collections.MutableMapping</cite> interface to the
 database&#8217;s SQL settings. See <a class="reference internal" href="#settings">Settings</a> for more information.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.clone()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.clone()</span></tt></dt>
 <dd>Create a new connection object based on the same factors that were used to
 create <tt class="docutils literal"><span class="pre">db</span></tt>. The new connection returned will already be connected.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.msghook(msg)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.msghook(msg)</span></tt></dt>
 <dd>By default, the <cite>msghook</cite> attribute does not exist. If set to a callable, any
 message that occurs during an operation of the database or an operation of a
 database derived object will be given to the callable. See the
 <a class="reference internal" href="#database-messages">Database Messages</a> section for more information.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.listen(*channels)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.listen(*channels)</span></tt></dt>
 <dd>Start listening for asynchronous notifications in the specified channels.
 Sends a batch of <tt class="docutils literal"><span class="pre">LISTEN</span></tt> statements to the server.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.unlisten(*channels)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.unlisten(*channels)</span></tt></dt>
 <dd>Stop listening for asynchronous notifications in the specified channels.
 Sends a batch of <tt class="docutils literal"><span class="pre">UNLISTEN</span></tt> statements to the server.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.listening_channels()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.listening_channels()</span></tt></dt>
 <dd>Return an iterator producing the channel names that are currently being
 listened to.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.iternotifies(timeout</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.iternotifies(timeout</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
 <dd>Return an iterator to the NOTIFYs received on the connection. The iterator
 will yield notification triples consisting of <tt class="docutils literal"><span class="pre">(channel,</span> <span class="pre">payload,</span> <span class="pre">pid)</span></tt>.
 While iterating, the connection should <em>not</em> be used in other threads.
@@ -388,33 +388,30 @@ objects will be yielded by the iterator.
 See <a class="reference external" href="notifyman.html#notifyman"><em>Notification Management</em></a> for details.</dd>
 </dl>
 </blockquote>
-</div>
-<div class="section" id="connection-metadata">
-<h3>Connection Metadata<a class="headerlink" href="#connection-metadata" title="Permalink to this headline">¶</a></h3>
-<p>When a connection is established, certain pieces of metadata are collected from
+<p>When a connection is established, certain pieces of information are collected from
 the backend. The following are the attributes set on the connection object after
 the connection is made:</p>
 <blockquote>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">db.version</span></tt></dt>
-<dd>The result of <tt class="docutils literal"><span class="pre">SELECT</span> <span class="pre">version()</span></tt>.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.version_info</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.version</span></tt></dt>
+<dd>The version string of the <em>server</em>; the result of <tt class="docutils literal"><span class="pre">SELECT</span> <span class="pre">version()</span></tt>.</dd>
+<dt><tt class="docutils literal"><span class="pre">Connection.version_info</span></tt></dt>
 <dd>A <tt class="docutils literal"><span class="pre">sys.version_info</span></tt> form of the <tt class="docutils literal"><span class="pre">server_version</span></tt> setting. eg.
 <tt class="docutils literal"><span class="pre">(8,</span> <span class="pre">1,</span> <span class="pre">2,</span> <span class="pre">'final',</span> <span class="pre">0)</span></tt>.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.security</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.security</span></tt></dt>
 <dd><cite>None</cite> if no security. <tt class="docutils literal"><span class="pre">'ssl'</span></tt> if SSL is enabled.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.backend_id</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.backend_id</span></tt></dt>
 <dd>The process-id of the backend process.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.backend_start</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.backend_start</span></tt></dt>
 <dd>When backend was started. <tt class="docutils literal"><span class="pre">datetime.datetime</span></tt> instance.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.client_address</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.client_address</span></tt></dt>
 <dd>The address of the client that the backend is communicating with.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.client_port</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.client_port</span></tt></dt>
 <dd>The port of the client that the backend is communicating with.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.fileno()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.fileno()</span></tt></dt>
 <dd>Method to get the file descriptor number of the connection&#8217;s socket. This
-method will return <cite>None</cite> if the socket object does not have a <tt class="docutils literal"><span class="pre">fileno</span></tt>
-attribute. Under normal circumstances, it will return an <cite>int</cite>.</dd>
+method will return <cite>None</cite> if the socket object does not have a <tt class="docutils literal"><span class="pre">fileno</span></tt>.
+Under normal circumstances, it will return an <cite>int</cite>.</dd>
 </dl>
 </blockquote>
 <p>The <tt class="docutils literal"><span class="pre">backend_start</span></tt>, <tt class="docutils literal"><span class="pre">client_address</span></tt>, and <tt class="docutils literal"><span class="pre">client_port</span></tt> are collected
@@ -467,14 +464,14 @@ cursors).</p>
 <p>Prepared statement objects have a few execution methods:</p>
 <blockquote>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">ps(*parameters)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement(*parameters)</span></tt></dt>
 <dd>As shown before, statement objects can be invoked like a function to get
 the statement&#8217;s results.</dd>
-<dt><tt class="docutils literal"><span class="pre">ps.rows(*parameters)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.rows(*parameters)</span></tt></dt>
 <dd>Return a iterator to all the rows produced by the statement. This
 method will stream rows on demand, so it is ideal for situations where
 each individual row in a large result-set must be processed.</dd>
-<dt><tt class="docutils literal"><span class="pre">iter(ps)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">iter(Statement)</span></tt></dt>
 <dd><p class="first">Convenience interface that executes the <tt class="docutils literal"><span class="pre">rows()</span></tt> method without arguments.
 This enables the following syntax:</p>
 <div class="last highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="k">for</span> <span class="n">table_name</span><span class="p">,</span> <span class="ow">in</span> <span class="n">db</span><span class="o">.</span><span class="n">prepare</span><span class="p">(</span><span class="s">&quot;SELECT table_name FROM information_schema.tables&quot;</span><span class="p">):</span>
@@ -482,17 +479,19 @@ This enables the following syntax:</p>
 </pre></div>
 </div>
 </dd>
-<dt><tt class="docutils literal"><span class="pre">ps.column(*parameters)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.column(*parameters)</span></tt></dt>
 <dd>Return a iterator to the first column produced by the statement. This
 method will stream values on demand, and <em>should</em> only be used with statements
 that have a single column; otherwise, bandwidth will ultimately be wasted as
 the other columns will be dropped.
 <em>This execution method cannot be used with COPY statements.</em></dd>
-<dt><tt class="docutils literal"><span class="pre">ps.first(*parameters)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.first(*parameters)</span></tt></dt>
 <dd><p class="first">For simple statements, cursor objects are unnecessary.
 Consider the data contained in <tt class="docutils literal"><span class="pre">c</span></tt> from above, &#8216;hello world!&#8217;. To get at this
 data directly from the <tt class="docutils literal"><span class="pre">__call__(...)</span></tt> method, it looks something like:</p>
-<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">ps</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">ps</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">prepare</span><span class="p">(</span><span class="s">&quot;SELECT &#39;hello, world!&#39;&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ps</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+<span class="go">&#39;hello, world!&#39;</span>
 </pre></div>
 </div>
 <p>To simplify access to simple data, the <tt class="docutils literal"><span class="pre">first</span></tt> method will simply return
@@ -521,66 +520,63 @@ return the row count returned by the statement as an integer.</p>
 Naturally, a statement used with <tt class="docutils literal"><span class="pre">first()</span></tt> should be crafted with these
 rules in mind.</p>
 </dd>
-<dt><tt class="docutils literal"><span class="pre">ps.chunks(*parameters)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.chunks(*parameters)</span></tt></dt>
 <dd>This access point is designed for situations where rows are being streamed out
 quickly. It is a method that returns a <tt class="docutils literal"><span class="pre">collections.Iterator</span></tt> that produces
 <em>sequences</em> of rows. This is the most efficient way to get rows from the
 database. The rows in the sequences are <tt class="docutils literal"><span class="pre">builtins.tuple</span></tt> objects.</dd>
-<dt><tt class="docutils literal"><span class="pre">ps.declare(*parameters)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.declare(*parameters)</span></tt></dt>
 <dd>Create a scrollable cursor with hold. This returns a <cite>postgresql.api.Cursor</cite>
 ready for accessing random rows in the result-set. Applications that use the
 database to support paging should use this method to manage the view.</dd>
-<dt><tt class="docutils literal"><span class="pre">ps.close()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.close()</span></tt></dt>
 <dd>Close the statement inhibiting further use.</dd>
-<dt><tt class="docutils literal"><span class="pre">ps.load_rows(collections.Iterable(parameters))</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.load_rows(collections.Iterable(parameters))</span></tt></dt>
 <dd>Given an iterable producing parameters, execute the statement for each
 iteration. Always returns <cite>None</cite>.</dd>
-<dt><tt class="docutils literal"><span class="pre">ps.load_chunks(collections.Iterable(collections.Iterable(parameters)))</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.load_chunks(collections.Iterable(collections.Iterable(parameters)))</span></tt></dt>
 <dd><p class="first">Given an iterable of iterables producing parameters, execute the statement
 for each parameter produced. However, send the all execution commands with
 the corresponding parameters of each chunk before reading any results.
 Always returns <cite>None</cite>. This access point is designed to be used in conjunction
-with <tt class="docutils literal"><span class="pre">ps.chunks()</span></tt> for transferring rows from one connection to another with
+with <tt class="docutils literal"><span class="pre">Statement.chunks()</span></tt> for transferring rows from one connection to another with
 great efficiency:</p>
 <div class="last highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">dst</span><span class="o">.</span><span class="n">prepare</span><span class="p">(</span><span class="o">...</span><span class="p">)</span><span class="o">.</span><span class="n">load_chunks</span><span class="p">(</span><span class="n">src</span><span class="o">.</span><span class="n">prepare</span><span class="p">(</span><span class="o">...</span><span class="p">)</span><span class="o">.</span><span class="n">chunks</span><span class="p">())</span>
 </pre></div>
 </div>
 </dd>
-<dt><tt class="docutils literal"><span class="pre">ps.clone()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.clone()</span></tt></dt>
 <dd>Create a new statement object based on the same factors that were used to
 create <tt class="docutils literal"><span class="pre">ps</span></tt>.</dd>
-<dt><tt class="docutils literal"><span class="pre">ps.msghook(msg)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.msghook(msg)</span></tt></dt>
 <dd>By default, the <cite>msghook</cite> attribute does not exist. If set to a callable, any
 message that occurs during an operation of the statement or an operation of a
 statement derived object will be given to the callable. See the
 <a class="reference internal" href="#database-messages">Database Messages</a> section for more information.</dd>
 </dl>
 </blockquote>
-</div>
-<div class="section" id="statement-metadata">
-<h3>Statement Metadata<a class="headerlink" href="#statement-metadata" title="Permalink to this headline">¶</a></h3>
 <p>In order to provide the appropriate type transformations, the driver must
 acquire metadata about the statement&#8217;s parameters and results. This data is
 published via the following properties on the statement object:</p>
 <blockquote>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">sql_parameter_types</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.sql_parameter_types</span></tt></dt>
 <dd>A sequence of SQL type names specifying the types of the parameters used in
 the statement.</dd>
-<dt><tt class="docutils literal"><span class="pre">sql_column_types</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.sql_column_types</span></tt></dt>
 <dd>A sequence of SQL type names specifying the types of the columns produced by
 the statement. <cite>None</cite> if the statement does not return row-data.</dd>
-<dt><tt class="docutils literal"><span class="pre">pg_parameter_types</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.pg_parameter_types</span></tt></dt>
 <dd>A sequence of PostgreSQL type Oid&#8217;s specifying the types of the parameters
 used in the statement.</dd>
-<dt><tt class="docutils literal"><span class="pre">pg_column_types</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.pg_column_types</span></tt></dt>
 <dd>A sequence of PostgreSQL type Oid&#8217;s specifying the types of the columns produced by
 the statement. <cite>None</cite> if the statement does not return row-data.</dd>
-<dt><tt class="docutils literal"><span class="pre">parameter_types</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.parameter_types</span></tt></dt>
 <dd>A sequence of Python types that the statement expects.</dd>
-<dt><tt class="docutils literal"><span class="pre">column_types</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.column_types</span></tt></dt>
 <dd>A sequence of Python types that the statement will produce.</dd>
-<dt><tt class="docutils literal"><span class="pre">column_names</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Statement.column_names</span></tt></dt>
 <dd>A sequence of <cite>str</cite> objects specifying the names of the columns produced by
 the statement. <cite>None</cite> if the statement does not return row-data.</dd>
 </dl>
@@ -797,7 +793,9 @@ full by <tt class="docutils literal"><span class="pre">load_chunks()</span></tt>
 <p>When a prepared statement is declared, <tt class="docutils literal"><span class="pre">ps.declare(...)</span></tt>, a
 <cite>postgresql.api.Cursor</cite> is created and returned for random access to the rows in
 the result set. Direct use of cursors is primarily useful for applications that
-need to implement paging.</p>
+need to implement paging. For situations that need to iterate over the result
+set, the <tt class="docutils literal"><span class="pre">ps.rows(...)</span></tt> or <tt class="docutils literal"><span class="pre">ps.chunks(...)</span></tt> execution methods should be
+used.</p>
 <p>Cursors can also be created directly from <tt class="docutils literal"><span class="pre">cursor_id</span></tt>&#8216;s using the
 <tt class="docutils literal"><span class="pre">cursor_from_id</span></tt> method on connection objects:</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">db</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s">&#39;DECLARE the_cursor_id CURSOR WITH HOLD FOR SELECT 1;&#39;</span><span class="p">)</span>
@@ -806,6 +804,11 @@ need to implement paging.</p>
 <span class="go">[(1,)]</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">c</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </pre></div>
+</div>
+<div class="admonition hint">
+<p class="first admonition-title">Hint</p>
+<p class="last">If the cursor that needs to be opened is going to be treated as an iterator,
+then a FETCH-statement should be prepared instead using <tt class="docutils literal"><span class="pre">cursor_from_id</span></tt>.</p>
 </div>
 <p>Like statements created from an identifier, cursors created from an identifier
 must be explicitly closed in order to destroy the object on the server.
@@ -823,7 +826,7 @@ multiple result-sets. There is no execute method on PG-API cursors.</p>
 those results:</p>
 <blockquote>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">c.read(quantity</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">direction</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Cursor.read(quantity</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">direction</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
 <dd><p class="first">This method name is borrowed from <cite>file</cite> objects, and are semantically
 similar. However, this being a cursor, rows are returned instead of bytes or
 characters. When the number of rows returned is less then the quantity
@@ -833,22 +836,22 @@ to FETCH FORWARD, or <tt class="docutils literal"><span class="pre">'BACKWARD'</
 <p class="last">Like, <tt class="docutils literal"><span class="pre">seek()</span></tt>, the <tt class="docutils literal"><span class="pre">direction</span></tt> <em>property</em> on the cursor object effects
 this method.</p>
 </dd>
-<dt><tt class="docutils literal"><span class="pre">c.seek(position[,</span> <span class="pre">whence</span> <span class="pre">=</span> <span class="pre">0])</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Cursor.seek(position[,</span> <span class="pre">whence</span> <span class="pre">=</span> <span class="pre">0])</span></tt></dt>
 <dd>When the cursor is scrollable, this seek interface can be used to move the
 position of the cursor. See <a class="reference internal" href="#scrollable-cursors">Scrollable Cursors</a> for more information.</dd>
-<dt><tt class="docutils literal"><span class="pre">next(c)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">next(Cursor)</span></tt></dt>
 <dd>This fetches the next row in the cursor object. Cursors support the iterator
 protocol. While equivalent to <tt class="docutils literal"><span class="pre">cursor.read(1)[0]</span></tt>, <cite>StopIteration</cite> is raised
 if the returned sequence is empty. (<tt class="docutils literal"><span class="pre">__next__()</span></tt>)</dd>
-<dt><tt class="docutils literal"><span class="pre">c.close()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Cursor.close()</span></tt></dt>
 <dd>For cursors opened using <tt class="docutils literal"><span class="pre">cursor_from_id()</span></tt>, this method must be called in
 order to <tt class="docutils literal"><span class="pre">CLOSE</span></tt> the cursor. For cursors created by invoking a prepared
 statement, this is not necessary as the garbage collection interface will take
 the appropriate steps.</dd>
-<dt><tt class="docutils literal"><span class="pre">c.clone()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Cursor.clone()</span></tt></dt>
 <dd>Create a new cursor object based on the same factors that were used to
 create <tt class="docutils literal"><span class="pre">c</span></tt>.</dd>
-<dt><tt class="docutils literal"><span class="pre">c.msghook(msg)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Cursor.msghook(msg)</span></tt></dt>
 <dd>By default, the <cite>msghook</cite> attribute does not exist. If set to a callable, any
 message that occurs during an operation of the cursor will be given to the
 callable. See the <a class="reference internal" href="#database-messages">Database Messages</a> section for more information.</dd>
@@ -858,15 +861,12 @@ callable. See the <a class="reference internal" href="#database-messages">Databa
 during the use of the cursor:</p>
 <blockquote>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">c.direction</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Cursor.direction</span></tt></dt>
 <dd>A value of <cite>True</cite>, the default, will cause read to fetch forwards, whereas a
 value of <cite>False</cite> will cause it to fetch backwards. <tt class="docutils literal"><span class="pre">'BACKWARD'</span></tt> and
 <tt class="docutils literal"><span class="pre">'FORWARD'</span></tt> can be used instead of <cite>False</cite> and <cite>True</cite>.</dd>
 </dl>
 </blockquote>
-</div>
-<div class="section" id="cursor-metadata">
-<h3>Cursor Metadata<a class="headerlink" href="#cursor-metadata" title="Permalink to this headline">¶</a></h3>
 <p>Cursors normally share metadata with the statements that create them, so it is
 usually unnecessary for referencing the cursor&#8217;s column descriptions directly.
 However, when a cursor is opened from an identifier, the cursor interface must
@@ -874,18 +874,18 @@ collect the metadata itself. These attributes provide the metadata in absence of
 a statement object:</p>
 <blockquote>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">sql_column_types</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Cursor.sql_column_types</span></tt></dt>
 <dd>A sequence of SQL type names specifying the types of the columns produced by
 the cursor. <cite>None</cite> if the cursor does not return row-data.</dd>
-<dt><tt class="docutils literal"><span class="pre">pg_column_types</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Cursor.pg_column_types</span></tt></dt>
 <dd>A sequence of PostgreSQL type Oid&#8217;s specifying the types of the columns produced by
 the cursor. <cite>None</cite> if the cursor does not return row-data.</dd>
-<dt><tt class="docutils literal"><span class="pre">column_types</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Cursor.column_types</span></tt></dt>
 <dd>A sequence of Python types that the cursor will produce.</dd>
-<dt><tt class="docutils literal"><span class="pre">column_names</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Cursor.column_names</span></tt></dt>
 <dd>A sequence of <cite>str</cite> objects specifying the names of the columns produced by
 the cursor. <cite>None</cite> if the cursor does not return row-data.</dd>
-<dt><tt class="docutils literal"><span class="pre">statement</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Cursor.statement</span></tt></dt>
 <dd>The statement that was executed that created the cursor. <cite>None</cite> if
 unknown&#8211;<tt class="docutils literal"><span class="pre">db.cursor_from_id()</span></tt>.</dd>
 </dl>
@@ -1013,30 +1013,30 @@ with existing method and property names.</p>
 <p>Rows implement the <cite>collections.Mapping</cite> and <cite>collections.Sequence</cite> interfaces.</p>
 <blockquote>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">row.keys()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Row.keys()</span></tt></dt>
 <dd>An iterable producing the column names. Order is not guaranteed. See the
 <tt class="docutils literal"><span class="pre">column_names</span></tt> property to get an ordered sequence.</dd>
-<dt><tt class="docutils literal"><span class="pre">row.values()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Row.values()</span></tt></dt>
 <dd>Iterable to the values in the row.</dd>
-<dt><tt class="docutils literal"><span class="pre">row.get(key_or_index[,</span> <span class="pre">default=None])</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Row.get(key_or_index[,</span> <span class="pre">default=None])</span></tt></dt>
 <dd>Get the item in the row. If the key doesn&#8217;t exist or the index is out of
 range, return the default.</dd>
-<dt><tt class="docutils literal"><span class="pre">row.items()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Row.items()</span></tt></dt>
 <dd>Iterable of key-value pairs. Ordered by index.</dd>
-<dt><tt class="docutils literal"><span class="pre">iter(row)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">iter(Row)</span></tt></dt>
 <dd>Iterable to the values in index order.</dd>
-<dt><tt class="docutils literal"><span class="pre">value</span> <span class="pre">in</span> <span class="pre">row</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">value</span> <span class="pre">in</span> <span class="pre">Row</span></tt></dt>
 <dd>Whether or not the value exists in the row. (__contains__)</dd>
-<dt><tt class="docutils literal"><span class="pre">row[key_or_index]</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Row[key_or_index]</span></tt></dt>
 <dd>If <tt class="docutils literal"><span class="pre">key_or_index</span></tt> is an integer, return the value at that index. If the
 index is out of range, raise an <cite>IndexError</cite>. Otherwise, return the value
 associated with column name. If the given key, <tt class="docutils literal"><span class="pre">key_or_index</span></tt>, does not
 exist, raise a <cite>KeyError</cite>.</dd>
-<dt><tt class="docutils literal"><span class="pre">row.index_from_key(key)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Row.index_from_key(key)</span></tt></dt>
 <dd>Return the index associated with the given key.</dd>
-<dt><tt class="docutils literal"><span class="pre">row.key_from_index(index)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Row.key_from_index(index)</span></tt></dt>
 <dd>Return the key associated with the given index.</dd>
-<dt><tt class="docutils literal"><span class="pre">row.transform(*args,</span> <span class="pre">**kw)</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Row.transform(*args,</span> <span class="pre">**kw)</span></tt></dt>
 <dd>Create a new row object of the same length, with the same keys, but with new
 values produced by applying the given callables to the corresponding items.
 Callables given as <tt class="docutils literal"><span class="pre">args</span></tt> will be associated with values by their index and
@@ -1044,15 +1044,12 @@ callables given as keywords will be associated with values by their key,
 column name.</dd>
 </dl>
 </blockquote>
-</div>
-<div class="section" id="row-metadata">
-<h3>Row Metadata<a class="headerlink" href="#row-metadata" title="Permalink to this headline">¶</a></h3>
 <p>While the mapping interfaces will provide most of the needed information, some
 additional properties are provided for consistency with statement and cursor
 objects.</p>
 <blockquote>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">row.column_names</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Row.column_names</span></tt></dt>
 <dd><p class="first">Property providing an ordered sequence of column names. The index corresponds
 to the row value-index that the name refers to.</p>
 <div class="last highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">row</span><span class="p">[</span><span class="n">row</span><span class="o">.</span><span class="n">column_names</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">==</span> <span class="n">row</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
@@ -1371,22 +1368,22 @@ that particular setting.</p>
 using the standard <cite>collections.MutableMapping</cite> interfaces.</p>
 <blockquote>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">db.settings[k]</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.settings[k]</span></tt></dt>
 <dd>Get the value of a single setting.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.settings[k]</span> <span class="pre">=</span> <span class="pre">v</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.settings[k]</span> <span class="pre">=</span> <span class="pre">v</span></tt></dt>
 <dd>Set the value of a single setting.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.settings.update([(k1,v2),</span> <span class="pre">(k2,v2),</span> <span class="pre">...,</span> <span class="pre">(kn,vn)])</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.settings.update([(k1,v2),</span> <span class="pre">(k2,v2),</span> <span class="pre">...,</span> <span class="pre">(kn,vn)])</span></tt></dt>
 <dd>Set multiple settings using a sequence of key-value pairs.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.settings.update({k1</span> <span class="pre">:</span> <span class="pre">v1,</span> <span class="pre">k2</span> <span class="pre">:</span> <span class="pre">v2,</span> <span class="pre">...,</span> <span class="pre">kn</span> <span class="pre">:</span> <span class="pre">vn})</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.settings.update({k1</span> <span class="pre">:</span> <span class="pre">v1,</span> <span class="pre">k2</span> <span class="pre">:</span> <span class="pre">v2,</span> <span class="pre">...,</span> <span class="pre">kn</span> <span class="pre">:</span> <span class="pre">vn})</span></tt></dt>
 <dd>Set multiple settings using a dictionary or mapping object.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.settings.getset([k1,</span> <span class="pre">k2,</span> <span class="pre">...,</span> <span class="pre">kn])</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.settings.getset([k1,</span> <span class="pre">k2,</span> <span class="pre">...,</span> <span class="pre">kn])</span></tt></dt>
 <dd>Get a set of a settings. This is the most efficient way to get multiple
 settings as it uses a single request.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.settings.keys()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.settings.keys()</span></tt></dt>
 <dd>Get all available setting names.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.settings.values()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.settings.values()</span></tt></dt>
 <dd>Get all setting values.</dd>
-<dt><tt class="docutils literal"><span class="pre">db.settings.items()</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Connection.settings.items()</span></tt></dt>
 <dd>Get a sequence of key-value pairs corresponding to all settings on the
 database.</dd>
 </dl>
@@ -1506,6 +1503,10 @@ these datatypes are not desired, it is recommended that explicit casts into
 <tr><td><cite>postgresql.types.TEXTOID</cite></td>
 <td><cite>str</cite></td>
 <td>text</td>
+</tr>
+<tr><td>&lt;contrib_hstore&gt;</td>
+<td><cite>dict</cite></td>
+<td>hstore</td>
 </tr>
 </tbody>
 </table>
@@ -1656,16 +1657,16 @@ parts: the SQL-state code, the main message string, and a mapping defining the
 details. The follow attributes are available on message objects:</p>
 <blockquote>
 <dl class="docutils">
-<dt><tt class="docutils literal"><span class="pre">message</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Message.message</span></tt></dt>
 <dd>The primary message string.</dd>
-<dt><tt class="docutils literal"><span class="pre">code</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Message.code</span></tt></dt>
 <dd>The SQL-state code associated with a given message.</dd>
-<dt><tt class="docutils literal"><span class="pre">source</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Message.source</span></tt></dt>
 <dd>The origins of the message. Normally, <tt class="docutils literal"><span class="pre">'SERVER'</span></tt> or <tt class="docutils literal"><span class="pre">'CLIENT'</span></tt>.</dd>
-<dt><tt class="docutils literal"><span class="pre">location</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Message.location</span></tt></dt>
 <dd>A terse, textual representation of <tt class="docutils literal"><span class="pre">'file'</span></tt>, <tt class="docutils literal"><span class="pre">'line'</span></tt>, and <tt class="docutils literal"><span class="pre">'function'</span></tt>
 provided by the associated <tt class="docutils literal"><span class="pre">details</span></tt>.</dd>
-<dt><tt class="docutils literal"><span class="pre">details</span></tt></dt>
+<dt><tt class="docutils literal"><span class="pre">Message.details</span></tt></dt>
 <dd><p class="first">A mapping providing extended information about a message. This mapping
 object <strong>can</strong> contain the following keys:</p>
 <blockquote class="last">
@@ -1719,12 +1720,10 @@ parse error.</dd>
 </li>
 <li><a class="reference external" href="#connections">Connections</a><ul>
 <li><a class="reference external" href="#database-interface-points">Database Interface Points</a></li>
-<li><a class="reference external" href="#connection-metadata">Connection Metadata</a></li>
 </ul>
 </li>
 <li><a class="reference external" href="#prepared-statements">Prepared Statements</a><ul>
 <li><a class="reference external" href="#statement-interface-points">Statement Interface Points</a></li>
-<li><a class="reference external" href="#statement-metadata">Statement Metadata</a></li>
 <li><a class="reference external" href="#parameterized-statements">Parameterized Statements</a></li>
 <li><a class="reference external" href="#inserting-and-dml">Inserting and DML</a></li>
 <li><a class="reference external" href="#copy-statements">COPY Statements</a></li>
@@ -1732,14 +1731,12 @@ parse error.</dd>
 </li>
 <li><a class="reference external" href="#cursors">Cursors</a><ul>
 <li><a class="reference external" href="#cursor-interface-points">Cursor Interface Points</a></li>
-<li><a class="reference external" href="#cursor-metadata">Cursor Metadata</a></li>
 <li><a class="reference external" href="#scrollable-cursors">Scrollable Cursors</a></li>
 <li><a class="reference external" href="#cursor-direction">Cursor Direction</a></li>
 </ul>
 </li>
 <li><a class="reference external" href="#rows">Rows</a><ul>
 <li><a class="reference external" href="#row-interface-points">Row Interface Points</a></li>
-<li><a class="reference external" href="#row-metadata">Row Metadata</a></li>
 <li><a class="reference external" href="#row-transformations">Row Transformations</a></li>
 </ul>
 </li>
@@ -1817,7 +1814,7 @@ parse error.</dd>
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 20, 2010.
+      Last updated on Mar 25, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>
