@@ -7,23 +7,20 @@ import sys
 from ..port import optimized
 from ..python.itertools import interlace
 
-# Curious... Seems too dangerous for real use..
-class SerializeNULL_Type(bytes):
-	def __len__(self):
-		return 0xFFFFFFFF
-SerializeNULL = SerializeNULL_Type(b'')
-
 def pack_tuple(*data,
 	packH = struct.Struct("!H").pack,
 	packL = struct.Struct("!L").pack
 ):
-	return packH(len(data)) + b''.join(interlace(map(packL, map(len, data)), data))
+	return packH(len(data)) + b''.join((
+		packL(len(x)) + x if x is not None else b'\xff\xff\xff\xff'
+		for x in data
+	))
 
 tuplemessages = (
 	(b'D', pack_tuple(b'foo', b'bar')),
-	(b'D', pack_tuple(b'foo', SerializeNULL, b'bar')),
+	(b'D', pack_tuple(b'foo', None, b'bar')),
 	(b'N', b'fee'),
-	(b'D', pack_tuple(b'foo', SerializeNULL, b'bar')),
+	(b'D', pack_tuple(b'foo', None, b'bar')),
 	(b'D', pack_tuple(b'foo', b'bar')),
 )
 
