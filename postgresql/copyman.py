@@ -520,13 +520,12 @@ class StatementProducer(ProtocolProducer):
 		if typ is None or issubclass(typ, Exception):
 			db = self.statement.database
 			if not db.closed and self._chunks._xact is not None:
+				# The COPY transaction is still happening,
+				# force an interrupt if the connection still exists.
 				db.interrupt()
 				if db.pq.xact:
-					try:
-						db._pq_complete()
-					except Exception:
-						# Let the copy manager indicate the failure.
-						pass
+					# Raise, CopyManager should trap.
+					db._pq_complete()
 		super().__exit__(typ, val, tb)
 
 class NullReceiver(Receiver):
@@ -724,9 +723,9 @@ class CopyManager(Element, Iterator):
 				pass
 
 			self.producer.__exit__(typ, val, tb)
-		except Exception as profail:
+		except Exception as x:
 			# reference profail later.
-			pass
+			profail = x
 
 		# No receivers? It wasn't a success.
 		if not self.receivers:

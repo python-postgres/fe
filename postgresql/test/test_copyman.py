@@ -8,6 +8,7 @@ from .. import copyman
 from ..temporal import pg_tmp
 # The asyncs, and alternative termination.
 from ..protocol.element3 import Notice, Notify, Error, cat_messages
+from .. import exceptions as pg_exc
 
 # state manager can handle empty data messages, right? =)
 emptysource = """
@@ -530,6 +531,7 @@ class test_copyman(unittest.TestCase):
 		except copyman.CopyFail as cf:
 			# Expecting to see CopyFail
 			self.failUnless(True)
+			self.failUnless(isinstance(cf.producer_fault, pg_exc.ConnectionFailureError))
 		self.failUnless(done)
 		self.failUnlessRaises(Exception, sqlexec, 'select 1')
 		self.failUnlessEqual(dst.prepare(dstcount).first(), 0)
