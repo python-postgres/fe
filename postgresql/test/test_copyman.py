@@ -328,7 +328,7 @@ class test_copyman(unittest.TestCase):
 					else:
 						# Done with copy.
 						break
-				except copyman.ReceiverFaults as cf:
+				except copyman.ReceiverFault as cf:
 					if sr2 not in cf.faults:
 						raise
 		self.failUnless(done)
@@ -396,7 +396,7 @@ class test_copyman(unittest.TestCase):
 								dst.pq.socket.close()
 							else:
 								self.fail("failed to detect dead socket")
-					except copyman.ReceiverFaults as cf:
+					except copyman.ReceiverFault as cf:
 						self.failUnless(sr1 in cf.faults)
 						# Don't reconcile. Let the manager drop the receiver.
 		except copyman.CopyFail:
@@ -436,7 +436,7 @@ class test_copyman(unittest.TestCase):
 					else:
 						# Done with COPY, break out of while copy.receivers.
 						break
-				except copyman.ReceiverFaults as cf:
+				except copyman.ReceiverFault as cf:
 					if isinstance(cf.faults[sr], RecoverableError):
 						if done is True:
 							self.fail("failed_write was called twice?")
@@ -485,7 +485,7 @@ class test_copyman(unittest.TestCase):
 					else:
 						# Done with COPY, break out of while copy.receivers.
 						break
-				except copyman.ReceiverFaults as cf:
+				except copyman.ReceiverFault as cf:
 					self.failUnless(isinstance(cf.faults[sr2], TheCause))
 					if done is True:
 						self.fail("failed_write was called twice?")
@@ -528,7 +528,8 @@ class test_copyman(unittest.TestCase):
 					self.failUnless(pf.__context__ is not None)
 			self.fail('expected CopyManager to raise CopyFail')
 		except copyman.CopyFail as cf:
-			pass
+			# Expecting to see CopyFail
+			self.failUnless(True)
 		self.failUnless(done)
 		self.failUnlessRaises(Exception, sqlexec, 'select 1')
 		self.failUnlessEqual(dst.prepare(dstcount).first(), 0)
