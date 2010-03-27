@@ -208,7 +208,7 @@ SELECT
 		pg_catalog.pg_advisory_unlock_shared($2[i])
 	END AS released
 FROM
-	pg_catalog.generate_series(1, array_upper(COALESCE($1::int4[],$2::int8[]), 1)) AS g(i)
+	pg_catalog.generate_series(1, COALESCE(array_upper($2::int8[], 1), array_upper($1::int4[], 1))) AS g(i)
 
 [acquire_advisory_shared]
 SELECT COUNT((
@@ -220,7 +220,7 @@ SELECT COUNT((
 	END
 ) IS NULL) AS acquired
 FROM
-	pg_catalog.generate_series(1, array_upper(COALESCE($1::int4[],$2::int8[]), 1)) AS g(i)
+	pg_catalog.generate_series(1, COALESCE(array_upper($2::int8[], 1), array_upper($1::int4[], 1))) AS g(i)
 
 [try_advisory_shared]
 SELECT
@@ -231,7 +231,7 @@ SELECT
 		pg_catalog.pg_try_advisory_lock_shared($2[i])
 	END AS acquired
 FROM
-	pg_catalog.generate_series(1, array_upper(COALESCE($1::int4[],$2::int8[]), 1)) AS g(i)
+	pg_catalog.generate_series(1, COALESCE(array_upper($2::int8[], 1), array_upper($1::int4[], 1))) AS g(i)
 
 [release_advisory_exclusive]
 SELECT
@@ -242,7 +242,7 @@ SELECT
 		pg_catalog.pg_advisory_unlock($2[i])
 	END AS released
 FROM
-	pg_catalog.generate_series(1, array_upper(COALESCE($1::int4[],$2::int8[]), 1)) AS g(i)
+	pg_catalog.generate_series(1, COALESCE(array_upper($2::int8[], 1), array_upper($1::int4[], 1))) AS g(i)
 
 [acquire_advisory_exclusive]
 SELECT COUNT((
@@ -254,7 +254,7 @@ SELECT COUNT((
 	END
 ) IS NULL) AS acquired -- Guaranteed to be acquired once complete.
 FROM
-	pg_catalog.generate_series(1, array_upper(COALESCE($1::int4[],$2::int8[]), 1)) AS g(i)
+	pg_catalog.generate_series(1, COALESCE(array_upper($2::int8[], 1), array_upper($1::int4[], 1))) AS g(i)
 
 [try_advisory_exclusive]
 SELECT
@@ -265,4 +265,4 @@ SELECT
 		pg_catalog.pg_try_advisory_lock($2[i])
 	END AS acquired
 FROM
-	pg_catalog.generate_series(1, array_upper(COALESCE($1::int4[],$2::int8[]), 1)) AS g(i)
+	pg_catalog.generate_series(1, COALESCE(array_upper($2::int8[], 1), array_upper($1::int4[], 1))) AS g(i)

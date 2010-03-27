@@ -7,6 +7,12 @@ Tools for Advisory Locks
 from abc import abstractmethod, abstractproperty
 from .python.element import Element
 
+__all__ = [
+	'ALock',
+	'ExclusiveLock',
+	'ShareLock',
+]
+
 class ALock(Element):
 	"""
 	Advisory Lock class for managing the acquisition and release of a sequence
@@ -33,10 +39,21 @@ class ALock(Element):
 		"""
 
 	@abstractmethod
-	def __select_statements__(self):
+	def _try(self, id_pairs, ids):
 		"""
-		ALock subclasses need to implement this in order to specify
-		the actual statements that try, acquire, and release the locks.
+		Try and acquire.
+		"""
+
+	@abstractmethod
+	def _acquire(self, id_pairs, ids):
+		"""
+		Acquire and wait if necessary.
+		"""
+
+	@abstractmethod
+	def _release(self, id_pairs, ids):
+		"""
+		Release the locks.
 		"""
 
 	@staticmethod
@@ -60,12 +77,12 @@ class ALock(Element):
 			# _count is zero, so the locks need to be acquired.
 			wait = bool(blocking)
 			if wait:
-				self._acquire_stmt(self._id_pairs, self._ids)
+				self._acquire(self._id_pairs, self._ids)
 			else:
 				# grab the success of each lock id. if some were
 				# unsuccessful, then the ones that were successful need to be
 				# released.
-				r = self._try_stmt(self._id_pairs, self._ids)
+				r = self._try(self._id_pairs, self._ids)
 				# accumulate the identifiers that *did* lock
 				release_seq = [
 					id for didlock, id in zip(r, self.identifiers) if didlock[0]
@@ -78,7 +95,7 @@ class ALock(Element):
 					# on the same seq that it should be able to acquire all of
 					# them once the contended lock is released.
 					release_seq.reverse()
-					self._release_stmt(*self._split_lock_identifiers(release_seq))
+					self._release(*self._split_lock_identifiers(release_seq))
 					# unable to acquire all.
 					return False
 		self._count = self._count + 1
@@ -97,7 +114,7 @@ class ALock(Element):
 		if not self.database.closed and self._count > 0:
 			# if the database has been closed, or the count will
 			# remain non-zero, there is no need to release.
-			self._release_stmt(reversed(self._id_pairs), reversed(self._ids))
+			self._release(reversed(self._id_pairs), reversed(self._ids))
 			# decrement the count nonetheless.
 		self._count = self._count - 1
 
@@ -124,25 +141,25 @@ class ALock(Element):
 		self.connection = self.database = database
 		self.identifiers = identifiers
 		self._id_pairs, self._ids = self._split_lock_identifiers(identifiers)
-		self._try_stmt, self._acquire_stmt, self._release_stmt = \
-			self.__select_statements__()
 
 class ShareLock(ALock):
 	mode = 'share'
-	def __select_statements__(self):
-		sys = self.database.sys
-		return (
-			sys.try_advisory_shared,
-			sys.acquire_advisory_shared,
-			sys.release_advisory_shared
-		)
+	def _try(self, *args):
+		return self.database.sys.try_advisory_shared(*args)
+
+	def _acquire(self, *args):
+		return self.database.sys.acquire_advisory_shared(*args)
+
+	def _release(self, *args):
+		return self.database.sys.release_advisory_shared(*args)
 
 class ExclusiveLock(ALock):
 	mode = 'exclusive'
-	def __select_statements__(self):
-		sys = self.database.sys
-		return (
-			sys.try_advisory_exclusive,
-			sys.acquire_advisory_exclusive,
-			sys.release_advisory_exclusive
-		)
+	def _try(self, *args):
+		return self.database.sys.try_advisory_exclusive(*args)
+
+	def _acquire(self, *args):
+		return self.database.sys.acquire_advisory_exclusive(*args)
+
+	def _release(self, *args):
+		return self.database.sys.release_advisory_exclusive(*args)

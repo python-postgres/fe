@@ -7,13 +7,44 @@ import time
 from ..temporal import pg_tmp
 from .. import alock
 
+n_alocks = "select count(*) FROM pg_locks WHERE locktype = 'advisory'"
+
 class test_alock(unittest.TestCase):
+	@pg_tmp
+	def testALockWait(self):
+		# sadly, this is primarily used to exercise the code paths..
+		ad = prepare(n_alocks).first
+		self.failUnlessEqual(ad(), 0)
+		state = [False, False, False]
+		alt = new()
+		def concurrent_lock():
+			pass
+			with alock.ExclusiveLock(alt, (1,1)):
+				with alock.ExclusiveLock(alt, (0,0)):
+					# start it
+					state[0] = True
+					while not state[1]:
+						pass
+						time.sleep(0.01)
+				while not state[2]:
+					time.sleep(0.01)
+		t = threading.Thread(target = concurrent_lock)
+		t.start()
+		while not state[0]:
+			time.sleep(0.01)
+		self.failUnlessEqual(ad(), 2)
+		state[1] = True
+		with alock.ExclusiveLock(db, (0,0)):
+			self.failUnlessEqual(ad(), 2)
+			state[2] = True
+			with alock.ExclusiveLock(db, (1,1)):
+				self.failUnlessEqual(ad(), 2)
+		t.join(timeout = 1)
+
 	@pg_tmp
 	def testALockNoWait(self):
 		alt = new()
-		ad = db.prepare(
-			"select count(*) FROM pg_locks WHERE locktype = 'advisory'"
-		).first
+		ad = prepare(n_alocks).first
 		self.failUnlessEqual(ad(), 0)
 		with alock.ExclusiveLock(db, (0,0)):
 			l=alock.ExclusiveLock(alt, (0,0))
@@ -24,9 +55,7 @@ class test_alock(unittest.TestCase):
 
 	@pg_tmp
 	def testALock(self):
-		ad = db.prepare(
-			"select count(*) FROM pg_locks WHERE locktype = 'advisory'"
-		).first
+		ad = prepare(n_alocks).first
 		self.failUnlessEqual(ad(), 0)
 		# test a variety..
 		lockids = [
@@ -64,9 +93,7 @@ class test_alock(unittest.TestCase):
 	@pg_tmp
 	def testPartialALock(self):
 		# Validates that release is properly cleaning up
-		ad = db.prepare(
-			"select count(*) FROM pg_locks WHERE locktype = 'advisory'"
-		).first
+		ad = prepare(n_alocks).first
 		self.failUnlessEqual(ad(), 0)
 		held = (0,-1234)
 		wanted = [0, 324, -1232948, 7, held, 1, (2,4), (834,1)]
@@ -89,9 +116,7 @@ class test_alock(unittest.TestCase):
 
 	@pg_tmp
 	def testALockOnClosed(self):
-		ad = db.prepare(
-			"select count(*) FROM pg_locks WHERE locktype = 'advisory'"
-		).first
+		ad = prepare(n_alocks).first
 		self.failUnlessEqual(ad(), 0)
 		held = (0,-1234)
 		alt = new()

@@ -61,7 +61,10 @@ class Temporal(object):
 		if os.getpid() == self._init_pid_:
 			with self:
 				# Kill all the open connections.
-				db.sys.terminate_backends()
+				try:
+					db.sys.terminate_backends()
+				except Exception:
+					pass
 			cluster = self.cluster
 			self.cluster = None
 			self._init_pid_ = None
