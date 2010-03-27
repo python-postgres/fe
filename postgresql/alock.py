@@ -38,22 +38,15 @@ class ALock(Element):
 		The mode of the lock class.
 		"""
 
-	@abstractmethod
-	def _try(self, id_pairs, ids):
+	@abstractproperty
+	def __select_statements__(self):
 		"""
-		Try and acquire.
-		"""
+		Implemented by subclasses to return the statements to try, acquire, and
+		release the advisory lock.
 
-	@abstractmethod
-	def _acquire(self, id_pairs, ids):
-		"""
-		Acquire and wait if necessary.
-		"""
-
-	@abstractmethod
-	def _release(self, id_pairs, ids):
-		"""
-		Release the locks.
+		Returns a triple of callables where each callable takes two arguments,
+		the lock-id pairs, and then the int8 lock-ids.
+		``(try, acquire, release)``.
 		"""
 
 	@staticmethod
@@ -141,25 +134,24 @@ class ALock(Element):
 		self.connection = self.database = database
 		self.identifiers = identifiers
 		self._id_pairs, self._ids = self._split_lock_identifiers(identifiers)
+		self._try, self._acquire, self._release = self.__select_statements__()
 
 class ShareLock(ALock):
 	mode = 'share'
-	def _try(self, *args):
-		return self.database.sys.try_advisory_shared(*args)
 
-	def _acquire(self, *args):
-		return self.database.sys.acquire_advisory_shared(*args)
-
-	def _release(self, *args):
-		return self.database.sys.release_advisory_shared(*args)
+	def __select_statements__(self):
+		return (
+			self.database.sys.try_advisory_shared,
+			self.database.sys.acquire_advisory_shared,
+			self.database.sys.release_advisory_shared,
+		)
 
 class ExclusiveLock(ALock):
 	mode = 'exclusive'
-	def _try(self, *args):
-		return self.database.sys.try_advisory_exclusive(*args)
 
-	def _acquire(self, *args):
-		return self.database.sys.acquire_advisory_exclusive(*args)
-
-	def _release(self, *args):
-		return self.database.sys.release_advisory_exclusive(*args)
+	def __select_statements__(self):
+		return (
+			self.database.sys.try_advisory_exclusive,
+			self.database.sys.acquire_advisory_exclusive,
+			self.database.sys.release_advisory_exclusive,
+		)
