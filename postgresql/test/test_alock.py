@@ -17,9 +17,11 @@ class test_alock(unittest.TestCase):
 		self.failUnlessEqual(ad(), 0)
 		state = [False, False, False]
 		alt = new()
+		first = alock.ExclusiveLock(db, (0,0))
+		second = alock.ExclusiveLock(db, 1)
 		def concurrent_lock():
 			try:
-				with alock.ExclusiveLock(alt, (1,1)):
+				with alock.ExclusiveLock(alt, 1):
 					with alock.ExclusiveLock(alt, (0,0)):
 						# start it
 						state[0] = True
@@ -37,10 +39,10 @@ class test_alock(unittest.TestCase):
 			time.sleep(0.01)
 		self.failUnlessEqual(ad(), 2)
 		state[1] = True
-		with alock.ExclusiveLock(db, (0,0)):
+		with first:
 			self.failUnlessEqual(ad(), 2)
 			state[2] = True
-			with alock.ExclusiveLock(db, (1,1)):
+			with second:
 				self.failUnlessEqual(ad(), 2)
 		t.join(timeout = 1)
 
