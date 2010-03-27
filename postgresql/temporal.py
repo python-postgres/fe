@@ -59,12 +59,13 @@ class Temporal(object):
 	def destroy(self):
 		# Don't destroy if it's not the initializing process.
 		if os.getpid() == self._init_pid_:
-			with self:
-				# Kill all the open connections.
-				try:
+			# Kill all the open connections.
+			try:
+				with self:
 					db.sys.terminate_backends()
-				except Exception:
-					pass
+			except Exception:
+				# Doesn't matter much if it fails.
+				pass
 			cluster = self.cluster
 			self.cluster = None
 			self._init_pid_ = None
