@@ -18,16 +18,19 @@ class test_alock(unittest.TestCase):
 		state = [False, False, False]
 		alt = new()
 		def concurrent_lock():
-			pass
-			with alock.ExclusiveLock(alt, (1,1)):
-				with alock.ExclusiveLock(alt, (0,0)):
-					# start it
-					state[0] = True
-					while not state[1]:
-						pass
+			try:
+				with alock.ExclusiveLock(alt, (1,1)):
+					with alock.ExclusiveLock(alt, (0,0)):
+						# start it
+						state[0] = True
+						while not state[1]:
+							pass
+							time.sleep(0.01)
+					while not state[2]:
 						time.sleep(0.01)
-				while not state[2]:
-					time.sleep(0.01)
+			except Exception:
+				# Avoid dead lock in cases where advisory is not available.
+				state[0] = state[1] = state[2] = True
 		t = threading.Thread(target = concurrent_lock)
 		t.start()
 		while not state[0]:
@@ -49,7 +52,7 @@ class test_alock(unittest.TestCase):
 		with alock.ExclusiveLock(db, (0,0)):
 			l=alock.ExclusiveLock(alt, (0,0))
 			# should fail to acquire
-			self.failUnlessEqual(l.acquire(False), False)
+			self.failUnlessEqual(l.acquire(blocking=False), False)
 		# no alocks should exist now
 		self.failUnlessEqual(ad(), 0)
 
@@ -75,17 +78,17 @@ class test_alock(unittest.TestCase):
 				self.failUnless(ad() > 0)
 				for x in lockids:
 					xl = alock.ExclusiveLock(alt, x)
-					self.failUnlessEqual(xl.acquire(False), False)
+					self.failUnlessEqual(xl.acquire(blocking=False), False)
 				# main has exclusives on these, so this should fail.
 				xl = alock.ShareLock(alt, *lockids)
-				self.failUnlessEqual(xl.acquire(False), False)
+				self.failUnlessEqual(xl.acquire(blocking=False), False)
 			for x in lockids:
 				# sal1 still holds
 				xl = alock.ExclusiveLock(alt, x)
-				self.failUnlessEqual(xl.acquire(False), False)
+				self.failUnlessEqual(xl.acquire(blocking=False), False)
 				# sal1 still holds, but we want a share lock too.
 				xl = alock.ShareLock(alt, x)
-				self.failUnlessEqual(xl.acquire(False), True)
+				self.failUnlessEqual(xl.acquire(blocking=False), True)
 				xl.release()
 		# no alocks should exist now
 		self.failUnlessEqual(ad(), 0)
@@ -101,7 +104,7 @@ class test_alock(unittest.TestCase):
 		with alock.ExclusiveLock(db, held):
 			l=alock.ExclusiveLock(alt, *wanted)
 			# should fail to acquire, db has held
-			self.failUnlessEqual(l.acquire(False), False)
+			self.failUnlessEqual(l.acquire(blocking=False), False)
 		# No alocks should exist now.
 		# This *MUST* occur prior to alt being closed.
 		# Otherwise, we won't be testing for the recovery
