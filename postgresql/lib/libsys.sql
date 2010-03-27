@@ -78,7 +78,7 @@ SELECT
 	), ('{}'::text[]))
 
 [regtypes::column]
-SELECT (($1::text[])[i])::regtype::oid AS typoid
+SELECT pg_catalog.regtypein(pg_catalog.textout(($1::text[])[i]))::oid AS typoid
 FROM pg_catalog.generate_series(1, array_upper($1::text[], 1)) AS g(i)
 
 [xact_is_prepared::first]
