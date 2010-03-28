@@ -60,9 +60,9 @@ The above example illustrates that idle events are represented using `None`
 objects. Idle events are guaranteed to occur *approximately* at the
 specified interval--the ``timeout`` keyword parameter. In addition to
 providing a means to do other processing or polling, they also offer a safe
-break point for the loop. Internally, the iterator produced by the ``wait``
-method *is* a `NotificationManager`, which will localize the notifications
-prior to emitting them via the iterator.
+break point for the loop. Internally, the iterator produced by the
+``iternotifies`` method *is* a `NotificationManager`, which will localize the
+notifications prior to emitting them via the iterator.
 *It's not safe to break out of the loop, unless an idle event is being handled.*
 If the loop is broken while a regular event is being processed, some events may
 remain in the iterator. In order to consume those events, the iterator *must*

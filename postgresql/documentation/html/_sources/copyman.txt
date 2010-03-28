@@ -149,6 +149,7 @@ on the `postgresql.copyman.ReceiverFault` must be referenced::
 	...    try:
 	...     for num_messages, num_bytes in copy:
 	...      update_rate(num_bytes)
+	...     break
 	...    except copyman.ReceiverFault as cf:
 	...     # Access the original exception using the receiver as the key.
 	...     original_exception = cf.faults[receiver]
@@ -230,13 +231,10 @@ Failures
 ========
 
 When a COPY operation is aborted, either by an exception or by the iterator
-being broken, a `postgresql.copyman.CopyFail` exception will be raised,
-generalizing the failure. When a failure occurs, the Manager will *attempt* to
-recover and realign the Producer and the Receivers. Regardless of the success of
-the recovery process, a `postgresql.copyman.CopyFail` exception will be raised.
-
-The `postgresql.copyman.CopyFail` offers to record any exceptions that occur
-during the exit of the context manager.
+being broken, a `postgresql.copyman.CopyFail` exception will be raised by the
+Manager's ``__exit__()`` method. The `postgresql.copyman.CopyFail` exception
+offers to record any exceptions that occur during the exit of the context
+managers of the Producer and the Receivers.
 
 
 CopyFail Properties

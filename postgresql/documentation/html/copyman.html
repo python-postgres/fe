@@ -177,6 +177,7 @@ on the <cite>postgresql.copyman.ReceiverFault</cite> must be referenced:</p>
 <span class="gp">... </span>   <span class="k">try</span><span class="p">:</span>
 <span class="gp">... </span>    <span class="k">for</span> <span class="n">num_messages</span><span class="p">,</span> <span class="n">num_bytes</span> <span class="ow">in</span> <span class="n">copy</span><span class="p">:</span>
 <span class="gp">... </span>     <span class="n">update_rate</span><span class="p">(</span><span class="n">num_bytes</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="k">break</span>
 <span class="gp">... </span>   <span class="k">except</span> <span class="n">copyman</span><span class="o">.</span><span class="n">ReceiverFault</span> <span class="k">as</span> <span class="n">cf</span><span class="p">:</span>
 <span class="gp">... </span>    <span class="c"># Access the original exception using the receiver as the key.</span>
 <span class="gp">... </span>    <span class="n">original_exception</span> <span class="o">=</span> <span class="n">cf</span><span class="o">.</span><span class="n">faults</span><span class="p">[</span><span class="n">receiver</span><span class="p">]</span>
@@ -256,12 +257,10 @@ processed.</p>
 <div class="section" id="failures">
 <h2>Failures<a class="headerlink" href="#failures" title="Permalink to this headline">¶</a></h2>
 <p>When a COPY operation is aborted, either by an exception or by the iterator
-being broken, a <cite>postgresql.copyman.CopyFail</cite> exception will be raised,
-generalizing the failure. When a failure occurs, the Manager will <em>attempt</em> to
-recover and realign the Producer and the Receivers. Regardless of the success of
-the recovery process, a <cite>postgresql.copyman.CopyFail</cite> exception will be raised.</p>
-<p>The <cite>postgresql.copyman.CopyFail</cite> offers to record any exceptions that occur
-during the exit of the context manager.</p>
+being broken, a <cite>postgresql.copyman.CopyFail</cite> exception will be raised by the
+Manager&#8217;s <tt class="docutils literal"><span class="pre">__exit__()</span></tt> method. The <cite>postgresql.copyman.CopyFail</cite> exception
+offers to record any exceptions that occur during the exit of the context
+managers of the Producer and the Receivers.</p>
 <div class="section" id="copyfail-properties">
 <h3>CopyFail Properties<a class="headerlink" href="#copyfail-properties" title="Permalink to this headline">¶</a></h3>
 <p>The following properties exist on <cite>postgresql.copyman.CopyFail</cite> exceptions:</p>
@@ -423,7 +422,7 @@ is aborted.</dd>
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 27, 2010.
+      Last updated on Mar 28, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>

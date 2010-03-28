@@ -99,9 +99,9 @@ at the designated frequency:</p>
 objects. Idle events are guaranteed to occur <em>approximately</em> at the
 specified interval&#8211;the <tt class="docutils literal"><span class="pre">timeout</span></tt> keyword parameter. In addition to
 providing a means to do other processing or polling, they also offer a safe
-break point for the loop. Internally, the iterator produced by the <tt class="docutils literal"><span class="pre">wait</span></tt>
-method <em>is</em> a <cite>NotificationManager</cite>, which will localize the notifications
-prior to emitting them via the iterator.
+break point for the loop. Internally, the iterator produced by the
+<tt class="docutils literal"><span class="pre">iternotifies</span></tt> method <em>is</em> a <cite>NotificationManager</cite>, which will localize the
+notifications prior to emitting them via the iterator.
 <em>It&#8217;s not safe to break out of the loop, unless an idle event is being handled.</em>
 If the loop is broken while a regular event is being processed, some events may
 remain in the iterator. In order to consume those events, the iterator <em>must</em>
@@ -338,7 +338,7 @@ any time.</li>
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 27, 2010.
+      Last updated on Mar 28, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>
