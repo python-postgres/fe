@@ -1,8 +1,8 @@
 Changes
 =======
 
-1.0 in development
-------------------
+1.0 release on 2010-03-27
+-------------------------
 
  * **DEPRECATION**: Removed 2PC support documentation.
  * **DEPRECATION**: Removed pg_python and pg_dotconf 'scripts'.
