@@ -149,6 +149,7 @@ on the `postgresql.copyman.ReceiverFault` must be referenced::
 	...    try:
 	...     for num_messages, num_bytes in copy:
 	...      update_rate(num_bytes)
+	...     break
 	...    except copyman.ReceiverFault as cf:
 	...     # Access the original exception using the receiver as the key.
 	...     original_exception = cf.faults[receiver]
