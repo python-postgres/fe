@@ -1,7 +1,6 @@
 ##
 # .test.test_copyman - test .copyman
 ##
-from sys import stdout
 import unittest
 from itertools import islice
 from .. import copyman
