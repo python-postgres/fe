@@ -20,7 +20,7 @@ from .python.decorlib import propertydoc
 
 __all__ = [
 	'Message',
-	'PreparedStatement',
+	'Statement',
 	'Chunks',
 	'Rows',
 	'Cursor',
@@ -193,7 +193,7 @@ class Result(Element):
 
 	@propertydoc
 	@abstractproperty
-	def statement(self) -> ("PreparedStatement", None):
+	def statement(self) -> ("Statement", None):
 		"""
 		The query object used to create the cursor. `None`, if unknown.
 
@@ -218,7 +218,7 @@ class Cursor(
 	set. Cursors publish a file-like interface for reading tuples from a cursor
 	declared on the database.
 
-	`Cursor` objects are created by invoking the `PreparedStatement.declare`
+	`Cursor` objects are created by invoking the `Statement.declare`
 	method or by opening a cursor using an identifier via the
 	`Database.cursor_from_id` method.
 	"""
@@ -299,18 +299,19 @@ class Cursor(
 		FROM_END will effectively be ABSOLUTE.
 		"""
 
-class PreparedStatement(
+class Statement(
 	Element,
 	collections.Callable,
 	collections.Iterable,
 ):
 	"""
-	Instances of `PreparedStatement` are returned by the `prepare` method of
+	Instances of `Statement` are returned by the `prepare` method of
 	`Database` instances.
 
-	A PreparedStatement is an Iterable as well as Callable. This feature is
-	supported for queries that have the default arguments filled in or take no
-	arguments at all. It allows for things like:
+	A Statement is an Iterable as well as Callable.
+
+	The Iterable interface is supported for queries that take no arguments at
+	all. It allows the syntax::
 
 		>>> for x in db.prepare('select * FROM table'):
 		...  pass
@@ -415,7 +416,7 @@ class PreparedStatement(
 		"""
 
 	@abstractmethod
-	def clone(self) -> "PreparedStatement":
+	def clone(self) -> "Statement":
 		"""
 		Create a new statement object using the same factors as `self`.
 
@@ -561,6 +562,7 @@ class PreparedStatement(
 		"""
 		Close the prepared statement releasing resources associated with it.
 		"""
+PreparedStatement = Statement
 
 class StoredProcedure(
 	Element,
@@ -882,9 +884,9 @@ class Database(Element):
 		"""
 
 	@abstractmethod
-	def prepare(self, sql : str) -> PreparedStatement:
+	def prepare(self, sql : str) -> Statement:
 		"""
-		Create a new `PreparedStatement` instance bound to the connection
+		Create a new `Statement` instance bound to the connection
 		using the given SQL.
 
 		>>> s = db.prepare("SELECT 1")
@@ -896,9 +898,9 @@ class Database(Element):
 	@abstractmethod
 	def statement_from_id(self,
 		statement_id : "The statement's identification string.",
-	) -> PreparedStatement:
+	) -> Statement:
 		"""
-		Create a `PreparedStatement` object that was already prepared on the
+		Create a `Statement` object that was already prepared on the
 		server. The distinction between this and a regular query is that it
 		must be explicitly closed if it is no longer desired, and it is
 		instantiated using the statement identifier as opposed to the SQL
@@ -916,7 +918,7 @@ class Database(Element):
 		`Cursor` objects created this way must *not* be closed when the object
 		is garbage collected. Rather, the user must explicitly close it for
 		the server resources to be released. This is in contrast to `Cursor`
-		objects that are created by invoking a `PreparedStatement` or a SRF
+		objects that are created by invoking a `Statement` or a SRF
 		`StoredProcedure`.
 		"""
 

@@ -74,7 +74,7 @@ interface elements:</p>
 <dt><tt class="docutils literal"><span class="pre">db</span></tt></dt>
 <dd><cite>postgresql.api.Connection</cite>, a database connection. <a class="reference internal" href="#connections">Connections</a></dd>
 <dt><tt class="docutils literal"><span class="pre">ps</span></tt></dt>
-<dd><cite>postgresql.api.PreparedStatement</cite>, a prepared statement. <a class="reference internal" href="#prepared-statements">Prepared Statements</a></dd>
+<dd><cite>postgresql.api.Statement</cite>, a prepared statement. <a class="reference internal" href="#prepared-statements">Prepared Statements</a></dd>
 <dt><tt class="docutils literal"><span class="pre">c</span></tt></dt>
 <dd><cite>postgresql.api.Cursor</cite>, a cursor; the results of a prepared statement.
 <a class="reference internal" href="#cursors">Cursors</a></dd>
@@ -329,7 +329,7 @@ server is desired, a new connection <em>must</em> be established.</p>
 <blockquote>
 <dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">Connection.prepare(sql_statement_string)</span></tt></dt>
-<dd>Create a <cite>postgresql.api.PreparedStatement</cite> object for querying the database.
+<dd>Create a <cite>postgresql.api.Statement</cite> object for querying the database.
 This provides an &#8220;SQL statement template&#8221; that can be executed multiple times.
 See <a class="reference internal" href="#prepared-statements">Prepared Statements</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.proc(procedure_id)</span></tt></dt>
@@ -338,7 +338,7 @@ procedure on the database. The returned object will provide a
 <cite>collections.Callable</cite> interface to the stored procedure on the server. See
 <a class="reference internal" href="#stored-procedures">Stored Procedures</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.statement_from_id(statement_id)</span></tt></dt>
-<dd>Create a <cite>postgresql.api.PreparedStatement</cite> object from an existing statement
+<dd>Create a <cite>postgresql.api.Statement</cite> object from an existing statement
 identifier. This is used in cases where the statement was prepared on the
 server. See <a class="reference internal" href="#prepared-statements">Prepared Statements</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.cursor_from_id(cursor_id)</span></tt></dt>
@@ -450,7 +450,7 @@ the database. Prepared statement objects represent a request that will, likely,
 be sent to the database at some point in the future. A statement is a single
 SQL command.</p>
 <p>The <tt class="docutils literal"><span class="pre">prepare</span></tt> entry point on the connection provides the standard method for
-creating a <cite>postgersql.api.PreparedStatement</cite> instance bound to the
+creating a <cite>postgersql.api.Statement</cite> instance bound to the
 connection(<tt class="docutils literal"><span class="pre">db</span></tt>) from an SQL statement string:</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">ps</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">prepare</span><span class="p">(</span><span class="s">&quot;SELECT 1&quot;</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">ps</span><span class="p">()</span>
@@ -785,7 +785,7 @@ iterator is the <em>fastest</em> way to move data:</p>
 </pre></div>
 </div>
 <p><tt class="docutils literal"><span class="pre">COPY</span> <span class="pre">FROM</span> <span class="pre">STDIN</span></tt> commands are supported via
-<cite>postgresql.api.PreparedStatement.load_rows</cite>. Each invocation to
+<cite>postgresql.api.Statement.load_rows</cite>. Each invocation to
 <tt class="docutils literal"><span class="pre">load_rows</span></tt> is a single invocation of COPY. <tt class="docutils literal"><span class="pre">load_rows</span></tt> takes an iterable of
 COPY lines to send to the server:</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">db</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s">&quot;&quot;&quot;</span>
@@ -1627,7 +1627,7 @@ as follows:</p>
 <p>Where <tt class="docutils literal"><span class="pre">Output</span></tt> can be a <cite>postgresql.api.Cursor</cite> object produced by
 <tt class="docutils literal"><span class="pre">declare(...)</span></tt> or an implicit output management object used <em>internally</em> by
 <tt class="docutils literal"><span class="pre">Statement.__call__()</span></tt> and other statement execution methods. Setting the
-<tt class="docutils literal"><span class="pre">msghook</span></tt> attribute on <cite>postgresql.api.PreparedStatement</cite> gives very fine
+<tt class="docutils literal"><span class="pre">msghook</span></tt> attribute on <cite>postgresql.api.Statement</cite> gives very fine
 control over raised messages. Consider filtering the notice message on create
 table statements that implicitly create indexes:</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">db</span> <span class="o">=</span> <span class="n">postgresql</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
@@ -1651,7 +1651,7 @@ table statements that implicitly create indexes:</p>
 <p>The above illustrates the quality of an installed <tt class="docutils literal"><span class="pre">msghook</span></tt> that simply
 inhibits further propagation of messages with a severity of &#8216;NOTICE&#8217;&#8211;but, only
 notices coming from objects derived from the <tt class="docutils literal"><span class="pre">ct_this</span></tt>
-<cite>postgresql.api.PreparedStatement</cite> object.</p>
+<cite>postgresql.api.Statement</cite> object.</p>
 <p>Subsequently, if the filter is installed on the connection&#8217;s <tt class="docutils literal"><span class="pre">msghook</span></tt>:</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">db</span> <span class="o">=</span> <span class="n">postgresql</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">db</span><span class="o">.</span><span class="n">settings</span><span class="p">[</span><span class="s">&#39;client_min_messages&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s">&#39;NOTICE&#39;</span>
@@ -1838,7 +1838,7 @@ parse error.</dd>
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 25, 2010.
+      Last updated on Mar 27, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>

@@ -33,7 +33,7 @@ interface elements:
   `postgresql.api.Connection`, a database connection. `Connections`_
 
  ``ps``
-  `postgresql.api.PreparedStatement`, a prepared statement. `Prepared Statements`_
+  `postgresql.api.Statement`, a prepared statement. `Prepared Statements`_
 
  ``c``
   `postgresql.api.Cursor`, a cursor; the results of a prepared statement.
@@ -317,7 +317,7 @@ After a connection is established::
 The methods and properties on the connection object are ready for use:
 
  ``Connection.prepare(sql_statement_string)``
-  Create a `postgresql.api.PreparedStatement` object for querying the database.
+  Create a `postgresql.api.Statement` object for querying the database.
   This provides an "SQL statement template" that can be executed multiple times.
   See `Prepared Statements`_ for more information.
 
@@ -328,7 +328,7 @@ The methods and properties on the connection object are ready for use:
   `Stored Procedures`_ for more information.
 
  ``Connection.statement_from_id(statement_id)``
-  Create a `postgresql.api.PreparedStatement` object from an existing statement
+  Create a `postgresql.api.Statement` object from an existing statement
   identifier. This is used in cases where the statement was prepared on the
   server. See `Prepared Statements`_ for more information.
 
@@ -460,7 +460,7 @@ be sent to the database at some point in the future. A statement is a single
 SQL command.
 
 The ``prepare`` entry point on the connection provides the standard method for
-creating a `postgersql.api.PreparedStatement` instance bound to the
+creating a `postgersql.api.Statement` instance bound to the
 connection(``db``) from an SQL statement string::
 
 	>>> ps = db.prepare("SELECT 1")
@@ -821,7 +821,7 @@ iterator is the *fastest* way to move data::
 	<lots of data>
 
 ``COPY FROM STDIN`` commands are supported via
-`postgresql.api.PreparedStatement.load_rows`. Each invocation to
+`postgresql.api.Statement.load_rows`. Each invocation to
 ``load_rows`` is a single invocation of COPY. ``load_rows`` takes an iterable of
 COPY lines to send to the server::
 
@@ -1651,7 +1651,7 @@ as follows::
 Where ``Output`` can be a `postgresql.api.Cursor` object produced by
 ``declare(...)`` or an implicit output management object used *internally* by
 ``Statement.__call__()`` and other statement execution methods. Setting the
-``msghook`` attribute on `postgresql.api.PreparedStatement` gives very fine
+``msghook`` attribute on `postgresql.api.Statement` gives very fine
 control over raised messages. Consider filtering the notice message on create
 table statements that implicitly create indexes::
 
@@ -1675,7 +1675,7 @@ table statements that implicitly create indexes::
 The above illustrates the quality of an installed ``msghook`` that simply
 inhibits further propagation of messages with a severity of 'NOTICE'--but, only
 notices coming from objects derived from the ``ct_this``
-`postgresql.api.PreparedStatement` object.
+`postgresql.api.Statement` object.
 
 Subsequently, if the filter is installed on the connection's ``msghook``::
 

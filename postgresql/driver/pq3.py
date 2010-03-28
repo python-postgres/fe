@@ -1120,7 +1120,7 @@ class Cursor(Output, pg_api.Cursor):
 		self.database._pq_push(x, self)
 		self.database._pq_complete()
 
-class PreparedStatement(pg_api.PreparedStatement):
+class Statement(pg_api.Statement):
 	string = None
 	database = None
 	statement_id = None
@@ -1705,6 +1705,7 @@ class PreparedStatement(pg_api.PreparedStatement):
 
 	def load_rows(self, rows, chunksize = 256):
 		return self.load_chunks(chunk(rows, chunksize))
+PreparedStatement = Statement
 
 class StoredProcedure(pg_api.StoredProcedure):
 	_e_factors = ('database', 'procedure_id')
@@ -2278,14 +2279,14 @@ class Connection(pg_api.Connection):
 	def prepare(self,
 		sql_statement_string : str,
 		statement_id = None,
-	) -> PreparedStatement:
-		ps = PreparedStatement(self, statement_id, sql_statement_string)
+	) -> Statement:
+		ps = Statement(self, statement_id, sql_statement_string)
 		ps._init()
 		ps._fini()
 		return ps
 
-	def statement_from_id(self, statement_id : str) -> PreparedStatement:
-		ps = PreparedStatement(self, statement_id, None)
+	def statement_from_id(self, statement_id : str) -> Statement:
+		ps = Statement(self, statement_id, None)
 		ps._init()
 		ps._fini()
 		return ps

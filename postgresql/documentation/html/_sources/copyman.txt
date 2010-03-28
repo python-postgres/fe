@@ -121,7 +121,7 @@ of the Receivers.
 
 .. note::
  Faults are only raised by `postgresql.copyman.CopyManager.__next__`. The
- ``run()`` method will always raise `postgresql.copyman.CopyFail`.
+ ``run()`` method will only raise `postgresql.copyman.CopyFail`.
 
 Receiver Faults
 ---------------
@@ -300,8 +300,8 @@ processes of the `postgresql.copyman` module:
   An object that consumes COPY data. A target.
 
  Fault
-  Specifically, the `postgresql.copyman.Fault` exception. A Fault is raised
-  when a Receiver raises an exception.
+  Specifically, `postgresql.copyman.Fault` exceptions. A Fault is raised
+  when a Receiver or a Producer raises an exception during the COPY operation.
 
  Reconciliation
   Generally, the steps performed by the "reconcile" method on
@@ -316,6 +316,6 @@ processes of the `postgresql.copyman` module:
   exhaustion.
 
  Realignment
-  The process of providing compensating data to the receivers so that the
+  The process of providing compensating data to the Receivers so that the
   connection will be on a message boundary. Occurs when the COPY operation
-  fails.
+  is aborted.

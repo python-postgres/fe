@@ -46,7 +46,7 @@ class Element(object, metaclass = ABCMeta):
 		"""
 		Single-word string describing the kind of element.
 
-		For instance, `PreparedStatement`'s _e_label is 'STATEMENT'.
+		For instance, `postgresql.api.Statement`'s _e_label is 'STATEMENT'.
 
 		Usually, this is set directly on the class itself, and is a shorter
 		version of the class's name.

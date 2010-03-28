@@ -153,7 +153,7 @@ of the Receivers.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p class="last">Faults are only raised by <cite>postgresql.copyman.CopyManager.__next__</cite>. The
-<tt class="docutils literal"><span class="pre">run()</span></tt> method will always raise <cite>postgresql.copyman.CopyFail</cite>.</p>
+<tt class="docutils literal"><span class="pre">run()</span></tt> method will only raise <cite>postgresql.copyman.CopyFail</cite>.</p>
 </div>
 <div class="section" id="receiver-faults">
 <h3>Receiver Faults<a class="headerlink" href="#receiver-faults" title="Permalink to this headline">¶</a></h3>
@@ -321,8 +321,8 @@ source.</dd>
 <dt>Receiver</dt>
 <dd>An object that consumes COPY data. A target.</dd>
 <dt>Fault</dt>
-<dd>Specifically, the <cite>postgresql.copyman.Fault</cite> exception. A Fault is raised
-when a Receiver raises an exception.</dd>
+<dd>Specifically, <cite>postgresql.copyman.Fault</cite> exceptions. A Fault is raised
+when a Receiver or a Producer raises an exception during the COPY operation.</dd>
 <dt>Reconciliation</dt>
 <dd>Generally, the steps performed by the &#8220;reconcile&#8221; method on
 <cite>postgresql.copyman.CopyManager</cite> instances. More precisely, the
@@ -334,9 +334,9 @@ untrapped exceptions or an incomplete COPY. Specifically, the COPY will be
 noted as failed in cases where the Manager&#8217;s iterator is <em>not</em> ran until
 exhaustion.</dd>
 <dt>Realignment</dt>
-<dd>The process of providing compensating data to the receivers so that the
+<dd>The process of providing compensating data to the Receivers so that the
 connection will be on a message boundary. Occurs when the COPY operation
-fails.</dd>
+is aborted.</dd>
 </dl>
 </blockquote>
 </div>
@@ -423,7 +423,7 @@ fails.</dd>
     </div>
     <div class="footer">
       &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Mar 25, 2010.
+      Last updated on Mar 27, 2010.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
     </div>
   </body>
