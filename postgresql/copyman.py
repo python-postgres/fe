@@ -676,6 +676,7 @@ class CopyManager(Element, Iterator):
 		self.producer = producer
 		self.transformer = None
 		self.receivers = ElementSet(receivers)
+		self._seen_stop_iteration = False
 		rp = set()
 		add = rp.add
 		for x in self.receivers:
@@ -739,7 +740,7 @@ class CopyManager(Element, Iterator):
 			except Exception as e:
 				exit_faults[x] = e
 
-		if typ or exit_faults or profail:
+		if typ or exit_faults or profail or not self._seen_stop_iteration:
 			raise CopyFail(self,
 				"could not complete the COPY operation",
 				receiver_faults = exit_faults or None,
@@ -770,6 +771,7 @@ class CopyManager(Element, Iterator):
 			nextdata = next(self.producer)
 		except StopIteration:
 			# Should be over.
+			self._seen_stop_iteration = True
 			raise
 		except Exception:
 			raise ProducerFault(self)

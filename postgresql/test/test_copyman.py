@@ -247,19 +247,32 @@ class test_copyman(unittest.TestCase):
 		sqlexec(stdsource)
 		dst = new()
 		dst.execute(stddst)
-		stmt = prepare(srcsql)
-		sp = Injector(notify, prepare(srcsql), buffer_size = 133)
+		sp = Injector(notify, prepare(srcsql), buffer_size = 32)
 		sr = copyman.StatementReceiver(dst.prepare(dstsql))
 		seen_in_loop = 0
+		r = []
 		with copyman.CopyManager(sp, sr) as copy:
 			for x in copy:
-				r = list(db.iternotifies(0))
-				if r:
-					break
-			else:
-				self.fail("didn't pickup notify during copy")
+				r += list(db.iternotifies(0))
 		# Got the injected NOTIFY's, right?
-		self.failUnlessEqual(r, [('channel', 'payload', 1234)])
+		self.failUnless(r)
+		# it may have happened multiple times, so adjust accordingly.
+		self.failUnlessEqual(r, [('channel', 'payload', 1234)]*len(r))
+
+	@pg_tmp
+	def testUnfinishedCopy(self):
+		sqlexec(stdsource)
+		dst = new()
+		dst.execute(stddst)
+		sp = copyman.StatementProducer(prepare(srcsql), buffer_size = 32)
+		sr = copyman.StatementReceiver(dst.prepare(dstsql))
+		try:
+			with copyman.CopyManager(sp, sr) as copy:
+				for x in copy:
+					break
+			self.fail("did not raise CopyFail")
+		except copyman.CopyFail:
+			pass
 
 	@pg_tmp
 	def testRaiseInCopy(self):
