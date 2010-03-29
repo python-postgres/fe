@@ -21,7 +21,6 @@ Changes
    high verbosity further irritates that case.
  * Added postgresql.project module to provide project information.
    Project name, author, version, etc.
- * Fixed db.tracer and pg_python's --pq-trace=
  * Increased default recvsize and chunksize for improved performance.
  * 'D' messages are special cased as builtins.tuples instead of
    protocol.element3.Tuple
