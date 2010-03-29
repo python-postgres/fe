@@ -1593,7 +1593,13 @@ class Statement(pg_api.Statement):
 			else:
 				# Probably a Null command.
 				return None
-			return cm.extract_count() or cm.extract_command()
+
+			count = cm.extract_count()
+			if count is None:
+				command = cm.extract_command()
+				if command is not None:
+					return command.decode('ascii')
+			return count
 
 	def _load_copy_chunks(self, chunks, *parameters):
 		"""

@@ -4,7 +4,8 @@ Changes
 1.0.1 in development
 --------------------
 
- * <No changes>
+ * First .first()'s handling of counts and commands.
+   Bad logic caused zero-counts to return the command tag.
 
 1.0 release on 2010-03-27
 -------------------------

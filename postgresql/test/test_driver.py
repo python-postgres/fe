@@ -424,7 +424,8 @@ class test_driver(unittest.TestCase):
 
 	@pg_tmp
 	def testStatementFirstDML(self):
-		db.execute("CREATE TEMP TABLE first (i int)")
+		cmd = prepare("CREATE TEMP TABLE first (i int)").first()
+		self.failUnlessEqual(cmd, 'CREATE TABLE')
 		fins = db.prepare("INSERT INTO first VALUES (123)").first
 		fupd = db.prepare("UPDATE first SET i = 321 WHERE i = 123").first
 		fdel = db.prepare("DELETE FROM first").first
@@ -436,6 +437,7 @@ class test_driver(unittest.TestCase):
 		self.failUnlessEqual(fins(), 1)
 		self.failUnlessEqual(fupd(), 2)
 		self.failUnlessEqual(fdel(), 3)
+		self.failUnlessEqual(fdel(), 0)
 
 	@pg_tmp
 	def testStatementRowsPersistence(self):
