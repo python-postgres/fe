@@ -23,7 +23,7 @@ def insertSamples(count, insert_records):
 		for x in range(count)
 	]
 	gen = time.time()
-	insert_records.load(recs)
+	insert_records.load_rows(recs)
 	fin = time.time()
 	xacttime = fin - gen
 	ats = count / xacttime
