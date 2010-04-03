@@ -206,7 +206,7 @@ class Temporal(object):
 		if not interrupt:
 			# Interrupt then close. Just in case something is lingering.
 			for x in [builtins['db']] + list(extras):
-				if not x.closed:
+				if x.closed is False:
 					x.interrupt()
 					x.close()
 			# Interrupted and closed all the other connections.
