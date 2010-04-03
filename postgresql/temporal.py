@@ -205,11 +205,10 @@ class Temporal(object):
 					__builtins__.pop(x, None)
 		if not interrupt:
 			# Interrupt then close. Just in case something is lingering.
-			builtins['db'].interrupt()
-			builtins['db'].close()
-			for x in extras:
-				x.interrupt()
-				x.close()
+			for x in [builtins['db']] + list(extras):
+				if not x.closed:
+					x.interrupt()
+					x.close()
 			# Interrupted and closed all the other connections.
 			with builtins['new']() as dropdb:
 				dropdb.execute(drop_schema(self.sandbox_id+1))
