@@ -20,8 +20,8 @@ if sys.version_info[:2] < (3,1):
 sys.path.insert(0, '')
 
 sys.dont_write_bytecode = True
-import postgresql.release.distutils as pg_dist
-defaults = pg_dist.standard_setup_keywords()
+import postgresql.release.distutils as dist
+defaults = dist.standard_setup_keywords()
 sys.dont_write_bytecode = False
 
 if __name__ == '__main__':
