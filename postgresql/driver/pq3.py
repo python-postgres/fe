@@ -2645,7 +2645,7 @@ class Connection(pg_api.Connection):
 		self.connector = connector
 		# raw notify messages
 		self._notifies = []
-		self.typio = TypeIO(self)
+		self.typio = self.connector.driver.typio(self)
 		self.typio.set_encoding('ascii')
 		self.settings = Settings(self)
 # class Connection
