@@ -166,7 +166,7 @@ def interval_unpack(mds, timedelta = datetime.timedelta):
 	months, days, seconds_ms = mds
 	if months != 0:
 		# XXX: Should this raise an exception?
-		w = pg_exc.TypeConversionWarning(
+		w = TypeConversionWarning(
 			"datetime.timedelta cannot represent relative intervals",
 			details = {
 				'hint': 'An interval was unpacked with a non-zero "month" field.'
