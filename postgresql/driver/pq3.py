@@ -349,7 +349,7 @@ class TypeIO(pg_api.TypeIO):
 		if hasbin_output:
 			def unpack_an_array(data, array_from_parts = self.array_from_parts):
 				flags, typoid, dims, lbs, elements = array_unpack(data)
-				return array_from_parts((map(unpack_element, elements), dims, lbs))
+				return array_from_parts(((x if x is None else unpack_element(x) for x in elements), dims, lbs))
 		else:
 			# signals string formatting
 			unpack_an_array = None

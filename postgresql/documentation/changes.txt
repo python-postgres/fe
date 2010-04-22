@@ -4,7 +4,8 @@ Changes
 1.0.1 in development
 --------------------
 
- * First .first()'s handling of counts and commands.
+ * Fix unpacking of array NULLs. (Elvis Pranskevichus)
+ * Fix .first()'s handling of counts and commands.
    Bad logic caused zero-counts to return the command tag.
  * Don't interrupt and close a temporal connection if it's not open.
  * Use the Driver's typio attribute for TypeIO overrides. (Elvis Pranskevichus)

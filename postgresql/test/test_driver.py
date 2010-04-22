@@ -1753,5 +1753,17 @@ class test_typio(unittest.TestCase):
 		# It just exercises the code path.
 		db.typio.identify(contrib_hstore = 'pg_catalog.reltime')
 
+	@pg_tmp
+	def testArrayNulls(self):
+		try:
+			sqlexec('SELECT ARRAY[1,NULL]::int[]')
+		except Exception:
+			# unsupported here
+			return
+		inta = prepare('select $1::int[]').first
+		texta = prepare('select $1::text[]').first
+		self.failUnlessEqual(inta([1,2,None]), [1,2,None])
+		self.failUnlessEqual(texta(["foo",None,"bar"]), ["foo",None,"bar"])
+
 if __name__ == '__main__':
 	unittest.main()
