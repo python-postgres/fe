@@ -1,8 +1,8 @@
 Changes
 =======
 
-1.0.1 in development
---------------------
+1.0.1 released on 2010-04-24
+----------------------------
 
  * Fix unpacking of array NULLs. (Elvis Pranskevichus)
  * Fix .first()'s handling of counts and commands.

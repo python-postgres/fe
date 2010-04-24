@@ -1,8 +1,17 @@
 Changes
 =======
 
-1.0 release on 2010-03-27
--------------------------
+1.0.1 released on 2010-04-24
+----------------------------
+
+ * Fix unpacking of array NULLs. (Elvis Pranskevichus)
+ * Fix .first()'s handling of counts and commands.
+   Bad logic caused zero-counts to return the command tag.
+ * Don't interrupt and close a temporal connection if it's not open.
+ * Use the Driver's typio attribute for TypeIO overrides. (Elvis Pranskevichus)
+
+1.0 released on 2010-03-27
+--------------------------
 
  * **DEPRECATION**: Removed 2PC support documentation.
  * **DEPRECATION**: Removed pg_python and pg_dotconf 'scripts'.
@@ -16,7 +25,6 @@ Changes
    high verbosity further irritates that case.
  * Added postgresql.project module to provide project information.
    Project name, author, version, etc.
- * Fixed db.tracer and pg_python's --pq-trace=
  * Increased default recvsize and chunksize for improved performance.
  * 'D' messages are special cased as builtins.tuples instead of
    protocol.element3.Tuple
