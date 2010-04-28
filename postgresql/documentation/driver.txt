@@ -1705,7 +1705,7 @@ Message Metadata
 ----------------
 
 PostgreSQL messages, `postgresql.message.Message`, are primarily described in three
-parts: the SQL-state code, the main message string, and a mapping defining the
+parts: the SQL-state code, the main message string, and a mapping containing the
 details. The follow attributes are available on message objects:
 
  ``Message.message``
