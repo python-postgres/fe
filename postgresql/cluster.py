@@ -218,7 +218,7 @@ class Cluster(pg_api.Cluster):
 			raise ClusterInitializationError(
 				"unable to find executable for cluster initialization",
 				details = {
-					'detail' : "The installation had neither 'initdb' nor 'pg_ctl'had neither 'initdb' nor 'pg_ctl'",
+					'detail' : "The installation does not have 'initdb' or 'pg_ctl'.",
 				},
 				creator = self
 			)
