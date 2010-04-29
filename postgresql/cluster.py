@@ -67,16 +67,11 @@ DEFAULT_PID_FILENAME = 'postmaster.pid'
 
 initdb_option_map = {
 	'encoding' : '-E',
-	'locale' : '--locale',
-	'collate' : '--lc-collate',
-	'ctype' : '--lc-ctype',
-	'monetary' : '--lc-monetary',
-	'numeric' : '--lc-numeric',
-	'time' : '--lc-time',
 	'authentication' : '-A',
 	'user' : '-U',
 	# pwprompt is not supported.
-	# Cluster.init is *not* intended for interactive use.
+	# interactive use should be implemented by the application
+	# calling Cluster.init()
 }
 
 class Cluster(pg_api.Cluster):
