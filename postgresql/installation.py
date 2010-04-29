@@ -16,7 +16,6 @@ from .python.os import find_executable, close_fds, platform_exe
 from . import versionstring
 from . import api as pg_api
 from . import string as pg_str
-from . import exceptions as pg_exc
 
 # Get the output from the given command.
 # *args are transformed into "long options", '--' + x
