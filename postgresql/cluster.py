@@ -581,9 +581,9 @@ class Cluster(pg_api.Cluster):
 			if not self.running():
 				if self.daemon_process is not None:
 					r = self.daemon_process.returncode
-					if r is not None and r != 0:
+					if r is not None:
 						raise ClusterStartupError(
-							"postgres daemon exited with non-zero status",
+							"postgres daemon terminated",
 							details = {
 								'RESULT' : r,
 								'COMMAND' : self.daemon_command,
