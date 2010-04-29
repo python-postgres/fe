@@ -19,6 +19,7 @@ Contents
    copyman
    notifyman
    alock
+   cluster
    lib
    clientparameters
    gotchas

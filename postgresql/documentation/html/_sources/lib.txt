@@ -42,8 +42,8 @@ purpose of the file and to provide a hint to editors that SQL highlighting
 should be used. The format of an ILF takes the form::
 
 	<Preface>
-	[symbol:type:method]
-	<symbol statement>
+	[name:type:method]
+	<statement>
 	...
 
 Where multiple symbols may be defined. The Preface that comes before the first

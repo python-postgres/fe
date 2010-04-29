@@ -19,6 +19,18 @@ Contents
  Driver
   `postgresql.documentation.driver`
 
+ Copy Management
+  `postgresql.documentation.copyman`
+
+ Notification Management
+  `postgresql.documentation.notifyman`
+
+ Advisory Locks
+  `postgresql.documentation.alock`
+
+ Cluster Management
+  `postgresql.documentation.cluster`
+
  Categories and Query Libraries
   `postgresql.documentation.lib`
 
