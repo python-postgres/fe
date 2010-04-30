@@ -1807,9 +1807,6 @@ class SettingsCM(object):
 		self.database = database
 		self.settings_to_set = settings_to_set
 
-	def __context__(self):
-		return self
-
 	def __enter__(self):
 		if hasattr(self, 'stored_settings'):
 			raise RuntimeError("cannot re-use setting CMs")
@@ -1988,9 +1985,6 @@ class Transaction(pg_api.Transaction):
 		self.mode = mode
 		self.state = 'initialized'
 		self.type = None
-
-	def __context__(self):
-		return self
 
 	def __enter__(self):
 		self.start()
@@ -2250,9 +2244,6 @@ class Connection(pg_api.Connection):
 			self.connector._pq_iri,
 			self.closed and 'closed' or '%s' %(self.pq.state,)
 		)
-
-	def __context__(self):
-		return self
 
 	def __exit__(self, type, value, tb):
 		# Don't bother closing unless it's a normal exception.

@@ -704,10 +704,6 @@ class Transaction(Element):
 		Run the `start` method and return self.
 		"""
 
-	def __context__(self):
-		'Return self.'
-		return self
-
 	@abstractmethod
 	def __exit__(self, typ, obj, tb):
 		"""
@@ -1198,12 +1194,6 @@ class Connection(Database):
 		`True` when `None`.
 		"""
 
-	@abstractmethod
-	def __context__(self):
-		"""
-		Returns the connection object, self.
-		"""
-
 class Driver(Element):
 	"""
 	The `Driver` element provides the `Connector` and other information
@@ -1371,9 +1361,6 @@ class Cluster(Element):
 		Start the cluster if it's not already running, and wait for it to be
 		readied.
 		"""
-
-	def __context__(self):
-		return self
 
 	@abstractmethod
 	def __exit__(self, exc, val, tb):
