@@ -148,6 +148,21 @@ class TypeIO(pg_api.TypeIO):
 	def lookup_composite_type_info(self, typid):
 		return self.database.sys.lookup_composite(typid)
 
+	def lookup_domain_basetype(self, typid):
+		if self.database.version_info[:2] >= (8, 4):
+			return self.lookup_domain_basetype_84(typid)
+
+		while typid:
+			r = self.database.sys.lookup_basetype(typid)
+			if not r[0][0]:
+				return typid
+			else:
+				typid = r[0][0]
+
+	def lookup_domain_basetype_84(self, typid):
+		r = self.database.sys.lookup_basetype_recursive(typid)
+		return r[0][0]
+
 	def set_encoding(self, value):
 		"""
 		Set a new client encoding.
@@ -254,11 +269,16 @@ class TypeIO(pg_api.TypeIO):
 					for x in self.lookup_composite_type_info(typrelid):
 						attmap[x[1]] = i
 						attnames.append(x[1])
+						if x[2]:
+							# This is a domain
+							fieldtypid = self.lookup_domain_basetype(x[0])
+						else:
+							fieldtypid = x[0]
 						typids.append(x[0])
-						pack, unpack, typ = self.resolve(
-							x[0], list(from_resolution_of) + [typid]
+						te = self.resolve(
+							fieldtypid, list(from_resolution_of) + [typid]
 						)
-						cio.append((pack or self.encode, unpack or self.decode))
+						cio.append((te[0] or self.encode, te[1] or self.decode))
 						i += 1
 					self._cache[typid] = typio = self.record_io_factory(
 						cio, typids, attmap, list(
@@ -283,7 +303,17 @@ class TypeIO(pg_api.TypeIO):
 					)
 					self._cache[typid] = typio
 				else:
-					self._cache[typid] = typio = self.strio
+					typio = None
+					if typtype == b'd':
+						basetype = self.lookup_domain_basetype(typid)
+						typio = self.resolve(
+							basetype,
+							from_resolution_of = list(from_resolution_of) + [typid]
+						)
+					if not typio:
+						typio = self.strio
+
+					self._cache[typid] = typio
 			else:
 				# Throw warning about type without entry in pg_type?
 				typio = self.strio

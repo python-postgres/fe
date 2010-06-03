@@ -1094,6 +1094,35 @@ class test_driver(unittest.TestCase):
 				)
 
 	@pg_tmp
+	def testDomainSupport(self):
+		'test domain type I/O'
+
+		db.execute('CREATE DOMAIN int_t AS int')
+		db.execute('CREATE DOMAIN int_t_2 AS int_t')
+		db.execute('CREATE TYPE tt AS (a int_t, b int_t_2)')
+
+		samples = {
+			'int_t': [10],
+			'int_t_2': [11],
+			'tt': [(12, 13)]
+		}
+
+		for (typname, sample_data) in samples.items():
+			pb = db.prepare(
+				"SELECT $1::" + typname
+			)
+			for sample in sample_data:
+				rsample = list(pb.rows(sample))[0][0]
+				if isinstance(rsample, pg_types.Array):
+					rsample = rsample.nest()
+				self.failUnless(
+					rsample == sample,
+					"failed to return %s object data as-is; gave %r, received %r" %(
+						typname, sample, rsample
+					)
+				)
+
+	@pg_tmp
 	def testXML(self):
 		try:
 			xml = db.prepare('select $1::xml')
