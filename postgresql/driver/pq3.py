@@ -264,6 +264,7 @@ class TypeIO(pg_api.TypeIO):
 						cio, typids, attmap, list(
 							map(self.sql_type_from_oid, typids)
 						), attnames,
+						typrelid,
 						quote_ident(typnamespace) + '.' + \
 						quote_ident(typname),
 					)
@@ -356,7 +357,7 @@ class TypeIO(pg_api.TypeIO):
 
 		return (pack_an_array, unpack_an_array, pg_types.Array)
 
-	def RowTypeFactory(self, attribute_map = {}, _Row = pg_types.Row.from_sequence):
+	def RowTypeFactory(self, attribute_map = {}, _Row = pg_types.Row.from_sequence, composite_relid = None):
 		return partial(_Row, attribute_map)
 
 	##
@@ -368,6 +369,7 @@ class TypeIO(pg_api.TypeIO):
 		attmap : "mapping of column name to index number",
 		typnames : "sequence of sql type names in order",
 		attnames : "sequence of attribute names in order",
+		composite_relid : "oid of the composite relation",
 		composite_name : "the name of the composite type",
 		get0 = get0,
 		get1 = get1,
@@ -375,7 +377,7 @@ class TypeIO(pg_api.TypeIO):
 	):
 		fpack = tuple(map(get0, column_io))
 		funpack = tuple(map(get1, column_io))
-		row_constructor = self.RowTypeFactory(attribute_map = attmap)
+		row_constructor = self.RowTypeFactory(attribute_map = attmap, composite_relid = composite_relid)
 
 		def raise_pack_tuple_error(procs, tup, itemnum):
 			data = repr(tup[itemnum])
