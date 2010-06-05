@@ -1114,7 +1114,7 @@ class Connector(Element):
 		Create and connect. Arguments will be given to the `Connection` instance's
 		`connect` method.
 		"""
-		return self.driver.connection(self)
+		return self.driver.connection(self, *args, **kw)
 
 	def __init__(self,
 		user : "required keyword specifying the user name(str)" = None,
