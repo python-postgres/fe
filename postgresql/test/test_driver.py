@@ -879,6 +879,22 @@ class test_driver(unittest.TestCase):
 		c.seek(10, 2)
 		self.failUnlessEqual(r1, c.read(10))
 
+	@pg_tmp
+	def testSeek(self):
+		ps = db.prepare("SELECT i FROM generate_series(0, (2^6)::int - 1) AS g(i)")
+		c = ps.declare()
+
+		self.failUnlessEqual(c.seek(4, 'FORWARD'), 4)
+		self.failUnlessEqual([x for x, in c.read(10)], list(range(4, 14)))
+
+		self.failUnlessEqual(c.seek(2, 'BACKWARD'), 2)
+		self.failUnlessEqual([x for x, in c.read(10)], list(range(12, 22)))
+
+		self.failUnlessEqual(c.seek(-5, 'BACKWARD'), 5)
+		self.failUnlessEqual([x for x, in c.read(10)], list(range(27, 37)))
+
+		self.failUnlessEqual(c.seek('ALL'), 27)
+
 	def testScrollBackwards(self):
 		# testScroll again, but backwards this time.
 		self.testScroll(direction = False)

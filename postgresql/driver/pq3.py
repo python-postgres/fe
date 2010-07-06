@@ -1092,23 +1092,40 @@ class Cursor(Output, pg_api.Cursor):
 				"unknown whence parameter, %r" %(whence,)
 			)
 		rwhence = rwhence.upper()
-		if self.direction is False:
-			if rwhence == 'RELATIVE':
-				offset = -offset
-			elif rwhence == 'ABSOLUTE':
-				rwhence = 'FROM_END'
-			else:
-				rwhence = 'ABSOLUTE'
 
-		if rwhence == 'RELATIVE':
-			if offset < 0:
+		if offset == 'ALL':
+			if rwhence not in ('BACKWARD', 'FORWARD'):
+				rwhence = 'BACKWARD' if self.direction is False else 'FORWARD'
+		else:
+			if offset < 0 and rwhence == 'BACKWARD':
+				offset = -offset
+				rwhence = 'FORWARD'
+
+			if self.direction is False:
+				if offset == 'ALL' and rwhence != 'FORWARD':
+					rwhence = 'BACKWARD'
+				else:
+					if rwhence == 'RELATIVE':
+						offset = -offset
+					elif rwhence == 'ABSOLUTE':
+						rwhence = 'FROM_END'
+					else:
+						rwhence = 'ABSOLUTE'
+
+		if rwhence in ('RELATIVE', 'BACKWARD', 'FORWARD'):
+			if offset == 'ALL':
 				cmd = self._pq_xp_move(
-					str(-offset).encode('ascii'), b'BACKWARD'
+					str(offset).encode('ascii'), str(rwhence).encode('ascii')
 				)
 			else:
-				cmd = self._pq_xp_move(
-					str(offset).encode('ascii'), b'RELATIVE'
-				)
+				if offset < 0:
+					cmd = self._pq_xp_move(
+						str(-offset).encode('ascii'), b'BACKWARD'
+					)
+				else:
+					cmd = self._pq_xp_move(
+						str(offset).encode('ascii'), str(rwhence).encode('ascii')
+					)
 		elif rwhence == 'ABSOLUTE':
 			cmd = self._pq_xp_move(str(offset).encode('ascii'), b'ABSOLUTE')
 		else:
@@ -1121,6 +1138,16 @@ class Cursor(Output, pg_api.Cursor):
 		x = self._ins(cmd + (element.SynchronizeMessage,),)
 		self.database._pq_push(x, self)
 		self.database._pq_complete()
+
+		count = None
+		complete = element.Complete.type
+		for cm in x.messages_received():
+			if getattr(cm, 'type', None) == complete:
+				count = cm.extract_count()
+				break
+
+		# XXX: Raise if count is None?
+		return count
 
 class Statement(pg_api.Statement):
 	string = None
