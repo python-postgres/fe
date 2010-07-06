@@ -1095,7 +1095,11 @@ class Cursor(Output, pg_api.Cursor):
 					])
 
 	def __next__(self):
-		return self._fetch(self.direction, 1)
+		result = self._fetch(self.direction, 1)
+		if not result:
+			raise StopIteration
+		else:
+			return result[0]
 
 	def read(self, quantity = None, direction = None):
 		if quantity == 0:

@@ -829,6 +829,14 @@ class test_driver(unittest.TestCase):
 		self.cursor_read()
 
 	@pg_tmp
+	def testCursorIter(self):
+		ps = db.prepare("SELECT i FROM generate_series(0, 10) AS g(i)")
+		c = ps.declare()
+		self.failUnlessEqual(next(iter(c)), (0,))
+		self.failUnlessEqual(next(iter(c)), (1,))
+		self.failUnlessEqual(next(iter(c)), (2,))
+
+	@pg_tmp
 	def testCursorReadInXact(self):
 		with db.xact():
 			self.cursor_read()
