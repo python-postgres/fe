@@ -2169,8 +2169,8 @@ class Transaction(pg_api.Transaction):
 		self.state = 'committed'
 
 	@staticmethod
-	def _rollback_to_string(id):
-		return 'ROLLBACK TO "xact(' + id.replace('"', '""') + ')";'
+	def _rollback_to_string(id, fmt = 'ROLLBACK TO "xact({0})"; RELEASE "xact({0})";'.format):
+		return fmt(id.replace('"', '""'))
 
 	def rollback(self):
 		if self.state == 'aborted':

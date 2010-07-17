@@ -1511,6 +1511,23 @@ class test_driver(unittest.TestCase):
 		db.execute("drop table subxact_sx3")
 
 	@pg_tmp
+	def testReleasedSavepoint(self):
+		# validate that the rolled back savepoint is released as well.
+		x = None
+		with db.xact():
+			try:
+				with db.xact():
+					try:
+						with db.xact() as x:
+							db.execute("selekt 1")
+					except pg_exc.SyntaxError:
+						db.execute('RELEASE "xact(' + hex(id(x)) + ')"')
+			except pg_exc.InvalidSavepointSpecificationError as e:
+				pass
+			else:
+				self.fail("InvalidSavepointSpecificationError not raised")
+
+	@pg_tmp
 	def testCloseInSubTransactionBlock(self):
 		try:
 			with db.xact():
