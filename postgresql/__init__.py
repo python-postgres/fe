@@ -1,5 +1,5 @@
 ##
-# copyright 2009, James William Pye
+# py-postgresql root package
 # http://python.projects.postgresql.org
 ##
 """
