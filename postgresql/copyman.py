@@ -833,7 +833,7 @@ def transfer(producer, *receivers):
 		>>> import copyman
 		>>> copyman.transfer(src.prepare("COPY table TO STDOUT"), dst.prepare("COPY table FROM STDIN"))
 	"""
-	cm = CopyManager(	
+	cm = CopyManager(
 		StatementProducer(producer),
 		*[x if isinstance(x, Receiver) else StatementReceiver(x) for x in receivers]
 	)
