@@ -5,6 +5,7 @@ Changes
 --------------------
 
  * Add Cluster Management documentation.
+ * Release savepoints after rolling them back.
 
 1.0.1 released on 2010-04-24
 ----------------------------
