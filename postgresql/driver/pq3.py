@@ -148,6 +148,21 @@ class TypeIO(pg_api.TypeIO):
 	def lookup_composite_type_info(self, typid):
 		return self.database.sys.lookup_composite(typid)
 
+	def lookup_domain_basetype(self, typid):
+		if self.database.version_info[:2] >= (8, 4):
+			return self.lookup_domain_basetype_84(typid)
+
+		while typid:
+			r = self.database.sys.lookup_basetype(typid)
+			if not r[0][0]:
+				return typid
+			else:
+				typid = r[0][0]
+
+	def lookup_domain_basetype_84(self, typid):
+		r = self.database.sys.lookup_basetype_recursive(typid)
+		return r[0][0]
+
 	def set_encoding(self, value):
 		"""
 		Set a new client encoding.
@@ -254,16 +269,22 @@ class TypeIO(pg_api.TypeIO):
 					for x in self.lookup_composite_type_info(typrelid):
 						attmap[x[1]] = i
 						attnames.append(x[1])
+						if x[2]:
+							# This is a domain
+							fieldtypid = self.lookup_domain_basetype(x[0])
+						else:
+							fieldtypid = x[0]
 						typids.append(x[0])
-						pack, unpack, typ = self.resolve(
-							x[0], list(from_resolution_of) + [typid]
+						te = self.resolve(
+							fieldtypid, list(from_resolution_of) + [typid]
 						)
-						cio.append((pack or self.encode, unpack or self.decode))
+						cio.append((te[0] or self.encode, te[1] or self.decode))
 						i += 1
 					self._cache[typid] = typio = self.record_io_factory(
 						cio, typids, attmap, list(
 							map(self.sql_type_from_oid, typids)
 						), attnames,
+						typrelid,
 						quote_ident(typnamespace) + '.' + \
 						quote_ident(typname),
 					)
@@ -282,7 +303,17 @@ class TypeIO(pg_api.TypeIO):
 					)
 					self._cache[typid] = typio
 				else:
-					self._cache[typid] = typio = self.strio
+					typio = None
+					if typtype == b'd':
+						basetype = self.lookup_domain_basetype(typid)
+						typio = self.resolve(
+							basetype,
+							from_resolution_of = list(from_resolution_of) + [typid]
+						)
+					if not typio:
+						typio = self.strio
+
+					self._cache[typid] = typio
 			else:
 				# Throw warning about type without entry in pg_type?
 				typio = self.strio
@@ -356,7 +387,7 @@ class TypeIO(pg_api.TypeIO):
 
 		return (pack_an_array, unpack_an_array, pg_types.Array)
 
-	def RowTypeFactory(self, attribute_map = {}, _Row = pg_types.Row.from_sequence):
+	def RowTypeFactory(self, attribute_map = {}, _Row = pg_types.Row.from_sequence, composite_relid = None):
 		return partial(_Row, attribute_map)
 
 	##
@@ -368,6 +399,7 @@ class TypeIO(pg_api.TypeIO):
 		attmap : "mapping of column name to index number",
 		typnames : "sequence of sql type names in order",
 		attnames : "sequence of attribute names in order",
+		composite_relid : "oid of the composite relation",
 		composite_name : "the name of the composite type",
 		get0 = get0,
 		get1 = get1,
@@ -375,7 +407,7 @@ class TypeIO(pg_api.TypeIO):
 	):
 		fpack = tuple(map(get0, column_io))
 		funpack = tuple(map(get1, column_io))
-		row_constructor = self.RowTypeFactory(attribute_map = attmap)
+		row_constructor = self.RowTypeFactory(attribute_map = attmap, composite_relid = composite_relid)
 
 		def raise_pack_tuple_error(procs, tup, itemnum):
 			data = repr(tup[itemnum])
@@ -1063,7 +1095,11 @@ class Cursor(Output, pg_api.Cursor):
 					])
 
 	def __next__(self):
-		return self._fetch(self.direction, 1)
+		result = self._fetch(self.direction, 1)
+		if not result:
+			raise StopIteration
+		else:
+			return result[0]
 
 	def read(self, quantity = None, direction = None):
 		if quantity == 0:
@@ -1090,23 +1126,40 @@ class Cursor(Output, pg_api.Cursor):
 				"unknown whence parameter, %r" %(whence,)
 			)
 		rwhence = rwhence.upper()
-		if self.direction is False:
-			if rwhence == 'RELATIVE':
-				offset = -offset
-			elif rwhence == 'ABSOLUTE':
-				rwhence = 'FROM_END'
-			else:
-				rwhence = 'ABSOLUTE'
 
-		if rwhence == 'RELATIVE':
-			if offset < 0:
+		if offset == 'ALL':
+			if rwhence not in ('BACKWARD', 'FORWARD'):
+				rwhence = 'BACKWARD' if self.direction is False else 'FORWARD'
+		else:
+			if offset < 0 and rwhence == 'BACKWARD':
+				offset = -offset
+				rwhence = 'FORWARD'
+
+			if self.direction is False:
+				if offset == 'ALL' and rwhence != 'FORWARD':
+					rwhence = 'BACKWARD'
+				else:
+					if rwhence == 'RELATIVE':
+						offset = -offset
+					elif rwhence == 'ABSOLUTE':
+						rwhence = 'FROM_END'
+					else:
+						rwhence = 'ABSOLUTE'
+
+		if rwhence in ('RELATIVE', 'BACKWARD', 'FORWARD'):
+			if offset == 'ALL':
 				cmd = self._pq_xp_move(
-					str(-offset).encode('ascii'), b'BACKWARD'
+					str(offset).encode('ascii'), str(rwhence).encode('ascii')
 				)
 			else:
-				cmd = self._pq_xp_move(
-					str(offset).encode('ascii'), b'RELATIVE'
-				)
+				if offset < 0:
+					cmd = self._pq_xp_move(
+						str(-offset).encode('ascii'), b'BACKWARD'
+					)
+				else:
+					cmd = self._pq_xp_move(
+						str(offset).encode('ascii'), str(rwhence).encode('ascii')
+					)
 		elif rwhence == 'ABSOLUTE':
 			cmd = self._pq_xp_move(str(offset).encode('ascii'), b'ABSOLUTE')
 		else:
@@ -1119,6 +1172,16 @@ class Cursor(Output, pg_api.Cursor):
 		x = self._ins(cmd + (element.SynchronizeMessage,),)
 		self.database._pq_push(x, self)
 		self.database._pq_complete()
+
+		count = None
+		complete = element.Complete.type
+		for cm in x.messages_received():
+			if getattr(cm, 'type', None) == complete:
+				count = cm.extract_count()
+				break
+
+		# XXX: Raise if count is None?
+		return count
 
 class Statement(pg_api.Statement):
 	string = None

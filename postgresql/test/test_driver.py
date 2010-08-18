@@ -829,6 +829,14 @@ class test_driver(unittest.TestCase):
 		self.cursor_read()
 
 	@pg_tmp
+	def testCursorIter(self):
+		ps = db.prepare("SELECT i FROM generate_series(0, 10) AS g(i)")
+		c = ps.declare()
+		self.failUnlessEqual(next(iter(c)), (0,))
+		self.failUnlessEqual(next(iter(c)), (1,))
+		self.failUnlessEqual(next(iter(c)), (2,))
+
+	@pg_tmp
 	def testCursorReadInXact(self):
 		with db.xact():
 			self.cursor_read()
@@ -878,6 +886,22 @@ class test_driver(unittest.TestCase):
 		r1 = c.read(10)
 		c.seek(10, 2)
 		self.failUnlessEqual(r1, c.read(10))
+
+	@pg_tmp
+	def testSeek(self):
+		ps = db.prepare("SELECT i FROM generate_series(0, (2^6)::int - 1) AS g(i)")
+		c = ps.declare()
+
+		self.failUnlessEqual(c.seek(4, 'FORWARD'), 4)
+		self.failUnlessEqual([x for x, in c.read(10)], list(range(4, 14)))
+
+		self.failUnlessEqual(c.seek(2, 'BACKWARD'), 2)
+		self.failUnlessEqual([x for x, in c.read(10)], list(range(12, 22)))
+
+		self.failUnlessEqual(c.seek(-5, 'BACKWARD'), 5)
+		self.failUnlessEqual([x for x, in c.read(10)], list(range(27, 37)))
+
+		self.failUnlessEqual(c.seek('ALL'), 27)
 
 	def testScrollBackwards(self):
 		# testScroll again, but backwards this time.
@@ -1063,6 +1087,35 @@ class test_driver(unittest.TestCase):
 	def testTypes(self):
 		'test basic object I/O--input must equal output'
 		for (typname, sample_data) in type_samples:
+			pb = db.prepare(
+				"SELECT $1::" + typname
+			)
+			for sample in sample_data:
+				rsample = list(pb.rows(sample))[0][0]
+				if isinstance(rsample, pg_types.Array):
+					rsample = rsample.nest()
+				self.failUnless(
+					rsample == sample,
+					"failed to return %s object data as-is; gave %r, received %r" %(
+						typname, sample, rsample
+					)
+				)
+
+	@pg_tmp
+	def testDomainSupport(self):
+		'test domain type I/O'
+
+		db.execute('CREATE DOMAIN int_t AS int')
+		db.execute('CREATE DOMAIN int_t_2 AS int_t')
+		db.execute('CREATE TYPE tt AS (a int_t, b int_t_2)')
+
+		samples = {
+			'int_t': [10],
+			'int_t_2': [11],
+			'tt': [(12, 13)]
+		}
+
+		for (typname, sample_data) in samples.items():
 			pb = db.prepare(
 				"SELECT $1::" + typname
 			)

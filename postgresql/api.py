@@ -228,6 +228,8 @@ class Cursor(
 		0 : 'ABSOLUTE',
 		1 : 'RELATIVE',
 		2 : 'FROM_END',
+		3 : 'FORWARD',
+		4 : 'BACKWARD'
 	}
 	_direction_map = {
 		True : 'FORWARD',
@@ -293,6 +295,10 @@ class Cursor(
 		  Relative.
 		 ``2`` or ``"FROM_END"``
 		  Absolute from end.
+		 ``3`` or ``"FORWARD"``
+		  Relative forward.
+		 ``4`` or ``"BACKWARD"``
+		  Relative backward.
 
 		Direction effects whence. If direction is BACKWARD, ABSOLUTE positioning
 		will effectively be FROM_END, RELATIVE's position will be negated, and
@@ -1108,7 +1114,7 @@ class Connector(Element):
 		Create and connect. Arguments will be given to the `Connection` instance's
 		`connect` method.
 		"""
-		return self.driver.connection(self)
+		return self.driver.connection(self, *args, **kw)
 
 	def __init__(self,
 		user : "required keyword specifying the user name(str)" = None,

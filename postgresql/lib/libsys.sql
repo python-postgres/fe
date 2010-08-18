@@ -29,13 +29,53 @@ WHERE bt.oid = $1
 -- Get the type Oid and name of the attributes in `attnum` order.
 SELECT
  CAST(atttypid AS oid) AS atttypid,
- CAST(attname AS text) AS attname
+ CAST(attname AS text) AS attname,
+ tt.typtype = 'd'      AS is_domain
 FROM
  pg_catalog.pg_type t LEFT JOIN pg_catalog.pg_attribute a
   ON (t.typrelid = a.attrelid)
+ LEFT JOIN pg_type tt ON (a.atttypid = tt.oid)
 WHERE
  attrelid = $1 AND NOT attisdropped AND attnum > 0
 ORDER BY attnum ASC
+
+[lookup_basetype_recursive]
+SELECT
+  (CASE WHEN tt.typtype = 'd' THEN
+       (WITH RECURSIVE typehierarchy(typid, depth) AS (
+          SELECT
+               t2.typbasetype,
+               0
+           FROM
+               pg_type t2
+           WHERE
+               t2.oid = tt.oid
+          UNION ALL
+          SELECT
+               t2.typbasetype,
+               th.depth + 1
+           FROM
+               pg_type t2,
+               typehierarchy th
+           WHERE
+               th.typid = t2.oid
+               AND t2.typbasetype != 0
+       ) SELECT typid FROM typehierarchy ORDER BY depth DESC LIMIT 1)
+
+       ELSE NULL
+ END)             AS basetypid
+FROM
+  pg_catalog.pg_type tt
+WHERE
+  tt.oid = $1
+
+[lookup_basetype]
+SELECT
+  tt.typbasetype
+FROM
+  pg_catalog.pg_type tt
+WHERE
+  tt.oid = $1
 
 [lookup_procedures]
 SELECT

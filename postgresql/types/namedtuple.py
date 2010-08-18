@@ -24,7 +24,7 @@ def _factory(colnames : [str], namedtuple = namedtuple) -> tuple:
 		cache[colnames] = NT
 		return NT
 
-def NamedTupleFactory(attribute_map):
+def NamedTupleFactory(attribute_map, composite_relid = None):
 	"""
 	Alternative db.typio.RowFactory for producing namedtuple's instead of
 	postgresql.types.Row() instances.
