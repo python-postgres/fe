@@ -8,6 +8,7 @@ Changes
  * Release savepoints after rolling them back.
  * Add support for DOMAINs in registered composites. (Elvis Pranskevichus)
  * Properly raise StopIteration in Cursor.__next__ (Elvis Pranskevichus)
+ * Fix Startup() usage for Python 3.2.
 
 1.0.1 released on 2010-04-24
 ----------------------------

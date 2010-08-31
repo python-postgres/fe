@@ -132,11 +132,11 @@ class test_buffer(object):
 
 message_samples = [
 	e3.VoidMessage,
-	e3.Startup(**{
-		b'user' : b'jwp',
-		b'database' : b'template1',
-		b'options' : b'-f',
-	}),
+	e3.Startup([
+		(b'user', b'jwp'),
+		(b'database', b'template1'),
+		(b'options', b'-f'),
+	]),
 	e3.Notice((
 		(b'S', b'FATAL'),
 		(b'M', b'a descriptive message'),

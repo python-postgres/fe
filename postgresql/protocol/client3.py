@@ -511,7 +511,7 @@ class Connection(object):
 
 		self.socket_factory = socket_factory
 		self.xact = xact.Negotiation(
-			element.Startup(**startup), password
+			element.Startup(startup), password
 		)
 
 		self.garbage_statements = []

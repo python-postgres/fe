@@ -2799,15 +2799,17 @@ class Connector(pg_api.Connector):
 		##
 		# Attempt to accommodate for literal treatment of startup data.
 		##
-		self._startup_parameters = {
+		self._startup_parameters = tuple([
 			# All keys go in utf-8. However, ascii would probably be good enough.
-			k.encode('utf-8') : \
+			(
+				k.encode('utf-8'),
 			# If it's a str(), encode in the hinted server_encoding.
 			# Otherwise, convert the object(int, float, bool, etc) into a string
 			# and treat it as utf-8.
-			v.encode(se) if type(v) is str else str(v).encode('utf-8')
+				v.encode(se) if type(v) is str else str(v).encode('utf-8')
+			)
 			for k, v in tnkw.items()
-		}
+		])
 		self._password = (self.password or '').encode(se)
 		self._socket_secure = {
 			'keyfile' : self.sslkeyfile,
