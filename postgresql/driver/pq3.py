@@ -43,6 +43,8 @@ from .. import types as pg_types
 from ..types import io as pg_types_io
 from ..types.io import lib as io_lib
 
+import warnings
+
 # Map element3.Notice field identifiers
 # to names used by message.Message.
 notice_field_to_name = {
@@ -2044,6 +2046,9 @@ class Transaction(pg_api.Transaction):
 	def __init__(self, database, isolation = None, mode = None, gid = None):
 		self.database = database
 		self.gid = gid
+		if gid is not None:
+			# XXX: remove in 1.1
+			warnings.warn("two phase interfaces will not exist in 1.1; do not use the 'gid' parameter", DeprecationWarning, stacklevel=3)
 		self.isolation = isolation
 		self.mode = mode
 		self.state = 'initialized'
