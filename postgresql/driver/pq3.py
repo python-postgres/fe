@@ -2785,11 +2785,36 @@ class SocketConnector(Connector):
 		to the target host.
 		"""
 
-class IP4(SocketConnector):
-	'Connector for establishing IPv4 connections'
-	ipv = 4
+	def create_socket_factory(self, **params):
+		return SocketFactory(**params)
+
+class IPConnector(SocketConnector):
 	def socket_factory_sequence(self):
 		return self._socketcreators
+
+	def socket_factory_params(self, host, port, ipv, **kw):
+		if ipv != self.ipv:
+			raise TypeError("'ipv' keyword must be '%d'" % self.ipv)
+		if host is None:
+			raise TypeError("'host' is a required keyword and cannot be 'None'")
+		if port is None:
+			raise TypeError("'port' is a required keyword and cannot be 'None'")
+
+		return {'socket_create': (self.address_family, socket.SOCK_STREAM),
+				'socket_connect': (host, int(port))}
+
+	def __init__(self, host, port, ipv, **kw):
+		params = self.socket_factory_params(host, port, ipv, **kw)
+		self.host, self.port = params['socket_connect']
+		# constant socket connector
+		self._socketcreator = self.create_socket_factory(**params)
+		self._socketcreators = (self._socketcreator,)
+		super().__init__(**kw)
+
+class IP4(IPConnector):
+	'Connector for establishing IPv4 connections'
+	ipv = 4
+	address_family = socket.AF_INET
 
 	def __init__(self,
 		host : "IPv4 Address (str)" = None,
@@ -2797,29 +2822,12 @@ class IP4(SocketConnector):
 		ipv = 4,
 		**kw
 	):
-		if ipv != self.ipv:
-			raise TypeError("'ipv' keyword must be '4'")
-		if host is None:
-			raise TypeError("'host' is a required keyword and cannot be 'None'")
-		if port is None:
-			raise TypeError("'port' is a required keyword and cannot be 'None'")
-		self.host = host
-		self.port = int(port)
-		# constant socket connector
-		self._socketcreator = SocketFactory(
-			(socket.AF_INET, socket.SOCK_STREAM),
-			(self.host, self.port)
-		)
-		self._socketcreators = (
-			self._socketcreator,
-		)
-		super().__init__(**kw)
+		super().__init__(host, port, ipv, **kw)
 
-class IP6(SocketConnector):
+class IP6(IPConnector):
 	'Connector for establishing IPv6 connections'
 	ipv = 6
-	def socket_factory_sequence(self):
-		return self._socketcreators
+	address_family = socket.AF_INET6
 
 	def __init__(self,
 		host : "IPv6 Address (str)" = None,
@@ -2827,37 +2835,25 @@ class IP6(SocketConnector):
 		ipv = 6,
 		**kw
 	):
-		if ipv != self.ipv:
-			raise TypeError("'ipv' keyword must be '6'")
-		if host is None:
-			raise TypeError("'host' is a required keyword and cannot be 'None'")
-		if port is None:
-			raise TypeError("'port' is a required keyword and cannot be 'None'")
-		self.host = host
-		self.port = int(port)
-		# constant socket connector
-		self._socketcreator = SocketFactory(
-			(socket.AF_INET6, socket.SOCK_STREAM),
-			(self.host, self.port)
-		)
-		self._socketcreators = (
-			self._socketcreator,
-		)
-		super().__init__(**kw)
+		super().__init__(host, port, ipv, **kw)
 
 class Unix(SocketConnector):
 	'Connector for establishing unix domain socket connections'
 	def socket_factory_sequence(self):
 		return self._socketcreators
 
-	def __init__(self, unix = None, **kw):
+	def socket_factory_params(self, unix):
 		if unix is None:
 			raise TypeError("'unix' is a required keyword and cannot be 'None'")
-		self.unix = unix
+
+		return {'socket_create': (socket.AF_UNIX, socket.SOCK_STREAM),
+				'socket_connect': unix}
+
+	def __init__(self, unix = None, **kw):
+		params = self.socket_factory_params(unix)
+		self.unix = params['socket_connect']
 		# constant socket connector
-		self._socketcreator = SocketFactory(
-			(socket.AF_UNIX, socket.SOCK_STREAM), self.unix
-		)
+		self._socketcreator = self.create_socket_factory(**params)
 		self._socketcreators = (self._socketcreator,)
 		super().__init__(**kw)
 
@@ -2874,11 +2870,17 @@ class Host(SocketConnector):
 		"""
 		return [
 			# (AF, socktype, proto), (IP, Port)
-			SocketFactory(x[0:3], x[4][:2], self._socket_secure)
+			self.create_socket_factory(**(self.socket_factory_params(x[0:3], x[4][:2],
+																	self._socket_secure)))
 			for x in socket.getaddrinfo(
 				self.host, self.port, self._address_family, socket.SOCK_STREAM
 			)
 		]
+
+	def socket_factory_params(self, socktype, address, sslparams):
+		return {'socket_create': socktype,
+				'socket_connect': address,
+				'socket_secure': sslparams}
 
 	def __init__(self,
 		host : str = None,
