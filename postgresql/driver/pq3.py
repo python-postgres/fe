@@ -242,6 +242,8 @@ class TypeIO(pg_api.TypeIO):
 		else:
 			typio = builtins(typid)
 			if typio is not None:
+				# If typio is a tuple, it's a constant pair: (pack, unpack)
+				# otherwise, it's an I/O pair constructor.
 				if typio.__class__ is not tuple:
 					typio = typio(typid, self)
 				self._cache[typid] = typio
