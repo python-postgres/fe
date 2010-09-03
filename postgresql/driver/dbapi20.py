@@ -30,14 +30,10 @@ parameters_re = re.compile(
 )
 def percent_parameters(sql):
 	# filter any %% matches(empty strings).
-	return [
-		x for x in parameters_re.findall(sql) if x
-	]
+	return [x for x in parameters_re.findall(sql) if x]
 
 def convert_keywords(keys, mapping):
-	return [
-		mapping[k] for k in keys
-	]
+	return [mapping[k] for k in keys]
 
 from postgresql.exceptions import \
 	Error, DataError, InternalError, \
@@ -221,7 +217,7 @@ class Cursor(object):
 		transformer = tuple
 		rparts = []
 		for part in parts:
-			if type(part) is type(()):
+			if part.__class__ is ().__class__:
 				# skip quoted portions
 				rparts.append(part)
 			else:
