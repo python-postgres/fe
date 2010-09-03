@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .string
 ##
 """
 String split and join operations for dealing with literals and identifiers.

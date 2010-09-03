@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .test.support
 ##
 """
 Executable module used by test_* modules to mimic a command.

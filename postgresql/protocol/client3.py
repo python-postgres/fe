@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .protocol.client3
 ##
 """
 Protocol version 3.0 client and tools.

@@ -1,9 +1,8 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .unittest
 ##
 """
-TestCase subclasses used by postgresql.test.
+TestCase subclasses (only) used by postgresql.test.test_[ssl_]connect
 """
 import sys
 import os

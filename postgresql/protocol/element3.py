@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .protocol.element3
 ##
 'PQ version 3.0 elements'
 import sys

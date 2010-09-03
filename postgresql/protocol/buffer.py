@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .protocol.buffer
 ##
 """
 This is an abstraction module that provides the working buffer implementation.

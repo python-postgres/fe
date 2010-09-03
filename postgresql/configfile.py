@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .configfile
 ##
 'PostgreSQL configuration file parser and editor functions.'
 import sys

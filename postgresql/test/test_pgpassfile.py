@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .test.test_pgpassfile
 ##
 import unittest
 from .. import pgpassfile as client_pgpass

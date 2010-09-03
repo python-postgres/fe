@@ -1,6 +1,5 @@
 ##
-# copyright 2009, James William Pye
-# http://python.projects.postgresql.org
+# .protocol.message_types
 ##
 """
 Data module providing a sequence of bytes objects whose value corresponds to its
