@@ -1141,7 +1141,13 @@ class test_driver(unittest.TestCase):
 			return
 		foo = etree.XML('<foo/>')
 		bar = etree.XML('<bar/>')
-		tostr = etree.tostring
+		if hasattr(etree, 'tostringlist'):
+			# 3.2
+			def tostr(x):
+				return etree.tostring(x, encoding='utf-8')
+		else:
+			# 3.1 compat
+			tostr = etree.tostring
 		self.failUnlessEqual(tostr(xml.first(foo)), tostr(foo))
 		self.failUnlessEqual(tostr(xml.first(bar)), tostr(bar))
 		self.failUnlessEqual(tostr(textxml.first('<foo/>')), tostr(foo))
