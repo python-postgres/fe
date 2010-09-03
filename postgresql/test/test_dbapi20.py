@@ -866,5 +866,16 @@ class test_dbapi20(unittest.TestCase):
 			'module.ROWID must be defined.'
 		)
 
+	def test_placeholder_escape(self):
+		con = self._connect()
+		try:
+			c = con.cursor()
+			c.execute("SELECT 100 %% %s", (99,))
+			self.failUnlessEqual(1, c.fetchone()[0])
+			c.execute("SELECT 100 %% %(foo)s", {'foo': 99})
+			self.failUnlessEqual(1, c.fetchone()[0])
+		finally:
+			con.close()
+
 if __name__ == '__main__':
 	unittest.main()
