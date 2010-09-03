@@ -1130,8 +1130,7 @@ class test_driver(unittest.TestCase):
 					)
 				)
 
-	@pg_tmp
-	def testXML(self):
+	def check_xml(self):
 		try:
 			xml = db.prepare('select $1::xml')
 			textxml = db.prepare('select $1::text::xml')
@@ -1183,6 +1182,23 @@ class test_driver(unittest.TestCase):
 			),
 			(tostr(foo), tostr(bar))
 		)
+
+	@pg_tmp
+	def testXML(self):
+		self.check_xml()
+
+	@pg_tmp
+	def testXML_ascii(self):
+		# check a non-utf8 encoding (3.2 and up)
+		db.settings['client_encoding'] = 'sql_ascii'
+		self.check_xml()
+
+	@pg_tmp
+	def testXML_utf8(self):
+		# in 3.2 we always serialize at utf-8, so check that
+		# that path is being ran by forcing the client_encoding to utf8.
+		db.settings['client_encoding'] = 'utf8'
+		self.check_xml()
 
 	@pg_tmp
 	def testUUID(self):

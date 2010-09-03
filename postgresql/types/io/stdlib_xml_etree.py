@@ -42,7 +42,7 @@ if not hasattr(etree, 'tostringlist'):
 		)
 else:
 	# New etree tostring API.
-	def xml_pack(xml, encoding,
+	def xml_pack(xml, encoding, encoder,
 		tostr = etree.tostring, et = etree.ElementTree,
 		str = str, isinstance = isinstance, tuple = tuple,
 	):
@@ -50,7 +50,7 @@ else:
 			return xml
 		if isinstance(xml, str):
 			# If it's a string, encode and return.
-			return xml.encode(encoding)
+			return encoder(xml)
 		elif isinstance(xml, tuple):
 			# If it's a tuple, encode and return the joined items.
 			# We do not accept lists here--emphasizing lists being used for ARRAY
@@ -59,7 +59,7 @@ else:
 			# 3.2
 			# XXX: tostring doesn't include declaration with utf-8?
 			x = b''.join(
-				x.encode(encoding) if isinstance(x, str) else
+				x.encode('utf-8') if isinstance(x, str) else
 				tostr(x, encoding = "utf-8")
 				for x in xml
 			)
@@ -71,11 +71,11 @@ else:
 		if encoding in ('utf8','utf-8'):
 			return x
 		else:
-			return x.decode('utf-8').encode(encoding)
+			return encoder(x.decode('utf-8'))
 
 	def xml_io_factory(typoid, typio, c = compose):
-		def local_xml_pack(x, typio = typio, xml_pack = xml_pack):
-			return xml_pack(x, typio.encoding)
+		def local_xml_pack(x, encoder = typio.encode, typio = typio, xml_pack = xml_pack):
+			return xml_pack(x, typio.encoding, encoder)
 		return (local_xml_pack, c((typio.decode, xml_unpack)), etree.ElementTree,)
 
 oid_to_io = {
