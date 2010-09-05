@@ -207,7 +207,11 @@ class TypeIO(pg_api.TypeIO):
 		if oid in self.typinfo:
 			nsp, name, *_ = self.typinfo[oid]
 			return qi(nsp) + '.' + qi(name)
-		return 'pg_catalog.' + pg_types.oid_to_name.get(oid)
+		name = pg_types.oid_to_name.get(oid)
+		if name:
+			return 'pg_catalog.%s' % name
+		else:
+			return None
 
 	def type_from_oid(self, oid):
 		if oid in self._cache:
