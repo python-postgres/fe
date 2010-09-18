@@ -1,13 +1,13 @@
 Changes
 =======
 
-1.0.2 in development
---------------------
+1.0.2 released on 2010-09-18
+----------------------------
 
+ * Add support for DOMAINs in registered composites. (Elvis Pranskevichus)
+ * Properly raise StopIteration in Cursor.__next__. (Elvis Pranskevichus)
  * Add Cluster Management documentation.
  * Release savepoints after rolling them back.
- * Add support for DOMAINs in registered composites. (Elvis Pranskevichus)
- * Properly raise StopIteration in Cursor.__next__ (Elvis Pranskevichus)
  * Fix Startup() usage for Python 3.2.
  * Emit deprecation warning when 'gid' is given to xact().
  * Compensate for Python3.2's ElementTree API changes.
