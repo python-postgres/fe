@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -5,21 +7,22 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Driver &mdash; py-postgresql v1.0.2dev documentation</title>
+    <title>Driver &mdash; py-postgresql v1.0.2 documentation</title>
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '',
-        VERSION:     '1.0.2dev',
-        COLLAPSE_MODINDEX: false,
+        VERSION:     '1.0.2',
+        COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
       };
     </script>
     <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="py-postgresql v1.0.2dev documentation" href="index.html" />
+    <link rel="top" title="py-postgresql v1.0.2 documentation" href="index.html" />
     <link rel="next" title="Copy Management" href="copyman.html" />
     <link rel="prev" title="Administration" href="admin.html" /> 
   </head>
@@ -36,7 +39,7 @@
         <li class="right" >
           <a href="admin.html" title="Administration"
              accesskey="P">previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2dev documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -72,14 +75,14 @@ interface elements:</p>
 <blockquote>
 <dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">db</span></tt></dt>
-<dd><cite>postgresql.api.Connection</cite>, a database connection. <a class="reference internal" href="#connections">Connections</a></dd>
+<dd><cite>postgresql.api.Connection</cite>, a database connection. <a class="reference external" href="#connections">Connections</a></dd>
 <dt><tt class="docutils literal"><span class="pre">ps</span></tt></dt>
-<dd><cite>postgresql.api.Statement</cite>, a prepared statement. <a class="reference internal" href="#prepared-statements">Prepared Statements</a></dd>
+<dd><cite>postgresql.api.Statement</cite>, a prepared statement. <a class="reference external" href="#prepared-statements">Prepared Statements</a></dd>
 <dt><tt class="docutils literal"><span class="pre">c</span></tt></dt>
 <dd><cite>postgresql.api.Cursor</cite>, a cursor; the results of a prepared statement.
-<a class="reference internal" href="#cursors">Cursors</a></dd>
+<a class="reference external" href="#cursors">Cursors</a></dd>
 <dt><tt class="docutils literal"><span class="pre">C</span></tt></dt>
-<dd><cite>postgresql.api.Connector</cite>, a connector. <a class="reference internal" href="#connectors">Connectors</a></dd>
+<dd><cite>postgresql.api.Connector</cite>, a connector. <a class="reference external" href="#connectors">Connectors</a></dd>
 </dl>
 </blockquote>
 <div class="section" id="establishing-a-connection">
@@ -143,9 +146,9 @@ successful connection, there is no need to pass anything to open:</p>
 </pre></div>
 </div>
 <p>For a complete list of keywords that <cite>postgresql.open</cite> can accept, see
-<a class="reference internal" href="#connection-keywords">Connection Keywords</a>.
-For more information about the environment variables, see <a class="reference external" href="clientparameters.html#pg-envvars"><em>PostgreSQL Environment Variables</em></a>.
-For more information about the <tt class="docutils literal"><span class="pre">pgpassfile</span></tt>, see <a class="reference external" href="clientparameters.html#pg-passfile"><em>PostgreSQL Password File</em></a>.</p>
+<a class="reference external" href="#connection-keywords">Connection Keywords</a>.
+For more information about the environment variables, see <a class="reference internal" href="clientparameters.html#pg-envvars"><em>PostgreSQL Environment Variables</em></a>.
+For more information about the <tt class="docutils literal"><span class="pre">pgpassfile</span></tt>, see <a class="reference internal" href="clientparameters.html#pg-passfile"><em>PostgreSQL Password File</em></a>.</p>
 </div>
 <div class="section" id="postgresql-driver-connect">
 <h3><cite>postgresql.driver.connect</cite><a class="headerlink" href="#postgresql-driver-connect" title="Permalink to this headline">¶</a></h3>
@@ -170,7 +173,7 @@ on the host <tt class="docutils literal"><span class="pre">localhost</span></tt>
 <p class="first admonition-title">Note</p>
 <p class="last"><cite>connect</cite> will <em>not</em> inherit parameters from the environment as libpq-based drivers do.</p>
 </div>
-<p>See <a class="reference internal" href="#connection-keywords">Connection Keywords</a> for a full list of acceptable keyword parameters and
+<p>See <a class="reference external" href="#connection-keywords">Connection Keywords</a> for a full list of acceptable keyword parameters and
 their meaning.</p>
 </div>
 <div class="section" id="connectors">
@@ -187,7 +190,7 @@ create another connection to the same server. The attributes on the connector
 should <em>not</em> be altered. If parameter changes are needed, a new connector should
 be created.</p>
 <p>The attributes available on a connector are consistent with the names of the
-connection parameters described in <a class="reference internal" href="#connection-keywords">Connection Keywords</a>, so that list can be
+connection parameters described in <a class="reference external" href="#connection-keywords">Connection Keywords</a>, so that list can be
 used as a reference to identify the information available on the connector.</p>
 <p>Connectors fit into the category of &#8220;connection creation interfaces&#8221;, so
 connector instantiation normally takes the same parameters that the
@@ -331,20 +334,20 @@ server is desired, a new connection <em>must</em> be established.</p>
 <dt><tt class="docutils literal"><span class="pre">Connection.prepare(sql_statement_string)</span></tt></dt>
 <dd>Create a <cite>postgresql.api.Statement</cite> object for querying the database.
 This provides an &#8220;SQL statement template&#8221; that can be executed multiple times.
-See <a class="reference internal" href="#prepared-statements">Prepared Statements</a> for more information.</dd>
+See <a class="reference external" href="#prepared-statements">Prepared Statements</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.proc(procedure_id)</span></tt></dt>
 <dd>Create a <cite>postgresql.api.StoredProcedure</cite> object referring to a stored
 procedure on the database. The returned object will provide a
 <cite>collections.Callable</cite> interface to the stored procedure on the server. See
-<a class="reference internal" href="#stored-procedures">Stored Procedures</a> for more information.</dd>
+<a class="reference external" href="#stored-procedures">Stored Procedures</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.statement_from_id(statement_id)</span></tt></dt>
 <dd>Create a <cite>postgresql.api.Statement</cite> object from an existing statement
 identifier. This is used in cases where the statement was prepared on the
-server. See <a class="reference internal" href="#prepared-statements">Prepared Statements</a> for more information.</dd>
+server. See <a class="reference external" href="#prepared-statements">Prepared Statements</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.cursor_from_id(cursor_id)</span></tt></dt>
 <dd>Create a <cite>postgresql.api.Cursor</cite> object from an existing cursor identifier.
 This is used in cases where the cursor was declared on the server. See
-<a class="reference internal" href="#cursors">Cursors</a> for more information.</dd>
+<a class="reference external" href="#cursors">Cursors</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.do(language,</span> <span class="pre">source)</span></tt></dt>
 <dd>Execute a DO statement on the server using the specified language.
 <em>DO statements are available on PostgreSQL 9.0 and greater.</em>
@@ -357,11 +360,11 @@ error will be raised.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.xact(isolation</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">mode</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
 <dd>The <cite>postgresql.api.Transaction</cite> constructor for creating transactions.
 This method creates a transaction reference. The transaction will not be
-started until it&#8217;s instructed to do so. See <a class="reference internal" href="#transactions">Transactions</a> for more
+started until it&#8217;s instructed to do so. See <a class="reference external" href="#transactions">Transactions</a> for more
 information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.settings</span></tt></dt>
 <dd>A property providing a <cite>collections.MutableMapping</cite> interface to the
-database&#8217;s SQL settings. See <a class="reference internal" href="#settings">Settings</a> for more information.</dd>
+database&#8217;s SQL settings. See <a class="reference external" href="#settings">Settings</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.clone()</span></tt></dt>
 <dd>Create a new connection object based on the same factors that were used to
 create <tt class="docutils literal"><span class="pre">db</span></tt>. The new connection returned will already be connected.</dd>
@@ -369,7 +372,7 @@ create <tt class="docutils literal"><span class="pre">db</span></tt>. The new co
 <dd>By default, the <cite>msghook</cite> attribute does not exist. If set to a callable, any
 message that occurs during an operation of the database or an operation of a
 database derived object will be given to the callable. See the
-<a class="reference internal" href="#database-messages">Database Messages</a> section for more information.</dd>
+<a class="reference external" href="#database-messages">Database Messages</a> section for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.listen(*channels)</span></tt></dt>
 <dd>Start listening for asynchronous notifications in the specified channels.
 Sends a batch of <tt class="docutils literal"><span class="pre">LISTEN</span></tt> statements to the server.</dd>
@@ -409,7 +412,7 @@ will yield notification triples consisting of <tt class="docutils literal"><span
 While iterating, the connection should <em>not</em> be used in other threads.
 The optional timeout can be used to enable &#8220;idle&#8221; events in which <cite>None</cite>
 objects will be yielded by the iterator.
-See <a class="reference external" href="notifyman.html#notifyman"><em>Notification Management</em></a> for details.</dd>
+See <a class="reference internal" href="notifyman.html#notifyman"><em>Notification Management</em></a> for details.</dd>
 </dl>
 </blockquote>
 <p>When a connection is established, certain pieces of information are collected from
@@ -576,7 +579,7 @@ create <tt class="docutils literal"><span class="pre">ps</span></tt>.</dd>
 <dd>By default, the <cite>msghook</cite> attribute does not exist. If set to a callable, any
 message that occurs during an operation of the statement or an operation of a
 statement derived object will be given to the callable. See the
-<a class="reference internal" href="#database-messages">Database Messages</a> section for more information.</dd>
+<a class="reference external" href="#database-messages">Database Messages</a> section for more information.</dd>
 </dl>
 </blockquote>
 <p>In order to provide the appropriate type transformations, the driver must
@@ -652,7 +655,7 @@ clause(text and int8).</p>
 type information about a positional parameter, and the serialization routine
 will raise an exception if the given object is inappropriate. The Python
 types expected by the driver for a given SQL-or-PostgreSQL type are listed
-in <a class="reference internal" href="#type-support">Type Support</a>.</p>
+in <a class="reference external" href="#type-support">Type Support</a>.</p>
 <p>This usage of types is not always convenient. Notably, the <cite>datetime</cite> module
 does not provide a friendly way for a user to express intervals, dates, or
 times. There is a likely inclination to forego these parameter type
@@ -862,7 +865,7 @@ this method.</p>
 </dd>
 <dt><tt class="docutils literal"><span class="pre">Cursor.seek(position[,</span> <span class="pre">whence</span> <span class="pre">=</span> <span class="pre">0])</span></tt></dt>
 <dd>When the cursor is scrollable, this seek interface can be used to move the
-position of the cursor. See <a class="reference internal" href="#scrollable-cursors">Scrollable Cursors</a> for more information.</dd>
+position of the cursor. See <a class="reference external" href="#scrollable-cursors">Scrollable Cursors</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">next(Cursor)</span></tt></dt>
 <dd>This fetches the next row in the cursor object. Cursors support the iterator
 protocol. While equivalent to <tt class="docutils literal"><span class="pre">cursor.read(1)[0]</span></tt>, <cite>StopIteration</cite> is raised
@@ -878,7 +881,7 @@ create <tt class="docutils literal"><span class="pre">c</span></tt>.</dd>
 <dt><tt class="docutils literal"><span class="pre">Cursor.msghook(msg)</span></tt></dt>
 <dd>By default, the <cite>msghook</cite> attribute does not exist. If set to a callable, any
 message that occurs during an operation of the cursor will be given to the
-callable. See the <a class="reference internal" href="#database-messages">Database Messages</a> section for more information.</dd>
+callable. See the <a class="reference external" href="#database-messages">Database Messages</a> section for more information.</dd>
 </dl>
 </blockquote>
 <p>Cursors have some additional configuration properties that may be modified
@@ -1732,91 +1735,91 @@ parse error.</dd>
       </div>
       <div class="sphinxsidebar">
         <div class="sphinxsidebarwrapper">
-            <h3><a href="index.html">Table Of Contents</a></h3>
-            <ul>
-<li><a class="reference external" href="">Driver</a><ul>
-<li><a class="reference external" href="#establishing-a-connection">Establishing a Connection</a><ul>
-<li><a class="reference external" href="#postgresql-open"><cite>postgresql.open</cite></a></li>
-<li><a class="reference external" href="#postgresql-driver-connect"><cite>postgresql.driver.connect</cite></a></li>
-<li><a class="reference external" href="#connectors">Connectors</a></li>
-<li><a class="reference external" href="#connection-keywords">Connection Keywords</a></li>
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Driver</a><ul>
+<li><a class="reference internal" href="#establishing-a-connection">Establishing a Connection</a><ul>
+<li><a class="reference internal" href="#postgresql-open"><cite>postgresql.open</cite></a></li>
+<li><a class="reference internal" href="#postgresql-driver-connect"><cite>postgresql.driver.connect</cite></a></li>
+<li><a class="reference internal" href="#connectors">Connectors</a></li>
+<li><a class="reference internal" href="#connection-keywords">Connection Keywords</a></li>
 </ul>
 </li>
-<li><a class="reference external" href="#connections">Connections</a><ul>
-<li><a class="reference external" href="#database-interface-points">Database Interface Points</a></li>
+<li><a class="reference internal" href="#connections">Connections</a><ul>
+<li><a class="reference internal" href="#database-interface-points">Database Interface Points</a></li>
 </ul>
 </li>
-<li><a class="reference external" href="#prepared-statements">Prepared Statements</a><ul>
-<li><a class="reference external" href="#statement-interface-points">Statement Interface Points</a></li>
-<li><a class="reference external" href="#parameterized-statements">Parameterized Statements</a></li>
-<li><a class="reference external" href="#inserting-and-dml">Inserting and DML</a></li>
-<li><a class="reference external" href="#copy-statements">COPY Statements</a></li>
+<li><a class="reference internal" href="#prepared-statements">Prepared Statements</a><ul>
+<li><a class="reference internal" href="#statement-interface-points">Statement Interface Points</a></li>
+<li><a class="reference internal" href="#parameterized-statements">Parameterized Statements</a></li>
+<li><a class="reference internal" href="#inserting-and-dml">Inserting and DML</a></li>
+<li><a class="reference internal" href="#copy-statements">COPY Statements</a></li>
 </ul>
 </li>
-<li><a class="reference external" href="#cursors">Cursors</a><ul>
-<li><a class="reference external" href="#cursor-interface-points">Cursor Interface Points</a></li>
-<li><a class="reference external" href="#scrollable-cursors">Scrollable Cursors</a></li>
-<li><a class="reference external" href="#cursor-direction">Cursor Direction</a></li>
+<li><a class="reference internal" href="#cursors">Cursors</a><ul>
+<li><a class="reference internal" href="#cursor-interface-points">Cursor Interface Points</a></li>
+<li><a class="reference internal" href="#scrollable-cursors">Scrollable Cursors</a></li>
+<li><a class="reference internal" href="#cursor-direction">Cursor Direction</a></li>
 </ul>
 </li>
-<li><a class="reference external" href="#rows">Rows</a><ul>
-<li><a class="reference external" href="#row-interface-points">Row Interface Points</a></li>
-<li><a class="reference external" href="#row-transformations">Row Transformations</a></li>
+<li><a class="reference internal" href="#rows">Rows</a><ul>
+<li><a class="reference internal" href="#row-interface-points">Row Interface Points</a></li>
+<li><a class="reference internal" href="#row-transformations">Row Transformations</a></li>
 </ul>
 </li>
-<li><a class="reference external" href="#stored-procedures">Stored Procedures</a><ul>
-<li><a class="reference external" href="#stored-procedure-interface-points">Stored Procedure Interface Points</a></li>
-<li><a class="reference external" href="#stored-procedure-type-support">Stored Procedure Type Support</a></li>
+<li><a class="reference internal" href="#stored-procedures">Stored Procedures</a><ul>
+<li><a class="reference internal" href="#stored-procedure-interface-points">Stored Procedure Interface Points</a></li>
+<li><a class="reference internal" href="#stored-procedure-type-support">Stored Procedure Type Support</a></li>
 </ul>
 </li>
-<li><a class="reference external" href="#transactions">Transactions</a><ul>
-<li><a class="reference external" href="#transaction-configuration">Transaction Configuration</a></li>
-<li><a class="reference external" href="#transaction-interface-points">Transaction Interface Points</a></li>
-<li><a class="reference external" href="#error-control">Error Control</a></li>
+<li><a class="reference internal" href="#transactions">Transactions</a><ul>
+<li><a class="reference internal" href="#transaction-configuration">Transaction Configuration</a></li>
+<li><a class="reference internal" href="#transaction-interface-points">Transaction Interface Points</a></li>
+<li><a class="reference internal" href="#error-control">Error Control</a></li>
 </ul>
 </li>
-<li><a class="reference external" href="#settings">Settings</a><ul>
-<li><a class="reference external" href="#settings-interface-points">Settings Interface Points</a></li>
-<li><a class="reference external" href="#settings-management">Settings Management</a></li>
+<li><a class="reference internal" href="#settings">Settings</a><ul>
+<li><a class="reference internal" href="#settings-interface-points">Settings Interface Points</a></li>
+<li><a class="reference internal" href="#settings-management">Settings Management</a></li>
 </ul>
 </li>
-<li><a class="reference external" href="#type-support">Type Support</a><ul>
-<li><a class="reference external" href="#arrays">Arrays</a></li>
-<li><a class="reference external" href="#composites">Composites</a></li>
+<li><a class="reference internal" href="#type-support">Type Support</a><ul>
+<li><a class="reference internal" href="#arrays">Arrays</a></li>
+<li><a class="reference internal" href="#composites">Composites</a></li>
 </ul>
 </li>
-<li><a class="reference external" href="#database-messages">Database Messages</a><ul>
-<li><a class="reference external" href="#message-metadata">Message Metadata</a></li>
+<li><a class="reference internal" href="#database-messages">Database Messages</a><ul>
+<li><a class="reference internal" href="#message-metadata">Message Metadata</a></li>
 </ul>
 </li>
 </ul>
 </li>
 </ul>
 
-            <h4>Previous topic</h4>
-            <p class="topless"><a href="admin.html"
-                                  title="previous chapter">Administration</a></p>
-            <h4>Next topic</h4>
-            <p class="topless"><a href="copyman.html"
-                                  title="next chapter">Copy Management</a></p>
-            <h3>This Page</h3>
-            <ul class="this-page-menu">
-              <li><a href="_sources/driver.txt"
-                     rel="nofollow">Show Source</a></li>
-            </ul>
-          <div id="searchbox" style="display: none">
-            <h3>Quick search</h3>
-              <form class="search" action="search.html" method="get">
-                <input type="text" name="q" size="18" />
-                <input type="submit" value="Go" />
-                <input type="hidden" name="check_keywords" value="yes" />
-                <input type="hidden" name="area" value="default" />
-              </form>
-              <p class="searchtip" style="font-size: 90%">
-              Enter search terms or a module, class or function name.
-              </p>
-          </div>
-          <script type="text/javascript">$('#searchbox').show(0);</script>
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="admin.html"
+                        title="previous chapter">Administration</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="copyman.html"
+                        title="next chapter">Copy Management</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/driver.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
         </div>
       </div>
       <div class="clearer"></div>
@@ -1833,13 +1836,13 @@ parse error.</dd>
         <li class="right" >
           <a href="admin.html" title="Administration"
              >previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2dev documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
-      &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Apr 29, 2010.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
+        &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
+      Last updated on Sep 18, 2010.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0b2.
     </div>
   </body>
 </html>

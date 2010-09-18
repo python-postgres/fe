@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -5,21 +7,22 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Categories and Libraries &mdash; py-postgresql v1.0.2dev documentation</title>
+    <title>Categories and Libraries &mdash; py-postgresql v1.0.2 documentation</title>
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '',
-        VERSION:     '1.0.2dev',
-        COLLAPSE_MODINDEX: false,
+        VERSION:     '1.0.2',
+        COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
       };
     </script>
     <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="py-postgresql v1.0.2dev documentation" href="index.html" />
+    <link rel="top" title="py-postgresql v1.0.2 documentation" href="index.html" />
     <link rel="next" title="Client Parameters" href="clientparameters.html" />
     <link rel="prev" title="Cluster Management" href="cluster.html" /> 
   </head>
@@ -36,7 +39,7 @@
         <li class="right" >
           <a href="cluster.html" title="Cluster Management"
              accesskey="P">previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2dev documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -51,7 +54,7 @@
 libraries.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p class="last">First-time users are encouraged to read the <a class="reference internal" href="#audience-and-motivation">Audience and Motivation</a>
+<p class="last">First-time users are encouraged to read the <a class="reference external" href="#audience-and-motivation">Audience and Motivation</a>
 section first.</p>
 </div>
 <p>Libraries are a collection of SQL statements that can be bound to a
@@ -102,7 +105,7 @@ SELECT * FROM user WHERE user_id = $1</pre>
 <p>In the above example, <tt class="docutils literal"><span class="pre">get_user_info</span></tt> and <tt class="docutils literal"><span class="pre">get_user_info_v2</span></tt> are identical.
 Empty components indicate the default effect.</p>
 <p>The second component in the section identifier is the symbol type. All Symbol
-types are listed in <a class="reference internal" href="#symbol-types">Symbol Types</a>. This can be
+types are listed in <a class="reference external" href="#symbol-types">Symbol Types</a>. This can be
 used to specify what the section&#8217;s contents are or when to bind the
 symbol:</p>
 <div class="highlight-python"><pre>[get_user_info:preload]
@@ -134,7 +137,7 @@ are special because the execution method is effectively specified by the
 procedure itself.</p>
 <p>The third component is the symbol <tt class="docutils literal"><span class="pre">method</span></tt>. This defines the execution method
 of the statement and ultimately what is returned when the Symbol is called at
-runtime. All the execution methods are listed in <a class="reference internal" href="#symbol-execution-methods">Symbol Execution Methods</a>.</p>
+runtime. All the execution methods are listed in <a class="reference external" href="#symbol-execution-methods">Symbol Execution Methods</a>.</p>
 <p>The default execution method is the default execution method of
 <cite>postgresql.api.PreparedStatement</cite> objects; return the entire result set in a
 list object:</p>
@@ -527,48 +530,48 @@ initialization facilities for produced connections. For libraries,
       </div>
       <div class="sphinxsidebar">
         <div class="sphinxsidebarwrapper">
-            <h3><a href="index.html">Table Of Contents</a></h3>
-            <ul>
-<li><a class="reference external" href="">Categories and Libraries</a><ul>
-<li><a class="reference external" href="#writing-libraries">Writing Libraries</a></li>
-<li><a class="reference external" href="#using-libraries">Using Libraries</a><ul>
-<li><a class="reference external" href="#categories">Categories</a></li>
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Categories and Libraries</a><ul>
+<li><a class="reference internal" href="#writing-libraries">Writing Libraries</a></li>
+<li><a class="reference internal" href="#using-libraries">Using Libraries</a><ul>
+<li><a class="reference internal" href="#categories">Categories</a></li>
 </ul>
 </li>
-<li><a class="reference external" href="#symbol-types">Symbol Types</a></li>
-<li><a class="reference external" href="#symbol-execution-methods">Symbol Execution Methods</a></li>
-<li><a class="reference external" href="#reference-symbols">Reference Symbols</a></li>
-<li><a class="reference external" href="#distributing-and-usage">Distributing and Usage</a></li>
-<li><a class="reference external" href="#audience-and-motivation">Audience and Motivation</a></li>
-<li><a class="reference external" href="#terminology">Terminology</a></li>
+<li><a class="reference internal" href="#symbol-types">Symbol Types</a></li>
+<li><a class="reference internal" href="#symbol-execution-methods">Symbol Execution Methods</a></li>
+<li><a class="reference internal" href="#reference-symbols">Reference Symbols</a></li>
+<li><a class="reference internal" href="#distributing-and-usage">Distributing and Usage</a></li>
+<li><a class="reference internal" href="#audience-and-motivation">Audience and Motivation</a></li>
+<li><a class="reference internal" href="#terminology">Terminology</a></li>
 </ul>
 </li>
 </ul>
 
-            <h4>Previous topic</h4>
-            <p class="topless"><a href="cluster.html"
-                                  title="previous chapter">Cluster Management</a></p>
-            <h4>Next topic</h4>
-            <p class="topless"><a href="clientparameters.html"
-                                  title="next chapter">Client Parameters</a></p>
-            <h3>This Page</h3>
-            <ul class="this-page-menu">
-              <li><a href="_sources/lib.txt"
-                     rel="nofollow">Show Source</a></li>
-            </ul>
-          <div id="searchbox" style="display: none">
-            <h3>Quick search</h3>
-              <form class="search" action="search.html" method="get">
-                <input type="text" name="q" size="18" />
-                <input type="submit" value="Go" />
-                <input type="hidden" name="check_keywords" value="yes" />
-                <input type="hidden" name="area" value="default" />
-              </form>
-              <p class="searchtip" style="font-size: 90%">
-              Enter search terms or a module, class or function name.
-              </p>
-          </div>
-          <script type="text/javascript">$('#searchbox').show(0);</script>
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="cluster.html"
+                        title="previous chapter">Cluster Management</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="clientparameters.html"
+                        title="next chapter">Client Parameters</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/lib.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
         </div>
       </div>
       <div class="clearer"></div>
@@ -585,13 +588,13 @@ initialization facilities for produced connections. For libraries,
         <li class="right" >
           <a href="cluster.html" title="Cluster Management"
              >previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2dev documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
-      &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Apr 29, 2010.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 0.6.3.
+        &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
+      Last updated on Sep 18, 2010.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0b2.
     </div>
   </body>
 </html>
