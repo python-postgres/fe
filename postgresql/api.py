@@ -598,8 +598,8 @@ class StoredProcedure(
 		"""
 
 ##
-# Arguably, it would be wiser to isolate blocks, prepared transactions, and
-# savepoints, but the utility of the separation is not significant. It's really
+# Arguably, it would be wiser to isolate blocks, and savepoints, but the utility
+# of the separation is not significant. It's really
 # more interesting as a formality that the user may explicitly state the
 # type of the transaction. However, this capability is not completely absent
 # from the current interface as the configuration parameters, or lack thereof,
