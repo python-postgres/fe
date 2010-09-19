@@ -6,7 +6,6 @@ import os
 import unittest
 
 from .. import exceptions as pg_exc
-from .. import unittest as pg_unittest
 from .. import driver as pg_driver
 from ..driver import dbapi20
 from . import test_connect
