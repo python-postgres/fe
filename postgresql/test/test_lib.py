@@ -74,37 +74,37 @@ class test_lib(unittest.TestCase):
 	# in postgresql.test.test_driver; much functionality
 	# depends on the `sys` library.
 	def _testILF(self, lib):
-		self.failUnless('preface' in lib.preface)
+		self.assertTrue('preface' in lib.preface)
 		db.execute("CREATE OR REPLACE FUNCTION test_ilf_proc(int) RETURNS int language sql as 'select $1';")
 		db.execute("CREATE OR REPLACE FUNCTION test_ilf_srf_proc(int) RETURNS SETOF int language sql as 'select $1';")
 		b = pg_lib.Binding(db, lib)
-		self.failUnlessEqual(b.sym_ref(), [(1,)])
-		self.failUnlessEqual(b.sym_ref_trail(), [])
-		self.failUnlessEqual(b.sym(), [(1,)])
-		self.failUnlessEqual(b.sym_first(), 1)
-		self.failUnlessEqual(list(b.sym_rows()), [(1,)])
-		self.failUnlessEqual([list(x) for x in b.sym_chunks()], [[(1,)]])
+		self.assertEqual(b.sym_ref(), [(1,)])
+		self.assertEqual(b.sym_ref_trail(), [])
+		self.assertEqual(b.sym(), [(1,)])
+		self.assertEqual(b.sym_first(), 1)
+		self.assertEqual(list(b.sym_rows()), [(1,)])
+		self.assertEqual([list(x) for x in b.sym_chunks()], [[(1,)]])
 		c = b.sym_declare()
-		self.failUnlessEqual(c.read(), [(1,)])
+		self.assertEqual(c.read(), [(1,)])
 		c.seek(0)
-		self.failUnlessEqual(c.read(), [(1,)])
-		self.failUnlessEqual(b.sym_const, 1)
-		self.failUnlessEqual(b.sym_const_column, [1])
-		self.failUnlessEqual(b.sym_const_rows, [(1,)])
-		self.failUnlessEqual(b.sym_const_chunks, [[(1,)]])
-		self.failUnlessEqual(b.sym_const_ddl, ('CREATE TABLE', None))
-		self.failUnlessEqual(b.sym_preload(), 1)
+		self.assertEqual(c.read(), [(1,)])
+		self.assertEqual(b.sym_const, 1)
+		self.assertEqual(b.sym_const_column, [1])
+		self.assertEqual(b.sym_const_rows, [(1,)])
+		self.assertEqual(b.sym_const_chunks, [[(1,)]])
+		self.assertEqual(b.sym_const_ddl, ('CREATE TABLE', None))
+		self.assertEqual(b.sym_preload(), 1)
 		# now stored procs
-		self.failUnlessEqual(b.sym_proc(2,), 2)
-		self.failUnlessEqual(list(b.sym_srf_proc(2,)), [2])
-		self.failUnlessRaises(AttributeError, getattr, b, 'LIES')
+		self.assertEqual(b.sym_proc(2,), 2)
+		self.assertEqual(list(b.sym_srf_proc(2,)), [2])
+		self.assertRaises(AttributeError, getattr, b, 'LIES')
 		# reference symbols
-		self.failUnlessEqual(b.sym_reference()(), [(1,)])
-		self.failUnlessEqual(b.sym_reference_params('1::int')(), [(1,)])
-		self.failUnlessEqual(b.sym_reference_params("'foo'::text")(), [('foo',)])
-		self.failUnlessEqual(b.sym_reference_first()(), 1)
-		self.failUnlessEqual(b.sym_reference_const(), 1)
-		self.failUnlessEqual(b.sym_reference_proc()(2,), 2)
+		self.assertEqual(b.sym_reference()(), [(1,)])
+		self.assertEqual(b.sym_reference_params('1::int')(), [(1,)])
+		self.assertEqual(b.sym_reference_params("'foo'::text")(), [('foo',)])
+		self.assertEqual(b.sym_reference_first()(), 1)
+		self.assertEqual(b.sym_reference_const(), 1)
+		self.assertEqual(b.sym_reference_proc()(2,), 2)
 
 	@pg_tmp
 	def testILF_from_lines(self):
@@ -140,7 +140,7 @@ class test_lib(unittest.TestCase):
 			pg_sys.libpath.insert(0, os.path.curdir)
 			l = pg_lib.load(frag)
 			b = pg_lib.Binding(db, l)
-			self.failUnlessEqual(b.foo(), [(1,)])
+			self.assertEqual(b.foo(), [(1,)])
 		finally:
 			os.remove(fn)
 	
@@ -151,10 +151,10 @@ class test_lib(unittest.TestCase):
 		lib._name = 'name'
 		c = pg_lib.Category(lib)
 		c(db)
-		self.failUnlessEqual(db.name.sym_first(), 1)
+		self.assertEqual(db.name.sym_first(), 1)
 		c = pg_lib.Category(renamed = lib)
 		c(db)
-		self.failUnlessEqual(db.renamed.sym_first(), 1)
+		self.assertEqual(db.renamed.sym_first(), 1)
 
 	@pg_tmp
 	def testCategoryAliases(self):
@@ -163,8 +163,8 @@ class test_lib(unittest.TestCase):
 		lib._name = 'name'
 		c = pg_lib.Category(lib, renamed = lib)
 		c(db)
-		self.failUnlessEqual(db.name.sym_first(), 1)
-		self.failUnlessEqual(db.renamed.sym_first(), 1)
+		self.assertEqual(db.name.sym_first(), 1)
+		self.assertEqual(db.renamed.sym_first(), 1)
 
 if __name__ == '__main__':
 	unittest.main()

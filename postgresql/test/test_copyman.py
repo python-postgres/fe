@@ -76,8 +76,8 @@ class test_copyman(unittest.TestCase):
 		sp = copyman.NullProducer()
 		sr = copyman.NullReceiver()
 		copyman.CopyManager(sp, sr).run()
-		self.failUnlessEqual(sp.total_messages, 0)
-		self.failUnlessEqual(sp.total_bytes, 0)
+		self.assertEqual(sp.total_messages, 0)
+		self.assertEqual(sp.total_bytes, 0)
 
 	@pg_tmp
 	def testNullProducer(self):
@@ -85,10 +85,10 @@ class test_copyman(unittest.TestCase):
 		np = copyman.NullProducer()
 		sr = copyman.StatementReceiver(prepare(dstsql))
 		copyman.CopyManager(np, sr).run()
-		self.failUnlessEqual(np.total_messages, 0)
-		self.failUnlessEqual(np.total_bytes, 0)
-		self.failUnlessEqual(prepare(dstcount).first(), 0)
-		self.failUnlessEqual(prepare(grabdst)(), [])
+		self.assertEqual(np.total_messages, 0)
+		self.assertEqual(np.total_bytes, 0)
+		self.assertEqual(prepare(dstcount).first(), 0)
+		self.assertEqual(prepare(grabdst)(), [])
 
 	@pg_tmp
 	def testNullReceiver(self):
@@ -98,8 +98,8 @@ class test_copyman(unittest.TestCase):
 		with copyman.CopyManager(sp, sr) as copy:
 			for x in copy:
 				pass
-		self.failUnlessEqual(sp.total_messages, stdrowcount)
-		self.failUnlessEqual(sp.total_bytes > 0, True)
+		self.assertEqual(sp.total_messages, stdrowcount)
+		self.assertEqual(sp.total_bytes > 0, True)
 
 	def testIteratorToCall(self):
 		tmp = iter(stditer)
@@ -115,10 +115,10 @@ class test_copyman(unittest.TestCase):
 			for msg, bytes in copy:
 				recomputed_messages += msg
 				recomputed_bytes += bytes
-		self.failUnlessEqual(stdrowcount, recomputed_messages)
-		self.failUnlessEqual(recomputed_bytes, sp.total_bytes)
-		self.failUnlessEqual(len(dest), stdrowcount)
-		self.failUnlessEqual(dest, stditer)
+		self.assertEqual(stdrowcount, recomputed_messages)
+		self.assertEqual(recomputed_bytes, sp.total_bytes)
+		self.assertEqual(len(dest), stdrowcount)
+		self.assertEqual(dest, stditer)
 
 	@pg_tmp
 	def testDirectStatements(self):
@@ -130,8 +130,8 @@ class test_copyman(unittest.TestCase):
 		with copyman.CopyManager(sp, sr) as copy:
 			for x in copy:
 				pass
-		self.failUnlessEqual(dst.prepare(dstcount).first(), stdrowcount)
-		self.failUnlessEqual(dst.prepare(grabdst)(), prepare(grabsrc)())
+		self.assertEqual(dst.prepare(dstcount).first(), stdrowcount)
+		self.assertEqual(dst.prepare(grabdst)(), prepare(grabsrc)())
 
 	@pg_tmp
 	def testIteratorProducer(self):
@@ -144,10 +144,10 @@ class test_copyman(unittest.TestCase):
 			for msg, bytes in copy:
 				recomputed_messages += msg
 				recomputed_bytes += bytes
-		self.failUnlessEqual(stdrowcount, recomputed_messages)
-		self.failUnlessEqual(recomputed_bytes, sp.total_bytes)
-		self.failUnlessEqual(prepare(dstcount).first(), stdrowcount)
-		self.failUnlessEqual(prepare(grabdst)(), stditer_tuples)
+		self.assertEqual(stdrowcount, recomputed_messages)
+		self.assertEqual(recomputed_bytes, sp.total_bytes)
+		self.assertEqual(prepare(dstcount).first(), stdrowcount)
+		self.assertEqual(prepare(grabdst)(), stditer_tuples)
 
 	def multiple_destinations(self, count = 3, binary = False, buffer_size = 129):
 		if binary:
@@ -174,10 +174,10 @@ class test_copyman(unittest.TestCase):
 				recomputed_bytes += bytes
 		src_snap = prepare(grabsrc)()
 		for x in dests:
-			self.failUnlessEqual(x.prepare(dstcount).first(), stdrowcount)
-			self.failUnlessEqual(x.prepare(grabdst)(), src_snap)
-		self.failUnlessEqual(stdrowcount + count_offset, recomputed_messages)
-		self.failUnlessEqual(recomputed_bytes, sp.total_bytes)
+			self.assertEqual(x.prepare(dstcount).first(), stdrowcount)
+			self.assertEqual(x.prepare(grabdst)(), src_snap)
+		self.assertEqual(stdrowcount + count_offset, recomputed_messages)
+		self.assertEqual(recomputed_bytes, sp.total_bytes)
 
 	@pg_tmp
 	def testMultipleStatements(self):
@@ -226,18 +226,18 @@ class test_copyman(unittest.TestCase):
 				if rmessages:
 					# Should get hooked before the COPY is over.
 					seen_in_loop += 1
-		self.failUnless(seen_in_loop > 0)
-		self.failUnlessEqual(dst.prepare(dstcount).first(), stdrowcount)
-		self.failUnlessEqual(dst.prepare(grabdst)(), prepare(grabsrc)())
+		self.assertTrue(seen_in_loop > 0)
+		self.assertEqual(dst.prepare(dstcount).first(), stdrowcount)
+		self.assertEqual(dst.prepare(grabdst)(), prepare(grabsrc)())
 		# The injector adds then everytime the wire data is confiscated
 		# from the protocol connection.
 		notice, warning = rmessages[:2]
-		self.failUnlessEqual(notice.code, "00000")
-		self.failUnlessEqual(warning.code, "01X1X1")
-		self.failUnlessEqual(warning.details['severity'], "WARNING")
-		self.failUnlessEqual(notice.message, "It's a beautiful day.")
-		self.failUnlessEqual(warning.message, "FAILURE IS CERTAIN")
-		self.failUnlessEqual(notice.details['severity'], "NOTICE")
+		self.assertEqual(notice.code, "00000")
+		self.assertEqual(warning.code, "01X1X1")
+		self.assertEqual(warning.details['severity'], "WARNING")
+		self.assertEqual(notice.message, "It's a beautiful day.")
+		self.assertEqual(warning.message, "FAILURE IS CERTAIN")
+		self.assertEqual(notice.details['severity'], "NOTICE")
 
 	@pg_tmp
 	def testAsyncNotify(self):
@@ -255,9 +255,9 @@ class test_copyman(unittest.TestCase):
 			for x in copy:
 				r += list(db.iternotifies(0))
 		# Got the injected NOTIFY's, right?
-		self.failUnless(r)
+		self.assertTrue(r)
 		# it may have happened multiple times, so adjust accordingly.
-		self.failUnlessEqual(r, [('channel', 'payload', 1234)]*len(r))
+		self.assertEqual(r, [('channel', 'payload', 1234)]*len(r))
 
 	@pg_tmp
 	def testUnfinishedCopy(self):
@@ -294,12 +294,12 @@ class test_copyman(unittest.TestCase):
 					raise ThisError()
 		except copyman.CopyFail as cf:
 			# It's a copy failure, but due to ThisError.
-			self.failUnless(isinstance(cf.__context__, ThisError))
+			self.assertTrue(isinstance(cf.__context__, ThisError))
 		else:
 			self.fail("didn't raise CopyFail")
 		# Connections should be usable.
-		self.failUnlessEqual(prepare('select 1').first(), 1)
-		self.failUnlessEqual(dst.prepare('select 1').first(), 1)
+		self.assertEqual(prepare('select 1').first(), 1)
+		self.assertEqual(dst.prepare('select 1').first(), 1)
 
 	@pg_tmp
 	def testRaiseInCopyOnEnter(self):
@@ -316,7 +316,7 @@ class test_copyman(unittest.TestCase):
 				raise ThatError()
 		except copyman.CopyFail as cf:
 			# yeah; error on incomplete COPY
-			self.failUnless(isinstance(cf.__context__, ThatError))
+			self.assertTrue(isinstance(cf.__context__, ThatError))
 		else:
 			self.fail("didn't raise CopyFail")
 
@@ -344,10 +344,10 @@ class test_copyman(unittest.TestCase):
 				except copyman.ReceiverFault as cf:
 					if sr2 not in cf.faults:
 						raise
-		self.failUnless(done)
-		self.failUnlessRaises(Exception, dst2.execute, 'select 1')
-		self.failUnlessEqual(dst.prepare(dstcount).first(), stdrowcount)
-		self.failUnlessEqual(dst.prepare(grabdst)(), prepare(grabsrc)())
+		self.assertTrue(done)
+		self.assertRaises(Exception, dst2.execute, 'select 1')
+		self.assertEqual(dst.prepare(dstcount).first(), stdrowcount)
+		self.assertEqual(dst.prepare(grabdst)(), prepare(grabsrc)())
 
 	@pg_tmp
 	def testEmptyRows(self):
@@ -363,11 +363,11 @@ class test_copyman(unittest.TestCase):
 				nmsg, nbytes = x
 				m += nmsg
 				b += nbytes
-		self.failUnlessEqual(m, 10)
-		self.failUnlessEqual(prepare("SELECT COUNT(*) FROM emptysource").first(), 10)
-		self.failUnlessEqual(dst.prepare("SELECT COUNT(*) FROM empty").first(), 10)
-		self.failUnlessEqual(sr.count(), 10)
-		self.failUnlessEqual(sp.count(), 10)
+		self.assertEqual(m, 10)
+		self.assertEqual(prepare("SELECT COUNT(*) FROM emptysource").first(), 10)
+		self.assertEqual(dst.prepare("SELECT COUNT(*) FROM empty").first(), 10)
+		self.assertEqual(sr.count(), 10)
+		self.assertEqual(sp.count(), 10)
 
 	@pg_tmp
 	def testCopyOne(self):
@@ -378,7 +378,7 @@ class test_copyman(unittest.TestCase):
 			copyman.CallReceiver(b.writelines)
 		)
 		b.seek(0)
-		self.failUnlessEqual(b.read(), b'1\n')
+		self.assertEqual(b.read(), b'1\n')
 
 	@pg_tmp
 	def testCopyNone(self):
@@ -389,7 +389,7 @@ class test_copyman(unittest.TestCase):
 			copyman.CallReceiver(b.writelines)
 		)
 		b.seek(0)
-		self.failUnlessEqual(b.read(), b'')
+		self.assertEqual(b.read(), b'')
 
 	@pg_tmp
 	def testNoReceivers(self):
@@ -410,15 +410,15 @@ class test_copyman(unittest.TestCase):
 							else:
 								self.fail("failed to detect dead socket")
 					except copyman.ReceiverFault as cf:
-						self.failUnless(sr1 in cf.faults)
+						self.assertTrue(sr1 in cf.faults)
 						# Don't reconcile. Let the manager drop the receiver.
 		except copyman.CopyFail:
-			self.failUnless(not bool(copy.receivers))
+			self.assertTrue(not bool(copy.receivers))
 			# Success.
 		else:
 			self.fail("did not raise expected error")
 		# Let the exception cause a failure.
-		self.failUnless(done)
+		self.assertTrue(done)
 
 	@pg_tmp
 	def testReconciliation(self):
@@ -454,19 +454,19 @@ class test_copyman(unittest.TestCase):
 						if done is True:
 							self.fail("failed_write was called twice?")
 						done = True
-						self.failUnlessEqual(len(copy.receivers), 0)
+						self.assertEqual(len(copy.receivers), 0)
 						copy.reconcile(sr)
-						self.failUnlessEqual(len(copy.receivers), 1)
+						self.assertEqual(len(copy.receivers), 1)
 
-		self.failUnlessEqual(done, True)
+		self.assertEqual(done, True)
 
 		# Connections should be usable.
-		self.failUnlessEqual(prepare('select 1').first(), 1)
-		self.failUnlessEqual(dst.prepare('select 1').first(), 1)
+		self.assertEqual(prepare('select 1').first(), 1)
+		self.assertEqual(dst.prepare('select 1').first(), 1)
 		# validate completion
-		self.failUnlessEqual(stdrowcount, recomputed_messages)
-		self.failUnlessEqual(recomputed_bytes, sp.total_bytes)
-		self.failUnlessEqual(dst.prepare(dstcount).first(), stdrowcount)
+		self.assertEqual(stdrowcount, recomputed_messages)
+		self.assertEqual(recomputed_bytes, sp.total_bytes)
+		self.assertEqual(dst.prepare(dstcount).first(), stdrowcount)
 
 	@pg_tmp
 	def testDroppedConnection(self):
@@ -499,28 +499,28 @@ class test_copyman(unittest.TestCase):
 						# Done with COPY, break out of while copy.receivers.
 						break
 				except copyman.ReceiverFault as cf:
-					self.failUnless(isinstance(cf.faults[sr2], TheCause))
+					self.assertTrue(isinstance(cf.faults[sr2], TheCause))
 					if done is True:
 						self.fail("failed_write was called twice?")
 					done = True
-					self.failUnlessEqual(len(copy.receivers), 1)
+					self.assertEqual(len(copy.receivers), 1)
 					dst2.pq.socket.close()
 					# We don't reconcile, so the manager only has one target now.
 
-		self.failUnlessEqual(done, True)
+		self.assertEqual(done, True)
 		# May not be aligned; really, we're expecting the connection to
 		# have died.
-		self.failUnlessRaises(Exception, dst2.execute, "SELECT 1")
+		self.assertTrue(Exception, dst2.execute, "SELECT 1")
 
 		# Connections should be usable.
-		self.failUnlessEqual(prepare('select 1').first(), 1)
-		self.failUnlessEqual(dst.prepare('select 1').first(), 1)
+		self.assertEqual(prepare('select 1').first(), 1)
+		self.assertEqual(dst.prepare('select 1').first(), 1)
 		# validate completion
-		self.failUnlessEqual(stdrowcount, recomputed_messages)
-		self.failUnlessEqual(recomputed_bytes, sp.total_bytes)
-		self.failUnlessEqual(dst.prepare(dstcount).first(), stdrowcount)
-		self.failUnlessEqual(sp.count(), stdrowcount)
-		self.failUnlessEqual(sp.command(), "COPY")
+		self.assertEqual(stdrowcount, recomputed_messages)
+		self.assertEqual(recomputed_bytes, sp.total_bytes)
+		self.assertEqual(dst.prepare(dstcount).first(), stdrowcount)
+		self.assertEqual(sp.count(), stdrowcount)
+		self.assertEqual(sp.command(), "COPY")
 
 	@pg_tmp
 	def testProducerFailure(self):
@@ -538,15 +538,15 @@ class test_copyman(unittest.TestCase):
 							done = True
 							db.pq.socket.close()
 				except copyman.ProducerFault as pf:
-					self.failUnless(pf.__context__ is not None)
+					self.assertTrue(pf.__context__ is not None)
 			self.fail('expected CopyManager to raise CopyFail')
 		except copyman.CopyFail as cf:
 			# Expecting to see CopyFail
-			self.failUnless(True)
-			self.failUnless(isinstance(cf.producer_fault, pg_exc.ConnectionFailureError))
-		self.failUnless(done)
-		self.failUnlessRaises(Exception, sqlexec, 'select 1')
-		self.failUnlessEqual(dst.prepare(dstcount).first(), 0)
+			self.assertTrue(True)
+			self.assertTrue(isinstance(cf.producer_fault, pg_exc.ConnectionFailureError))
+		self.assertTrue(done)
+		self.assertRaises(Exception, sqlexec, 'select 1')
+		self.assertEqual(dst.prepare(dstcount).first(), 0)
 
 from ..copyman import WireState
 
@@ -554,66 +554,66 @@ class test_WireState(unittest.TestCase):
 	def testNormal(self):
 		WS=WireState()
 		messages = WS.update(memoryview(b'd\x00\x00\x00\x04'))
-		self.failUnlessEqual(messages, 1)
-		self.failUnlessEqual(WS.remaining_bytes, 0)
-		self.failUnlessEqual(WS.size_fragment, b'')
-		self.failUnlessEqual(WS.final_view, None)
+		self.assertEqual(messages, 1)
+		self.assertEqual(WS.remaining_bytes, 0)
+		self.assertEqual(WS.size_fragment, b'')
+		self.assertEqual(WS.final_view, None)
 
 	def testIncomplete(self):
 		WS=WireState()
 		messages = WS.update(memoryview(b'd\x00\x00\x00\x05'))
-		self.failUnlessEqual(messages, 0)
-		self.failUnlessEqual(WS.remaining_bytes, 1)
-		self.failUnlessEqual(WS.size_fragment, b'')
-		self.failUnlessEqual(WS.final_view, None)
+		self.assertEqual(messages, 0)
+		self.assertEqual(WS.remaining_bytes, 1)
+		self.assertEqual(WS.size_fragment, b'')
+		self.assertEqual(WS.final_view, None)
 		messages = WS.update(memoryview(b'x'))
-		self.failUnlessEqual(messages, 1)
-		self.failUnlessEqual(WS.remaining_bytes, 0)
-		self.failUnlessEqual(WS.size_fragment, b'')
-		self.failUnlessEqual(WS.final_view, None)
+		self.assertEqual(messages, 1)
+		self.assertEqual(WS.remaining_bytes, 0)
+		self.assertEqual(WS.size_fragment, b'')
+		self.assertEqual(WS.final_view, None)
 
 	def testIncompleteHeader_0size(self):
 		WS=WireState()
 		messages = WS.update(memoryview(b'd'))
-		self.failUnlessEqual(messages, 0)
-		self.failUnlessEqual(WS.remaining_bytes, -1)
-		self.failUnlessEqual(WS.size_fragment, b'')
-		self.failUnlessEqual(WS.final_view, None)
+		self.assertEqual(messages, 0)
+		self.assertEqual(WS.remaining_bytes, -1)
+		self.assertEqual(WS.size_fragment, b'')
+		self.assertEqual(WS.final_view, None)
 		messages = WS.update(b'\x00\x00\x00\x04')
-		self.failUnlessEqual(messages, 1)
+		self.assertEqual(messages, 1)
 
 	def testIncompleteHeader_1size(self):
 		WS=WireState()
 		messages = WS.update(memoryview(b'd\x00'))
-		self.failUnlessEqual(messages, 0)
-		self.failUnlessEqual(WS.size_fragment, b'\x00')
-		self.failUnlessEqual(WS.final_view, None)
-		self.failUnlessEqual(WS.remaining_bytes, -1)
+		self.assertEqual(messages, 0)
+		self.assertEqual(WS.size_fragment, b'\x00')
+		self.assertEqual(WS.final_view, None)
+		self.assertEqual(WS.remaining_bytes, -1)
 		messages = WS.update(memoryview(b'\x00\x00\x04'))
-		self.failUnlessEqual(messages, 1)
-		self.failUnlessEqual(WS.remaining_bytes, 0)
+		self.assertEqual(messages, 1)
+		self.assertEqual(WS.remaining_bytes, 0)
 
 	def testIncompleteHeader_2size(self):
 		WS=WireState()
 		messages = WS.update(memoryview(b'd\x00\x00'))
-		self.failUnlessEqual(messages, 0)
-		self.failUnlessEqual(WS.remaining_bytes, -1)
-		self.failUnlessEqual(WS.size_fragment, b'\x00\x00')
-		self.failUnlessEqual(WS.final_view, None)
+		self.assertEqual(messages, 0)
+		self.assertEqual(WS.remaining_bytes, -1)
+		self.assertEqual(WS.size_fragment, b'\x00\x00')
+		self.assertEqual(WS.final_view, None)
 		messages = WS.update(b'\x00\x04')
-		self.failUnlessEqual(messages, 1)
-		self.failUnlessEqual(WS.remaining_bytes, 0)
+		self.assertEqual(messages, 1)
+		self.assertEqual(WS.remaining_bytes, 0)
 
 	def testIncompleteHeader_3size(self):
 		WS=WireState()
 		messages = WS.update(memoryview(b'd\x00\x00\x00'))
-		self.failUnlessEqual(messages, 0)
-		self.failUnlessEqual(WS.remaining_bytes, -1)
-		self.failUnlessEqual(WS.size_fragment, b'\x00\x00\x00')
-		self.failUnlessEqual(WS.final_view, None)
+		self.assertEqual(messages, 0)
+		self.assertEqual(WS.remaining_bytes, -1)
+		self.assertEqual(WS.size_fragment, b'\x00\x00\x00')
+		self.assertEqual(WS.final_view, None)
 		messages = WS.update(memoryview(b'\x04'))
-		self.failUnlessEqual(messages, 1)
-		self.failUnlessEqual(WS.remaining_bytes, 0)
+		self.assertEqual(messages, 1)
+		self.assertEqual(WS.remaining_bytes, 0)
 
 if __name__ == '__main__':
 	unittest.main()

@@ -183,77 +183,77 @@ class test_strings(unittest.TestCase):
 	def test_split(self):
 		for unsplit, split in split_samples:
 			xsplit = list(pg_str.split(unsplit))
-			self.failUnlessEqual(xsplit, split)
-			self.failUnlessEqual(pg_str.unsplit(xsplit), unsplit)
+			self.assertEqual(xsplit, split)
+			self.assertEqual(pg_str.unsplit(xsplit), unsplit)
 	
 	def test_split_sql(self):
 		for unsplit, split in split_sql_samples:
 			xsplit = list(pg_str.split_sql(unsplit))
-			self.failUnlessEqual(xsplit, split)
-			self.failUnlessEqual(';'.join([pg_str.unsplit(x) for x in xsplit]), unsplit)
+			self.assertEqual(xsplit, split)
+			self.assertEqual(';'.join([pg_str.unsplit(x) for x in xsplit]), unsplit)
 
 	def test_qname(self):
 		"indirectly tests split_using"
 		for unsplit, split, norm in split_qname_samples:
 			xsplit = pg_str.split_qname(unsplit)
-			self.failUnlessEqual(xsplit, split)
-			self.failUnlessEqual(pg_str.qname(*split), norm)
+			self.assertEqual(xsplit, split)
+			self.assertEqual(pg_str.qname(*split), norm)
 
-		self.failUnlessRaises(
+		self.assertRaises(
 			ValueError,
 			pg_str.split_qname, '"foo'
 		)
-		self.failUnlessRaises(
+		self.assertRaises(
 			ValueError,
 			pg_str.split_qname, 'foo"'
 		)
-		self.failUnlessRaises(
+		self.assertRaises(
 			ValueError,
 			pg_str.split_qname, 'bar.foo"'
 		)
-		self.failUnlessRaises(
+		self.assertRaises(
 			ValueError,
 			pg_str.split_qname, 'bar".foo"'
 		)
 
 	def test_quotes(self):
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.quote_literal("""foo'bar"""),
 			"""'foo''bar'"""
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.quote_literal("""\\foo'bar\\"""),
 			"""'\\foo''bar\\'"""
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.quote_ident("foo"),
 			"foo"
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.quote_ident("0foo"),
 			'"0foo"'
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.quote_ident("foo0"),
 			'foo0'
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.quote_ident("_"),
 			'_'
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.quote_ident("_9"),
 			'_9'
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.quote_ident('''\\foo'bar\\'''),
 			'''"\\foo'bar\\"'''
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.escape_ident('"'),
 			'""',
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.escape_ident('""'),
 			'""""',
 		)
@@ -261,7 +261,7 @@ class test_strings(unittest.TestCase):
 			chr(x) for x in range(10000)
 			if chr(x) != '"'
 		])
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.escape_ident(chars),
 			chars,
 		)
@@ -269,7 +269,7 @@ class test_strings(unittest.TestCase):
 			chr(x) for x in range(10000)
 			if chr(x) != "'"
 		])
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.escape_literal(chars),
 			chars,
 		)
@@ -277,7 +277,7 @@ class test_strings(unittest.TestCase):
 			chr(x) for x in range(10000)
 			if chr(x) not in "\\'"
 		])
-		self.failUnlessEqual(
+		self.assertEqual(
 			pg_str.escape_literal(chars),
 			chars,
 		)

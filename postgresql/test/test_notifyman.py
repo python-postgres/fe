@@ -23,14 +23,14 @@ class test_notifyman(unittest.TestCase):
 			for ndb, notifies in nm:
 				for n in notifies:
 					if ndb is db:
-						self.failUnlessEqual(n[0], 'foo')
-						self.failUnlessEqual(n[1], '')
-						self.failUnlessEqual(n[2], alt.backend_id)
+						self.assertEqual(n[0], 'foo')
+						self.assertEqual(n[1], '')
+						self.assertEqual(n[2], alt.backend_id)
 						nm.connections.discard(db)
 					elif ndb is alt:
-						self.failUnlessEqual(n[0], 'bar')
-						self.failUnlessEqual(n[1], '')
-						self.failUnlessEqual(n[2], db.backend_id)
+						self.assertEqual(n[0], 'bar')
+						self.assertEqual(n[1], '')
+						self.assertEqual(n[2], db.backend_id)
 						nm.connections.discard(alt)
 					else:
 						self.fail("unknown connection received notify..")
@@ -46,11 +46,11 @@ class test_notifyman(unittest.TestCase):
 				db.notify('foo')
 				continue
 			ndb, notifies = event
-			self.failUnlessEqual(ndb, db)
+			self.assertEqual(ndb, db)
 			for n in notifies:
-				self.failUnlessEqual(n[0], 'foo')
-				self.failUnlessEqual(n[1], '')
-				self.failUnlessEqual(n[2], db.backend_id)
+				self.assertEqual(n[0], 'foo')
+				self.assertEqual(n[1], '')
+				self.assertEqual(n[2], db.backend_id)
 				count = count + 1
 			if count > 3:
 				break
@@ -62,10 +62,10 @@ class test_notifyman(unittest.TestCase):
 		# It checks the wire, but does *not* wait for data.
 		nm = NotificationManager(db, timeout = 0)
 		db.listen('foo')
-		self.failUnlessEqual(list(nm), [])
+		self.assertEqual(list(nm), [])
 		db.notify('foo')
 		time.sleep(0.01)
-		self.failUnlessEqual(list(nm), [('foo','',db.backend_id)]) # bit of a race
+		self.assertEqual(list(nm), [('foo','',db.backend_id)]) # bit of a race
 
 	@pg_tmp
 	def test_iternotifies(self):
@@ -86,9 +86,9 @@ class test_notifyman(unittest.TestCase):
 		while not rl:
 			time.sleep(0.05)
 		channel, payload, pid = rl.pop(0)
-		self.failUnlessEqual(channel, 'foo')
-		self.failUnlessEqual(payload, '')
-		self.failUnlessEqual(pid, db.backend_id)
+		self.assertEqual(channel, 'foo')
+		self.assertEqual(payload, '')
+		self.assertEqual(pid, db.backend_id)
 		db.notify('close')
 
 	@pg_tmp
@@ -97,10 +97,10 @@ class test_notifyman(unittest.TestCase):
 		# there are no notifications to emit.
 		# It checks the wire, but does *not* wait for data.
 		db.listen('foo')
-		self.failUnlessEqual(list(db.iternotifies(0)), [])
+		self.assertEqual(list(db.iternotifies(0)), [])
 		db.notify('foo')
 		time.sleep(0.01)
-		self.failUnlessEqual(list(db.iternotifies(0)), [('foo','', db.backend_id)]) # bit of a race
+		self.assertEqual(list(db.iternotifies(0)), [('foo','', db.backend_id)]) # bit of a race
 
 	@pg_tmp
 	def testNotificationManagerOnClosed(self):
@@ -111,7 +111,7 @@ class test_notifyman(unittest.TestCase):
 		db.notify('foo')
 		for n in db.iternotifies():
 			db.close()
-		self.failUnlessEqual(db.closed, True)
+		self.assertEqual(db.closed, True)
 		del db
 		# closer, after an idle
 		db = new()
@@ -130,8 +130,8 @@ class test_notifyman(unittest.TestCase):
 		# hit should get set two times.
 		# once on the first idle, and once on the event
 		# received after the close.
-		self.failUnlessEqual(db.closed, True)
-		self.failUnlessEqual(hit, True)
+		self.assertEqual(db.closed, True)
+		self.assertEqual(hit, True)
 
 if __name__ == '__main__':
 	unittest.main()
