@@ -52,7 +52,7 @@ class test_pgpass(unittest.TestCase):
 
 		for k, pw in passfile_sample_map.items():
 			lpw = client_pgpass.lookup_password(sample1, k)
-			self.failUnless(lpw == pw,
+			self.assertEqual(lpw, pw,
 				"password lookup incongruity, expecting %r got %r with %r"
 				" in \n%s" %(
 					pw, lpw, k, passfile_sample
@@ -61,7 +61,7 @@ class test_pgpass(unittest.TestCase):
 
 		for k, pw in difficult_passfile_sample_map.items():
 			lpw = client_pgpass.lookup_password(sample2, k)
-			self.failUnless(lpw == pw,
+			self.assertEqual(lpw, pw,
 				"password lookup incongruity, expecting %r got %r with %r"
 				" in \n%s" %(
 					pw, lpw, k, difficult_passfile_sample
@@ -69,7 +69,4 @@ class test_pgpass(unittest.TestCase):
 			)
 
 if __name__ == '__main__':
-	from types import ModuleType
-	this = ModuleType("this")
-	this.__dict__.update(globals())
-	unittest.main(this)
+	unittest.main()

@@ -186,8 +186,8 @@ class test_configfile(unittest.TestCase):
 	def testConfigRead(self):
 		sample = "foo = bar"+os.linesep+"# A comment, yes."+os.linesep+" bar = foo # yet?"+os.linesep
 		d = configfile.read_config(sample.split(os.linesep))
-		self.failUnless(d['foo'] == 'bar')
-		self.failUnless(d['bar'] == 'foo')
+		self.assertTrue(d['foo'] == 'bar')
+		self.assertTrue(d['bar'] == 'foo')
 
 	def testConfigWriteRead(self):
 		strio = StringIO()
@@ -202,7 +202,7 @@ class test_configfile(unittest.TestCase):
 		for before, alters, after in winning_cases:
 			befg = (x + os.linesep for x in before.split(os.linesep))
 			became = ''.join(configfile.alter_config(alters, befg))
-			self.failUnless(
+			self.assertTrue(
 				became.strip() == after,
 				'On %d, before, %r, did not become after, %r; got %r using %r' %(
 					i, before, after, became, alters
@@ -217,9 +217,9 @@ class test_configfile(unittest.TestCase):
 		strio.seek(0)
 		lines = configfile.alter_config({'foo' : 'yes', 'bleh' : 'feh'}, strio)
 		d = configfile.read_config(lines)
-		self.failUnless(d['foo'] == 'yes')
-		self.failUnless(d['bleh'] == 'feh')
-		self.failUnless(''.join(lines).count('bleh') == 1)
+		self.assertTrue(d['foo'] == 'yes')
+		self.assertTrue(d['bleh'] == 'feh')
+		self.assertTrue(''.join(lines).count('bleh') == 1)
 
 	def testAroma(self):
 		lines = configfile.alter_config({
@@ -228,31 +228,28 @@ class test_configfile(unittest.TestCase):
 			}, (x + os.linesep for x in sample_config_Aroma.split('\n'))
 		)
 		d = configfile.read_config(lines)
-		self.failUnless(d['shared_buffers'] == '800')
-		self.failUnless(d.get('port') is None)
+		self.assertTrue(d['shared_buffers'] == '800')
+		self.assertTrue(d.get('port') is None)
 
 		nlines = configfile.alter_config({'port' : '1'}, lines)
 		d2 = configfile.read_config(nlines)
-		self.failUnless(d2.get('port') == '1')
-		self.failUnless(
+		self.assertTrue(d2.get('port') == '1')
+		self.assertTrue(
 			nlines[:4] == lines[:4]
 		)
 	
 	def testSelection(self):
 		# Sanity
 		red = configfile.read_config(['foo = bar'+os.linesep, 'bar = foo'])
-		self.failUnless(len(red.keys()) == 2)
+		self.assertTrue(len(red.keys()) == 2)
 
 		# Test a simple selector
 		red = configfile.read_config(['foo = bar'+os.linesep, 'bar = foo'],
 			selector = lambda x: x == 'bar')
 		rkeys = list(red.keys())
-		self.failUnless(len(rkeys) == 1)
-		self.failUnless(rkeys[0] == 'bar')
-		self.failUnless(red['bar'] == 'foo')
+		self.assertTrue(len(rkeys) == 1)
+		self.assertTrue(rkeys[0] == 'bar')
+		self.assertTrue(red['bar'] == 'foo')
 
 if __name__ == '__main__':
-	from types import ModuleType
-	this = ModuleType("this")
-	this.__dict__.update(globals())
-	unittest.main(this)
+	unittest.main()

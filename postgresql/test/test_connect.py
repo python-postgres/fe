@@ -186,9 +186,9 @@ CREATE USER trusted;
 			'pq://' + 'md5:' + 'md5_password@' + host + ':' + str(port) \
 			+ '/test?client_encoding=SQL_ASCII'
 		) as db:
-			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
-			self.failUnlessEqual(db.settings['client_encoding'], 'SQL_ASCII')
-		self.failUnless(db.closed)
+			self.assertEqual(db.prepare('select 1')(), [(1,)])
+			self.assertEqual(db.settings['client_encoding'], 'SQL_ASCII')
+		self.assertTrue(db.closed)
 
 	def test_pg_open_keywords(self):
 		host, port = self.cluster.address()
@@ -200,8 +200,8 @@ CREATE USER trusted;
 			port = port,
 			database = 'test'
 		) as db:
-			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
-		self.failUnless(db.closed)
+			self.assertEqual(db.prepare('select 1')(), [(1,)])
+		self.assertTrue(db.closed)
 		# composite test
 		with pg_open(
 			"pq://md5:md5_password@",
@@ -209,7 +209,7 @@ CREATE USER trusted;
 			port = port,
 			database = 'test'
 		) as db:
-			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
+			self.assertEqual(db.prepare('select 1')(), [(1,)])
 		# override test
 		with pg_open(
 			"pq://md5:foobar@",
@@ -218,7 +218,7 @@ CREATE USER trusted;
 			port = port,
 			database = 'test'
 		) as db:
-			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
+			self.assertEqual(db.prepare('select 1')(), [(1,)])
 		# and, one with some settings
 		with pg_open(
 			"pq://md5:foobar@?search_path=ieeee",
@@ -228,8 +228,8 @@ CREATE USER trusted;
 			database = 'test',
 			settings = {'search_path' : 'public'}
 		) as db:
-			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
-			self.failUnlessEqual(db.settings['search_path'], 'public')
+			self.assertEqual(db.prepare('select 1')(), [(1,)])
+			self.assertEqual(db.settings['search_path'], 'public')
 
 	def test_pg_open(self):
 		# postgresql.open
@@ -239,21 +239,21 @@ CREATE USER trusted;
 			'pq://' + 'md5:' + 'md5_password@' + host + ':' + str(port) \
 			+ '/test'
 		) as db:
-			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
-		self.failUnless(db.closed)
+			self.assertEqual(db.prepare('select 1')(), [(1,)])
+		self.assertTrue(db.closed)
 
 		with pg_open(
 			'pq://' + 'password:' + 'password_password@' + host + ':' + str(port) \
 			+ '/test'
 		) as db:
-			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
-		self.failUnless(db.closed)
+			self.assertEqual(db.prepare('select 1')(), [(1,)])
+		self.assertTrue(db.closed)
 
 		with pg_open(
 			'pq://' + 'trusted@' + host + ':' + str(port) + '/test'
 		) as db:
-			self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
-		self.failUnless(db.closed)
+			self.assertEqual(db.prepare('select 1')(), [(1,)])
+		self.assertTrue(db.closed)
 
 		# test environment collection
 		pgenv = ('PGUSER', 'PGPORT', 'PGHOST', 'PGSERVICE', 'PGPASSWORD', 'PGDATABASE')
@@ -267,9 +267,9 @@ CREATE USER trusted;
 			os.environ['PGDATABASE'] = 'test'
 			# No arguments, the environment provided everything.
 			with pg_open() as db:
-				self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
-				self.failUnlessEqual(db.prepare('select current_user').first(), 'md5')
-			self.failUnless(db.closed)
+				self.assertEqual(db.prepare('select 1')(), [(1,)])
+				self.assertEqual(db.prepare('select current_user').first(), 'md5')
+			self.assertTrue(db.closed)
 		finally:
 			i = 0
 			for x in stored:
@@ -297,9 +297,9 @@ search_path = public
 					os.environ['PGSERVICE'] = 'myserv'
 					os.environ['PGSYSCONFDIR'] = os.getcwd()
 					with pg_open() as db:
-						self.failUnlessEqual(db.prepare('select 1')(), [(1,)])
-						self.failUnlessEqual(db.prepare('select current_user').first(), 'password')
-						self.failUnlessEqual(db.settings['search_path'], 'public')
+						self.assertEqual(db.prepare('select 1')(), [(1,)])
+						self.assertEqual(db.prepare('select current_user').first(), 'password')
+						self.assertEqual(db.settings['search_path'], 'public')
 				finally:
 					if oldservice is None:
 						os.environ.pop('PGSERVICE', None)
@@ -322,9 +322,9 @@ search_path = public
 			host = host, port = port,
 			**self.params
 		)
-		self.failUnlessEqual(MD5.cursor().execute('select 1').fetchone()[0], 1)
+		self.assertEqual(MD5.cursor().execute('select 1').fetchone()[0], 1)
 		MD5.close()
-		self.failUnlessRaises(pg_exc.ConnectionDoesNotExistError,
+		self.assertRaises(pg_exc.ConnectionDoesNotExistError,
 			MD5.cursor().execute, 'select 1'
 		)
 
@@ -336,9 +336,9 @@ search_path = public
 				host = host, port = port,
 				**self.params
 			)
-			self.failUnlessEqual(CRYPT.cursor().execute('select 1').fetchone()[0], 1)
+			self.assertEqual(CRYPT.cursor().execute('select 1').fetchone()[0], 1)
 			CRYPT.close()
-			self.failUnlessRaises(pg_exc.ConnectionDoesNotExistError,
+			self.assertRaises(pg_exc.ConnectionDoesNotExistError,
 				CRYPT.cursor().execute, 'select 1'
 			)
 
@@ -349,9 +349,9 @@ search_path = public
 			host = host, port = port,
 			**self.params
 		)
-		self.failUnlessEqual(PASSWORD.cursor().execute('select 1').fetchone()[0], 1)
+		self.assertEqual(PASSWORD.cursor().execute('select 1').fetchone()[0], 1)
 		PASSWORD.close()
-		self.failUnlessRaises(pg_exc.ConnectionDoesNotExistError,
+		self.assertRaises(pg_exc.ConnectionDoesNotExistError,
 			PASSWORD.cursor().execute, 'select 1'
 		)
 
@@ -362,9 +362,9 @@ search_path = public
 			host = host, port = port,
 			**self.params
 		)
-		self.failUnlessEqual(TRUST.cursor().execute('select 1').fetchone()[0], 1)
+		self.assertEqual(TRUST.cursor().execute('select 1').fetchone()[0], 1)
 		TRUST.close()
-		self.failUnlessRaises(pg_exc.ConnectionDoesNotExistError,
+		self.assertRaises(pg_exc.ConnectionDoesNotExistError,
 			TRUST.cursor().execute, 'select 1'
 		)
 
@@ -377,7 +377,7 @@ search_path = public
 			**self.params
 		)
 		with C() as c:
-			self.failUnlessEqual(c.prepare('select 1').first(), 1)
+			self.assertEqual(c.prepare('select 1').first(), 1)
 
 	if not msw:
 		# win32 binaries don't appear to be built with ipv6
@@ -391,7 +391,7 @@ search_path = public
 				**self.params
 			)
 			with C() as c:
-				self.failUnlessEqual(c.prepare('select 1').first(), 1)
+				self.assertEqual(c.prepare('select 1').first(), 1)
 
 	def test_Host_connect(self):
 		C = pg_driver.default.host(
@@ -402,7 +402,7 @@ search_path = public
 			**self.params
 		)
 		with C() as c:
-			self.failUnlessEqual(c.prepare('select 1').first(), 1)
+			self.assertEqual(c.prepare('select 1').first(), 1)
 
 	def test_md5_connect(self):
 		c = self.cluster.connection(
@@ -412,7 +412,7 @@ search_path = public
 			**self.params
 		)
 		with c:
-			self.failUnlessEqual(c.prepare('select current_user').first(), 'md5')
+			self.assertEqual(c.prepare('select current_user').first(), 'md5')
 
 	def test_crypt_connect(self):
 		if self.do_crypt:
@@ -423,7 +423,7 @@ search_path = public
 				**self.params
 			)
 			with c:
-				self.failUnlessEqual(c.prepare('select current_user').first(), 'crypt')
+				self.assertEqual(c.prepare('select current_user').first(), 'crypt')
 
 	def test_password_connect(self):
 		c = self.cluster.connection(
@@ -432,7 +432,7 @@ search_path = public
 			database = 'test',
 		)
 		with c:
-			self.failUnlessEqual(c.prepare('select current_user').first(), 'password')
+			self.assertEqual(c.prepare('select current_user').first(), 'password')
 
 	def test_trusted_connect(self):
 		c = self.cluster.connection(
@@ -442,7 +442,7 @@ search_path = public
 			**self.params
 		)
 		with c:
-			self.failUnlessEqual(c.prepare('select current_user').first(), 'trusted')
+			self.assertEqual(c.prepare('select current_user').first(), 'trusted')
 
 	def test_Unix_connect(self):
 		if msw:
@@ -456,8 +456,8 @@ search_path = public
 			unix = unix_domain_socket,
 		)
 		with C() as c:
-			self.failUnlessEqual(c.prepare('select 1').first(), 1)
-			self.failUnlessEqual(c.client_address, None)
+			self.assertEqual(c.prepare('select 1').first(), 1)
+			self.assertEqual(c.client_address, None)
 
 	def test_pg_open_unix(self):
 		if msw:
@@ -467,11 +467,11 @@ search_path = public
 			'.s.PGSQL.' + self.cluster.settings['port']
 		)
 		with pg_open(unix = unix_domain_socket, user = 'test') as c:
-			self.failUnlessEqual(c.prepare('select 1').first(), 1)
-			self.failUnlessEqual(c.client_address, None)
+			self.assertEqual(c.prepare('select 1').first(), 1)
+			self.assertEqual(c.client_address, None)
 		with pg_open('pq://test@[unix:' + unix_domain_socket.replace('/',':') + ']') as c:
-			self.failUnlessEqual(c.prepare('select 1').first(), 1)
-			self.failUnlessEqual(c.client_address, None)
+			self.assertEqual(c.prepare('select 1').first(), 1)
+			self.assertEqual(c.client_address, None)
 
 if __name__ == '__main__':
 	unittest.main()

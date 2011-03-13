@@ -319,7 +319,7 @@ def testExpectIO(self, samples):
 
 		for (sample_unpacked, sample_packed) in sample:
 			pack_trial = pack(sample_unpacked)
-			self.failUnless(
+			self.assertTrue(
 				pack_trial == sample_packed,
 				"%s sample: unpacked sample, %r, did not match " \
 				"%r when packed, rather, %r" %(
@@ -330,7 +330,7 @@ def testExpectIO(self, samples):
 
 			sample_unpacked = resolve(sample_unpacked)
 			unpack_trial = resolve(unpack(sample_packed))
-			self.failUnless(
+			self.assertTrue(
 				unpack_trial == sample_unpacked,
 				"%s sample: packed sample, %r, did not match " \
 				"%r when unpacked, rather, %r" %(
@@ -343,13 +343,13 @@ class test_io(unittest.TestCase):
 	def test_process_tuple(self, pt = process_tuple):
 		def funpass(procs, tup, col):
 			pass
-		self.failUnlessEqual(tuple(pt((),(), funpass)), ())
-		self.failUnlessEqual(tuple(pt((int,),("100",), funpass)), (100,))
-		self.failUnlessEqual(tuple(pt((int,int),("100","200"), funpass)), (100,200))
-		self.failUnlessEqual(tuple(pt((int,int),(None,"200"), funpass)), (None,200))
-		self.failUnlessEqual(tuple(pt((int,int,int),(None,None,"200"), funpass)), (None,None,200))
+		self.assertEqual(tuple(pt((),(), funpass)), ())
+		self.assertEqual(tuple(pt((int,),("100",), funpass)), (100,))
+		self.assertEqual(tuple(pt((int,int),("100","200"), funpass)), (100,200))
+		self.assertEqual(tuple(pt((int,int),(None,"200"), funpass)), (None,200))
+		self.assertEqual(tuple(pt((int,int,int),(None,None,"200"), funpass)), (None,None,200))
 		# The exception handler must raise.
-		self.failUnlessRaises(RuntimeError, pt, (int,), ("foo",), funpass)
+		self.assertRaises(RuntimeError, pt, (int,), ("foo",), funpass)
 
 		class ThisError(Exception):
 			pass
@@ -357,11 +357,11 @@ class test_io(unittest.TestCase):
 		def funraise(procs, tup, col):
 			data.append((procs, tup, col))
 			raise ThisError
-		self.failUnlessRaises(ThisError, pt, (int,), ("foo",), funraise)
-		self.failUnlessEqual(data[0], ((int,), ("foo",), 0))
+		self.assertRaises(ThisError, pt, (int,), ("foo",), funraise)
+		self.assertEqual(data[0], ((int,), ("foo",), 0))
 		del data[0]
-		self.failUnlessRaises(ThisError, pt, (int,int), ("100","bar"), funraise)
-		self.failUnlessEqual(data[0], ((int,int), ("100","bar"), 1))
+		self.assertRaises(ThisError, pt, (int,int), ("100","bar"), funraise)
+		self.assertEqual(data[0], ((int,int), ("100","bar"), 1))
 
 	def testExpectations(self):
 		'IO tests where the pre-made expected serialized form is compared'
@@ -376,7 +376,7 @@ class test_io(unittest.TestCase):
 					packed = pack(x)
 					unpacked = resolve(unpack(packed))
 					x = resolve(x)
-					self.failUnless(x == unpacked,
+					self.assertTrue(x == unpacked,
 						"inconsistency with %s, %r -> %r -> %r" %(
 							name, x, packed, unpacked
 						)
@@ -387,9 +387,9 @@ class test_io(unittest.TestCase):
 	def test_hstore(self):
 		# Can't do some tests with the consistency checks
 		# because we are not using ordered dictionaries.
-		self.failUnlessRaises((ValueError, struct.error), hstore_unpack, b'\x00\x00\x00\x00foo')
-		self.failUnlessRaises(ValueError, hstore_unpack, b'\x00\x00\x00\x01')
-		self.failUnlessRaises(ValueError, hstore_unpack, b'\x00\x00\x00\x02\x00\x00\x00\x01G\x00\x00\x00\x01G')
+		self.assertRaises((ValueError, struct.error), hstore_unpack, b'\x00\x00\x00\x00foo')
+		self.assertRaises(ValueError, hstore_unpack, b'\x00\x00\x00\x01')
+		self.assertRaises(ValueError, hstore_unpack, b'\x00\x00\x00\x02\x00\x00\x00\x01G\x00\x00\x00\x01G')
 		sample = [
 			([('foo','bar'),('k',None),('zero','heroes')],
 				b'\x00\x00\x00\x03\x00\x00\x00\x03foo' + \
@@ -403,8 +403,8 @@ class test_io(unittest.TestCase):
 		]
 		for x in sample:
 			src, serialized = x
-			self.failUnlessEqual(hstore_pack(src), serialized)
-			self.failUnlessEqual(hstore_unpack(serialized), dict(src))
+			self.assertEqual(hstore_pack(src), serialized)
+			self.assertEqual(hstore_unpack(serialized), dict(src))
 
 # Make some slices; used by testSlicing
 slice_samples = [
@@ -423,34 +423,34 @@ slice_samples = [
 
 class test_Array(unittest.TestCase):
 	def emptyArray(self, a):
-		self.failUnlessEqual(len(a), 0)
-		self.failUnlessEqual(list(a.elements()), [])
-		self.failUnlessEqual(a.dimensions, ())
-		self.failUnlessEqual(a.lowerbounds, ())
-		self.failUnlessEqual(a.upperbounds, ())
-		self.failUnlessRaises(IndexError, a.__getitem__, 0)
+		self.assertEqual(len(a), 0)
+		self.assertEqual(list(a.elements()), [])
+		self.assertEqual(a.dimensions, ())
+		self.assertEqual(a.lowerbounds, ())
+		self.assertEqual(a.upperbounds, ())
+		self.assertRaises(IndexError, a.__getitem__, 0)
 
 	def testArrayInstantiation(self):
 		a = Array([])
 		self.emptyArray(a)
 		# exercise default upper/lower
 		a = Array((1,2,3,))
-		self.failUnlessEqual((a[0],a[1],a[2]), (1,2,3,))
+		self.assertEqual((a[0],a[1],a[2]), (1,2,3,))
 		# Python interface, Python semantics.
-		self.failUnlessRaises(IndexError, a.__getitem__, 3)
-		self.failUnlessEqual(a.dimensions, (3,))
-		self.failUnlessEqual(a.lowerbounds, (1,))
-		self.failUnlessEqual(a.upperbounds, (3,))
+		self.assertRaises(IndexError, a.__getitem__, 3)
+		self.assertEqual(a.dimensions, (3,))
+		self.assertEqual(a.lowerbounds, (1,))
+		self.assertEqual(a.upperbounds, (3,))
 
 	def testNestedArrayInstantiation(self):
 		a = Array(([1,2],[3,4]))
 		# Python interface, Python semantics.
-		self.failUnlessRaises(IndexError, a.__getitem__, 3)
-		self.failUnlessEqual(a.dimensions, (2,2,))
-		self.failUnlessEqual(a.lowerbounds, (1,1))
-		self.failUnlessEqual(a.upperbounds, (2,2))
-		self.failUnlessEqual(list(a.elements()), [1,2,3,4])
-		self.failUnlessEqual(list(a),
+		self.assertRaises(IndexError, a.__getitem__, 3)
+		self.assertEqual(a.dimensions, (2,2,))
+		self.assertEqual(a.lowerbounds, (1,1))
+		self.assertEqual(a.upperbounds, (2,2))
+		self.assertEqual(list(a.elements()), [1,2,3,4])
+		self.assertEqual(list(a),
 			[
 				Array([1, 2]),
 				Array([3, 4]),
@@ -458,28 +458,28 @@ class test_Array(unittest.TestCase):
 		)
 
 		a = Array(([[1],[2]],[[3],[4]]))
-		self.failUnlessRaises(IndexError, a.__getitem__, 3)
-		self.failUnlessEqual(a.dimensions, (2,2,1))
-		self.failUnlessEqual(a.lowerbounds, (1,1,1))
-		self.failUnlessEqual(a.upperbounds, (2,2,1))
-		self.failUnlessEqual(list(a),
+		self.assertRaises(IndexError, a.__getitem__, 3)
+		self.assertEqual(a.dimensions, (2,2,1))
+		self.assertEqual(a.lowerbounds, (1,1,1))
+		self.assertEqual(a.upperbounds, (2,2,1))
+		self.assertEqual(list(a),
 			[
 				Array([[1], [2]]),
 				Array([[3], [4]]),
 			]
 		)
 
-		self.failUnlessRaises(ValueError, Array, [
+		self.assertRaises(ValueError, Array, [
 			[1], [2,3]
 		])
-		self.failUnlessRaises(ValueError, Array, [
+		self.assertRaises(ValueError, Array, [
 			[1], []
 		])
-		self.failUnlessRaises(ValueError, Array, [
+		self.assertRaises(ValueError, Array, [
 			[[1]],
 			[[],2]
 		])
-		self.failUnlessRaises(ValueError, Array, [
+		self.assertRaises(ValueError, Array, [
 			[[[[[1,2,3]]]]],
 			[[[[[1,2,3]]]]],
 			[[[[[1,2,3]]]]],
@@ -490,13 +490,13 @@ class test_Array(unittest.TestCase):
 		elements = [1,2,3,4,5,6,7,8]
 		d1 = Array([1,2,3,4,5,6,7,8])
 		for x in slice_samples:
-			self.failUnlessEqual(
+			self.assertEqual(
 				d1[x], Array(elements[x])
 			)
 		elements = [[1,2],[3,4],[5,6],[7,8]]
 		d2 = Array(elements)
 		for x in slice_samples:
-			self.failUnlessEqual(
+			self.assertEqual(
 				d2[x], Array(elements[x])
 			)
 		elements = [
@@ -511,7 +511,7 @@ class test_Array(unittest.TestCase):
 		]
 		d3 = Array(elements)
 		for x in slice_samples:
-			self.failUnlessEqual(
+			self.assertEqual(
 				d3[x], Array(elements[x])
 			)
 
@@ -521,93 +521,93 @@ class test_Array(unittest.TestCase):
 
 		# exercise default upper/lower
 		a = Array.from_elements((1,2,3,))
-		self.failUnlessEqual((a[0],a[1],a[2]), (1,2,3,))
+		self.assertEqual((a[0],a[1],a[2]), (1,2,3,))
 		# Python interface, Python semantics.
-		self.failUnlessRaises(IndexError, a.__getitem__, 3)
-		self.failUnlessEqual(a.dimensions, (3,))
-		self.failUnlessEqual(a.lowerbounds, (1,))
-		self.failUnlessEqual(a.upperbounds, (3,))
+		self.assertRaises(IndexError, a.__getitem__, 3)
+		self.assertEqual(a.dimensions, (3,))
+		self.assertEqual(a.lowerbounds, (1,))
+		self.assertEqual(a.upperbounds, (3,))
 
 		# exercise default upper/lower
 		a = Array.from_elements([3,2,1], lowerbounds = (2,), upperbounds = (4,))
-		self.failUnlessEqual(a.dimensions, (3,))
-		self.failUnlessEqual(a.lowerbounds, (2,))
-		self.failUnlessEqual(a.upperbounds, (4,))
+		self.assertEqual(a.dimensions, (3,))
+		self.assertEqual(a.lowerbounds, (2,))
+		self.assertEqual(a.upperbounds, (4,))
 
 	def testEmptyDimension(self):
-		self.failUnlessRaises(ValueError,
+		self.assertRaises(ValueError,
 			Array, [[]]
 		)
-		self.failUnlessRaises(ValueError,
+		self.assertRaises(ValueError,
 			Array, [[2],[]]
 		)
-		self.failUnlessRaises(ValueError,
+		self.assertRaises(ValueError,
 			Array, [[],[],[]]
 		)
-		self.failUnlessRaises(ValueError,
+		self.assertRaises(ValueError,
 			Array, [[2],[3],[]]
 		)
 
 	def testExcessive(self):
 		# lowerbounds too high for upperbounds
-		self.failUnlessRaises(ValueError,
+		self.assertRaises(ValueError,
 			Array.from_elements, [1], lowerbounds = (2,), upperbounds = (1,)
 		)
 
 	def testNegatives(self):
 		a = Array.from_elements([0], lowerbounds = (-1,), upperbounds = (-1,))
-		self.failUnlessEqual(a[0], 0)
-		self.failUnlessEqual(a[-1], 0)
+		self.assertEqual(a[0], 0)
+		self.assertEqual(a[-1], 0)
 		# upperbounds at zero
 		a = Array.from_elements([1,2], lowerbounds = (-1,), upperbounds = (0,))
-		self.failUnlessEqual(a[0], 1)
-		self.failUnlessEqual(a[1], 2)
-		self.failUnlessEqual(a[-2], 1)
-		self.failUnlessEqual(a[-1], 2)
+		self.assertEqual(a[0], 1)
+		self.assertEqual(a[1], 2)
+		self.assertEqual(a[-2], 1)
+		self.assertEqual(a[-1], 2)
 
 	def testGetElement(self):
 		a = Array([1,2,3,4])
-		self.failUnlessEqual(a.get_element((0,)), 1)
-		self.failUnlessEqual(a.get_element((1,)), 2)
-		self.failUnlessEqual(a.get_element((2,)), 3)
-		self.failUnlessEqual(a.get_element((3,)), 4)
-		self.failUnlessEqual(a.get_element((-1,)), 4)
-		self.failUnlessEqual(a.get_element((-2,)), 3)
-		self.failUnlessEqual(a.get_element((-3,)), 2)
-		self.failUnlessEqual(a.get_element((-4,)), 1)
-		self.failUnlessRaises(IndexError, a.get_element, (4,))
+		self.assertEqual(a.get_element((0,)), 1)
+		self.assertEqual(a.get_element((1,)), 2)
+		self.assertEqual(a.get_element((2,)), 3)
+		self.assertEqual(a.get_element((3,)), 4)
+		self.assertEqual(a.get_element((-1,)), 4)
+		self.assertEqual(a.get_element((-2,)), 3)
+		self.assertEqual(a.get_element((-3,)), 2)
+		self.assertEqual(a.get_element((-4,)), 1)
+		self.assertRaises(IndexError, a.get_element, (4,))
 		a = Array([[1,2],[3,4]])
-		self.failUnlessEqual(a.get_element((0,0)), 1)
-		self.failUnlessEqual(a.get_element((0,1,)), 2)
-		self.failUnlessEqual(a.get_element((1,0,)), 3)
-		self.failUnlessEqual(a.get_element((1,1,)), 4)
-		self.failUnlessEqual(a.get_element((-1,-1)), 4)
-		self.failUnlessEqual(a.get_element((-1,-2,)), 3)
-		self.failUnlessEqual(a.get_element((-2,-1,)), 2)
-		self.failUnlessEqual(a.get_element((-2,-2,)), 1)
-		self.failUnlessRaises(IndexError, a.get_element, (2,0))
-		self.failUnlessRaises(IndexError, a.get_element, (1,2))
-		self.failUnlessRaises(IndexError, a.get_element, (0,2))
+		self.assertEqual(a.get_element((0,0)), 1)
+		self.assertEqual(a.get_element((0,1,)), 2)
+		self.assertEqual(a.get_element((1,0,)), 3)
+		self.assertEqual(a.get_element((1,1,)), 4)
+		self.assertEqual(a.get_element((-1,-1)), 4)
+		self.assertEqual(a.get_element((-1,-2,)), 3)
+		self.assertEqual(a.get_element((-2,-1,)), 2)
+		self.assertEqual(a.get_element((-2,-2,)), 1)
+		self.assertRaises(IndexError, a.get_element, (2,0))
+		self.assertRaises(IndexError, a.get_element, (1,2))
+		self.assertRaises(IndexError, a.get_element, (0,2))
 
 	def testSQLGetElement(self):
 		a = Array([1,2,3,4])
-		self.failUnlessEqual(a.sql_get_element((1,)), 1)
-		self.failUnlessEqual(a.sql_get_element((2,)), 2)
-		self.failUnlessEqual(a.sql_get_element((3,)), 3)
-		self.failUnlessEqual(a.sql_get_element((4,)), 4)
-		self.failUnlessEqual(a.sql_get_element((0,)), None)
-		self.failUnlessEqual(a.sql_get_element((5,)), None)
-		self.failUnlessEqual(a.sql_get_element((-1,)), None)
-		self.failUnlessEqual(a.sql_get_element((-2,)), None)
-		self.failUnlessEqual(a.sql_get_element((-3,)), None)
-		self.failUnlessEqual(a.sql_get_element((-4,)), None)
+		self.assertEqual(a.sql_get_element((1,)), 1)
+		self.assertEqual(a.sql_get_element((2,)), 2)
+		self.assertEqual(a.sql_get_element((3,)), 3)
+		self.assertEqual(a.sql_get_element((4,)), 4)
+		self.assertEqual(a.sql_get_element((0,)), None)
+		self.assertEqual(a.sql_get_element((5,)), None)
+		self.assertEqual(a.sql_get_element((-1,)), None)
+		self.assertEqual(a.sql_get_element((-2,)), None)
+		self.assertEqual(a.sql_get_element((-3,)), None)
+		self.assertEqual(a.sql_get_element((-4,)), None)
 		a = Array([[1,2],[3,4]])
-		self.failUnlessEqual(a.sql_get_element((1,1)), 1)
-		self.failUnlessEqual(a.sql_get_element((1,2,)), 2)
-		self.failUnlessEqual(a.sql_get_element((2,1,)), 3)
-		self.failUnlessEqual(a.sql_get_element((2,2,)), 4)
-		self.failUnlessEqual(a.sql_get_element((3,1)), None)
-		self.failUnlessEqual(a.sql_get_element((1,3)), None)
+		self.assertEqual(a.sql_get_element((1,1)), 1)
+		self.assertEqual(a.sql_get_element((1,2,)), 2)
+		self.assertEqual(a.sql_get_element((2,1,)), 3)
+		self.assertEqual(a.sql_get_element((2,2,)), 4)
+		self.assertEqual(a.sql_get_element((3,1)), None)
+		self.assertEqual(a.sql_get_element((1,3)), None)
 
 if __name__ == '__main__':
 	from types import ModuleType

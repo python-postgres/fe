@@ -38,28 +38,28 @@ class test_element(unittest.TestCase):
 	def test_primary_factor(self):
 		x = Ele()
 		# no factors
-		self.failUnlessEqual(element.prime_factor(object()), None)
-		self.failUnlessEqual(element.prime_factor(x), ('ancestor', None))
+		self.assertEqual(element.prime_factor(object()), None)
+		self.assertEqual(element.prime_factor(x), ('ancestor', None))
 		y = Ele(x)
-		self.failUnlessEqual(element.prime_factor(y), ('ancestor', x))
+		self.assertEqual(element.prime_factor(y), ('ancestor', x))
 
 	def test_primary_factors(self):
 		x = Ele()
 		x.ancestor = x
-		self.failUnlessRaises(
+		self.assertRaises(
 			element.RecursiveFactor, list, element.prime_factors(x)
 		)
 		y = Ele(x)
 		x.ancestor = y
-		self.failUnlessRaises(
+		self.assertRaises(
 			element.RecursiveFactor, list, element.prime_factors(y)
 		)
-		self.failUnlessRaises(
+		self.assertRaises(
 			element.RecursiveFactor, list, element.prime_factors(x)
 		)
 		x.ancestor = None
 		z = Ele(y)
-		self.failUnlessEqual(list(element.prime_factors(z)), [
+		self.assertEqual(list(element.prime_factors(z)), [
 			('ancestor', y),
 			('ancestor', x),
 			('ancestor', None),
@@ -92,18 +92,18 @@ class test_element(unittest.TestCase):
 		z.second = 'unique4'
 		y.label = 'DIFF'
 		data = element.format_element(z)
-		self.failUnless(x.first in data)
-		self.failUnless(y.first in data)
-		self.failUnless(x.second in data)
-		self.failUnless(z.second in data)
-		self.failUnless('DIFF' in data)
-		self.failUnless('alt1-first' in data)
-		self.failUnless('alt2-first' in data)
-		self.failUnless('alt1-second' in data)
-		self.failUnless('alt2-second' in data)
-		self.failUnless('alt2-ancestor' in data)
+		self.assertTrue(x.first in data)
+		self.assertTrue(y.first in data)
+		self.assertTrue(x.second in data)
+		self.assertTrue(z.second in data)
+		self.assertTrue('DIFF' in data)
+		self.assertTrue('alt1-first' in data)
+		self.assertTrue('alt2-first' in data)
+		self.assertTrue('alt1-second' in data)
+		self.assertTrue('alt2-second' in data)
+		self.assertTrue('alt2-ancestor' in data)
 		x.ancestor = z
-		self.failUnlessRaises(element.RecursiveFactor, element.format_element, z)
+		self.assertRaises(element.RecursiveFactor, element.format_element, z)
 
 class test_itertools(unittest.TestCase):
 	def testInterlace(self):
@@ -111,7 +111,7 @@ class test_itertools(unittest.TestCase):
 		i2 = range(1, 100, 4)
 		i3 = range(2, 100, 4)
 		i4 = range(3, 100, 4)
-		self.failUnlessEqual(
+		self.assertEqual(
 			list(itertools.interlace(i1, i2, i3, i4)),
 			list(range(100))
 		)
@@ -120,23 +120,23 @@ class test_functools(unittest.TestCase):
 	def testComposition(self):
 		compose = functools.Composition
 		simple = compose((int, str))
-		self.failUnlessEqual("100", simple("100"))
+		self.assertEqual("100", simple("100"))
 		timesfour_fourtimes = compose((methodcaller('__mul__', 4),)*4)
-		self.failUnlessEqual(4*(4*4*4*4), timesfour_fourtimes(4))
+		self.assertEqual(4*(4*4*4*4), timesfour_fourtimes(4))
 		nothing = compose(())
-		self.failUnlessEqual(nothing("100"), "100")
-		self.failUnlessEqual(nothing(100), 100)
-		self.failUnlessEqual(nothing(None), None)
+		self.assertEqual(nothing("100"), "100")
+		self.assertEqual(nothing(100), 100)
+		self.assertEqual(nothing(None), None)
 
 	def testRSetAttr(self):
 		class anob(object):
 			pass
 		ob = anob()
-		self.failUnlessRaises(AttributeError, getattr, ob, 'foo')
+		self.assertRaises(AttributeError, getattr, ob, 'foo')
 		rob = functools.rsetattr('foo', 'bar', ob)
-		self.failUnless(rob is ob)
-		self.failUnless(rob.foo is ob.foo)
-		self.failUnless(rob.foo == 'bar')
+		self.assertTrue(rob is ob)
+		self.assertTrue(rob.foo is ob.foo)
+		self.assertTrue(rob.foo == 'bar')
 
 class test_socket(unittest.TestCase):
 	def testFindAvailable(self):
@@ -148,20 +148,22 @@ class test_socket(unittest.TestCase):
 			try:
 				s.connect(('localhost', portnum))
 			except socket.error as err:
-				self.failUnlessEqual(err.errno, errno.ECONNREFUSED)
+				self.assertEqual(err.errno, errno.ECONNREFUSED)
 			else:
 				self.fail("got a connection to an available port: " + str(portnum))
+			finally:
+				s.close()
 
 class test_contextlib(unittest.TestCase):
 	def testNoCM(self):
 		with NoCM as foo:
 			pass
-		self.failUnlessEqual(foo, None)
-		self.failUnlessEqual(NoCM(), NoCM)
+		self.assertEqual(foo, None)
+		self.assertEqual(NoCM(), NoCM)
 		# has no state, may be used repeatedly
 		with NoCM as foo:
 			pass
-		self.failUnlessEqual(foo, None)
+		self.assertEqual(foo, None)
 
 def join_sized_data(*data,
 	packL = struct.Struct("!L").pack,
@@ -181,8 +183,8 @@ class test_structlib(unittest.TestCase):
 			(b'x', None,None,None, b'yz'),
 		]
 		packed_sample = [join_sized_data(*x) for x in sample]
-		self.failUnlessRaises(ValueError, split_sized_data(b'\xFF\xFF\xFF\x01foo').__next__)
-		self.failUnlessEqual(sample, [tuple(split_sized_data(x)) for x in packed_sample])
+		self.assertRaises(ValueError, split_sized_data(b'\xFF\xFF\xFF\x01foo').__next__)
+		self.assertEqual(sample, [tuple(split_sized_data(x)) for x in packed_sample])
 
 if __name__ == '__main__':
 	from types import ModuleType

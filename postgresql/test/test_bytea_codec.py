@@ -23,15 +23,15 @@ class test_bytea_codec(unittest.TestCase):
 				)
 
 	def testEncoding(self):
-		self.failUnlessEqual('bytea'.encode('bytea'), b'bytea')
-		self.failUnlessEqual('\\\\'.encode('bytea'), b'\\')
-		self.failUnlessRaises(ValueError, '\\'.encode, 'bytea')
-		self.failUnlessRaises(ValueError, 'foo\\'.encode, 'bytea')
-		self.failUnlessRaises(ValueError, r'foo\0'.encode, 'bytea')
-		self.failUnlessRaises(ValueError, r'foo\00'.encode, 'bytea')
-		self.failUnlessRaises(ValueError, r'\f'.encode, 'bytea')
-		self.failUnlessRaises(ValueError, r'\800'.encode, 'bytea')
-		self.failUnlessRaises(ValueError, r'\7f0'.encode, 'bytea')
+		self.assertEqual('bytea'.encode('bytea'), b'bytea')
+		self.assertEqual('\\\\'.encode('bytea'), b'\\')
+		self.assertRaises(ValueError, '\\'.encode, 'bytea')
+		self.assertRaises(ValueError, 'foo\\'.encode, 'bytea')
+		self.assertRaises(ValueError, r'foo\0'.encode, 'bytea')
+		self.assertRaises(ValueError, r'foo\00'.encode, 'bytea')
+		self.assertRaises(ValueError, r'\f'.encode, 'bytea')
+		self.assertRaises(ValueError, r'\800'.encode, 'bytea')
+		self.assertRaises(ValueError, r'\7f0'.encode, 'bytea')
 		for x in range(255):
 			seq = ('\\' + oct(x)[2:].lstrip('0').rjust(3, '0'))
 			dx = ord(seq.encode('bytea'))
@@ -42,7 +42,4 @@ class test_bytea_codec(unittest.TestCase):
 				)
 
 if __name__ == '__main__':
-	from types import ModuleType
-	this = ModuleType("this")
-	this.__dict__.update(globals())
-	unittest.main(this)
+	unittest.main()

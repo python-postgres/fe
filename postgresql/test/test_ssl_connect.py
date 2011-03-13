@@ -164,8 +164,8 @@ CREATE USER sslonly;
 			database = 'test',
 			**params
 		) as c:
-			self.failUnlessEqual(c.prepare('select 1').first(), 1)
-			self.failUnlessEqual(c.security, 'ssl')
+			self.assertEqual(c.prepare('select 1').first(), 1)
+			self.assertEqual(c.security, 'ssl')
 
 	def test_ssl_mode_disable(self):
 		host, port = self.cluster.address()
@@ -197,8 +197,8 @@ CREATE USER sslonly;
 			database = 'test',
 			**params
 		) as c:
-			self.failUnlessEqual(c.prepare('select 1').first(), 1)
-			self.failUnlessEqual(c.security, None)
+			self.assertEqual(c.prepare('select 1').first(), 1)
+			self.assertEqual(c.security, None)
 
 	def test_ssl_mode_prefer(self):
 		host, port = self.cluster.address()
@@ -211,8 +211,8 @@ CREATE USER sslonly;
 			database = 'test',
 			**params
 		) as c:
-			self.failUnlessEqual(c.prepare('select 1').first(), 1)
-			self.failUnlessEqual(c.security, 'ssl')
+			self.assertEqual(c.prepare('select 1').first(), 1)
+			self.assertEqual(c.security, 'ssl')
 
 		with pg_driver.connect(
 			user = 'test',
@@ -221,7 +221,7 @@ CREATE USER sslonly;
 			database = 'test',
 			**params
 		) as c:
-			self.failUnlessEqual(c.security, 'ssl')
+			self.assertEqual(c.security, 'ssl')
 
 		with pg_driver.connect(
 			user = 'nossl',
@@ -230,8 +230,8 @@ CREATE USER sslonly;
 			database = 'test',
 			**params
 		) as c:
-			self.failUnlessEqual(c.prepare('select 1').first(), 1)
-			self.failUnlessEqual(c.security, None)
+			self.assertEqual(c.prepare('select 1').first(), 1)
+			self.assertEqual(c.security, None)
 
 	def test_ssl_mode_allow(self):
 		host, port = self.cluster.address()
@@ -246,8 +246,8 @@ CREATE USER sslonly;
 			port = port,
 			**params
 		) as c:
-			self.failUnlessEqual(c.prepare('select 1').first(), 1)
-			self.failUnlessEqual(c.security, None)
+			self.assertEqual(c.prepare('select 1').first(), 1)
+			self.assertEqual(c.security, None)
 
 		# test user (host)
 		with pg_driver.connect(
@@ -257,7 +257,7 @@ CREATE USER sslonly;
 			database = 'test',
 			**params
 		) as c:
-			self.failUnlessEqual(c.security, None)
+			self.assertEqual(c.security, None)
 
 		# sslonly user (hostssl)
 		with pg_driver.connect(
@@ -267,8 +267,8 @@ CREATE USER sslonly;
 			database = 'test',
 			**params
 		) as c:
-			self.failUnlessEqual(c.prepare('select 1').first(), 1)
-			self.failUnlessEqual(c.security, 'ssl')
+			self.assertEqual(c.prepare('select 1').first(), 1)
+			self.assertEqual(c.security, 'ssl')
 
 if __name__ == '__main__':
 	unittest.main()

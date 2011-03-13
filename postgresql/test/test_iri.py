@@ -90,7 +90,7 @@ class test_iri(unittest.TestCase):
 		o = 'pq://user:***@host:port/dbname'
 		p = pg_iri.parse(s)
 		ps = pg_iri.serialize(p, obscure_password = True)
-		self.failUnlessEqual(ps, o)
+		self.assertEqual(ps, o)
 
 	def testPresentPasswordObscure(self):
 		"password is *not* present in IRI, and do nothing"
@@ -98,11 +98,11 @@ class test_iri(unittest.TestCase):
 		o = 'pq://user@host:port/dbname'
 		p = pg_iri.parse(s)
 		ps = pg_iri.serialize(p, obscure_password = True)
-		self.failUnlessEqual(ps, o)
+		self.assertEqual(ps, o)
 
 	def testValueErrors(self):
 		for x in value_errors:
-			self.failUnlessRaises(ValueError,
+			self.assertRaises(ValueError,
 				pg_iri.parse, x
 			)
 
@@ -112,14 +112,14 @@ class test_iri(unittest.TestCase):
 			px = pg_iri.parse(x)
 			spx = pg_iri.serialize(px)
 			pspx = pg_iri.parse(spx)
-			self.failUnless(
+			self.assertTrue(
 				pspx == px,
 				"parse-serialize incongruity, %r -> %r -> %r : %r != %r" %(
 					x, px, spx, pspx, px
 				)
 			)
 			spspx = pg_iri.serialize(pspx)
-			self.failUnless(
+			self.assertTrue(
 				spx == spspx,
 				"parse-serialize incongruity, %r -> %r -> %r -> %r : %r != %r" %(
 					x, px, spx, pspx, spspx, spx
@@ -130,7 +130,7 @@ class test_iri(unittest.TestCase):
 		for x in sample_structured_parameters:
 			xs = pg_iri.serialize(x)
 			uxs = pg_iri.parse(xs)
-			self.failUnless(
+			self.assertTrue(
 				x == uxs,
 				"serialize-parse incongruity, %r -> %r -> %r" %(
 					x, xs, uxs,
@@ -138,7 +138,4 @@ class test_iri(unittest.TestCase):
 			)
 
 if __name__ == '__main__':
-	from types import ModuleType
-	this = ModuleType("this")
-	this.__dict__.update(globals())
-	unittest.main(this)
+	unittest.main()

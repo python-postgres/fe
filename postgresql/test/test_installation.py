@@ -14,38 +14,38 @@ class test_installation(unittest.TestCase):
 	"""
 	def test_parse_configure_options(self):
 		# Check expectations.
-		self.failUnlessEqual(
+		self.assertEqual(
 			list(ins.parse_configure_options("")), [],
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			list(ins.parse_configure_options("  ")), [],
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			list(ins.parse_configure_options("--foo --bar")),
 			[('foo',True),('bar',True)]
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			list(ins.parse_configure_options("'--foo' '--bar'")),
 			[('foo',True),('bar',True)]
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			list(ins.parse_configure_options("'--foo=A properly isolated string' '--bar'")),
 			[('foo','A properly isolated string'),('bar',True)]
 		)
 		# hope they don't ever use backslash escapes.
 		# This is pretty dirty, but it doesn't seem well defined anyways.
-		self.failUnlessEqual(
+		self.assertEqual(
 			list(ins.parse_configure_options("'--foo=A ''properly'' isolated string' '--bar'")),
 			[('foo',"A 'properly' isolated string"),('bar',True)]
 		)
 		# handle some simple variations, but it's 
-		self.failUnlessEqual(
+		self.assertEqual(
 			list(ins.parse_configure_options("'--foo' \"--bar\"")),
 			[('foo',True),('bar',True)]
 		)
 		# Show the failure.
 		try:
-			self.failUnlessEqual(
+			self.assertEqual(
 				list(ins.parse_configure_options("'--foo' \"--bar=/A dir/file\"")),
 				[('foo',True),('bar','/A dir/file')]
 			)
@@ -58,23 +58,23 @@ class test_installation(unittest.TestCase):
 		'version info'
 		# Installation only "needs" the version information
 		i = ins.Installation({'version' : 'PostgreSQL 2.2.3'})
-		self.failUnlessEqual(
+		self.assertEqual(
 			i.version, 'PostgreSQL 2.2.3'
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			i.version_info, (2,2,3,'final',0)
 		)
-		self.failUnlessEqual(i.postgres, None)
-		self.failUnlessEqual(i.postmaster, None)
+		self.assertEqual(i.postgres, None)
+		self.assertEqual(i.postmaster, None)
 
 	def test_exec(self):
 		# check the executable
 		i = ins.pg_config_dictionary(
 			sys.executable, '-m', __package__ + '.support', 'pg_config')
 		# automatically lowers the key
-		self.failUnlessEqual(i['foo'], 'BaR')
-		self.failUnlessEqual(i['feh'], 'YEAH')
-		self.failUnlessEqual(i['version'], 'NAY')
+		self.assertEqual(i['foo'], 'BaR')
+		self.assertEqual(i['feh'], 'YEAH')
+		self.assertEqual(i['version'], 'NAY')
 
 if __name__ == '__main__':
 	from types import ModuleType

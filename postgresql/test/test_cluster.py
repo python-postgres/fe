@@ -65,7 +65,7 @@ class test_cluster(unittest.TestCase):
 			database='template1',
 		)
 		with c:
-			self.failUnless(c.prepare('select 1').first() == 1)
+			self.assertEqual(c.prepare('select 1').first(), 1)
 
 	def testNoParameters(self):
 		'simple init and drop'

@@ -335,15 +335,15 @@ class test_driver(unittest.TestCase):
 			if l[0] is not None:
 				e, v, tb = rl[0]
 				raise v
-		self.failUnlessRaises(pg_exc.QueryCanceledError, raise_exc, rl)
+		self.assertRaises(pg_exc.QueryCanceledError, raise_exc, rl)
 
 	@pg_tmp
 	def testClones(self):
 		db.execute('create table _can_clone_see_this (i int);')
 		try:
 			with db.clone() as db2:
-				self.failUnlessEqual(db2.prepare('select 1').first(), 1)
-				self.failUnlessEqual(db2.prepare(
+				self.assertEqual(db2.prepare('select 1').first(), 1)
+				self.assertEqual(db2.prepare(
 						"select count(*) FROM information_schema.tables " \
 						"where table_name = '_can_clone_see_this'"
 					).first(), 1
@@ -354,17 +354,17 @@ class test_driver(unittest.TestCase):
 		# check already open
 		db3 = db.clone()
 		try:
-			self.failUnlessEqual(db3.prepare('select 1').first(), 1)
+			self.assertEqual(db3.prepare('select 1').first(), 1)
 		finally:
 			db3.close()
 
 		ps = db.prepare('select 1')
 		ps2 = ps.clone()
-		self.failUnlessEqual(ps2.first(), ps.first())
+		self.assertEqual(ps2.first(), ps.first())
 		ps2.close()
 		c = ps.declare()
 		c2 = c.clone()
-		self.failUnlessEqual(c.read(), c2.read())
+		self.assertEqual(c.read(), c2.read())
 
 	@pg_tmp
 	def testItsClosed(self):
@@ -373,14 +373,14 @@ class test_driver(unittest.TestCase):
 		c = ps.declare()
 		#
 		c.close()
-		self.failUnlessRaises(pg_exc.CursorNameError, c.read)
-		self.failUnlessEqual(ps.first(), 1)
+		self.assertRaises(pg_exc.CursorNameError, c.read)
+		self.assertEqual(ps.first(), 1)
 		#
 		ps.close()
-		self.failUnlessRaises(pg_exc.StatementNameError, ps.first)
+		self.assertRaises(pg_exc.StatementNameError, ps.first)
 		#
 		db.close()
-		self.failUnlessRaises(
+		self.assertRaises(
 			pg_exc.ConnectionDoesNotExistError,
 			db.execute, "foo"
 		)
@@ -403,41 +403,41 @@ class test_driver(unittest.TestCase):
 		# be removed before we can observe the effects __del__
 		del c
 		gc.collect()
-		self.failUnless(db.typio.encode(cid) in db.pq.garbage_cursors)
+		self.assertTrue(db.typio.encode(cid) in db.pq.garbage_cursors)
 		del ci
 		gc.collect()
-		self.failUnless(db.typio.encode(ci_id) in db.pq.garbage_cursors)
+		self.assertTrue(db.typio.encode(ci_id) in db.pq.garbage_cursors)
 		del ps
 		gc.collect()
-		self.failUnless(db.typio.encode(sid) in db.pq.garbage_statements)
+		self.assertTrue(db.typio.encode(sid) in db.pq.garbage_statements)
 
 	@pg_tmp
 	def testStatementCall(self):
 		ps = db.prepare("SELECT 1")
 		r = ps()
-		self.failUnless(isinstance(r, list))
-		self.failUnlessEqual(ps(), [(1,)])
+		self.assertTrue(isinstance(r, list))
+		self.assertEqual(ps(), [(1,)])
 		ps = db.prepare("SELECT 1, 2")
-		self.failUnlessEqual(ps(), [(1,2)])
+		self.assertEqual(ps(), [(1,2)])
 		ps = db.prepare("SELECT 1, 2 UNION ALL SELECT 3, 4")
-		self.failUnlessEqual(ps(), [(1,2),(3,4)])
+		self.assertEqual(ps(), [(1,2),(3,4)])
 
 	@pg_tmp
 	def testStatementFirstDML(self):
 		cmd = prepare("CREATE TEMP TABLE first (i int)").first()
-		self.failUnlessEqual(cmd, 'CREATE TABLE')
+		self.assertEqual(cmd, 'CREATE TABLE')
 		fins = db.prepare("INSERT INTO first VALUES (123)").first
 		fupd = db.prepare("UPDATE first SET i = 321 WHERE i = 123").first
 		fdel = db.prepare("DELETE FROM first").first
-		self.failUnlessEqual(fins(), 1)
-		self.failUnlessEqual(fdel(), 1)
-		self.failUnlessEqual(fins(), 1)
-		self.failUnlessEqual(fupd(), 1)
-		self.failUnlessEqual(fins(), 1)
-		self.failUnlessEqual(fins(), 1)
-		self.failUnlessEqual(fupd(), 2)
-		self.failUnlessEqual(fdel(), 3)
-		self.failUnlessEqual(fdel(), 0)
+		self.assertEqual(fins(), 1)
+		self.assertEqual(fdel(), 1)
+		self.assertEqual(fins(), 1)
+		self.assertEqual(fupd(), 1)
+		self.assertEqual(fins(), 1)
+		self.assertEqual(fins(), 1)
+		self.assertEqual(fupd(), 2)
+		self.assertEqual(fdel(), 3)
+		self.assertEqual(fdel(), 0)
 
 	@pg_tmp
 	def testStatementRowsPersistence(self):
@@ -447,13 +447,13 @@ class test_driver(unittest.TestCase):
 		rows = ps.rows(0, 10000-1)
 		ps(0,1)
 		# validate the first half.
-		self.failUnlessEqual(
+		self.assertEqual(
 			list(islice(map(itemgetter(0), rows), 5000)),
 			list(range(5000))
 		)
 		ps(0,1)
 		# and the second half.
-		self.failUnlessEqual(
+		self.assertEqual(
 			list(map(itemgetter(0), rows)),
 			list(range(5000, 10000))
 		)
@@ -462,81 +462,81 @@ class test_driver(unittest.TestCase):
 	def testStatementParameters(self):
 		# too few and takes one
 		ps = db.prepare("select $1::integer")
-		self.failUnlessRaises(TypeError, ps)
+		self.assertRaises(TypeError, ps)
 
 		# too many and takes one
-		self.failUnlessRaises(TypeError, ps, 1, 2)
+		self.assertRaises(TypeError, ps, 1, 2)
 
 		# too many and takes none
 		ps = db.prepare("select 1")
-		self.failUnlessRaises(TypeError, ps, 1)
+		self.assertRaises(TypeError, ps, 1)
 
 		# too many and takes some
 		ps = db.prepare("select $1::int, $2::text")
-		self.failUnlessRaises(TypeError, ps, 1, "foo", "bar")
+		self.assertRaises(TypeError, ps, 1, "foo", "bar")
 
 	@pg_tmp
 	def testStatementAndCursorMetadata(self):
 		ps = db.prepare("SELECT $1::integer AS my_int_column")
-		self.failUnlessEqual(tuple(ps.column_names), ('my_int_column',))
-		self.failUnlessEqual(tuple(ps.sql_column_types), ('INTEGER',))
-		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('INTEGER',))
-		self.failUnlessEqual(tuple(ps.pg_parameter_types), (pg_types.INT4OID,))
-		self.failUnlessEqual(tuple(ps.parameter_types), (int,))
-		self.failUnlessEqual(tuple(ps.column_types), (int,))
+		self.assertEqual(tuple(ps.column_names), ('my_int_column',))
+		self.assertEqual(tuple(ps.sql_column_types), ('INTEGER',))
+		self.assertEqual(tuple(ps.sql_parameter_types), ('INTEGER',))
+		self.assertEqual(tuple(ps.pg_parameter_types), (pg_types.INT4OID,))
+		self.assertEqual(tuple(ps.parameter_types), (int,))
+		self.assertEqual(tuple(ps.column_types), (int,))
 		c = ps.declare(15)
-		self.failUnlessEqual(tuple(c.column_names), ('my_int_column',))
-		self.failUnlessEqual(tuple(c.sql_column_types), ('INTEGER',))
-		self.failUnlessEqual(tuple(c.column_types), (int,))
+		self.assertEqual(tuple(c.column_names), ('my_int_column',))
+		self.assertEqual(tuple(c.sql_column_types), ('INTEGER',))
+		self.assertEqual(tuple(c.column_types), (int,))
 
 		ps = db.prepare("SELECT $1::text AS my_text_column")
-		self.failUnlessEqual(tuple(ps.column_names), ('my_text_column',))
-		self.failUnlessEqual(tuple(ps.sql_column_types), ('pg_catalog.text',))
-		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text',))
-		self.failUnlessEqual(tuple(ps.pg_parameter_types), (pg_types.TEXTOID,))
-		self.failUnlessEqual(tuple(ps.column_types), (str,))
-		self.failUnlessEqual(tuple(ps.parameter_types), (str,))
+		self.assertEqual(tuple(ps.column_names), ('my_text_column',))
+		self.assertEqual(tuple(ps.sql_column_types), ('pg_catalog.text',))
+		self.assertEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text',))
+		self.assertEqual(tuple(ps.pg_parameter_types), (pg_types.TEXTOID,))
+		self.assertEqual(tuple(ps.column_types), (str,))
+		self.assertEqual(tuple(ps.parameter_types), (str,))
 		c = ps.declare('textdata')
-		self.failUnlessEqual(tuple(c.column_names), ('my_text_column',))
-		self.failUnlessEqual(tuple(c.sql_column_types), ('pg_catalog.text',))
-		self.failUnlessEqual(tuple(c.pg_column_types), (pg_types.TEXTOID,))
-		self.failUnlessEqual(tuple(c.column_types), (str,))
+		self.assertEqual(tuple(c.column_names), ('my_text_column',))
+		self.assertEqual(tuple(c.sql_column_types), ('pg_catalog.text',))
+		self.assertEqual(tuple(c.pg_column_types), (pg_types.TEXTOID,))
+		self.assertEqual(tuple(c.column_types), (str,))
 
 		ps = db.prepare("SELECT $1::text AS my_column1, $2::varchar AS my_column2")
-		self.failUnlessEqual(tuple(ps.column_names), ('my_column1','my_column2'))
-		self.failUnlessEqual(tuple(ps.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING'))
-		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text', 'CHARACTER VARYING'))
-		self.failUnlessEqual(tuple(ps.pg_parameter_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
-		self.failUnlessEqual(tuple(ps.pg_column_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
-		self.failUnlessEqual(tuple(ps.parameter_types), (str,str))
-		self.failUnlessEqual(tuple(ps.column_types), (str,str))
+		self.assertEqual(tuple(ps.column_names), ('my_column1','my_column2'))
+		self.assertEqual(tuple(ps.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING'))
+		self.assertEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text', 'CHARACTER VARYING'))
+		self.assertEqual(tuple(ps.pg_parameter_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
+		self.assertEqual(tuple(ps.pg_column_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
+		self.assertEqual(tuple(ps.parameter_types), (str,str))
+		self.assertEqual(tuple(ps.column_types), (str,str))
 		c = ps.declare('textdata', 'varchardata')
-		self.failUnlessEqual(tuple(c.column_names), ('my_column1','my_column2'))
-		self.failUnlessEqual(tuple(c.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING'))
-		self.failUnlessEqual(tuple(c.pg_column_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
-		self.failUnlessEqual(tuple(c.column_types), (str,str))
+		self.assertEqual(tuple(c.column_names), ('my_column1','my_column2'))
+		self.assertEqual(tuple(c.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING'))
+		self.assertEqual(tuple(c.pg_column_types), (pg_types.TEXTOID, pg_types.VARCHAROID))
+		self.assertEqual(tuple(c.column_types), (str,str))
 
 		db.execute("CREATE TYPE public.myudt AS (i int)")
 		myudt_oid = db.prepare("select oid from pg_type WHERE typname='myudt'").first()
 		ps = db.prepare("SELECT $1::text AS my_column1, $2::varchar AS my_column2, $3::public.myudt AS my_column3")
-		self.failUnlessEqual(tuple(ps.column_names), ('my_column1','my_column2', 'my_column3'))
-		self.failUnlessEqual(tuple(ps.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
-		self.failUnlessEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
-		self.failUnlessEqual(tuple(ps.pg_column_types), (
+		self.assertEqual(tuple(ps.column_names), ('my_column1','my_column2', 'my_column3'))
+		self.assertEqual(tuple(ps.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
+		self.assertEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
+		self.assertEqual(tuple(ps.pg_column_types), (
 			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid)
 		)
-		self.failUnlessEqual(tuple(ps.pg_parameter_types), (
+		self.assertEqual(tuple(ps.pg_parameter_types), (
 			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid)
 		)
-		self.failUnlessEqual(tuple(ps.parameter_types), (str,str,tuple))
-		self.failUnlessEqual(tuple(ps.column_types), (str,str,tuple))
+		self.assertEqual(tuple(ps.parameter_types), (str,str,tuple))
+		self.assertEqual(tuple(ps.column_types), (str,str,tuple))
 		c = ps.declare('textdata', 'varchardata', (123,))
-		self.failUnlessEqual(tuple(c.column_names), ('my_column1','my_column2', 'my_column3'))
-		self.failUnlessEqual(tuple(c.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
-		self.failUnlessEqual(tuple(c.pg_column_types), (
+		self.assertEqual(tuple(c.column_names), ('my_column1','my_column2', 'my_column3'))
+		self.assertEqual(tuple(c.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
+		self.assertEqual(tuple(c.pg_column_types), (
 			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid
 		))
-		self.failUnlessEqual(tuple(c.column_types), (str,str,tuple))
+		self.assertEqual(tuple(c.column_types), (str,str,tuple))
 
 	@pg_tmp
 	def testRowInterface(self):
@@ -547,22 +547,22 @@ class test_driver(unittest.TestCase):
 			"'1982-05-18 12:30:00'::timestamp as col3;"
 		)
 		row = ps.first()
-		self.failUnlessEqual(tuple(row), data)
+		self.assertEqual(tuple(row), data)
 
-		self.failUnless(1 in row)
-		self.failUnless('0' in row)
-		self.failUnless(decimal.Decimal('0.00') in row)
-		self.failUnless(datetime.datetime(1982,5,18,12,30,0) in row)
+		self.assertTrue(1 in row)
+		self.assertTrue('0' in row)
+		self.assertTrue(decimal.Decimal('0.00') in row)
+		self.assertTrue(datetime.datetime(1982,5,18,12,30,0) in row)
 
-		self.failUnlessEqual(
+		self.assertEqual(
 			tuple(row.column_names),
 			tuple(['col' + str(i) for i in range(4)])
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			(row["col0"], row["col1"], row["col2"], row["col3"]),
 			(row[0], row[1], row[2], row[3]),
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			(row["col0"], row["col1"], row["col2"], row["col3"]),
 			(row[0], row[1], row[2], row[3]),
 		)
@@ -570,47 +570,47 @@ class test_driver(unittest.TestCase):
 		cnames = list(ps.column_names)
 		cnames.sort()
 		keys.sort()
-		self.failUnlessEqual(keys, cnames)
-		self.failUnlessEqual(list(row.values()), list(data))
-		self.failUnlessEqual(list(row.items()), list(zip(ps.column_names, data)))
+		self.assertEqual(keys, cnames)
+		self.assertEqual(list(row.values()), list(data))
+		self.assertEqual(list(row.items()), list(zip(ps.column_names, data)))
 
 		row_d = dict(row)
 		for x in ps.column_names:
-			self.failUnlessEqual(row_d[x], row[x])
+			self.assertEqual(row_d[x], row[x])
 		for x in row_d.keys():
-			self.failUnlessEqual(row.get(x), row_d[x])
+			self.assertEqual(row.get(x), row_d[x])
 
 		row_t = tuple(row)
-		self.failUnlessEqual(row_t, row)
+		self.assertEqual(row_t, row)
 
 		# transform
 		crow = row.transform(col0 = str)
-		self.failUnlessEqual(type(crow[0]), str)
+		self.assertEqual(type(crow[0]), str)
 		crow = row.transform(str)
-		self.failUnlessEqual(type(crow[0]), str)
+		self.assertEqual(type(crow[0]), str)
 		crow = row.transform(str, int)
-		self.failUnlessEqual(type(crow[0]), str)
-		self.failUnlessEqual(type(crow[1]), int)
+		self.assertEqual(type(crow[0]), str)
+		self.assertEqual(type(crow[1]), int)
 		# None = no transformation
 		crow = row.transform(None, int)
-		self.failUnlessEqual(type(crow[0]), int)
-		self.failUnlessEqual(type(crow[1]), int)
+		self.assertEqual(type(crow[0]), int)
+		self.assertEqual(type(crow[1]), int)
 		# and a combination
 		crow = row.transform(str, col1 = int, col3 = str)
-		self.failUnlessEqual(type(crow[0]), str)
-		self.failUnlessEqual(type(crow[1]), int)
-		self.failUnlessEqual(type(crow[3]), str)
+		self.assertEqual(type(crow[0]), str)
+		self.assertEqual(type(crow[1]), int)
+		self.assertEqual(type(crow[3]), str)
 
 		for i in range(4):
-			self.failUnlessEqual(i, row.index_from_key('col' + str(i)))
-			self.failUnlessEqual('col' + str(i), row.key_from_index(i))
+			self.assertEqual(i, row.index_from_key('col' + str(i)))
+			self.assertEqual('col' + str(i), row.key_from_index(i))
 
 	def column_test(self):
 		g_i = db.prepare('SELECT i FROM generate_series(1,10) as g(i)').column
 		# ignore the second column.
 		g_ii = db.prepare('SELECT i, i+10 as i2 FROM generate_series(1,10) as g(i)').column
-		self.failUnlessEqual(tuple(g_i()), tuple(g_ii()))
-		self.failUnlessEqual(tuple(g_i()), (1,2,3,4,5,6,7,8,9,10))
+		self.assertEqual(tuple(g_i()), tuple(g_ii()))
+		self.assertEqual(tuple(g_i()), (1,2,3,4,5,6,7,8,9,10))
 
 	@pg_tmp
 	def testColumn(self):
@@ -625,26 +625,26 @@ class test_driver(unittest.TestCase):
 	def testStatementFromId(self):
 		db.execute("PREPARE foo AS SELECT 1 AS colname;")
 		ps = db.statement_from_id('foo')
-		self.failUnlessEqual(ps.first(), 1)
-		self.failUnlessEqual(ps(), [(1,)])
-		self.failUnlessEqual(list(ps), [(1,)])
-		self.failUnlessEqual(tuple(ps.column_names), ('colname',))
+		self.assertEqual(ps.first(), 1)
+		self.assertEqual(ps(), [(1,)])
+		self.assertEqual(list(ps), [(1,)])
+		self.assertEqual(tuple(ps.column_names), ('colname',))
 
 	@pg_tmp
 	def testCursorFromId(self):
 		db.execute("DECLARE foo CURSOR WITH HOLD FOR SELECT 1")
 		c = db.cursor_from_id('foo')
-		self.failUnlessEqual(c.read(), [(1,)])
+		self.assertEqual(c.read(), [(1,)])
 		db.execute(
 			"DECLARE bar SCROLL CURSOR WITH HOLD FOR SELECT i FROM generate_series(0, 99) AS g(i)"
 		)
 		c = db.cursor_from_id('bar')
 		c.seek(50)
-		self.failUnlessEqual([x for x, in c.read(10)], list(range(50,60)))
+		self.assertEqual([x for x, in c.read(10)], list(range(50,60)))
 		c.seek(0,2)
-		self.failUnlessEqual(c.read(), [])
+		self.assertEqual(c.read(), [])
 		c.seek(0)
-		self.failUnlessEqual([x for x, in c.read()], list(range(100)))
+		self.assertEqual([x for x, in c.read()], list(range(100)))
 
 	@pg_tmp
 	def testCopyToSTDOUT(self):
@@ -656,10 +656,10 @@ class test_driver(unittest.TestCase):
 			copy_foo = db.prepare('copy foo to stdout')
 			foo_content = set(copy_foo)
 			expected = set((str(i).encode('ascii') + b'\n' for i in range(500)))
-			self.failUnlessEqual(expected, foo_content)
-			self.failUnlessEqual(expected, set(copy_foo()))
-			self.failUnlessEqual(expected, set(chain.from_iterable(copy_foo.chunks())))
-			self.failUnlessEqual(expected, set(copy_foo.rows()))
+			self.assertEqual(expected, foo_content)
+			self.assertEqual(expected, set(copy_foo()))
+			self.assertEqual(expected, set(chain.from_iterable(copy_foo.chunks())))
+			self.assertEqual(expected, set(copy_foo.rows()))
 			db.execute("DROP TABLE foo")
 
 	@pg_tmp
@@ -671,7 +671,7 @@ class test_driver(unittest.TestCase):
 			foo_content = list((
 				x for (x,) in db.prepare('select * from foo order by 1 ASC')
 			))
-			self.failUnlessEqual(foo_content, list(range(200)))
+			self.assertEqual(foo_content, list(range(200)))
 			db.execute("DROP TABLE foo")
 
 	@pg_tmp
@@ -692,7 +692,7 @@ class test_driver(unittest.TestCase):
 			db._pq_complete()
 		except Exception:
 			pass
-		self.failUnlessEqual(prepare('select 1').first(), 1)
+		self.assertEqual(prepare('select 1').first(), 1)
 
 	@pg_tmp
 	def testLookupProcByName(self):
@@ -702,7 +702,7 @@ class test_driver(unittest.TestCase):
 		db.settings['search_path'] = 'public'
 		f = db.proc('foo()')
 		f2 = db.proc('public.foo()')
-		self.failUnless(f.oid == f2.oid,
+		self.assertTrue(f.oid == f2.oid,
 			"function lookup incongruence(%r != %r)" %(f, f2)
 		)
 
@@ -712,7 +712,7 @@ class test_driver(unittest.TestCase):
 			"select oid from pg_proc where proname = 'generate_series' limit 1"
 		).first()
 		gs = db.proc(gsoid)
-		self.failUnlessEqual(list(gs(1, 100)), list(range(1, 101)))
+		self.assertEqual(list(gs(1, 100)), list(range(1, 101)))
 
 	def execute_proc(self):
 		ver = db.proc("version()")
@@ -721,22 +721,22 @@ class test_driver(unittest.TestCase):
 			"CREATE OR REPLACE FUNCTION ifoo(int) RETURNS int LANGUAGE SQL AS 'select $1'"
 		)
 		ifoo = db.proc('ifoo(int)')
-		self.failUnlessEqual(ifoo(1), 1)
-		self.failUnlessEqual(ifoo(None), None)
+		self.assertEqual(ifoo(1), 1)
+		self.assertEqual(ifoo(None), None)
 		db.execute(
 			"CREATE OR REPLACE FUNCTION ifoo(varchar) RETURNS text LANGUAGE SQL AS 'select $1'"
 		)
 		ifoo = db.proc('ifoo(varchar)')
-		self.failUnlessEqual(ifoo('1'), '1')
-		self.failUnlessEqual(ifoo(None), None)
+		self.assertEqual(ifoo('1'), '1')
+		self.assertEqual(ifoo(None), None)
 		db.execute(
 			"CREATE OR REPLACE FUNCTION ifoo(varchar,int) RETURNS text LANGUAGE SQL AS 'select ($1::int + $2)::varchar'"
 		)
 		ifoo = db.proc('ifoo(varchar,int)')
-		self.failUnlessEqual(ifoo('1',1), '2')
-		self.failUnlessEqual(ifoo(None,1), None)
-		self.failUnlessEqual(ifoo('1',None), None)
-		self.failUnlessEqual(ifoo('2',2), '4')
+		self.assertEqual(ifoo('1',1), '2')
+		self.assertEqual(ifoo(None,1), None)
+		self.assertEqual(ifoo('1',None), None)
+		self.assertEqual(ifoo('2',2), '4')
 
 	@pg_tmp
 	def testProcExecution(self):
@@ -755,12 +755,12 @@ class test_driver(unittest.TestCase):
 	@pg_tmp
 	def testNULL(self):
 		# Directly commpare (SELECT NULL) is None
-		self.failUnless(
+		self.assertTrue(
 			db.prepare("SELECT NULL")()[0][0] is None,
 			"SELECT NULL did not return None"
 		)
 		# Indirectly compare (select NULL) is None
-		self.failUnless(
+		self.assertTrue(
 			db.prepare("SELECT $1::text")(None)[0][0] is None,
 			"[SELECT $1::text](None) did not return None"
 		)
@@ -768,11 +768,11 @@ class test_driver(unittest.TestCase):
 	@pg_tmp
 	def testBool(self):
 		fst, snd = db.prepare("SELECT true, false").first()
-		self.failUnless(fst is True)
-		self.failUnless(snd is False)
+		self.assertTrue(fst is True)
+		self.assertTrue(snd is False)
 
 	def select(self):
-		#self.failUnlessEqual(
+		#self.assertEqual(
 		#	db.prepare('')().command(),
 		#	None,
 		#	'Empty statement has command?'
@@ -781,13 +781,13 @@ class test_driver(unittest.TestCase):
 		s1 = db.prepare("SELECT 1 as name")
 		p = s1()
 		tup = p[0]
-		self.failUnless(tup[0] == 1)
+		self.assertTrue(tup[0] == 1)
 
 		for tup in s1:
-			self.failUnlessEqual(tup[0], 1)
+			self.assertEqual(tup[0], 1)
 
 		for tup in s1:
-			self.failUnlessEqual(tup["name"], 1)
+			self.assertEqual(tup["name"], 1)
 
 	@pg_tmp
 	def testSelect(self):
@@ -801,18 +801,18 @@ class test_driver(unittest.TestCase):
 	def cursor_read(self):
 		ps = db.prepare("SELECT i FROM generate_series(0, (2^8)::int - 1) AS g(i)")
 		c = ps.declare()
-		self.failUnlessEqual(c.read(0), [])
-		self.failUnlessEqual(c.read(0), [])
-		self.failUnlessEqual(c.read(1), [(0,)])
-		self.failUnlessEqual(c.read(1), [(1,)])
-		self.failUnlessEqual(c.read(2), [(2,), (3,)])
-		self.failUnlessEqual(c.read(2), [(4,), (5,)])
-		self.failUnlessEqual(c.read(3), [(6,), (7,), (8,)])
-		self.failUnlessEqual(c.read(4), [(9,), (10,), (11,), (12,)])
-		self.failUnlessEqual(c.read(4), [(13,), (14,), (15,), (16,)])
-		self.failUnlessEqual(c.read(5), [(17,), (18,), (19,), (20,), (21,)])
-		self.failUnlessEqual(c.read(0), [])
-		self.failUnlessEqual(c.read(6), [(22,),(23,),(24,),(25,),(26,),(27,)])
+		self.assertEqual(c.read(0), [])
+		self.assertEqual(c.read(0), [])
+		self.assertEqual(c.read(1), [(0,)])
+		self.assertEqual(c.read(1), [(1,)])
+		self.assertEqual(c.read(2), [(2,), (3,)])
+		self.assertEqual(c.read(2), [(4,), (5,)])
+		self.assertEqual(c.read(3), [(6,), (7,), (8,)])
+		self.assertEqual(c.read(4), [(9,), (10,), (11,), (12,)])
+		self.assertEqual(c.read(4), [(13,), (14,), (15,), (16,)])
+		self.assertEqual(c.read(5), [(17,), (18,), (19,), (20,), (21,)])
+		self.assertEqual(c.read(0), [])
+		self.assertEqual(c.read(6), [(22,),(23,),(24,),(25,),(26,),(27,)])
 		r = [-1]
 		i = 4
 		v = 28
@@ -821,7 +821,7 @@ class test_driver(unittest.TestCase):
 			i = i * 2
 			r = [x for x, in c.read(i)]
 			top = min(maxv, v + i)
-			self.failUnlessEqual(r, list(range(v, top)))
+			self.assertEqual(r, list(range(v, top)))
 			v = top
 
 	@pg_tmp
@@ -832,9 +832,9 @@ class test_driver(unittest.TestCase):
 	def testCursorIter(self):
 		ps = db.prepare("SELECT i FROM generate_series(0, 10) AS g(i)")
 		c = ps.declare()
-		self.failUnlessEqual(next(iter(c)), (0,))
-		self.failUnlessEqual(next(iter(c)), (1,))
-		self.failUnlessEqual(next(iter(c)), (2,))
+		self.assertEqual(next(iter(c)), (0,))
+		self.assertEqual(next(iter(c)), (1,))
+		self.assertEqual(next(iter(c)), (2,))
 
 	@pg_tmp
 	def testCursorReadInXact(self):
@@ -855,53 +855,53 @@ class test_driver(unittest.TestCase):
 		if not direction:
 			c.seek(0)
 
-		self.failUnlessEqual([x for x, in c.read(10)], list(range(10)))
+		self.assertEqual([x for x, in c.read(10)], list(range(10)))
 		# bit strange to me, but i've watched the fetch backwards -jwp 2009
-		self.failUnlessEqual([x for x, in c.read(10, 'BACKWARD')], list(range(8, -1, -1)))
+		self.assertEqual([x for x, in c.read(10, 'BACKWARD')], list(range(8, -1, -1)))
 		c.seek(0, 2)
-		self.failUnlessEqual([x for x, in c.read(10, 'BACKWARD')], list(range(imax, imax-10, -1)))
+		self.assertEqual([x for x, in c.read(10, 'BACKWARD')], list(range(imax, imax-10, -1)))
 
 		# move to end
 		c.seek(0, 2)
-		self.failUnlessEqual([x for x, in c.read(100, 'BACKWARD')], list(range(imax, imax-100, -1)))
+		self.assertEqual([x for x, in c.read(100, 'BACKWARD')], list(range(imax, imax-100, -1)))
 		# move backwards, relative
 		c.seek(-100, 1)
-		self.failUnlessEqual([x for x, in c.read(100, 'BACKWARD')], list(range(imax-200, imax-300, -1)))
+		self.assertEqual([x for x, in c.read(100, 'BACKWARD')], list(range(imax-200, imax-300, -1)))
 
 		# move abs, again
 		c.seek(14000)
-		self.failUnlessEqual([x for x, in c.read(100)], list(range(14000, 14100)))
+		self.assertEqual([x for x, in c.read(100)], list(range(14000, 14100)))
 		# move forwards, relative
 		c.seek(100, 1)
-		self.failUnlessEqual([x for x, in c.read(100)], list(range(14200, 14300)))
+		self.assertEqual([x for x, in c.read(100)], list(range(14200, 14300)))
 		# move abs, again
 		c.seek(24000)
-		self.failUnlessEqual([x for x, in c.read(200)], list(range(24000, 24200)))
+		self.assertEqual([x for x, in c.read(200)], list(range(24000, 24200)))
 		# move to end and then back some
 		c.seek(20, 2)
-		self.failUnlessEqual([x for x, in c.read(200, 'BACKWARD')], list(range(imax-20, imax-20-200, -1)))
+		self.assertEqual([x for x, in c.read(200, 'BACKWARD')], list(range(imax-20, imax-20-200, -1)))
 
 		c.seek(0, 2)
 		c.seek(-10, 1)
 		r1 = c.read(10)
 		c.seek(10, 2)
-		self.failUnlessEqual(r1, c.read(10))
+		self.assertEqual(r1, c.read(10))
 
 	@pg_tmp
 	def testSeek(self):
 		ps = db.prepare("SELECT i FROM generate_series(0, (2^6)::int - 1) AS g(i)")
 		c = ps.declare()
 
-		self.failUnlessEqual(c.seek(4, 'FORWARD'), 4)
-		self.failUnlessEqual([x for x, in c.read(10)], list(range(4, 14)))
+		self.assertEqual(c.seek(4, 'FORWARD'), 4)
+		self.assertEqual([x for x, in c.read(10)], list(range(4, 14)))
 
-		self.failUnlessEqual(c.seek(2, 'BACKWARD'), 2)
-		self.failUnlessEqual([x for x, in c.read(10)], list(range(12, 22)))
+		self.assertEqual(c.seek(2, 'BACKWARD'), 2)
+		self.assertEqual([x for x, in c.read(10)], list(range(12, 22)))
 
-		self.failUnlessEqual(c.seek(-5, 'BACKWARD'), 5)
-		self.failUnlessEqual([x for x, in c.read(10)], list(range(27, 37)))
+		self.assertEqual(c.seek(-5, 'BACKWARD'), 5)
+		self.assertEqual([x for x, in c.read(10)], list(range(27, 37)))
 
-		self.failUnlessEqual(c.seek('ALL'), 27)
+		self.assertEqual(c.seek('ALL'), 27)
 
 	def testScrollBackwards(self):
 		# testScroll again, but backwards this time.
@@ -913,26 +913,26 @@ class test_driver(unittest.TestCase):
 			ps = db.prepare("SELECT 1")
 			c = ps.declare()
 			cid = c.cursor_id
-		self.failUnlessEqual(c.read()[0][0], 1)
+		self.assertEqual(c.read()[0][0], 1)
 		# make sure it's not cheating
-		self.failUnlessEqual(c.cursor_id, cid)
+		self.assertEqual(c.cursor_id, cid)
 		# check grabs beyond the default chunksize.
 		with db.xact():
 			ps = db.prepare("SELECT i FROM generate_series(0, 99) as g(i)")
 			c = ps.declare()
 			cid = c.cursor_id
-		self.failUnlessEqual([x for x, in c.read()], list(range(100)))
+		self.assertEqual([x for x, in c.read()], list(range(100)))
 		# make sure it's not cheating
-		self.failUnlessEqual(c.cursor_id, cid)
+		self.assertEqual(c.cursor_id, cid)
 
 	def load_rows(self):
 		gs = db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
-		self.failUnlessEqual(
+		self.assertEqual(
 			list((x[0] for x in gs.rows())),
 			list(range(1, 10001))
 		)
 		# exercise ``for x in chunks: dst.load_rows(x)``
-		with db.connector() as db2:
+		with new() as db2:
 			db2.execute(
 				"""
 				CREATE TABLE chunking AS
@@ -946,11 +946,11 @@ class test_driver(unittest.TestCase):
 				write(read)
 			del read, write
 
-			self.failUnlessEqual(
+			self.assertEqual(
 				db.prepare('select count(*) FROM chunking').first(),
 				20000
 			)
-			self.failUnlessEqual(
+			self.assertEqual(
 				db.prepare('select count(DISTINCT i) FROM chunking').first(),
 				10000
 			)
@@ -967,12 +967,12 @@ class test_driver(unittest.TestCase):
 
 	def load_chunks(self):
 		gs = db.prepare("SELECT i FROM generate_series(1, 10000) AS g(i)")
-		self.failUnlessEqual(
+		self.assertEqual(
 			list((x[0] for x in chain.from_iterable(gs.chunks()))),
 			list(range(1, 10001))
 		)
 		# exercise ``for x in chunks: dst.load_chunks(x)``
-		with db.connector() as db2:
+		with new() as db2:
 			db2.execute(
 				"""
 				CREATE TABLE chunking AS
@@ -986,11 +986,11 @@ class test_driver(unittest.TestCase):
 				write(read)
 			del read, write
 
-			self.failUnlessEqual(
+			self.assertEqual(
 				db.prepare('select count(*) FROM chunking').first(),
 				20000
 			)
-			self.failUnlessEqual(
+			self.assertEqual(
 				db.prepare('select count(DISTINCT i) FROM chunking').first(),
 				10000
 			)
@@ -1012,14 +1012,14 @@ class test_driver(unittest.TestCase):
 			mkemp = db.prepare("INSERT INTO emp VALUES ($1, $2)")
 			del_all_emp = db.prepare("DELETE FROM emp")
 			command, count = mkemp('john', 35)
-			self.failUnlessEqual(command, 'INSERT')
-			self.failUnlessEqual(count, 1)
+			self.assertEqual(command, 'INSERT')
+			self.assertEqual(count, 1)
 			command, count = mkemp('jane', 31)
-			self.failUnlessEqual(command, 'INSERT')
-			self.failUnlessEqual(count, 1)
+			self.assertEqual(command, 'INSERT')
+			self.assertEqual(count, 1)
 			command, count = del_all_emp()
-			self.failUnlessEqual(command, 'DELETE')
-			self.failUnlessEqual(count, 2)
+			self.assertEqual(command, 'DELETE')
+			self.assertEqual(count, 2)
 		finally:
 			db.execute("DROP TABLE emp")
 
@@ -1030,22 +1030,22 @@ class test_driver(unittest.TestCase):
 			delete_t = db.prepare("DELETE FROM t WHERE i = $1")
 			delete_all_t = db.prepare("DELETE FROM t")
 			update_t = db.prepare("UPDATE t SET i = $2 WHERE i = $1")
-			self.failUnlessEqual(insert_t(1)[1], 1)
-			self.failUnlessEqual(delete_t(1)[1], 1)
-			self.failUnlessEqual(insert_t(2)[1], 1)
-			self.failUnlessEqual(insert_t(2)[1], 1)
-			self.failUnlessEqual(delete_t(2)[1], 2)
+			self.assertEqual(insert_t(1)[1], 1)
+			self.assertEqual(delete_t(1)[1], 1)
+			self.assertEqual(insert_t(2)[1], 1)
+			self.assertEqual(insert_t(2)[1], 1)
+			self.assertEqual(delete_t(2)[1], 2)
 
-			self.failUnlessEqual(insert_t(3)[1], 1)
-			self.failUnlessEqual(insert_t(3)[1], 1)
-			self.failUnlessEqual(insert_t(3)[1], 1)
-			self.failUnlessEqual(delete_all_t()[1], 3)
+			self.assertEqual(insert_t(3)[1], 1)
+			self.assertEqual(insert_t(3)[1], 1)
+			self.assertEqual(insert_t(3)[1], 1)
+			self.assertEqual(delete_all_t()[1], 3)
 
-			self.failUnlessEqual(update_t(1, 2)[1], 0)
-			self.failUnlessEqual(insert_t(1)[1], 1)
-			self.failUnlessEqual(update_t(1, 2)[1], 1)
-			self.failUnlessEqual(delete_t(1)[1], 0)
-			self.failUnlessEqual(delete_t(2)[1], 1)
+			self.assertEqual(update_t(1, 2)[1], 0)
+			self.assertEqual(insert_t(1)[1], 1)
+			self.assertEqual(update_t(1, 2)[1], 1)
+			self.assertEqual(delete_t(1)[1], 0)
+			self.assertEqual(delete_t(2)[1], 1)
 		finally:
 			db.execute("DROP TABLE t")
 
@@ -1070,7 +1070,7 @@ class test_driver(unittest.TestCase):
 			)
 			insert_t.load_rows(mset)
 			content = db.prepare("SELECT * FROM t ORDER BY 1 ASC")
-			self.failUnlessEqual(mset, tuple(content()))
+			self.assertEqual(mset, tuple(content()))
 		finally:
 			db.execute("DROP TABLE t")
 
@@ -1094,7 +1094,7 @@ class test_driver(unittest.TestCase):
 				rsample = list(pb.rows(sample))[0][0]
 				if isinstance(rsample, pg_types.Array):
 					rsample = rsample.nest()
-				self.failUnless(
+				self.assertTrue(
 					rsample == sample,
 					"failed to return %s object data as-is; gave %r, received %r" %(
 						typname, sample, rsample
@@ -1123,7 +1123,7 @@ class test_driver(unittest.TestCase):
 				rsample = list(pb.rows(sample))[0][0]
 				if isinstance(rsample, pg_types.Array):
 					rsample = rsample.nest()
-				self.failUnless(
+				self.assertTrue(
 					rsample == sample,
 					"failed to return %s object data as-is; gave %r, received %r" %(
 						typname, sample, rsample
@@ -1147,26 +1147,26 @@ class test_driver(unittest.TestCase):
 		else:
 			# 3.1 compat
 			tostr = etree.tostring
-		self.failUnlessEqual(tostr(xml.first(foo)), tostr(foo))
-		self.failUnlessEqual(tostr(xml.first(bar)), tostr(bar))
-		self.failUnlessEqual(tostr(textxml.first('<foo/>')), tostr(foo))
-		self.failUnlessEqual(tostr(textxml.first('<foo/>')), tostr(foo))
-		self.failUnlessEqual(tostr(xml.first(etree.XML('<foo/>'))), tostr(foo))
-		self.failUnlessEqual(tostr(textxml.first('<foo/>')), tostr(foo))
+		self.assertEqual(tostr(xml.first(foo)), tostr(foo))
+		self.assertEqual(tostr(xml.first(bar)), tostr(bar))
+		self.assertEqual(tostr(textxml.first('<foo/>')), tostr(foo))
+		self.assertEqual(tostr(textxml.first('<foo/>')), tostr(foo))
+		self.assertEqual(tostr(xml.first(etree.XML('<foo/>'))), tostr(foo))
+		self.assertEqual(tostr(textxml.first('<foo/>')), tostr(foo))
 		# test fragments
-		self.failUnlessEqual(
+		self.assertEqual(
 			tuple(
 				tostr(x) for x in xml.first('<foo/><bar/>')
 			), (tostr(foo), tostr(bar))
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			tuple(
 				tostr(x) for x in textxml.first('<foo/><bar/>')
 			),
 			(tostr(foo), tostr(bar))
 		)
 		# mixed text and etree.
-		self.failUnlessEqual(
+		self.assertEqual(
 			tuple(
 				tostr(x) for x in xml.first((
 					'<foo/>', bar,
@@ -1174,7 +1174,7 @@ class test_driver(unittest.TestCase):
 			),
 			(tostr(foo), tostr(bar))
 		)
-		self.failUnlessEqual(
+		self.assertEqual(
 			tuple(
 				tostr(x) for x in xml.first((
 					'<foo/>', bar,
@@ -1208,21 +1208,21 @@ class test_driver(unittest.TestCase):
 		if has_uuid:
 			ps = db.prepare('select $1::uuid').first
 			x = uuid.uuid1()
-			self.failUnlessEqual(ps(x), x)
+			self.assertEqual(ps(x), x)
 
 	def _infinity_test(self, typname, inf, neg):
 		ps = db.prepare('SELECT $1::' + typname).first
 		val = ps('infinity')
-		self.failUnlessEqual(val, inf)
+		self.assertEqual(val, inf)
 		val = ps('-infinity')
-		self.failUnlessEqual(val, neg)
+		self.assertEqual(val, neg)
 		val = ps(inf)
-		self.failUnlessEqual(val, inf)
+		self.assertEqual(val, inf)
 		val = ps(neg)
-		self.failUnlessEqual(val, neg)
+		self.assertEqual(val, neg)
 		ps = db.prepare('SELECT $1::' + typname + '::text').first
-		self.failUnlessEqual(ps('infinity'), 'infinity')
-		self.failUnlessEqual(ps('-infinity'), '-infinity')
+		self.assertEqual(ps('infinity'), 'infinity')
+		self.assertEqual(ps('-infinity'), '-infinity')
 
 	@pg_tmp
 	def testInfinity_stdlib_datetime(self):
@@ -1241,21 +1241,21 @@ class test_driver(unittest.TestCase):
 	def testTypeIOError(self):
 		original = dict(db.typio._cache)
 		ps = db.prepare('SELECT $1::numeric')
-		self.failUnlessRaises(pg_exc.ParameterError, ps, 'foo')
+		self.assertRaises(pg_exc.ParameterError, ps, 'foo')
 		try:
 			db.execute('CREATE type test_tuple_error AS (n numeric);')
 			ps = db.prepare('SELECT $1::test_tuple_error AS the_column')
-			self.failUnlessRaises(pg_exc.ParameterError, ps, ('foo',))
+			self.assertRaises(pg_exc.ParameterError, ps, ('foo',))
 			try:
 				ps(('foo',))
 			except pg_exc.ParameterError as err:
 				# 'foo' is not a valid Decimal.
 				# Expecting a double TupleError here, one from the composite pack
 				# and one from the row pack.
-				self.failUnless(isinstance(err.__context__, pg_exc.CompositeError))
-				self.failUnlessEqual(int(err.details['position']), 0)
+				self.assertTrue(isinstance(err.__context__, pg_exc.CompositeError))
+				self.assertEqual(int(err.details['position']), 0)
 				# attribute number that the failure occurred on
-				self.failUnlessEqual(int(err.__context__.details['position']), 0)
+				self.assertEqual(int(err.__context__.details['position']), 0)
 			else:
 				self.fail("failed to raise TupleError")
 
@@ -1272,29 +1272,29 @@ class test_driver(unittest.TestCase):
 			db.typio._cache[pg_types.NUMERICOID] = (pack, raise_ThisError, typ)
 			# Now, numeric_unpack will always raise "ThisError".
 			ps = db.prepare('SELECT $1::numeric as col')
-			self.failUnlessRaises(
+			self.assertRaises(
 				pg_exc.ColumnError, ps, decimal.Decimal("101")
 			)
 			try:
 				ps(decimal.Decimal("101"))
 			except pg_exc.ColumnError as err:
-				self.failUnless(isinstance(err.__context__, ThisError))
+				self.assertTrue(isinstance(err.__context__, ThisError))
 				# might be too inquisitive....
-				self.failUnlessEqual(int(err.details['position']), 0)
-				self.failUnless('NUMERIC' in err.message)
-				self.failUnless('col' in err.message)
+				self.assertEqual(int(err.details['position']), 0)
+				self.assertTrue('NUMERIC' in err.message)
+				self.assertTrue('col' in err.message)
 			else:
 				self.fail("failed to raise TupleError from reception")
 			ps = db.prepare('SELECT $1::test_tuple_error AS tte')
 			try:
 				ps((decimal.Decimal("101"),))
 			except pg_exc.ColumnError as err:
-				self.failUnless(isinstance(err.__context__, pg_exc.CompositeError))
-				self.failUnless(isinstance(err.__context__.__context__, ThisError))
+				self.assertTrue(isinstance(err.__context__, pg_exc.CompositeError))
+				self.assertTrue(isinstance(err.__context__.__context__, ThisError))
 				# might be too inquisitive....
-				self.failUnlessEqual(int(err.details['position']), 0)
-				self.failUnlessEqual(int(err.__context__.details['position']), 0)
-				self.failUnless('test_tuple_error' in err.message)
+				self.assertEqual(int(err.details['position']), 0)
+				self.assertEqual(int(err.__context__.details['position']), 0)
+				self.assertTrue('test_tuple_error' in err.message)
 			else:
 				self.fail("failed to raise TupleError from reception")
 		finally:
@@ -1359,20 +1359,20 @@ class test_driver(unittest.TestCase):
 	@pg_tmp
 	def testUndefinedObjectError(self):
 		try:
-			self.failUnlessRaises(
+			self.assertRaises(
 				pg_exc.UndefinedObjectError,
 				db.prepare, "CREATE TABLE lksvdnvsdlksnv(i intt___t)"
 			)
 		except:
 			# newer versions throw the exception on execution
-			self.failUnlessRaises(
+			self.assertRaises(
 				pg_exc.UndefinedObjectError,
 				db.prepare("CREATE TABLE lksvdnvsdlksnv(i intt___t)")
 			)
 
 	@pg_tmp
 	def testZeroDivisionError(self):
-		self.failUnlessRaises(
+		self.assertRaises(
 			pg_exc.ZeroDivisionError,
 			db.prepare("SELECT 1/i FROM (select 0 as i) AS g(i)").first,
 		)
@@ -1384,7 +1384,7 @@ class test_driver(unittest.TestCase):
 		db.prepare("SELECT * FROM withfoo")
 
 		db.execute("DROP TABLE withfoo")
-		self.failUnlessRaises(
+		self.assertRaises(
 			pg_exc.UndefinedTableError,
 			db.execute, "SELECT * FROM withfoo"
 		)
@@ -1399,21 +1399,21 @@ class test_driver(unittest.TestCase):
 				raise SomeError
 		except SomeError:
 			pass
-		self.failUnlessRaises(
+		self.assertRaises(
 			pg_exc.UndefinedTableError,
 			db.execute, "SELECT * FROM withfoo"
 		)
 
 	@pg_tmp
 	def testSerializeable(self):
-		with db.connector() as db2:
+		with new() as db2:
 			db2.execute("create table some_darn_table (i int);")
 			try:
 				with db.xact(isolation = 'serializable'):
 					db.execute('insert into some_darn_table values (123);')
 					# db2 is in autocommit..
 					db2.execute('insert into some_darn_table values (321);')
-					self.failIfEqual(
+					self.assertNotEqual(
 						list(db.prepare('select * from some_darn_table')),
 						list(db2.prepare('select * from some_darn_table')),
 					)
@@ -1427,7 +1427,7 @@ class test_driver(unittest.TestCase):
 			pass
 		try:
 			with db.xact(mode = 'read only'):
-				self.failUnlessRaises(
+				self.assertRaises(
 					pg_exc.ReadOnlyTransactionError,
 					db.execute,
 					"create table ieeee(i int)"
@@ -1447,7 +1447,7 @@ class test_driver(unittest.TestCase):
 					pass
 			self.fail("__exit__ didn't identify failed transaction")
 		except pg_exc.InFailedTransactionError as err:
-			self.failUnlessEqual(err.source, 'CLIENT')
+			self.assertEqual(err.source, 'CLIENT')
 
 	@pg_tmp
 	def testFailedSubtransactionBlock(self):
@@ -1461,7 +1461,7 @@ class test_driver(unittest.TestCase):
 				self.fail("__exit__ didn't identify failed transaction")
 			except pg_exc.InFailedTransactionError as err:
 				# driver should have released/aborted instead
-				self.failUnlessEqual(err.source, 'CLIENT')
+				self.assertEqual(err.source, 'CLIENT')
 
 	@pg_tmp
 	def testSuccessfulSubtransactionBlock(self):
@@ -1528,8 +1528,8 @@ class test_driver(unittest.TestCase):
 	def testSettingsCM(self):
 		orig = db.settings['search_path']
 		with db.settings(search_path='public'):
-			self.failUnlessEqual(db.settings['search_path'], 'public')
-		self.failUnlessEqual(db.settings['search_path'], orig)
+			self.assertEqual(db.settings['search_path'], 'public')
+		self.assertEqual(db.settings['search_path'], orig)
 
 	@pg_tmp
 	def testSettingsReset(self):
@@ -1538,28 +1538,28 @@ class test_driver(unittest.TestCase):
 		cur = db.settings['search_path']
 		db.settings['search_path'] = 'pg_catalog'
 		del db.settings['search_path']
-		self.failUnlessEqual(db.settings['search_path'], cur)
+		self.assertEqual(db.settings['search_path'], cur)
 
 	@pg_tmp
 	def testSettingsCount(self):
-		self.failUnlessEqual(
+		self.assertEqual(
 			len(db.settings), db.prepare('select count(*) from pg_settings').first()
 		)
 
 	@pg_tmp
 	def testSettingsGet(self):
-		self.failUnlessEqual(
+		self.assertEqual(
 			db.settings['search_path'], db.settings.get('search_path')
 		)
-		self.failUnlessEqual(None, db.settings.get(' $*0293 vksnd'))
+		self.assertEqual(None, db.settings.get(' $*0293 vksnd'))
 
 	@pg_tmp
 	def testSettingsGetSet(self):
 		sub = db.settings.getset(
 			('search_path', 'default_statistics_target')
 		)
-		self.failUnlessEqual(db.settings['search_path'], sub['search_path'])
-		self.failUnlessEqual(db.settings['default_statistics_target'], sub['default_statistics_target'])
+		self.assertEqual(db.settings['search_path'], sub['search_path'])
+		self.assertEqual(db.settings['default_statistics_target'], sub['default_statistics_target'])
 
 	@pg_tmp
 	def testSettings(self):
@@ -1567,15 +1567,15 @@ class test_driver(unittest.TestCase):
 		d = dict(db.settings.items())
 		k = list(db.settings.keys())
 		v = list(db.settings.values())
-		self.failUnlessEqual(len(k), len(d))
-		self.failUnlessEqual(len(k), len(v))
+		self.assertEqual(len(k), len(d))
+		self.assertEqual(len(k), len(v))
 		for x in k:
-			self.failUnless(d[x] in v)
+			self.assertTrue(d[x] in v)
 		all = list(db.settings.getset(k).items())
 		all.sort(key=itemgetter(0))
 		dall = list(d.items())
 		dall.sort(key=itemgetter(0))
-		self.failUnlessEqual(dall, all)
+		self.assertEqual(dall, all)
 
 	@pg_tmp
 	def testDo(self):
@@ -1585,19 +1585,19 @@ class test_driver(unittest.TestCase):
 		if 'plpgsql' not in db.sys.languages():
 			db.execute("CREATE LANGUAGE plpgsql")
 		db.do('plpgsql', "BEGIN CREATE TEMP TABLE do_tmp_table(i int, t text); END",)
-		self.failUnlessEqual(len(db.prepare("SELECT * FROM do_tmp_table")()), 0)
+		self.assertEqual(len(db.prepare("SELECT * FROM do_tmp_table")()), 0)
 		db.do('plpgsql', "BEGIN INSERT INTO do_tmp_table VALUES (100, 'foo'); END")
-		self.failUnlessEqual(len(db.prepare("SELECT * FROM do_tmp_table")()), 1)
+		self.assertEqual(len(db.prepare("SELECT * FROM do_tmp_table")()), 1)
 
 	@pg_tmp
 	def testListeningChannels(self):
 		db.listen('foo', 'bar')
-		self.failUnlessEqual(set(db.listening_channels()), {'foo','bar'})
+		self.assertEqual(set(db.listening_channels()), {'foo','bar'})
 		db.unlisten('bar')
 		db.listen('foo', 'bar')
-		self.failUnlessEqual(set(db.listening_channels()), {'foo','bar'})
+		self.assertEqual(set(db.listening_channels()), {'foo','bar'})
 		db.unlisten('foo', 'bar')
-		self.failUnlessEqual(set(db.listening_channels()), set())
+		self.assertEqual(set(db.listening_channels()), set())
 
 	@pg_tmp
 	def testNotify(self):
@@ -1605,35 +1605,35 @@ class test_driver(unittest.TestCase):
 		db.listen('foo', 'bar')
 		db.notify('foo')
 		db.execute('')
-		self.failUnlessEqual(db._notifies[0].channel, b'foo')
-		self.failUnlessEqual(db._notifies[0].pid, db.backend_id)
-		self.failUnlessEqual(db._notifies[0].payload, b'')
+		self.assertEqual(db._notifies[0].channel, b'foo')
+		self.assertEqual(db._notifies[0].pid, db.backend_id)
+		self.assertEqual(db._notifies[0].payload, b'')
 		del db._notifies[0]
 		db.notify('bar')
 		db.execute('')
-		self.failUnlessEqual(db._notifies[0].channel, b'bar')
-		self.failUnlessEqual(db._notifies[0].pid, db.backend_id)
-		self.failUnlessEqual(db._notifies[0].payload, b'')
+		self.assertEqual(db._notifies[0].channel, b'bar')
+		self.assertEqual(db._notifies[0].pid, db.backend_id)
+		self.assertEqual(db._notifies[0].payload, b'')
 		del db._notifies[0]
 		db.unlisten('foo')
 		db.notify('foo')
 		db.execute('')
-		self.failUnlessEqual(db._notifies, [])
+		self.assertEqual(db._notifies, [])
 		# Invoke an error to show that listen() is all or none.
-		self.failUnlessRaises(Exception, db.listen, 'doesntexist', 'x'*64)
-		self.failUnless('doesntexist' not in db.listening_channels())
+		self.assertRaises(Exception, db.listen, 'doesntexist', 'x'*64)
+		self.assertTrue('doesntexist' not in db.listening_channels())
 
 	@pg_tmp
 	def testPayloads(self):
 		if db.version_info[:2] >= (9,0):
 			db.listen('foo')
 			db.notify(foo = 'bar')
-			self.failUnlessEqual(('foo', 'bar', db.backend_id), list(db.iternotifies(0))[0])
+			self.assertEqual(('foo', 'bar', db.backend_id), list(db.iternotifies(0))[0])
 			db.notify(('foo', 'barred'))
-			self.failUnlessEqual(('foo', 'barred', db.backend_id), list(db.iternotifies(0))[0])
+			self.assertEqual(('foo', 'barred', db.backend_id), list(db.iternotifies(0))[0])
 			# mixed
 			db.notify(('foo', 'barred'), 'foo', ('foo', 'bleh'), foo = 'kw')
-			self.failUnlessEqual([
+			self.assertEqual([
 					('foo', 'barred', db.backend_id),
 					('foo', '', db.backend_id),
 					('foo', 'bleh', db.backend_id),
@@ -1649,7 +1649,7 @@ class test_driver(unittest.TestCase):
 			rexpect = list(reversed(expect))
 			db.listen('bar')
 			db.notify(foo = 'meh', bar = 'foo')
-			self.failUnless(list(db.iternotifies(0)) in [expect, rexpect])
+			self.assertTrue(list(db.iternotifies(0)) in [expect, rexpect])
 
 	@pg_tmp
 	def testMessageHook(self):
@@ -1674,13 +1674,13 @@ class test_driver(unittest.TestCase):
 				create()
 				del x.msghook
 				drop()
-		self.failUnlessEqual(len(notices), len(parts))
+		self.assertEqual(len(notices), len(parts))
 		last = None
 		for x in notices:
 			if last is None:
 				last = x
 				continue
-			self.failUnless(x.isconsistent(last))
+			self.assertTrue(x.isconsistent(last))
 			last = x
 
 	@pg_tmp
@@ -1689,44 +1689,44 @@ class test_driver(unittest.TestCase):
 		db.typio.RowTypeFactory = NamedTupleFactory
 		ps = prepare('select 1 as foo, 2 as bar')
 		first_results = ps.first()
-		self.failUnlessEqual(first_results.foo, 1)
-		self.failUnlessEqual(first_results.bar, 2)
+		self.assertEqual(first_results.foo, 1)
+		self.assertEqual(first_results.bar, 2)
 
 		call_results = ps()[0]
-		self.failUnlessEqual(call_results.foo, 1)
-		self.failUnlessEqual(call_results.bar, 2)
+		self.assertEqual(call_results.foo, 1)
+		self.assertEqual(call_results.bar, 2)
 
 		declare_results = ps.declare().read(1)[0]
-		self.failUnlessEqual(declare_results.foo, 1)
-		self.failUnlessEqual(declare_results.bar, 2)
+		self.assertEqual(declare_results.foo, 1)
+		self.assertEqual(declare_results.bar, 2)
 
 		sqlexec('create type rtf AS (foo int, bar int)')
 		ps = prepare('select ROW(1, 2)::rtf')
 		composite_results = ps.first()
-		self.failUnlessEqual(composite_results.foo, 1)
-		self.failUnlessEqual(composite_results.bar, 2)
+		self.assertEqual(composite_results.foo, 1)
+		self.assertEqual(composite_results.bar, 2)
 
 	@pg_tmp
 	def testNamedTuples(self):
 		from ..types.namedtuple import namedtuples
 		ps = namedtuples(prepare('select 1 as foo, 2 as bar, $1::text as param'))
 		r = list(ps("hello"))[0]
-		self.failUnlessEqual(r[0], 1)
-		self.failUnlessEqual(r.foo, 1)
-		self.failUnlessEqual(r[1], 2)
-		self.failUnlessEqual(r.bar, 2)
-		self.failUnlessEqual(r[2], "hello")
-		self.failUnlessEqual(r.param, "hello")
+		self.assertEqual(r[0], 1)
+		self.assertEqual(r.foo, 1)
+		self.assertEqual(r[1], 2)
+		self.assertEqual(r.bar, 2)
+		self.assertEqual(r[2], "hello")
+		self.assertEqual(r.param, "hello")
 
 	@pg_tmp
 	def testBadFD(self):
 		db.pq.socket.close()
 		# bad fd now.
-		self.failUnlessRaises(
+		self.assertRaises(
 			pg_exc.ConnectionFailureError,
 			sqlexec, "SELECT 1"
 		)
-		self.failUnless(issubclass(pg_exc.ConnectionFailureError, pg_exc.Disconnection))
+		self.assertTrue(issubclass(pg_exc.ConnectionFailureError, pg_exc.Disconnection))
 
 	@pg_tmp
 	def testAdminTerminated(self):
@@ -1735,11 +1735,11 @@ class test_driver(unittest.TestCase):
 		# hoping that this will guarantee that the terminate is complete
 		killer.close()
 
-		self.failUnlessRaises(
+		self.assertRaises(
 			pg_exc.AdminShutdownError,
 			sqlexec, "SELECT 1"
 		)
-		self.failUnless(issubclass(pg_exc.AdminShutdownError, pg_exc.Disconnection))
+		self.assertTrue(issubclass(pg_exc.AdminShutdownError, pg_exc.Disconnection))
 
 class test_typio(unittest.TestCase):
 	@pg_tmp
@@ -1756,8 +1756,8 @@ class test_typio(unittest.TestCase):
 			return
 		inta = prepare('select $1::int[]').first
 		texta = prepare('select $1::text[]').first
-		self.failUnlessEqual(inta([1,2,None]), [1,2,None])
-		self.failUnlessEqual(texta(["foo",None,"bar"]), ["foo",None,"bar"])
+		self.assertEqual(inta([1,2,None]), [1,2,None])
+		self.assertEqual(texta(["foo",None,"bar"]), ["foo",None,"bar"])
 
 if __name__ == '__main__':
 	unittest.main()
