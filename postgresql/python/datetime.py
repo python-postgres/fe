@@ -22,7 +22,7 @@ class FixedOffset(datetime.tzinfo):
 	def utcoffset(self, offset_from):
 		return self._td_offset
 
-	def tzname(self):
+	def tzname(self, dt):
 		return self._tzname
 
 	def dst(self, arg):
