@@ -27,16 +27,19 @@ def escape_ident(text):
 	'Replace every instance of " with ""'
 	return text.replace('"', '""')
 
+def needs_quoting(text):
+	return not (text and not text[0].isdecimal() and text.replace('_', 'a').isalnum())
+
 def quote_ident(text):
+	"Replace every instance of '"' with '""' *and* place '"' on each end"
+	return '"' + text.replace('"', '""') + '"'
+
+def quote_ident_if_needed(text):
 	"""
-	If needed, replace every instance of '"' with '""' *and* place '"' on each
-	end. Otherwise, just return the text.
+	If needed, replace every instance of '"' with '""' *and* place '"' on each end. 
+	Otherwise, just return the text.
 	"""
-	if not text or text[0].isdecimal() or (
-		not text.replace('_', 'a').isalnum()
-	):
-		return '"' + text.replace('"', '""') + '"'
-	return text
+	return quote_ident(text) if needs_quoting(text) else text
 
 quote_re = re.compile(r"""(?xu)
 	E'(?:''|\\.|[^'])*(?:'|$)          (?# Backslash escapes E'str')
@@ -213,6 +216,9 @@ def split_qname(text, maxsplit = -1):
 def qname(*args):
 	"Quote the identifiers and join them using '.'"
 	return '.'.join([quote_ident(x) for x in args])
+
+def qname_if_needed(*args):
+	return '.'.join([quote_ident_if_needed(x) for x in args])
 
 def split_sql(sql, sep = ';'):
 	"""

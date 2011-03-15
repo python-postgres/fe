@@ -520,8 +520,8 @@ class test_driver(unittest.TestCase):
 		myudt_oid = db.prepare("select oid from pg_type WHERE typname='myudt'").first()
 		ps = db.prepare("SELECT $1::text AS my_column1, $2::varchar AS my_column2, $3::public.myudt AS my_column3")
 		self.assertEqual(tuple(ps.column_names), ('my_column1','my_column2', 'my_column3'))
-		self.assertEqual(tuple(ps.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
-		self.assertEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
+		self.assertEqual(tuple(ps.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', '"public"."myudt"'))
+		self.assertEqual(tuple(ps.sql_parameter_types), ('pg_catalog.text', 'CHARACTER VARYING', '"public"."myudt"'))
 		self.assertEqual(tuple(ps.pg_column_types), (
 			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid)
 		)
@@ -532,7 +532,7 @@ class test_driver(unittest.TestCase):
 		self.assertEqual(tuple(ps.column_types), (str,str,tuple))
 		c = ps.declare('textdata', 'varchardata', (123,))
 		self.assertEqual(tuple(c.column_names), ('my_column1','my_column2', 'my_column3'))
-		self.assertEqual(tuple(c.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', 'public.myudt'))
+		self.assertEqual(tuple(c.sql_column_types), ('pg_catalog.text', 'CHARACTER VARYING', '"public"."myudt"'))
 		self.assertEqual(tuple(c.pg_column_types), (
 			pg_types.TEXTOID, pg_types.VARCHAROID, myudt_oid
 		))
