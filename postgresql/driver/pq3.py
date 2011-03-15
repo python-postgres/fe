@@ -1932,7 +1932,7 @@ class Settings(pg_api.Settings):
 		def fget(self):
 			return pg_str.split_ident(self["search_path"])
 		def fset(self, value):
-			self.settings['search_path'] = ','.join([
+			self['search_path'] = ','.join([
 				'"%s"' %(x.replace('"', '""'),) for x in value
 			])
 		def fdel(self):
