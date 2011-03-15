@@ -197,9 +197,9 @@ def split_ident(text, sep = ',', quote = '"', maxsplit = -1):
 				)
 			else:
 				nr.append(x[1:-1].replace('""', '"'))
-		elif not x.isalpha():
+		elif needs_quoting(x):
 			raise ValueError(
-				"non-alpha characters in unquoted identifier", x
+				"non-ident characters in unquoted identifier", x
 			)
 		else:
 			# postgres implies a lower, so to stay consistent
