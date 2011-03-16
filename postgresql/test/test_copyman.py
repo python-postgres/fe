@@ -510,7 +510,7 @@ class test_copyman(unittest.TestCase):
 		self.assertEqual(done, True)
 		# May not be aligned; really, we're expecting the connection to
 		# have died.
-		self.assertTrue(Exception, dst2.execute, "SELECT 1")
+		self.assertRaises(Exception, dst2.execute, "SELECT 1")
 
 		# Connections should be usable.
 		self.assertEqual(prepare('select 1').first(), 1)
