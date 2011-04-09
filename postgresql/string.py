@@ -36,7 +36,7 @@ def quote_ident(text):
 
 def quote_ident_if_needed(text):
 	"""
-	If needed, replace every instance of '"' with '""' *and* place '"' on each end. 
+	If needed, replace every instance of '"' with '""' *and* place '"' on each end.
 	Otherwise, just return the text.
 	"""
 	return quote_ident(text) if needs_quoting(text) else text
