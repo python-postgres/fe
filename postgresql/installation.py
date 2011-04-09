@@ -31,6 +31,7 @@ def get_command_output(exe, *args):
 		shell = False
 	)
 	p.stdin.close()
+	p.stderr.close()
 	while True:
 		try:
 			rv = p.wait()
@@ -40,7 +41,8 @@ def get_command_output(exe, *args):
 				raise
 	if rv != 0:
 		return None
-	return io.TextIOWrapper(p.stdout).read()
+	with p.stdout, io.TextIOWrapper(p.stdout) as txt:
+		return txt.read()
 
 def pg_config_dictionary(*pg_config_path):
 	"""

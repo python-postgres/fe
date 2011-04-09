@@ -245,10 +245,11 @@ class ConfigFile(pg_api.Settings):
 		self._save()
 
 	def __getitem__(self, k):
-		return read_config(
-			self._open(self.path),
-			selector = k.__eq__
-		)[k]
+		with self._open(self.path) as cfo:
+			return read_config(
+				cfo,
+				selector = k.__eq__
+			)[k]
 
 	def __setitem__(self, k, v):
 		self.update({k : v})
@@ -279,9 +280,8 @@ class ConfigFile(pg_api.Settings):
 		return exc is None
 
 	def get(self, k, alt = None):
-		return read_config(
-			self._open(self.path), selector = k.__eq__
-		).get(k, alt)
+		with self._open(self.path) as cf:
+			return read_config(cf, selector = k.__eq__).get(k, alt)
 
 	def keys(self):
 		return read_config(self._open(self.path)).keys()
@@ -307,12 +307,13 @@ class ConfigFile(pg_api.Settings):
 		Returns a dictionary of those keys.
 		"""
 		keys = set(keys)
-		cfg = read_config(
-			self._open(self.path),
-			selector = keys.__contains__
-		)
-		for x in (keys - set(cfg.keys())):
-			cfg[x] = None
-		return cfg
+		with self._open(self.path) as cfo:
+			cfg = read_config(
+				cfo,
+				selector = keys.__contains__
+			)
+			for x in (keys - set(cfg.keys())):
+				cfg[x] = None
+			return cfg
 ##
 # vim: ts=3:sw=3:noet:
