@@ -6,6 +6,7 @@ Temporary PostgreSQL cluster for the process.
 """
 import os
 import atexit
+from collections import deque
 from .cluster import Cluster, ClusterError
 from . import installation
 from .python.socket import find_available_port
@@ -43,26 +44,28 @@ class Temporal(object):
 	}
 
 	def __init__(self):
-		self.builtins_stack = []
+		self.builtins_stack = deque()
 		self.sandbox_id = 0
+		# identifier for keeping temporary instances unique.
 		self.__class__._local_id_ = self.local_id = (self.__class__._local_id_ + 1)
 
 	def __call__(self, callable):
-		def incontext(*args, **kw):
+		def in_pg_temporal_context(*args, **kw):
 			with self:
 				return callable(*args, **kw)
 		n = getattr(callable, '__name__', None)
 		if n:
-			incontext.__name__ = n
-		return incontext
+			in_pg_temporal_context.__name__ = n
+		return in_pg_temporal_context
 
 	def destroy(self):
 		# Don't destroy if it's not the initializing process.
 		if os.getpid() == self._init_pid_:
 			# Kill all the open connections.
 			try:
-				with self:
-					db.sys.terminate_backends()
+				c = cluster.connection(user = 'test', database = 'template1',)
+				with c:
+					c.sys.terminate_backends()
 			except Exception:
 				# Doesn't matter much if it fails.
 				pass
@@ -71,7 +74,7 @@ class Temporal(object):
 			self._init_pid_ = None
 			if cluster is not None:
 				cluster.stop()
-				cluster.wait_until_stopped(timeout = 10)
+				cluster.wait_until_stopped(timeout = 5)
 				cluster.drop()
 
 	def init(self,
@@ -101,10 +104,7 @@ class Temporal(object):
 				'could not find the default pg_config', details = inshint
 			)
 
-		cluster = Cluster(
-			installation,
-			self.cluster_path,
-		)
+		cluster = Cluster(installation, self.cluster_path,)
 
 		# If it exists already, destroy it.
 		if cluster.initialized():
@@ -138,13 +138,12 @@ class Temporal(object):
 		))
 
 		# Start it up.
-		cluster.start(logfile = open(self.logfile, 'w'))
+		with open(self.logfile, 'w') as lfo:
+			cluster.start(logfile = lfo)
 		cluster.wait_until_started()
 
 		# Initialize template1 and the test user database.
-		c = cluster.connection(
-			user = 'test', database = 'template1',
-		)
+		c = cluster.connection(user = 'test', database = 'template1',)
 		with c:
 			c.execute('create database test')
 		# It's ready.
@@ -152,9 +151,10 @@ class Temporal(object):
 
 	def push(self):
 		c = self.cluster.connection(user = 'test')
+		c.connect()
 		extras = []
 
-		def newdb(l = extras, c = c, sbid = 'sandbox' + str(self.sandbox_id + 1)):
+		def new_pg_tmp_connection(l = extras, c = c, sbid = 'sandbox' + str(self.sandbox_id + 1)):
 			# Used to create a new connection that will be closed
 			# when the context stack is popped along with 'db'.
 			l.append(c.clone())
@@ -171,7 +171,7 @@ class Temporal(object):
 			'settings' : c.settings,
 			'proc' : c.proc,
 			'connector' : c.connector,
-			'new' : newdb,
+			'new' : new_pg_tmp_connection,
 		}
 		if not self.builtins_stack:
 			# Store any of those set or not set.
@@ -186,32 +186,45 @@ class Temporal(object):
 		__builtins__.update(builtins)
 		self.sandbox_id += 1
 
-	def pop(self,
-		interrupt = False,
-		drop_schema = 'DROP SCHEMA sandbox{0} CASCADE'.format
-	):
-		builtins, extras = self.builtins_stack.pop(-1)
+	def pop(self, exc, drop_schema = 'DROP SCHEMA sandbox{0} CASCADE'.format):
+		builtins, extras = self.builtins_stack.pop()
 		self.sandbox_id -= 1
-		# restore
+
+		# restore __builtins__
 		if len(self.builtins_stack) > 1:
 			__builtins__.update(self.builtins_stack[-1][0])
 		else:
-			previous = self.builtins_stack.pop(0)
+			previous = self.builtins_stack.popleft()
 			for x in self.builtins_keys:
 				if x in previous:
 					__builtins__[x] = previous[x]
 				else:
 					# Wasn't set before.
 					__builtins__.pop(x, None)
-		if not interrupt:
+
+		# close popped connection, but only if we're not in an interrupt.
+		# However, temporal will always terminate all backends atexit.
+		if exc is None or isinstance(exc, Exception):
 			# Interrupt then close. Just in case something is lingering.
-			for x in [builtins['db']] + list(extras):
-				if x.closed is False:
-					x.interrupt()
-					x.close()
-			# Interrupted and closed all the other connections.
-			with builtins['new']() as dropdb:
-				dropdb.execute(drop_schema(self.sandbox_id+1))
+			for xdb in [builtins['db']] + list(extras):
+				if xdb.closed is False:
+					# In order for a clean close of the connection,
+					# interrupt before closing. It is still
+					# possible for the close to block, but less likely.
+					xdb.interrupt()
+					xdb.close()
+
+			# Interrupted and closed all the other connections at this level;
+			# now remove the sandbox schema.
+			c = self.cluster.connection(user = 'test')
+			with c:
+				# Use a new connection so that the state of
+				# the context connection will not have to be
+				# contended with.
+				c.execute(drop_schema(self.sandbox_id+1))
+		else:
+			# interrupt
+			pass
 
 	def __enter__(self):
 		if self.cluster is None:
@@ -221,12 +234,14 @@ class Temporal(object):
 			db.connect()
 			db.execute('CREATE SCHEMA sandbox' + str(self.sandbox_id))
 			db.settings['search_path'] = 'sandbox' + str(self.sandbox_id) + ',' + db.settings['search_path']
-		except:
-			self.pop()
+		except Exception as e:
+			# failed to initialize sandbox schema; pop it.
+			self.pop(e)
 			raise
 
 	def __exit__(self, exc, val, tb):
-		self.pop(exc and not issubclass(exc, Exception))
+		if self.cluster is not None:
+			self.pop(val)
 
 #: The process' temporary cluster.
 pg_tmp = Temporal()
