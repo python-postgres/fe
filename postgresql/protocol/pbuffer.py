@@ -145,9 +145,9 @@ class pq_message_stream(object):
 			self._rtruncate(self._start)
 			self._start = 0
 
-		self._strio.seek(self._start)
-		l = []
 		new_start = self._start
+		self._strio.seek(new_start)
+		l = []
 		while len(l) < num:
 			msg = self._get_message()
 			if msg is None:
