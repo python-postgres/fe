@@ -62,9 +62,13 @@ class SocketFactory(object):
 
 	def __call__(self, timeout = None):
 		s = socket.socket(*self.socket_create)
-		s.settimeout(float(timeout) if timeout is not None else None)
-		s.connect(self.socket_connect)
-		s.settimeout(None)
+		try:
+			s.settimeout(float(timeout) if timeout is not None else None)
+			s.connect(self.socket_connect)
+			s.settimeout(None)
+		except Exception:
+			s.close()
+			raise
 		return s
 
 	def __init__(self,
@@ -102,12 +106,12 @@ def find_available_port(
 		s = socket.socket(address_family, socket.SOCK_STREAM,)
 		try:
 			s.bind(('localhost', port))
+			s.close()
 		except socket.error as e:
+			s.close()
 			if e.errno in (errno.EACCES, errno.EADDRINUSE, errno.EINTR):
 				# try again
 				continue
-		finally:
-			s.close()
 		break
 	else:
 		port = None
