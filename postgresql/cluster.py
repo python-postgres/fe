@@ -237,6 +237,7 @@ class Cluster(pg_api.Cluster):
 
 		supw_file = ()
 		supw_tmp = None
+		p = None
 		try:
 			if password is not None:
 				# got a superuserpass, store it in a tempfile for initdb
@@ -269,33 +270,42 @@ class Cluster(pg_api.Cluster):
 				except OSError as e:
 					if e.errno != errno.EINTR:
 						raise
+				finally:
+					if p.stdout is not None:
+						p.stdout.close()
+
+			if rc != 0:
+				# initdb returned non-zero, pickup stderr and attach to exception.
+
+				r = p.stderr.read().strip()
+				try:
+					msg = r.decode('utf-8')
+				except UnicodeDecodeError:
+					# split up the lines, and use rep.
+					msg = os.linesep.join([
+						repr(x)[2:-1] for x in r.splitlines()
+					])
+				raise InitDBError(
+					"initdb exited with non-zero status",
+					details = {
+						'command': cmd,
+						'stderr': msg,
+						'stdout': msg,
+					},
+					creator = self
+				)
 		finally:
-			# stdlib fail. Make sure the temp gets deleted.
-			# NamedTemporaryFile has inconsistencies across platforms. :(
+			if p is not None:
+				for x in (p.stderr, p.stdin, p.stdout):
+					if x is not None:
+						x.close()
+
 			if supw_tmp is not None:
 				n = supw_tmp.name
 				supw_tmp.close()
+				# XXX: win32 compensation.
 				if os.path.exists(n):
 					os.unlink(n)
-
-		if rc != 0:
-			r = p.stderr.read().strip()
-			try:
-				msg = r.decode('utf-8')
-			except UnicodeDecodeError:
-				# split up the lines, and use rep.
-				msg = os.linesep.join([
-					repr(x)[2:-1] for x in r.splitlines()
-				])
-			raise InitDBError(
-				"initdb exited with non-zero status",
-				details = {
-					'command': cmd,
-					'stderr': msg,
-					'stdout': msg,
-				},
-				creator = self
-			)
 
 	def drop(self):
 		"""
@@ -312,9 +322,7 @@ class Cluster(pg_api.Cluster):
 				except ClusterTimeoutError:
 					ClusterWarning(
 						'cluster failed to shutdown after kill',
-						details = {
-							'hint' : 'Shared memory may be leaked.'
-						},
+						details = {'hint' : 'Shared memory may have been leaked.'},
 						creator = self
 					).emit()
 		# Really, using rm -rf would be the best, but use this for portability.
@@ -633,6 +641,8 @@ class Cluster(pg_api.Cluster):
 			# pickup the exit code.
 			if self.daemon_process is not None:
 				self.last_exit_code = self.daemon_process.poll()
+			else:
+				self.last_exit_code = pg_kill(self.get_pid_from_file(), 0)
 			if time.time() - start >= timeout:
 				raise ClusterTimeoutError(
 					'timeout on shutdown',
