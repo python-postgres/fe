@@ -5,6 +5,8 @@ import sys
 import os
 import unittest
 import atexit
+import socket
+import errno
 
 from ..python.socket import find_available_port
 
@@ -16,7 +18,30 @@ from ..driver import dbapi20 as dbapi20
 from .. import driver as pg_driver
 from .. import open as pg_open
 
+
+def check_for_ipv6():
+	result = False
+	if socket.has_ipv6:
+		try:
+			socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+			result = True
+		except socket.error as e:
+			errs = [errno.EAFNOSUPPORT]
+			WSAEAFNOSUPPORT = getattr(errno, 'WSAEAFNOSUPPORT', None)
+			if WSAEAFNOSUPPORT is not None:
+				errs.append(WSAEAFNOSUPPORT)
+			if e.errno not in errs:
+				raise
+	return result
+
+
 msw = sys.platform in ('win32', 'win64')
+
+# win32 binaries don't appear to be built with ipv6
+has_ipv6 = check_for_ipv6() and not msw
+
+has_unix_sock = not msw
+
 
 class TestCaseWithCluster(unittest.TestCase):
 	"""
@@ -50,11 +75,15 @@ class TestCaseWithCluster(unittest.TestCase):
 				'failed to find a port for the test cluster on localhost',
 				creator = self.cluster
 			).raise_exception()
+
+		listen_addresses = '127.0.0.1'
+		if has_ipv6:
+			listen_addresses += ',::1'
 		self.cluster.settings.update(dict(
 			port = str(self.cluster_port),
 			max_connections = '6',
 			shared_buffers = '24',
-			listen_addresses = 'localhost',
+			listen_addresses = listen_addresses,
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',
 			silent_mode = 'off',
@@ -123,7 +152,6 @@ class test_connect(TestCaseWithCluster):
 		super().__init__(*args,**kw)
 		# 8.4 nixed this.
 		self.do_crypt = self.cluster.installation.version_info < (8,4)
-		self.do_unix = sys.platform != msw
 
 	def configure_cluster(self):
 		super().configure_cluster()
@@ -135,7 +163,7 @@ class test_connect(TestCaseWithCluster):
 		# Configure the hba file with the supported methods.
 		with open(self.cluster.hba_file, 'w') as hba:
 			hosts = ['0.0.0.0/0',]
-			if not msw:
+			if has_ipv6:
 				hosts.append('0::0/0')
 			methods = ['md5', 'password'] + (['crypt'] if self.do_crypt else [])
 			for h in hosts:
@@ -148,11 +176,11 @@ class test_connect(TestCaseWithCluster):
 			# trusted
 			hba.writelines(["local all all trust\n"])
 			hba.writelines(["host test trusted 0.0.0.0/0 trust\n"])
-			if not msw:
+			if has_ipv6:
 				hba.writelines(["host test trusted 0::0/0 trust\n"])
 			# admin lines
 			hba.writelines(["host all test 0.0.0.0/0 trust\n"])
-			if not msw:
+			if has_ipv6:
 				hba.writelines(["host all test 0::0/0 trust\n"])
 
 	def initialize_database(self):
@@ -379,9 +407,7 @@ search_path = public
 		with C() as c:
 			self.assertEqual(c.prepare('select 1').first(), 1)
 
-	if not msw:
-		# win32 binaries don't appear to be built with ipv6
-		# so filter this test on windows.
+	if has_ipv6:
 		def test_IP6_connect(self):
 			C = pg_driver.default.ip6(
 				user = 'test',
@@ -445,7 +471,7 @@ search_path = public
 			self.assertEqual(c.prepare('select current_user').first(), 'trusted')
 
 	def test_Unix_connect(self):
-		if msw:
+		if not has_unix_sock:
 			return
 		unix_domain_socket = os.path.join(
 			self.cluster.data_directory,
@@ -460,7 +486,7 @@ search_path = public
 			self.assertEqual(c.client_address, None)
 
 	def test_pg_open_unix(self):
-		if msw:
+		if not has_unix_sock:
 			return
 		unix_domain_socket = os.path.join(
 			self.cluster.data_directory,

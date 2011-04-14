@@ -341,7 +341,7 @@ def testExpectIO(self, samples):
 
 class test_io(unittest.TestCase):
 	def test_process_tuple(self, pt = process_tuple):
-		def funpass(procs, tup, col):
+		def funpass(procs, tup, col, cause):
 			pass
 		self.assertEqual(tuple(pt((),(), funpass)), ())
 		self.assertEqual(tuple(pt((int,),("100",), funpass)), (100,))
@@ -354,7 +354,7 @@ class test_io(unittest.TestCase):
 		class ThisError(Exception):
 			pass
 		data = []
-		def funraise(procs, tup, col):
+		def funraise(procs, tup, col, cause):
 			data.append((procs, tup, col))
 			raise ThisError
 		self.assertRaises(ThisError, pt, (int,), ("foo",), funraise)

@@ -207,7 +207,11 @@ class TypeIO(pg_api.TypeIO):
 		if oid in self.typinfo:
 			nsp, name, *_ = self.typinfo[oid]
 			return qi(nsp) + '.' + qi(name)
-		return 'pg_catalog.' + pg_types.oid_to_name.get(oid)
+		name = pg_types.oid_to_name.get(oid)
+		if name:
+			return 'pg_catalog.%s' % name
+		else:
+			return None
 
 	def type_from_oid(self, oid):
 		if oid in self._cache:
@@ -413,7 +417,7 @@ class TypeIO(pg_api.TypeIO):
 		funpack = tuple(map(get1, column_io))
 		row_constructor = self.RowTypeFactory(attribute_map = attmap, composite_relid = composite_relid)
 
-		def raise_pack_tuple_error(procs, tup, itemnum):
+		def raise_pack_tuple_error(procs, tup, itemnum, cause = None):
 			data = repr(tup[itemnum])
 			if len(data) > 80:
 				# Be sure not to fill screen with noise.
@@ -424,9 +428,9 @@ class TypeIO(pg_api.TypeIO):
 				(b'M', fmt_errmsg('pack', itemnum, attnames[itemnum], typnames[itemnum], composite_name),),
 				(b'W', data,),
 				(b'P', str(itemnum),)
-			)))
+			)), cause = cause)
 
-		def raise_unpack_tuple_error(procs, tup, itemnum):
+		def raise_unpack_tuple_error(procs, tup, itemnum, cause = None):
 			data = repr(tup[itemnum])
 			if len(data) > 80:
 				# Be sure not to fill screen with noise.
@@ -437,7 +441,7 @@ class TypeIO(pg_api.TypeIO):
 				(b'M', fmt_errmsg('unpack', itemnum, attnames[itemnum], typnames[itemnum], composite_name),),
 				(b'W', data,),
 				(b'P', str(itemnum),),
-			)))
+			)), cause = cause)
 
 		def unpack_a_record(data,
 			unpack = io_lib.record_unpack,
@@ -748,7 +752,7 @@ class Output(object):
 	def _process_tuple_chunk(self, x, proc = process_chunk):
 		return proc(self._output_io, x, self._raise_column_tuple_error)
 
-	def _raise_column_tuple_error(self, procs, tup, itemnum):
+	def _raise_column_tuple_error(self, procs, tup, itemnum, cause = None):
 		'for column processing'
 		# The element traceback will include the full list of parameters.
 		data = repr(tup[itemnum])
@@ -771,7 +775,7 @@ class Output(object):
 			(b'H', "Try casting the column to 'text'."),
 			(b'P', str(itemnum)),
 		))
-		self.database.typio.raise_client_error(em, creator = self)
+		self.database.typio.raise_client_error(em, creator = self, cause = cause)
 
 	@property
 	def state(self):
@@ -1298,7 +1302,7 @@ class Statement(pg_api.Statement):
 	# process_tuple failed(exception). The parameters could not be packed.
 	# This function is called with the given information in the context
 	# of the original exception(to allow chaining).
-	def _raise_parameter_tuple_error(self, procs, tup, itemnum):
+	def _raise_parameter_tuple_error(self, procs, tup, itemnum, cause = None):
 		# Find the SQL type name. This should *not* hit the server.
 		typ = self.database.typio.sql_type_from_oid(
 			self.pg_parameter_types[itemnum]
@@ -1321,11 +1325,11 @@ class Statement(pg_api.Statement):
 			(b'H', "Try casting the parameter to 'text', then to the target type."),
 			(b'P', str(itemnum))
 		))
-		self.database.typio.raise_client_error(em, creator = self)
+		self.database.typio.raise_client_error(em, creator = self, cause = cause)
 
 	##
 	# Similar to the parameter variant.
-	def _raise_column_tuple_error(self, procs, tup, itemnum):
+	def _raise_column_tuple_error(self, procs, tup, itemnum, cause = None):
 		# Find the SQL type name. This should *not* hit the server.
 		typ = self.database.typio.sql_type_from_oid(
 			self.pg_column_types[itemnum]
@@ -1348,7 +1352,7 @@ class Statement(pg_api.Statement):
 			(b'H', "Try casting the column to 'text'."),
 			(b'P', str(itemnum)),
 		))
-		self.database.typio.raise_client_error(em, creator = self)
+		self.database.typio.raise_client_error(em, creator = self, cause = cause)
 
 	@property
 	def state(self) -> str:
