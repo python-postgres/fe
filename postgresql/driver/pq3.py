@@ -207,7 +207,11 @@ class TypeIO(pg_api.TypeIO):
 		if oid in self.typinfo:
 			nsp, name, *_ = self.typinfo[oid]
 			return qi(nsp) + '.' + qi(name)
-		return 'pg_catalog.' + pg_types.oid_to_name.get(oid)
+		name = pg_types.oid_to_name.get(oid)
+		if name:
+			return 'pg_catalog.%s' % name
+		else:
+			return None
 
 	def type_from_oid(self, oid):
 		if oid in self._cache:
@@ -2038,19 +2042,14 @@ class Transaction(pg_api.Transaction):
 
 	mode = None
 	isolation = None
-	gid = None
 
-	_e_factors = ('database', 'gid', 'isolation', 'mode')
+	_e_factors = ('database', 'isolation', 'mode')
 
 	def _e_metas(self):
 		yield (None, self.state)
 
-	def __init__(self, database, isolation = None, mode = None, gid = None):
+	def __init__(self, database, isolation = None, mode = None):
 		self.database = database
-		self.gid = gid
-		if gid is not None:
-			# XXX: remove in 1.1
-			warnings.warn("two phase interfaces will not exist in 1.1; do not use the 'gid' parameter", DeprecationWarning, stacklevel=3)
 		self.isolation = isolation
 		self.mode = mode
 		self.state = 'initialized'
@@ -2081,26 +2080,10 @@ class Transaction(pg_api.Transaction):
 					# If an error occurs, clean up the transaction state
 					# and raise as needed.
 				except pg_exc.ActiveTransactionError as err:
-					##
-					# Failed COMMIT PREPARED <gid>?
-					# Likely cases:
-					#  - User exited block without preparing the transaction.
-					##
-					if not self.database.closed and self.gid is not None:
+					if not self.database.closed:
 						# adjust the state so rollback will do the right thing and abort.
 						self.state = 'open'
 						self.rollback()
-					##
-					# The other exception that *can* occur is
-					# UndefinedObjectError in which:
-					#  - User issued C/RB P <gid> before exit, but not via xact methods.
-					#  - User adjusted gid after prepare().
-					#
-					# But the occurrence of this exception means it's not in an active
-					# transaction, which means no cleanup other than raise is necessary.
-					err.details['cause'] = \
-						"The prepared transaction was not " \
-						"prepared prior to the block's exit."
 					raise
 		elif issubclass(typ, Exception):
 			# There's an exception, so only rollback if the connection
@@ -2146,7 +2129,7 @@ class Transaction(pg_api.Transaction):
 			)
 		else:
 			self.type = 'savepoint'
-			if (self.gid, self.isolation, self.mode) != (None,None,None):
+			if (self.isolation, self.mode) != (None,None):
 				em = element.ClientError((
 					(b'S', 'ERROR'),
 					(b'C', '--OPE'),
@@ -2160,59 +2143,14 @@ class Transaction(pg_api.Transaction):
 	begin = start
 
 	@staticmethod
-	def _prepare_string(id):
-		"2pc prepared transaction 'gid'"
-		return "PREPARE TRANSACTION '" + id.replace("'", "''") + "';"
-
-	@staticmethod
 	def _release_string(id):
 		'release "";'
 		return 'RELEASE "xact(' + id.replace('"', '""') + ')";'
 
-	def prepare(self):
-		if self.state == 'prepared':
-			return
-		if self.state != 'open':
-			em = element.ClientError((
-				(b'S', 'ERROR'),
-				(b'C', '--OPE'),
-				(b'M', "transaction state must be 'open' in order to prepare"),
-			))
-			self.database.typio.raise_client_error(em, creator = self)
-		if self.type != 'block':
-			em = element.ClientError((
-				(b'S', 'ERROR'),
-				(b'C', '--OPE'),
-				(b'M', "improper transaction type to prepare"),
-			))
-			self.database.typio.raise_client_error(em, creator = self)
-		q = self._prepare_string(self.gid)
-		self.database.execute(q)
-		self.state = 'prepared'
-
-	def recover(self):
-		if self.state != 'initialized':
-			em = element.ClientError((
-				(b'S', 'ERROR'),
-				(b'C', '--OPE'),
-				(b'M', "improper state for prepared transaction recovery"),
-			))
-			self.database.typio.raise_client_error(em, creator = self)
-		if self.database.sys.xact_is_prepared(self.gid):
-			self.state = 'prepared'
-			self.type = 'block'
-		else:
-			em = element.ClientError((
-				(b'S', 'ERROR'),
-				(b'C', '42704'), # UndefinedObjectError
-				(b'M', "prepared transaction does not exist"),
-			))
-			self.database.typio.raise_client_error(em, creator = self)
-
 	def commit(self):
 		if self.state == 'committed':
 			return
-		if self.state not in ('prepared', 'open'):
+		if self.state != 'open':
 			em = element.ClientError((
 				(b'S', 'ERROR'),
 				(b'C', '--OPE'),
@@ -2221,19 +2159,8 @@ class Transaction(pg_api.Transaction):
 			self.database.typio.raise_client_error(em, creator = self)
 
 		if self.type == 'block':
-			if self.gid is not None:
-				# User better have prepared it.
-				q = "COMMIT PREPARED '" + self.gid.replace("'", "''") + "';"
-			else:
-				q = 'COMMIT'
+			q = 'COMMIT'
 		else:
-			if self.gid is not None:
-				em = element.ClientError((
-					(b'S', 'ERROR'),
-					(b'C', '--OPE'),
-					(b'M', "savepoint configured with global identifier"),
-				))
-				self.database.typio.raise_client_error(em, creator = self)
 			q = self._release_string(hex(id(self)))
 		self.database.execute(q)
 		self.state = 'committed'
@@ -2254,10 +2181,7 @@ class Transaction(pg_api.Transaction):
 			self.database.typio.raise_client_error(em, creator = self)
 
 		if self.type == 'block':
-			if self.state == 'prepared':
-				q = "ROLLBACK PREPARED '" + self.gid.replace("'", "''") + "'"
-			else:
-				q = 'ABORT;'
+			q = 'ABORT;'
 		elif self.type == 'savepoint':
 			q = self._rollback_to_string(hex(id(self)))
 		else:
@@ -2339,8 +2263,8 @@ class Connection(pg_api.Connection):
 		sql = "DO " + qlit(source) + " LANGUAGE " + qid(language) + ";"
 		self.execute(sql)
 
-	def xact(self, gid = None, isolation = None, mode = None):
-		x = Transaction(self, gid = gid, isolation = isolation, mode = mode)
+	def xact(self, isolation = None, mode = None):
+		x = Transaction(self, isolation = isolation, mode = mode)
 		return x
 
 	def prepare(self,

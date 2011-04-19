@@ -4,17 +4,141 @@
 import sys
 import os
 import unittest
+import atexit
+import socket
+import errno
 
+from ..python.socket import find_available_port
+
+from .. import installation
+from .. import cluster as pg_cluster
 from .. import exceptions as pg_exc
-from .. import unittest as pg_unittest
 
 from ..driver import dbapi20 as dbapi20
 from .. import driver as pg_driver
 from .. import open as pg_open
 
+
+def check_for_ipv6():
+	result = False
+	if socket.has_ipv6:
+		try:
+			socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+			result = True
+		except socket.error as e:
+			errs = [errno.EAFNOSUPPORT]
+			WSAEAFNOSUPPORT = getattr(errno, 'WSAEAFNOSUPPORT', None)
+			if WSAEAFNOSUPPORT is not None:
+				errs.append(WSAEAFNOSUPPORT)
+			if e.errno not in errs:
+				raise
+	return result
+
+
 msw = sys.platform in ('win32', 'win64')
 
-class test_connect(pg_unittest.TestCaseWithCluster):
+# win32 binaries don't appear to be built with ipv6
+has_ipv6 = check_for_ipv6() and not msw
+
+has_unix_sock = not msw
+
+
+class TestCaseWithCluster(unittest.TestCase):
+	"""
+	postgresql.driver *interface* tests.
+	"""
+	def __init__(self, *args, **kw):
+		super().__init__(*args, **kw)
+		self.installation = installation.default()
+		self.cluster_path = \
+			'py_unittest_pg_cluster_' \
+			+ str(os.getpid()) + getattr(self, 'cluster_path_suffix', '')
+
+		if self.installation is None:
+			sys.stderr.write("ERROR: cannot find 'default' pg_config\n")
+			sys.stderr.write(
+				"HINT: set the PGINSTALLATION environment variable to the `pg_config` path\n"
+			)
+			sys.exit(1)
+
+		self.cluster = pg_cluster.Cluster(
+			self.installation,
+			self.cluster_path,
+		)
+		if self.cluster.initialized():
+			self.cluster.drop()
+
+	def configure_cluster(self):
+		self.cluster_port = find_available_port()
+		if self.cluster_port is None:
+			pg_exc.ClusterError(
+				'failed to find a port for the test cluster on localhost',
+				creator = self.cluster
+			).raise_exception()
+
+		listen_addresses = '127.0.0.1'
+		if has_ipv6:
+			listen_addresses += ',::1'
+		self.cluster.settings.update(dict(
+			port = str(self.cluster_port),
+			max_connections = '6',
+			shared_buffers = '24',
+			listen_addresses = listen_addresses,
+			log_destination = 'stderr',
+			log_min_messages = 'FATAL',
+			silent_mode = 'off',
+		))
+		# 8.4 turns prepared transactions off by default.
+		if self.cluster.installation.version_info >= (8,1):
+			self.cluster.settings.update(dict(
+				max_prepared_transactions = '3',
+			))
+
+	def initialize_database(self):
+		c = self.cluster.connection(
+			user = 'test',
+			database = 'template1',
+		)
+		with c:
+			if c.prepare(
+				"select true from pg_catalog.pg_database " \
+				"where datname = 'test'"
+			).first() is None:
+				c.execute('create database test')
+
+	def connection(self, *args, **kw):
+		return self.cluster.connection(*args, user = 'test', **kw)
+
+	def run(self, *args, **kw):
+		if not self.cluster.initialized():
+			self.cluster.encoding = 'utf-8'
+			self.cluster.init(
+				user = 'test',
+				encoding = self.cluster.encoding,
+				logfile = None,
+			)
+			sys.stderr.write('*')
+			try:
+				atexit.register(self.cluster.drop)
+				self.configure_cluster()
+				self.cluster.start(logfile = sys.stdout)
+				self.cluster.wait_until_started()
+				self.initialize_database()
+			except Exception:
+				self.cluster.drop()
+				atexit.unregister(self.cluster.drop)
+				raise
+		if not self.cluster.running():
+			self.cluster.start()
+			self.cluster.wait_until_started()
+
+		db = self.connection()
+		with db:
+			self.db = db
+			return super().run(*args, **kw)
+			self.db = None
+
+class test_connect(TestCaseWithCluster):
 	"""
 	postgresql.driver connectivity tests
 	"""
@@ -28,7 +152,6 @@ class test_connect(pg_unittest.TestCaseWithCluster):
 		super().__init__(*args,**kw)
 		# 8.4 nixed this.
 		self.do_crypt = self.cluster.installation.version_info < (8,4)
-		self.do_unix = sys.platform != msw
 
 	def configure_cluster(self):
 		super().configure_cluster()
@@ -40,7 +163,7 @@ class test_connect(pg_unittest.TestCaseWithCluster):
 		# Configure the hba file with the supported methods.
 		with open(self.cluster.hba_file, 'w') as hba:
 			hosts = ['0.0.0.0/0',]
-			if not msw:
+			if has_ipv6:
 				hosts.append('0::0/0')
 			methods = ['md5', 'password'] + (['crypt'] if self.do_crypt else [])
 			for h in hosts:
@@ -53,11 +176,11 @@ class test_connect(pg_unittest.TestCaseWithCluster):
 			# trusted
 			hba.writelines(["local all all trust\n"])
 			hba.writelines(["host test trusted 0.0.0.0/0 trust\n"])
-			if not msw:
+			if has_ipv6:
 				hba.writelines(["host test trusted 0::0/0 trust\n"])
 			# admin lines
 			hba.writelines(["host all test 0.0.0.0/0 trust\n"])
-			if not msw:
+			if has_ipv6:
 				hba.writelines(["host all test 0::0/0 trust\n"])
 
 	def initialize_database(self):
@@ -284,9 +407,7 @@ search_path = public
 		with C() as c:
 			self.assertEqual(c.prepare('select 1').first(), 1)
 
-	if not msw:
-		# win32 binaries don't appear to be built with ipv6
-		# so filter this test on windows.
+	if has_ipv6:
 		def test_IP6_connect(self):
 			C = pg_driver.default.ip6(
 				user = 'test',
@@ -350,7 +471,7 @@ search_path = public
 			self.assertEqual(c.prepare('select current_user').first(), 'trusted')
 
 	def test_Unix_connect(self):
-		if msw:
+		if not has_unix_sock:
 			return
 		unix_domain_socket = os.path.join(
 			self.cluster.data_directory,
@@ -365,7 +486,7 @@ search_path = public
 			self.assertEqual(c.client_address, None)
 
 	def test_pg_open_unix(self):
-		if msw:
+		if not has_unix_sock:
 			return
 		unix_domain_socket = os.path.join(
 			self.cluster.data_directory,

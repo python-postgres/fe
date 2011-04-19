@@ -23,6 +23,9 @@ split_qname_samples = [
 	('"schema.base"', ['schema.base'], '"schema.base"'),
 	('schEmÅ."base"', ['schemå', 'base'], 'schemå.base'),
 	('scheMa."base"', ['schema', 'base'], 'schema.base'),
+	('sche_ma.base', ['sche_ma', 'base'], 'sche_ma.base'),
+	('_schema.base', ['_schema', 'base'], '_schema.base'),
+	('a000.b111', ['a000', 'b111'], 'a000.b111'),
 	('" schema"."base"', [' schema', 'base'], '" schema".base'),
 	('" schema"."ba se"', [' schema', 'ba se'], '" schema"."ba se"'),
 	('" ""schema"."ba""se"', [' "schema', 'ba"se'], '" ""schema"."ba""se"'),
@@ -197,7 +200,7 @@ class test_strings(unittest.TestCase):
 		for unsplit, split, norm in split_qname_samples:
 			xsplit = pg_str.split_qname(unsplit)
 			self.assertEqual(xsplit, split)
-			self.assertEqual(pg_str.qname(*split), norm)
+			self.assertEqual(pg_str.qname_if_needed(*split), norm)
 
 		self.assertRaises(
 			ValueError,
@@ -215,6 +218,14 @@ class test_strings(unittest.TestCase):
 			ValueError,
 			pg_str.split_qname, 'bar".foo"'
 		)
+		self.assertRaises(
+			ValueError,
+			pg_str.split_qname, '0bar.foo'
+		)
+		self.assertRaises(
+			ValueError,
+			pg_str.split_qname, 'bar.fo@'
+		)
 
 	def test_quotes(self):
 		self.assertEqual(
@@ -226,28 +237,36 @@ class test_strings(unittest.TestCase):
 			"""'\\foo''bar\\'"""
 		)
 		self.assertEqual(
-			pg_str.quote_ident("foo"),
+			pg_str.quote_ident_if_needed("foo"),
 			"foo"
 		)
 		self.assertEqual(
-			pg_str.quote_ident("0foo"),
+			pg_str.quote_ident_if_needed("0foo"),
 			'"0foo"'
 		)
 		self.assertEqual(
-			pg_str.quote_ident("foo0"),
+			pg_str.quote_ident_if_needed("foo0"),
 			'foo0'
 		)
 		self.assertEqual(
-			pg_str.quote_ident("_"),
+			pg_str.quote_ident_if_needed("_"),
 			'_'
 		)
 		self.assertEqual(
-			pg_str.quote_ident("_9"),
+			pg_str.quote_ident_if_needed("_9"),
 			'_9'
 		)
 		self.assertEqual(
-			pg_str.quote_ident('''\\foo'bar\\'''),
+			pg_str.quote_ident_if_needed('''\\foo'bar\\'''),
 			'''"\\foo'bar\\"'''
+		)
+		self.assertEqual(
+			pg_str.quote_ident("spam"),
+			'"spam"'
+		)
+		self.assertEqual(
+			pg_str.qname("spam", "ham"),
+			'"spam"."ham"'
 		)
 		self.assertEqual(
 			pg_str.escape_ident('"'),
