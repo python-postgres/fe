@@ -56,8 +56,9 @@ except ImportError:
 				if ob is None:
 					continue
 				r[i] = procs[i](ob)
-		except Exception as e:
-			exception_handler(procs, tup, i, cause = e)
+		except Exception:
+			# relying on __context__
+			exception_handler(procs, tup, i)
 			raise RuntimeError("process_tuple exception handler failed to raise")
 		return tuple(r)
 
