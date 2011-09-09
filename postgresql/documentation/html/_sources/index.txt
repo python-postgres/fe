@@ -32,6 +32,7 @@ Reference
    :maxdepth: 2
 
    bin
+   modules
 
 Sample Code
 -----------

@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Advisory Locks &mdash; py-postgresql v1.0.2 documentation</title>
+    <title>Advisory Locks &mdash; py-postgresql 1.1.0dev documentation</title>
+    
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '',
-        VERSION:     '1.0.2',
+        VERSION:     '1.1.0dev',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="py-postgresql v1.0.2 documentation" href="index.html" />
+    <link rel="top" title="py-postgresql 1.1.0dev documentation" href="index.html" />
     <link rel="next" title="Cluster Management" href="cluster.html" />
     <link rel="prev" title="Notification Management" href="notifyman.html" /> 
   </head>
@@ -34,12 +37,15 @@
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="cluster.html" title="Cluster Management"
              accesskey="N">next</a> |</li>
         <li class="right" >
           <a href="notifyman.html" title="Notification Management"
              accesskey="P">previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -65,11 +71,11 @@ provides a context manager that uses those stored procedures.</p>
 <p>Currently, only two subclasses exist. Each represents the lock mode
 supported by PostgreSQL&#8217;s advisory locks:</p>
 <blockquote>
-<ul class="simple">
+<div><ul class="simple">
 <li><tt class="xref py py-class docutils literal"><span class="pre">postgresql.alock.ShareLock</span></tt></li>
 <li><tt class="xref py py-class docutils literal"><span class="pre">postgresql.alock.ExclusiveLock</span></tt></li>
 </ul>
-</blockquote>
+</div></blockquote>
 <div class="section" id="acquiring-alocks">
 <h2>Acquiring ALocks<a class="headerlink" href="#acquiring-alocks" title="Permalink to this headline">¶</a></h2>
 <p>An ALock instance represents a sequence of advisory locks. A single ALock can
@@ -108,7 +114,7 @@ lastly <tt class="docutils literal"><span class="pre">1</span></tt>.</p>
 functionality. The lock mode is selected by choosing the appropriate subclass.</p>
 <p>There are two:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">postgresql.alock.ExclusiveLock(database,</span> <span class="pre">*identifiers)</span></tt></dt>
 <dd>Instantiate an ALock object representing the <cite>identifiers</cite> for use with the
 <cite>database</cite>. Exclusive locks will conflict with other exclusive locks and share
@@ -119,12 +125,12 @@ locks.</dd>
 identifier has been acquired by another backend. However, an exclusive lock
 with the same identifier will conflict.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <div class="section" id="alock-interface-points">
 <h3>ALock Interface Points<a class="headerlink" href="#alock-interface-points" title="Permalink to this headline">¶</a></h3>
 <p>Methods and properties available on <tt class="xref py py-class docutils literal"><span class="pre">postgresql.alock.ALock</span></tt> instances:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">alock.acquire(blocking</span> <span class="pre">=</span> <span class="pre">True)</span></tt></dt>
 <dd><p class="first">Acquire the advisory locks represented by the <tt class="docutils literal"><span class="pre">alock</span></tt> object. If blocking is
 <cite>True</cite>, the default, the method will block until locks on <em>all</em> the
@@ -144,7 +150,7 @@ return <cite>False</cite> if the lock connection has been closed.</dd>
 <dt><tt class="docutils literal"><span class="pre">alock.__exit__(typ,</span> <span class="pre">val,</span> <span class="pre">tb)</span></tt></dt>
 <dd>Alias to <tt class="docutils literal"><span class="pre">release</span></tt>; context manager protocol.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </div>
 </div>
 </div>
@@ -202,18 +208,21 @@ return <cite>False</cite> if the lock connection has been closed.</dd>
           <a href="genindex.html" title="General Index"
              >index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="cluster.html" title="Cluster Management"
              >next</a> |</li>
         <li class="right" >
           <a href="notifyman.html" title="Notification Management"
              >previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Sep 18, 2010.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0b2.
+      Last updated on Sep 09, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1pre.
     </div>
   </body>
 </html>

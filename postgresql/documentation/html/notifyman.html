@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Notification Management &mdash; py-postgresql v1.0.2 documentation</title>
+    <title>Notification Management &mdash; py-postgresql 1.1.0dev documentation</title>
+    
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '',
-        VERSION:     '1.0.2',
+        VERSION:     '1.1.0dev',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="py-postgresql v1.0.2 documentation" href="index.html" />
+    <link rel="top" title="py-postgresql 1.1.0dev documentation" href="index.html" />
     <link rel="next" title="Advisory Locks" href="alock.html" />
     <link rel="prev" title="Copy Management" href="copyman.html" /> 
   </head>
@@ -34,12 +37,15 @@
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="alock.html" title="Advisory Locks"
              accesskey="N">next</a> |</li>
         <li class="right" >
           <a href="copyman.html" title="Copy Management"
              accesskey="P">previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -50,10 +56,6 @@
             
   <div class="section" id="notification-management">
 <span id="notifyman"></span><h1>Notification Management<a class="headerlink" href="#notification-management" title="Permalink to this headline">¶</a></h1>
-<div class="admonition warning">
-<p class="first admonition-title">Warning</p>
-<p class="last"><cite>postgresql.notifyman</cite> is a new feature in v1.0.</p>
-</div>
 <p>Relevant SQL commands: <a class="reference external" href="http://postgresql.org/docs/current/static/sql-notify.html">NOTIFY</a>,
 <a class="reference external" href="http://postgresql.org/docs/current/static/sql-listen.html">LISTEN</a>,
 <a class="reference external" href="http://postgresql.org/docs/current/static/sql-unlisten.html">UNLISTEN</a>.</p>
@@ -191,18 +193,18 @@ process.</p>
 <div class="section" id="notification-manager-constructors">
 <h3>Notification Manager Constructors<a class="headerlink" href="#notification-manager-constructors" title="Permalink to this headline">¶</a></h3>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">NotificationManager(*connections,</span> <span class="pre">timeout</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
 <dd>Create a NotificationManager instance that manages the notifications coming
 from the given set of connections. The <tt class="docutils literal"><span class="pre">timeout</span></tt> keyword is optional and
 can be configured using the <tt class="docutils literal"><span class="pre">settimeout</span></tt> method as well.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </div>
 <div class="section" id="notification-manager-interface-points">
 <h3>Notification Manager Interface Points<a class="headerlink" href="#notification-manager-interface-points" title="Permalink to this headline">¶</a></h3>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">NotificationManager.__iter__()</span></tt></dt>
 <dd>Returns the instance; it is an iterator.</dd>
 <dt><tt class="docutils literal"><span class="pre">NotificationManager.__next__()</span></tt></dt>
@@ -225,7 +227,7 @@ notifications. Connections may be added or removed from the set at any time.</dd
 an exceptional condition or explicitly raises an exception, it is removed from
 the <tt class="docutils literal"><span class="pre">connections</span></tt> set, and placed in <tt class="docutils literal"><span class="pre">garbage</span></tt>.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </div>
 <div class="section" id="zero-timeout">
 <h3>Zero Timeout<a class="headerlink" href="#zero-timeout" title="Permalink to this headline">¶</a></h3>
@@ -252,7 +254,7 @@ losing any events.</p>
 <div class="section" id="summary-of-characteristics">
 <h3>Summary of Characteristics<a class="headerlink" href="#summary-of-characteristics" title="Permalink to this headline">¶</a></h3>
 <blockquote>
-<ul class="simple">
+<div><ul class="simple">
 <li>The iterator will continue until the connections die.</li>
 <li>Objects yielded by the iterator are either <cite>None</cite>, an &#8220;idle event&#8221;, or an
 individual notification triple if using <tt class="docutils literal"><span class="pre">db.iternotifies()</span></tt>, or a
@@ -269,7 +271,7 @@ object may be used again.</li>
 <li>Connections may be added and removed from the <tt class="docutils literal"><span class="pre">nm.connections</span></tt> set at
 any time.</li>
 </ul>
-</blockquote>
+</div></blockquote>
 </div>
 </div>
 </div>
@@ -331,18 +333,21 @@ any time.</li>
           <a href="genindex.html" title="General Index"
              >index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="alock.html" title="Advisory Locks"
              >next</a> |</li>
         <li class="right" >
           <a href="copyman.html" title="Copy Management"
              >previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Sep 18, 2010.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0b2.
+      Last updated on Sep 09, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1pre.
     </div>
   </body>
 </html>

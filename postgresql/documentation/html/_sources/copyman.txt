@@ -4,8 +4,6 @@
 Copy Management
 ***************
 
-.. warning:: `postgresql.copyman` is a new feature in v1.0.
-
 The `postgresql.copyman` module provides a way to quickly move COPY data coming
 from one connection to many connections. Alternatively, it can be sourced
 by arbitrary iterators and target arbitrary callables.
