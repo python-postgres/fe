@@ -2293,19 +2293,19 @@ class Connection(pg_api.Connection):
 
 	@property
 	def closed(self) -> bool:
-		if not hasattr(self, 'pq'):
+		if getattr(self, 'pq', None) is None:
 			return True
 		if hasattr(self.pq, 'socket') and self.pq.xact is not None:
 			return self.pq.xact.fatal is True
 		return False
 
-	def close(self):
+	def close(self, getattr = getattr):
 		if self.closed:
 			return
 		# Write out the disconnect message if the socket is around.
 		# If the connection is known to be lost, don't bother. It will
 		# generate an extra exception.
-		x = self.pq.xact
+		x = getattr(self.pq, 'xact', None)
 		if x:
 			# don't raise?
 			self.pq.complete()
@@ -2313,6 +2313,7 @@ class Connection(pg_api.Connection):
 				return
 		self.pq.push(xact.Closing())
 		self.pq.complete()
+		self.pq.socket.close()
 
 	@property
 	def state(self) -> str:
@@ -2347,13 +2348,22 @@ class Connection(pg_api.Connection):
 		if self.closed is False:
 			# already connected? just return.
 			return
-		# It's closed.
 
 		if hasattr(self, 'pq'):
 			# It's closed, *but* there's a PQ connection..
 			x = self.pq.xact
 			self.typio.raise_error(x.error_message, cause = getattr(x, 'exception', None), creator = self)
 
+		# It's closed.
+		try:
+			self._establish()
+		except Exception:
+			# Close it up on failure.
+			self.close()
+			raise
+
+	def _establish(self):
+		# guts of connect()
 		self.pq = None
 		# if any exception occurs past this point, the connection
 		# will not be usable.
