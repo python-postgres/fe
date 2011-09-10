@@ -513,10 +513,10 @@ class Cluster(pg_api.Cluster):
 		d = self.settings.getset((
 			'listen_addresses', 'port',
 		))
-		if 'listen_addresses' in d:
+		if d.get('listen_addresses') is not None:
 			# Prefer localhost over other addresses.
 			# More likely to get a successful connection.
-			addrs = d.get('listen_addresses', 'localhost').lower().split(',')
+			addrs = d.get('listen_addresses').lower().split(',')
 			if 'localhost' in addrs or '*' in addrs:
 				host = 'localhost'
 			elif '127.0.0.1' in addrs:
