@@ -71,6 +71,11 @@ class NotificationManager(object):
 
 		# Connections already marked as "bad" should not be checked.
 		check = self.connections - self.garbage
+		for db in check:
+			if db.closed:
+				self.connections.remove(db)
+				self.garbage.add(db)
+		check = self.connections - self.garbage
 
 		r, w, x = select(check, (), check, max_duration)
 		# Make sure the connection's _notifies get filled.
