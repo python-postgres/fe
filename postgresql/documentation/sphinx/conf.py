@@ -12,13 +12,12 @@
 # serve to show the default value.
 
 import sys, os
-sys.path.insert(0, '.')
 sys.dont_write_bytecode = True
 
 # If your extensions are in another directory, add it here. If the directory
 # is relative to the documentation root, use os.path.abspath to make it
 # absolute, like shown here.
-sys.path.insert(0, os.path.abspath('../../'))
+sys.path.insert(0, os.path.abspath('../../..'))
 
 # General configuration
 # ---------------------
@@ -37,7 +36,7 @@ source_suffix = '.txt'
 master_doc = 'index'
 
 # General substitutions.
-import project
+from postgresql import project
 copyright = '2010, ' + project.author
 
 # The default replacements for |version| and |release|, also used in various
