@@ -11,7 +11,6 @@ from contextlib import contextmanager
 
 from ..python.itertools import interlace
 from ..python.structlib import split_sized_data
-from ..python.contextlib import *
 from ..python import functools
 from ..python import itertools
 from ..python.socket import find_available_port
@@ -153,17 +152,6 @@ class test_socket(unittest.TestCase):
 				self.fail("got a connection to an available port: " + str(portnum))
 			finally:
 				s.close()
-
-class test_contextlib(unittest.TestCase):
-	def testNoCM(self):
-		with NoCM as foo:
-			pass
-		self.assertEqual(foo, None)
-		self.assertEqual(NoCM(), NoCM)
-		# has no state, may be used repeatedly
-		with NoCM as foo:
-			pass
-		self.assertEqual(foo, None)
 
 def join_sized_data(*data,
 	packL = struct.Struct("!L").pack,
