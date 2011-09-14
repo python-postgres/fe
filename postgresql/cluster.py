@@ -539,14 +539,14 @@ class Cluster(pg_api.Cluster):
 			return False
 		e = None
 		host, port = self.address()
+		connection = self.driver.fit(
+			user = ' -*- ping -*- ',
+			host = host, port = port,
+			database = 'template1',
+			sslmode = 'disable',
+		)()
 		try:
-			self.driver.connect(
-				user = ' -*- ping -*- ',
-				host = host or 'localhost',
-				port = port or 5432,
-				database = 'template1',
-				sslmode = 'disable',
-			).close()
+			connection.connect()
 		except pg_exc.ClientCannotConnectError as err:
 			for attempt in err.database.failures:
 				x = attempt.error
