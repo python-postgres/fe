@@ -155,60 +155,51 @@ class Connection(object):
 				))
 			return
 
-		try:
-			if ssl is not None:
-				# if ssl is True, ssl is *required*
-				# if ssl is False, ssl will be tried, but not required
-				# if ssl is None, no SSL negotiation will happen
-				self.ssl_negotiation = supported = self.negotiate_ssl()
+		if ssl is not None:
+			# if ssl is True, ssl is *required*
+			# if ssl is False, ssl will be tried, but not required
+			# if ssl is None, no SSL negotiation will happen
+			self.ssl_negotiation = supported = self.negotiate_ssl()
 
-				# b'S' or b'N' was *not* received.
-				if supported is None:
-					# probably not PQv3..
-					self.socket.close()
-					self.xact.fatal = True
-					self.xact.error_message = not_pq_error
-					self.xact.state = xact.Complete
-					return
-
-				# b'N' was received, but ssl is required.
-				if not supported and ssl is True:
-					# ssl is required..
-					self.socket.close()
-					self.xact.fatal = True
-					self.xact.error_message = no_ssl_error
-					self.xact.state = xact.Complete
-					return
-
-				if supported:
-					# Make an SSL connection.
-					try:
-						self.socket = self.socket_factory.secure(self.socket)
-					except Exception as err:
-						# Any exception marks a failure.
-						self.socket.close()
-						self.xact.exception = err
-						self.xact.fatal = True
-						self.xact.state = xact.Complete
-						self.xact.error_message = ssl_failed_error
-						return
-			# time to negotiate
-			negxact = self.xact
-			self.complete()
-			if negxact.state is xact.Complete and negxact.fatal is None:
-				self.key = negxact.killinfo.key
-				self.backend_id = negxact.killinfo.pid
-			elif not hasattr(self.xact, 'error_message'):
-				# if it's not complete, something strange happened.
-				# make sure to clean up...
-				self.socket.close()
+			# b'S' or b'N' was *not* received.
+			if supported is None:
+				# probably not PQv3..
 				self.xact.fatal = True
+				self.xact.error_message = not_pq_error
 				self.xact.state = xact.Complete
-				self.xact.error_message = partial_connection_error
-		except:
-			if self.socket is not None:
-				self.socket.close()
-			raise
+				return
+
+			# b'N' was received, but ssl is required.
+			if not supported and ssl is True:
+				# ssl is required..
+				self.xact.fatal = True
+				self.xact.error_message = no_ssl_error
+				self.xact.state = xact.Complete
+				return
+
+			if supported:
+				# Make an SSL connection.
+				try:
+					self.socket = self.socket_factory.secure(self.socket)
+				except Exception as err:
+					# Any exception marks a failure.
+					self.xact.exception = err
+					self.xact.fatal = True
+					self.xact.state = xact.Complete
+					self.xact.error_message = ssl_failed_error
+					return
+		# time to negotiate
+		negxact = self.xact
+		self.complete()
+		if negxact.state is xact.Complete and negxact.fatal is None:
+			self.key = negxact.killinfo.key
+			self.backend_id = negxact.killinfo.pid
+		elif not hasattr(self.xact, 'error_message'):
+			# if it's not complete, something strange happened.
+			# make sure to clean up...
+			self.xact.fatal = True
+			self.xact.state = xact.Complete
+			self.xact.error_message = partial_connection_error
 
 	def negotiate_ssl(self) -> (bool, None):
 		"""

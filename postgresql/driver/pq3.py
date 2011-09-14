@@ -2441,6 +2441,10 @@ class Connection(pg_api.Connection):
 						self._receive_async(x)
 				# success!
 				break
+			elif pq.socket is not None:
+				# In this case, an application/protocol error occurred.
+				# Close out the sockets ourselves.
+				pq.socket.close()
 
 			if sslmode == 'prefer' and ssl is False and didssl is False:
 				# In this case, the server doesn't support SSL or it's
@@ -2640,6 +2644,7 @@ class Connection(pg_api.Connection):
 		self.connector = connector
 		# raw notify messages
 		self._notifies = []
+		self.fileno = -1
 		self.typio = self.connector.driver.typio(self)
 		self.typio.set_encoding('ascii')
 		self.settings = Settings(self)
