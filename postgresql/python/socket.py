@@ -66,7 +66,7 @@ class SocketFactory(object):
 			s.settimeout(float(timeout) if timeout is not None else None)
 			s.connect(self.socket_connect)
 			s.settimeout(None)
-		except:
+		except Exception:
 			s.close()
 			raise
 		return s
