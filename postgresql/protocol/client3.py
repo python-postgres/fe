@@ -241,7 +241,6 @@ class Connection(object):
 			except self.socket_factory.fatal_exception as e:
 				msg = self.socket_factory.fatal_exception_message(e)
 				if msg is not None:
-					self.socket.close()
 					XACT.state = Complete
 					XACT.fatal = True
 					XACT.exception = e
@@ -259,7 +258,6 @@ class Connection(object):
 			##
 			# nothing read from a blocking socket? it's over.
 			if self.read_data == b'':
-				self.socket.close()
 				XACT.state = Complete
 				XACT.fatal = True
 				XACT.error_message = eof_error
@@ -298,7 +296,6 @@ class Connection(object):
 			msg = self.socket_factory.fatal_exception_message(e)
 			if msg is not None:
 				# it's fatal.
-				self.socket.close()
 				self.xact.state = xact.Complete
 				self.xact.fatal = True
 				self.xact.exception = e

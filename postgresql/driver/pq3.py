@@ -2300,20 +2300,20 @@ class Connection(pg_api.Connection):
 		return False
 
 	def close(self, getattr = getattr):
-		if self.closed:
-			return
 		# Write out the disconnect message if the socket is around.
 		# If the connection is known to be lost, don't bother. It will
 		# generate an extra exception.
 		x = getattr(self.pq, 'xact', None)
 		if x:
-			# don't raise?
+			# complete the existing transaction, if possible.
+			# XXX: don't raise?
 			self.pq.complete()
 			if self.closed:
 				return
-		self.pq.push(xact.Closing())
-		self.pq.complete()
-		self.pq.socket.close()
+		if getattr(self, 'pq', None):
+			self.pq.push(xact.Closing())
+			self.pq.complete()
+			self.pq.socket.close()
 
 	@property
 	def state(self) -> str:
