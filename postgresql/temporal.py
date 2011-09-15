@@ -212,7 +212,7 @@ class Temporal(object):
 					# interrupt before closing. It is still
 					# possible for the close to block, but less likely.
 					xdb.interrupt()
-					xdb.close()
+				xdb.close()
 
 			# Interrupted and closed all the other connections at this level;
 			# now remove the sandbox schema.
