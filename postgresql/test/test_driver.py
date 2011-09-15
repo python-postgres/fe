@@ -1730,10 +1730,8 @@ class test_driver(unittest.TestCase):
 
 	@pg_tmp
 	def testAdminTerminated(self):
-		killer = new()
-		killer.sys.terminate_backends()
-		# hoping that this will guarantee that the terminate is complete
-		killer.close()
+		with new() as killer:
+			killer.sys.terminate_backends()
 
 		self.assertRaises(
 			pg_exc.AdminShutdownError,
