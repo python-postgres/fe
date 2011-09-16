@@ -1720,7 +1720,6 @@ class test_driver(unittest.TestCase):
 
 	@pg_tmp
 	def testBadFD(self):
-		db.pq.socket.close()
 		# bad fd now.
 		self.assertRaises(
 			pg_exc.ConnectionFailureError,
@@ -1735,7 +1734,7 @@ class test_driver(unittest.TestCase):
 
 		self.assertRaises(
 			pg_exc.AdminShutdownError,
-			sqlexec, "SELECT 1"
+			sqlexec, "SELECT 1",
 		)
 		self.assertTrue(issubclass(pg_exc.AdminShutdownError, pg_exc.Disconnection))
 
