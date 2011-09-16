@@ -2303,17 +2303,26 @@ class Connection(pg_api.Connection):
 		# Write out the disconnect message if the socket is around.
 		# If the connection is known to be lost, don't bother. It will
 		# generate an extra exception.
+		if getattr(self, 'pq', None) is None or getattr(self.pq, 'socket', None) is None:
+			# No action to take.
+			return
+
 		x = getattr(self.pq, 'xact', None)
-		if x:
-			# complete the existing transaction, if possible.
-			# XXX: don't raise?
+		if x is not None and x.fatal is not True:
+			# finish the existing pq transaction iff it's not Closing.
 			self.pq.complete()
-			if self.closed:
-				return
-		if getattr(self, 'pq', None):
+
+		if self.pq.xact is None:
+			# It completed the existing transaction.
 			self.pq.push(xact.Closing())
 			self.pq.complete()
+			if self.pq.socket:
+				self.pq.complete()
+
+		# Close the socket if there is one.
+		if self.pq.socket:
 			self.pq.socket.close()
+			self.pq.socket = None
 
 	@property
 	def state(self) -> str:
@@ -2446,6 +2455,8 @@ class Connection(pg_api.Connection):
 				# Close out the sockets ourselves.
 				pq.socket.close()
 
+			# Identify whether or not we can skip the attempt.
+			# Whether or not we can skip depends entirely on the SSL parameter.
 			if sslmode == 'prefer' and ssl is False and didssl is False:
 				# In this case, the server doesn't support SSL or it's
 				# turned off. Therefore, the "without_ssl" attempt need
