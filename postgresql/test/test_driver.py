@@ -1720,6 +1720,7 @@ class test_driver(unittest.TestCase):
 
 	@pg_tmp
 	def testBadFD(self):
+		db.pq.socket.close()
 		# bad fd now.
 		self.assertRaises(
 			pg_exc.ConnectionFailureError,
