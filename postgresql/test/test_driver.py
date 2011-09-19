@@ -1252,10 +1252,10 @@ class test_driver(unittest.TestCase):
 				# 'foo' is not a valid Decimal.
 				# Expecting a double TupleError here, one from the composite pack
 				# and one from the row pack.
-				self.assertTrue(isinstance(err.__context__, pg_exc.CompositeError))
+				self.assertTrue(isinstance(err.__cause__, pg_exc.CompositeError))
 				self.assertEqual(int(err.details['position']), 0)
 				# attribute number that the failure occurred on
-				self.assertEqual(int(err.__context__.details['position']), 0)
+				self.assertEqual(int(err.__cause__.details['position']), 0)
 			else:
 				self.fail("failed to raise TupleError")
 
@@ -1278,7 +1278,7 @@ class test_driver(unittest.TestCase):
 			try:
 				ps(decimal.Decimal("101"))
 			except pg_exc.ColumnError as err:
-				self.assertTrue(isinstance(err.__context__, ThisError))
+				self.assertTrue(isinstance(err.__cause__, ThisError))
 				# might be too inquisitive....
 				self.assertEqual(int(err.details['position']), 0)
 				self.assertTrue('NUMERIC' in err.message)
@@ -1289,11 +1289,11 @@ class test_driver(unittest.TestCase):
 			try:
 				ps((decimal.Decimal("101"),))
 			except pg_exc.ColumnError as err:
-				self.assertTrue(isinstance(err.__context__, pg_exc.CompositeError))
-				self.assertTrue(isinstance(err.__context__.__context__, ThisError))
+				self.assertTrue(isinstance(err.__cause__, pg_exc.CompositeError))
+				self.assertTrue(isinstance(err.__cause__.__cause__, ThisError))
 				# might be too inquisitive....
 				self.assertEqual(int(err.details['position']), 0)
-				self.assertEqual(int(err.__context__.details['position']), 0)
+				self.assertEqual(int(err.__cause__.details['position']), 0)
 				self.assertTrue('test_tuple_error' in err.message)
 			else:
 				self.fail("failed to raise TupleError from reception")

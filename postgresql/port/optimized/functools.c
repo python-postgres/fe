@@ -100,7 +100,6 @@ _process_tuple(PyObject *procs, PyObject *tup, PyObject *fail)
 			 * processed and therefore a generalized exception raised in the
 			 * context of the original is *very* useful.
 			 */
-
 			Py_DECREF(rob);
 			rob = NULL;
 
@@ -109,26 +108,28 @@ _process_tuple(PyObject *procs, PyObject *tup, PyObject *fail)
 			 */
 			if (PyErr_ExceptionMatches(PyExc_Exception))
 			{
-				PyObject *failargs, *failedat;
-				PyObject *exc, *val, *tb;
-				PyObject *oldexc, *oldval, *oldtb;
+				PyObject *cause, *failargs, *failedat;
+				PyObject *exc, *tb;
 
 				/* Store exception to set context after handler. */
-				PyErr_Fetch(&oldexc, &oldval, &oldtb);
-				PyErr_NormalizeException(&oldexc, &oldval, &oldtb);
+				PyErr_Fetch(&exc, &cause, &tb);
+				PyErr_NormalizeException(&exc, &cause, &tb);
+				Py_XDECREF(exc);
+				Py_XDECREF(tb);
 
 				failedat = PyLong_FromSsize_t(i);
 				if (failedat != NULL)
 				{
-					failargs = PyTuple_New(3);
+					failargs = PyTuple_New(4);
 					if (failargs != NULL)
 					{
-						/* args for the exception "handler" */
-						PyTuple_SET_ITEM(failargs, 0, procs);
+						/* args for the exception "generalizer" */
+						PyTuple_SET_ITEM(failargs, 0, cause);
+						PyTuple_SET_ITEM(failargs, 1, procs);
 						Py_INCREF(procs);
-						PyTuple_SET_ITEM(failargs, 1, tup);
+						PyTuple_SET_ITEM(failargs, 2, tup);
 						Py_INCREF(tup);
-						PyTuple_SET_ITEM(failargs, 2, failedat);
+						PyTuple_SET_ITEM(failargs, 3, failedat);
 
 						r = PyObject_CallObject(fail, failargs);
 						Py_DECREF(failargs);
@@ -144,33 +145,6 @@ _process_tuple(PyObject *procs, PyObject *tup, PyObject *fail)
 					{
 						Py_DECREF(failedat);
 					}
-				}
-
-				PyErr_Fetch(&exc, &val, &tb);
-				PyErr_NormalizeException(&exc, &val, &tb);
-
-				/*
-				 * Reference BaseException here as the condition is merely
-				 * *validating* that SetContext can be used.
-				 */
-				if (val != NULL && PyObject_IsInstance(val, PyExc_BaseException))
-				{
-					/* Steals oldval reference */
-					PyException_SetContext(val, oldval);
-					Py_XDECREF(oldexc);
-					Py_XDECREF(oldtb);
-					PyErr_Restore(exc, val, tb);
-				}
-				else
-				{
-					/*
-					 * Fetch & NormalizeException failed somehow.
-					 * Use the old exception...
-					 */
-					PyErr_Restore(oldexc, oldval, oldtb);
-					Py_XDECREF(exc);
-					Py_XDECREF(val);
-					Py_XDECREF(tb);
 				}
 			}
 
