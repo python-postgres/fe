@@ -101,7 +101,7 @@ class test_buffer(unittest.TestCase):
 		b.write(nd)
 		self.assertEqual(b.getvalue(), nd)
 		b.write(packl(4))
-		self.assertEqual(b.read(), [(b'N', b'')])
+		self.assertEqual(list(b.read()), [(b'N', b'')])
 		self.assertEqual(b.getvalue(), b'')
 		# partial; read one message to exercise
 		# that the appropriate fragment of the first
@@ -112,20 +112,20 @@ class test_buffer(unittest.TestCase):
 		second = b'z' + packl(len(second_body) + 4) + second_body
 		b.write(first + second)
 		self.assertEqual(b.getvalue(), first + second)
-		self.assertEqual(b.read(1), [(b'v', first_body)])
+		self.assertEqual(list(b.read(1)), [(b'v', first_body)])
 		self.assertEqual(b.getvalue(), second)
-		self.assertEqual(b.read(1), [(b'z', second_body)])
+		self.assertEqual(list(b.read(1)), [(b'z', second_body)])
 		# now, with a third full message in the next chunk
 		third_body = (b'9876' * 10)
 		third = b'3' + packl(len(third_body) + 4) + third_body
 		b.write(first + second)
 		b.write(third)
 		self.assertEqual(b.getvalue(), first + second + third)
-		self.assertEqual(b.read(1), [(b'v', first_body)])
+		self.assertEqual(list(b.read(1)), [(b'v', first_body)])
 		self.assertEqual(b.getvalue(), second + third)
-		self.assertEqual(b.read(1), [(b'z', second_body)])
+		self.assertEqual(list(b.read(1)), [(b'z', second_body)])
 		self.assertEqual(b.getvalue(), third)
-		self.assertEqual(b.read(1), [(b'3', third_body)])
+		self.assertEqual(list(b.read(1)), [(b'3', third_body)])
 		self.assertEqual(b.getvalue(), b'')
 
 ##

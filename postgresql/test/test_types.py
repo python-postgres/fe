@@ -340,27 +340,27 @@ def testExpectIO(self, samples):
 			)
 
 class test_io(unittest.TestCase):
-	def test_process_tuple(self, pt = process_tuple):
-		def funpass(procs, tup, col):
+	def test_process_tuple(self):
+		def funpass(cause, procs, tup, col):
 			pass
-		self.assertEqual(tuple(pt((),(), funpass)), ())
-		self.assertEqual(tuple(pt((int,),("100",), funpass)), (100,))
-		self.assertEqual(tuple(pt((int,int),("100","200"), funpass)), (100,200))
-		self.assertEqual(tuple(pt((int,int),(None,"200"), funpass)), (None,200))
-		self.assertEqual(tuple(pt((int,int,int),(None,None,"200"), funpass)), (None,None,200))
+		self.assertEqual(tuple(process_tuple((),(), funpass)), ())
+		self.assertEqual(tuple(process_tuple((int,),("100",), funpass)), (100,))
+		self.assertEqual(tuple(process_tuple((int,int),("100","200"), funpass)), (100,200))
+		self.assertEqual(tuple(process_tuple((int,int),(None,"200"), funpass)), (None,200))
+		self.assertEqual(tuple(process_tuple((int,int,int),(None,None,"200"), funpass)), (None,None,200))
 		# The exception handler must raise.
-		self.assertRaises(RuntimeError, pt, (int,), ("foo",), funpass)
+		self.assertRaises(RuntimeError, process_tuple, (int,), ("foo",), funpass)
 
 		class ThisError(Exception):
 			pass
 		data = []
-		def funraise(procs, tup, col):
+		def funraise(cause, procs, tup, col):
 			data.append((procs, tup, col))
-			raise ThisError
-		self.assertRaises(ThisError, pt, (int,), ("foo",), funraise)
+			raise ThisError from cause
+		self.assertRaises(ThisError, process_tuple, (int,), ("foo",), funraise)
 		self.assertEqual(data[0], ((int,), ("foo",), 0))
 		del data[0]
-		self.assertRaises(ThisError, pt, (int,int), ("100","bar"), funraise)
+		self.assertRaises(ThisError, process_tuple, (int,int), ("100","bar"), funraise)
 		self.assertEqual(data[0], ((int,int), ("100","bar"), 1))
 
 	def testExpectations(self):

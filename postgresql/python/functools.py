@@ -1,6 +1,7 @@
 ##
 # python.functools
 ##
+import sys
 from .decorlib import method
 
 def rsetattr(attr, val, ob):
@@ -33,7 +34,7 @@ try:
 	# C implementation of the tuple processors.
 	from ..port.optimized import process_tuple, process_chunk
 except ImportError:
-	def process_tuple(procs, tup, exception_handler, len = len, tuple = tuple):
+	def process_tuple(procs, tup, exception_handler, len = len, tuple = tuple, cause = None):
 		"""
 		Call each item in `procs` with the corresponding
 		item in `tup` returning the result as `type`.
@@ -57,8 +58,10 @@ except ImportError:
 					continue
 				r[i] = procs[i](ob)
 		except Exception:
-			# relying on __context__
-			exception_handler(procs, tup, i)
+			cause = sys.exc_info()[1]
+
+		if cause is not None:
+			exception_handler(cause, procs, tup, i)
 			raise RuntimeError("process_tuple exception handler failed to raise")
 		return tuple(r)
 
