@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Driver &mdash; py-postgresql v1.0.2 documentation</title>
+    <title>Driver &mdash; py-postgresql 1.1.0dev documentation</title>
+    
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '',
-        VERSION:     '1.0.2',
+        VERSION:     '1.1.0dev',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="py-postgresql v1.0.2 documentation" href="index.html" />
+    <link rel="top" title="py-postgresql 1.1.0dev documentation" href="index.html" />
     <link rel="next" title="Copy Management" href="copyman.html" />
     <link rel="prev" title="Administration" href="admin.html" /> 
   </head>
@@ -34,12 +37,15 @@
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="copyman.html" title="Copy Management"
              accesskey="N">next</a> |</li>
         <li class="right" >
           <a href="admin.html" title="Administration"
              accesskey="P">previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -73,18 +79,18 @@ support standard strings.
 <p>The following identifiers are regularly used as shorthands for significant
 interface elements:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">db</span></tt></dt>
-<dd><cite>postgresql.api.Connection</cite>, a database connection. <a class="reference external" href="#connections">Connections</a></dd>
+<dd><cite>postgresql.api.Connection</cite>, a database connection. <a class="reference internal" href="#connections">Connections</a></dd>
 <dt><tt class="docutils literal"><span class="pre">ps</span></tt></dt>
-<dd><cite>postgresql.api.Statement</cite>, a prepared statement. <a class="reference external" href="#prepared-statements">Prepared Statements</a></dd>
+<dd><cite>postgresql.api.Statement</cite>, a prepared statement. <a class="reference internal" href="#prepared-statements">Prepared Statements</a></dd>
 <dt><tt class="docutils literal"><span class="pre">c</span></tt></dt>
 <dd><cite>postgresql.api.Cursor</cite>, a cursor; the results of a prepared statement.
-<a class="reference external" href="#cursors">Cursors</a></dd>
+<a class="reference internal" href="#cursors">Cursors</a></dd>
 <dt><tt class="docutils literal"><span class="pre">C</span></tt></dt>
-<dd><cite>postgresql.api.Connector</cite>, a connector. <a class="reference external" href="#connectors">Connectors</a></dd>
+<dd><cite>postgresql.api.Connector</cite>, a connector. <a class="reference internal" href="#connectors">Connectors</a></dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <div class="section" id="establishing-a-connection">
 <h2>Establishing a Connection<a class="headerlink" href="#establishing-a-connection" title="Permalink to this headline">¶</a></h2>
 <p>There are many ways to establish a <cite>postgresql.api.Connection</cite> to a
@@ -146,7 +152,7 @@ successful connection, there is no need to pass anything to open:</p>
 </pre></div>
 </div>
 <p>For a complete list of keywords that <cite>postgresql.open</cite> can accept, see
-<a class="reference external" href="#connection-keywords">Connection Keywords</a>.
+<a class="reference internal" href="#connection-keywords">Connection Keywords</a>.
 For more information about the environment variables, see <a class="reference internal" href="clientparameters.html#pg-envvars"><em>PostgreSQL Environment Variables</em></a>.
 For more information about the <tt class="docutils literal"><span class="pre">pgpassfile</span></tt>, see <a class="reference internal" href="clientparameters.html#pg-passfile"><em>PostgreSQL Password File</em></a>.</p>
 </div>
@@ -173,7 +179,7 @@ on the host <tt class="docutils literal"><span class="pre">localhost</span></tt>
 <p class="first admonition-title">Note</p>
 <p class="last"><cite>connect</cite> will <em>not</em> inherit parameters from the environment as libpq-based drivers do.</p>
 </div>
-<p>See <a class="reference external" href="#connection-keywords">Connection Keywords</a> for a full list of acceptable keyword parameters and
+<p>See <a class="reference internal" href="#connection-keywords">Connection Keywords</a> for a full list of acceptable keyword parameters and
 their meaning.</p>
 </div>
 <div class="section" id="connectors">
@@ -190,7 +196,7 @@ create another connection to the same server. The attributes on the connector
 should <em>not</em> be altered. If parameter changes are needed, a new connector should
 be created.</p>
 <p>The attributes available on a connector are consistent with the names of the
-connection parameters described in <a class="reference external" href="#connection-keywords">Connection Keywords</a>, so that list can be
+connection parameters described in <a class="reference internal" href="#connection-keywords">Connection Keywords</a>, so that list can be
 used as a reference to identify the information available on the connector.</p>
 <p>Connectors fit into the category of &#8220;connection creation interfaces&#8221;, so
 connector instantiation normally takes the same parameters that the
@@ -203,7 +209,7 @@ like <tt class="docutils literal"><span class="pre">host</span></tt> and <tt cla
 <p>The driver, <cite>postgresql.driver.default</cite> provides a set of connectors for making
 a connection:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">postgresql.driver.default.host(...)</span></tt></dt>
 <dd>Provides a <tt class="docutils literal"><span class="pre">getaddrinfo()</span></tt> abstraction for establishing a connection.</dd>
 <dt><tt class="docutils literal"><span class="pre">postgresql.driver.default.ip4(...)</span></tt></dt>
@@ -214,7 +220,7 @@ a connection:</p>
 <dd>Connect to a single unix domain socket. Requires the <tt class="docutils literal"><span class="pre">unix</span></tt> keyword which
 must be an absolute path to the unix domain socket to connect to.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <p><tt class="docutils literal"><span class="pre">host</span></tt> is the usual connector used to establish a connection:</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">C</span> <span class="o">=</span> <span class="n">postgresql</span><span class="o">.</span><span class="n">driver</span><span class="o">.</span><span class="n">default</span><span class="o">.</span><span class="n">host</span><span class="p">(</span>
 <span class="gp">... </span> <span class="n">user</span> <span class="o">=</span> <span class="s">&#39;auser&#39;</span><span class="p">,</span>
@@ -253,7 +259,7 @@ new connections <em>will</em> use the latest information.</p>
 <p>The following is a list of keywords accepted by connection creation
 interfaces:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">user</span></tt></dt>
 <dd>The user to connect as.</dd>
 <dt><tt class="docutils literal"><span class="pre">password</span></tt></dt>
@@ -304,7 +310,7 @@ authentication failures that occur while using known-correct credentials.</dd>
 <dd>A <cite>postgresql.api.Category</cite> instance used to further initialize
 the database.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </div>
 </div>
 <div class="section" id="connections">
@@ -330,24 +336,24 @@ server is desired, a new connection <em>must</em> be established.</p>
 </div>
 <p>The methods and properties on the connection object are ready for use:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">Connection.prepare(sql_statement_string)</span></tt></dt>
 <dd>Create a <cite>postgresql.api.Statement</cite> object for querying the database.
 This provides an &#8220;SQL statement template&#8221; that can be executed multiple times.
-See <a class="reference external" href="#prepared-statements">Prepared Statements</a> for more information.</dd>
+See <a class="reference internal" href="#prepared-statements">Prepared Statements</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.proc(procedure_id)</span></tt></dt>
 <dd>Create a <cite>postgresql.api.StoredProcedure</cite> object referring to a stored
 procedure on the database. The returned object will provide a
 <cite>collections.Callable</cite> interface to the stored procedure on the server. See
-<a class="reference external" href="#stored-procedures">Stored Procedures</a> for more information.</dd>
+<a class="reference internal" href="#stored-procedures">Stored Procedures</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.statement_from_id(statement_id)</span></tt></dt>
 <dd>Create a <cite>postgresql.api.Statement</cite> object from an existing statement
 identifier. This is used in cases where the statement was prepared on the
-server. See <a class="reference external" href="#prepared-statements">Prepared Statements</a> for more information.</dd>
+server. See <a class="reference internal" href="#prepared-statements">Prepared Statements</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.cursor_from_id(cursor_id)</span></tt></dt>
 <dd>Create a <cite>postgresql.api.Cursor</cite> object from an existing cursor identifier.
 This is used in cases where the cursor was declared on the server. See
-<a class="reference external" href="#cursors">Cursors</a> for more information.</dd>
+<a class="reference internal" href="#cursors">Cursors</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.do(language,</span> <span class="pre">source)</span></tt></dt>
 <dd>Execute a DO statement on the server using the specified language.
 <em>DO statements are available on PostgreSQL 9.0 and greater.</em>
@@ -360,11 +366,11 @@ error will be raised.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.xact(isolation</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">mode</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
 <dd>The <cite>postgresql.api.Transaction</cite> constructor for creating transactions.
 This method creates a transaction reference. The transaction will not be
-started until it&#8217;s instructed to do so. See <a class="reference external" href="#transactions">Transactions</a> for more
+started until it&#8217;s instructed to do so. See <a class="reference internal" href="#transactions">Transactions</a> for more
 information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.settings</span></tt></dt>
 <dd>A property providing a <cite>collections.MutableMapping</cite> interface to the
-database&#8217;s SQL settings. See <a class="reference external" href="#settings">Settings</a> for more information.</dd>
+database&#8217;s SQL settings. See <a class="reference internal" href="#settings">Settings</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.clone()</span></tt></dt>
 <dd>Create a new connection object based on the same factors that were used to
 create <tt class="docutils literal"><span class="pre">db</span></tt>. The new connection returned will already be connected.</dd>
@@ -372,7 +378,7 @@ create <tt class="docutils literal"><span class="pre">db</span></tt>. The new co
 <dd>By default, the <cite>msghook</cite> attribute does not exist. If set to a callable, any
 message that occurs during an operation of the database or an operation of a
 database derived object will be given to the callable. See the
-<a class="reference external" href="#database-messages">Database Messages</a> section for more information.</dd>
+<a class="reference internal" href="#database-messages">Database Messages</a> section for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.listen(*channels)</span></tt></dt>
 <dd>Start listening for asynchronous notifications in the specified channels.
 Sends a batch of <tt class="docutils literal"><span class="pre">LISTEN</span></tt> statements to the server.</dd>
@@ -414,12 +420,12 @@ The optional timeout can be used to enable &#8220;idle&#8221; events in which <c
 objects will be yielded by the iterator.
 See <a class="reference internal" href="notifyman.html#notifyman"><em>Notification Management</em></a> for details.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <p>When a connection is established, certain pieces of information are collected from
 the backend. The following are the attributes set on the connection object after
 the connection is made:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">Connection.version</span></tt></dt>
 <dd>The version string of the <em>server</em>; the result of <tt class="docutils literal"><span class="pre">SELECT</span> <span class="pre">version()</span></tt>.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.version_info</span></tt></dt>
@@ -440,7 +446,7 @@ the connection is made:</p>
 method will return <cite>None</cite> if the socket object does not have a <tt class="docutils literal"><span class="pre">fileno</span></tt>.
 Under normal circumstances, it will return an <cite>int</cite>.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <p>The <tt class="docutils literal"><span class="pre">backend_start</span></tt>, <tt class="docutils literal"><span class="pre">client_address</span></tt>, and <tt class="docutils literal"><span class="pre">client_port</span></tt> are collected
 from pg_stat_activity. If this information is unavailable, the attributes will
 be <cite>None</cite>.</p>
@@ -490,7 +496,7 @@ different ways to accommodate for the larger results or random access(scrollable
 cursors).</p>
 <p>Prepared statement objects have a few execution methods:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">Statement(*parameters)</span></tt></dt>
 <dd>As shown before, statement objects can be invoked like a function to get
 the statement&#8217;s results.</dd>
@@ -579,14 +585,14 @@ create <tt class="docutils literal"><span class="pre">ps</span></tt>.</dd>
 <dd>By default, the <cite>msghook</cite> attribute does not exist. If set to a callable, any
 message that occurs during an operation of the statement or an operation of a
 statement derived object will be given to the callable. See the
-<a class="reference external" href="#database-messages">Database Messages</a> section for more information.</dd>
+<a class="reference internal" href="#database-messages">Database Messages</a> section for more information.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <p>In order to provide the appropriate type transformations, the driver must
 acquire metadata about the statement&#8217;s parameters and results. This data is
 published via the following properties on the statement object:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">Statement.sql_parameter_types</span></tt></dt>
 <dd>A sequence of SQL type names specifying the types of the parameters used in
 the statement.</dd>
@@ -607,7 +613,7 @@ the statement. <cite>None</cite> if the statement does not return row-data.</dd>
 <dd>A sequence of <cite>str</cite> objects specifying the names of the columns produced by
 the statement. <cite>None</cite> if the statement does not return row-data.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <p>The indexes of the parameter sequences correspond to the parameter&#8217;s
 identifier, N+1: <tt class="docutils literal"><span class="pre">sql_parameter_types[0]</span></tt> -&gt; <tt class="docutils literal"><span class="pre">'$1'</span></tt>.</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">ps</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">prepare</span><span class="p">(</span><span class="s">&quot;SELECT $1::integer AS intname, $2::varchar AS chardata&quot;</span><span class="p">)</span>
@@ -655,7 +661,7 @@ clause(text and int8).</p>
 type information about a positional parameter, and the serialization routine
 will raise an exception if the given object is inappropriate. The Python
 types expected by the driver for a given SQL-or-PostgreSQL type are listed
-in <a class="reference external" href="#type-support">Type Support</a>.</p>
+in <a class="reference internal" href="#type-support">Type Support</a>.</p>
 <p>This usage of types is not always convenient. Notably, the <cite>datetime</cite> module
 does not provide a friendly way for a user to express intervals, dates, or
 times. There is a likely inclination to forego these parameter type
@@ -852,7 +858,7 @@ multiple result-sets. There is no execute method on PG-API cursors.</p>
 <p>For cursors that return row data, these interfaces are provided for accessing
 those results:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">Cursor.read(quantity</span> <span class="pre">=</span> <span class="pre">None,</span> <span class="pre">direction</span> <span class="pre">=</span> <span class="pre">None)</span></tt></dt>
 <dd><p class="first">This method name is borrowed from <cite>file</cite> objects, and are semantically
 similar. However, this being a cursor, rows are returned instead of bytes or
@@ -865,7 +871,7 @@ this method.</p>
 </dd>
 <dt><tt class="docutils literal"><span class="pre">Cursor.seek(position[,</span> <span class="pre">whence</span> <span class="pre">=</span> <span class="pre">0])</span></tt></dt>
 <dd>When the cursor is scrollable, this seek interface can be used to move the
-position of the cursor. See <a class="reference external" href="#scrollable-cursors">Scrollable Cursors</a> for more information.</dd>
+position of the cursor. See <a class="reference internal" href="#scrollable-cursors">Scrollable Cursors</a> for more information.</dd>
 <dt><tt class="docutils literal"><span class="pre">next(Cursor)</span></tt></dt>
 <dd>This fetches the next row in the cursor object. Cursors support the iterator
 protocol. While equivalent to <tt class="docutils literal"><span class="pre">cursor.read(1)[0]</span></tt>, <cite>StopIteration</cite> is raised
@@ -881,26 +887,26 @@ create <tt class="docutils literal"><span class="pre">c</span></tt>.</dd>
 <dt><tt class="docutils literal"><span class="pre">Cursor.msghook(msg)</span></tt></dt>
 <dd>By default, the <cite>msghook</cite> attribute does not exist. If set to a callable, any
 message that occurs during an operation of the cursor will be given to the
-callable. See the <a class="reference external" href="#database-messages">Database Messages</a> section for more information.</dd>
+callable. See the <a class="reference internal" href="#database-messages">Database Messages</a> section for more information.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <p>Cursors have some additional configuration properties that may be modified
 during the use of the cursor:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">Cursor.direction</span></tt></dt>
 <dd>A value of <cite>True</cite>, the default, will cause read to fetch forwards, whereas a
 value of <cite>False</cite> will cause it to fetch backwards. <tt class="docutils literal"><span class="pre">'BACKWARD'</span></tt> and
 <tt class="docutils literal"><span class="pre">'FORWARD'</span></tt> can be used instead of <cite>False</cite> and <cite>True</cite>.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <p>Cursors normally share metadata with the statements that create them, so it is
 usually unnecessary for referencing the cursor&#8217;s column descriptions directly.
 However, when a cursor is opened from an identifier, the cursor interface must
 collect the metadata itself. These attributes provide the metadata in absence of
 a statement object:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">Cursor.sql_column_types</span></tt></dt>
 <dd>A sequence of SQL type names specifying the types of the columns produced by
 the cursor. <cite>None</cite> if the cursor does not return row-data.</dd>
@@ -916,7 +922,7 @@ the cursor. <cite>None</cite> if the cursor does not return row-data.</dd>
 <dd>The statement that was executed that created the cursor. <cite>None</cite> if
 unknown&#8211;<tt class="docutils literal"><span class="pre">db.cursor_from_id()</span></tt>.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </div>
 <div class="section" id="scrollable-cursors">
 <h3>Scrollable Cursors<a class="headerlink" href="#scrollable-cursors" title="Permalink to this headline">¶</a></h3>
@@ -931,13 +937,13 @@ is scrollable.</p>
 <tt class="docutils literal"><span class="pre">read</span></tt>, it is semantically similar to a file object&#8217;s <tt class="docutils literal"><span class="pre">seek()</span></tt>.</p>
 <p><tt class="docutils literal"><span class="pre">seek</span></tt> takes two arguments: <tt class="docutils literal"><span class="pre">position</span></tt> and <tt class="docutils literal"><span class="pre">whence</span></tt>:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">position</span></tt></dt>
 <dd>The position to scroll to. The meaning of this is determined by <tt class="docutils literal"><span class="pre">whence</span></tt>.</dd>
 <dt><tt class="docutils literal"><span class="pre">whence</span></tt></dt>
 <dd><p class="first">How to use the position: absolute, relative, or absolute from end:</p>
 <blockquote class="last">
-<dl class="docutils">
+<div><dl class="docutils">
 <dt>absolute: <tt class="docutils literal"><span class="pre">'ABSOLUTE'</span></tt> or <tt class="docutils literal"><span class="pre">0</span></tt> (default)</dt>
 <dd>seek to the absolute position in the cursor relative to the beginning of the
 cursor.</dd>
@@ -948,10 +954,10 @@ backwards, while positive <tt class="docutils literal"><span class="pre">positio
 <dd>seek to the end of the cursor and then MOVE backwards by the given
 <tt class="docutils literal"><span class="pre">position</span></tt>.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <p>The <tt class="docutils literal"><span class="pre">whence</span></tt> keyword argument allows for either numeric and textual
 specifications.</p>
 <p>Scrolling through employees:</p>
@@ -1039,7 +1045,7 @@ with existing method and property names.</p>
 <h3>Row Interface Points<a class="headerlink" href="#row-interface-points" title="Permalink to this headline">¶</a></h3>
 <p>Rows implement the <cite>collections.Mapping</cite> and <cite>collections.Sequence</cite> interfaces.</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">Row.keys()</span></tt></dt>
 <dd>An iterable producing the column names. Order is not guaranteed. See the
 <tt class="docutils literal"><span class="pre">column_names</span></tt> property to get an ordered sequence.</dd>
@@ -1070,12 +1076,12 @@ Callables given as <tt class="docutils literal"><span class="pre">args</span></t
 callables given as keywords will be associated with values by their key,
 column name.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <p>While the mapping interfaces will provide most of the needed information, some
 additional properties are provided for consistency with statement and cursor
 objects.</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">Row.column_names</span></tt></dt>
 <dd><p class="first">Property providing an ordered sequence of column names. The index corresponds
 to the row value-index that the name refers to.</p>
@@ -1084,7 +1090,7 @@ to the row value-index that the name refers to.</p>
 </div>
 </dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </div>
 <div class="section" id="row-transformations">
 <h3>Row Transformations<a class="headerlink" href="#row-transformations" title="Permalink to this headline">¶</a></h3>
@@ -1171,7 +1177,7 @@ to provide the user with a natural interface to the procedure:</p>
 <h3>Stored Procedure Interface Points<a class="headerlink" href="#stored-procedure-interface-points" title="Permalink to this headline">¶</a></h3>
 <p>It&#8217;s more-or-less a function, so there&#8217;s only one interface point:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">func(*args,</span> <span class="pre">**kw)</span></tt> (<tt class="docutils literal"><span class="pre">__call__</span></tt>)</dt>
 <dd><p class="first">Stored procedure objects are callable, executing a procedure will return an
 object of suitable representation for a given procedure&#8217;s type signature.</p>
@@ -1183,7 +1189,7 @@ produced by the procedure.</p>
 will be returned.</p>
 </dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </div>
 <div class="section" id="stored-procedure-type-support">
 <h3>Stored Procedure Type Support<a class="headerlink" href="#stored-procedure-type-support" title="Permalink to this headline">¶</a></h3>
@@ -1278,7 +1284,7 @@ instruction methods provided by <cite>postgresql.api.Transaction</cite> objects.
 <p>Keyword arguments given to <tt class="docutils literal"><span class="pre">xact()</span></tt> provide the means for configuring the
 properties of the transaction. Only three points of configuration are available:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">isolation</span></tt></dt>
 <dd><p class="first">The isolation level of the transaction. This must be a string. It will be
 interpolated directly into the START TRANSACTION statement. Normally,
@@ -1293,7 +1299,7 @@ interpolated directly into the START TRANSACTION statement. Normally,
 information in the database. Like <tt class="docutils literal"><span class="pre">isolation</span></tt>, this is interpolated
 directly into the START TRANSACTION string.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <p>The specification of any of these transaction properties imply that the transaction
 is a block. Savepoints do not take configuration, so if a transaction identified
 as a block is started while another block is running, an exception will be
@@ -1305,7 +1311,7 @@ raised.</p>
 and relay any necessary instructions to the remote server in order to reflect
 that change of state.</p>
 <blockquote>
-<div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">xact</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+<div><div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">xact</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
 </pre></div>
 </div>
 <dl class="docutils">
@@ -1316,7 +1322,7 @@ that change of state.</p>
 <dt><tt class="docutils literal"><span class="pre">x.rollback()</span></tt></dt>
 <dd>Abort the transaction.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <p>These methods are primarily provided for applications that manage transactions
 in a way that cannot be formed around single, sequential blocks of code.
 Generally, using these methods require additional work to be performed by the
@@ -1351,7 +1357,7 @@ raised by the driver:</p>
 <span class="gp">...</span>
 <span class="gt">Traceback (most recent call last):</span>
  <span class="c">...</span>
-<span class="nc">postgresql.exceptions.InFailedTransactionError</span>: <span class="n-Identifier">invalid block exit detected</span>
+<span class="gr">postgresql.exceptions.InFailedTransactionError</span>: <span class="n">invalid block exit detected</span>
 <span class="go">CODE: 25P02</span>
 <span class="go">SEVERITY: ERROR</span>
 </pre></div>
@@ -1394,7 +1400,7 @@ that particular setting.</p>
 <p>Manipulation and interrogation of the connection&#8217;s settings is achieved by
 using the standard <cite>collections.MutableMapping</cite> interfaces.</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">Connection.settings[k]</span></tt></dt>
 <dd>Get the value of a single setting.</dd>
 <dt><tt class="docutils literal"><span class="pre">Connection.settings[k]</span> <span class="pre">=</span> <span class="pre">v</span></tt></dt>
@@ -1414,7 +1420,7 @@ settings as it uses a single request.</dd>
 <dd>Get a sequence of key-value pairs corresponding to all settings on the
 database.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </div>
 <div class="section" id="settings-management">
 <h3>Settings Management<a class="headerlink" href="#settings-management" title="Permalink to this headline">¶</a></h3>
@@ -1457,81 +1463,81 @@ these datatypes are not desired, it is recommended that explicit casts into
 <col width="14%" />
 </colgroup>
 <thead valign="bottom">
-<tr><th class="head">PostgreSQL Types</th>
+<tr class="row-odd"><th class="head">PostgreSQL Types</th>
 <th class="head">Python Types</th>
 <th class="head">SQL Types</th>
 </tr>
 </thead>
 <tbody valign="top">
-<tr><td><cite>postgresql.types.INT2OID</cite></td>
+<tr class="row-even"><td><cite>postgresql.types.INT2OID</cite></td>
 <td><cite>int</cite></td>
 <td>smallint</td>
 </tr>
-<tr><td><cite>postgresql.types.INT4OID</cite></td>
+<tr class="row-odd"><td><cite>postgresql.types.INT4OID</cite></td>
 <td><cite>int</cite></td>
 <td>integer</td>
 </tr>
-<tr><td><cite>postgresql.types.INT8OID</cite></td>
+<tr class="row-even"><td><cite>postgresql.types.INT8OID</cite></td>
 <td><cite>int</cite></td>
 <td>bigint</td>
 </tr>
-<tr><td><cite>postgresql.types.FLOAT4OID</cite></td>
+<tr class="row-odd"><td><cite>postgresql.types.FLOAT4OID</cite></td>
 <td><cite>float</cite></td>
 <td>float</td>
 </tr>
-<tr><td><cite>postgresql.types.FLOAT8OID</cite></td>
+<tr class="row-even"><td><cite>postgresql.types.FLOAT8OID</cite></td>
 <td><cite>float</cite></td>
 <td>double</td>
 </tr>
-<tr><td><cite>postgresql.types.VARCHAROID</cite></td>
+<tr class="row-odd"><td><cite>postgresql.types.VARCHAROID</cite></td>
 <td><cite>str</cite></td>
 <td>varchar</td>
 </tr>
-<tr><td><cite>postgresql.types.BPCHAROID</cite></td>
+<tr class="row-even"><td><cite>postgresql.types.BPCHAROID</cite></td>
 <td><cite>str</cite></td>
 <td>char</td>
 </tr>
-<tr><td><cite>postgresql.types.XMLOID</cite></td>
+<tr class="row-odd"><td><cite>postgresql.types.XMLOID</cite></td>
 <td><cite>xml.etree</cite> (cElementTree)</td>
 <td>xml</td>
 </tr>
-<tr><td><cite>postgresql.types.DATEOID</cite></td>
+<tr class="row-even"><td><cite>postgresql.types.DATEOID</cite></td>
 <td><cite>datetime.date</cite></td>
 <td>date</td>
 </tr>
-<tr><td><cite>postgresql.types.TIMESTAMPOID</cite></td>
+<tr class="row-odd"><td><cite>postgresql.types.TIMESTAMPOID</cite></td>
 <td><cite>datetime.datetime</cite></td>
 <td>timestamp</td>
 </tr>
-<tr><td><cite>postgresql.types.TIMESTAMPTZOID</cite></td>
+<tr class="row-even"><td><cite>postgresql.types.TIMESTAMPTZOID</cite></td>
 <td><cite>datetime.datetime</cite> (tzinfo)</td>
 <td>timestamptz</td>
 </tr>
-<tr><td><cite>postgresql.types.TIMEOID</cite></td>
+<tr class="row-odd"><td><cite>postgresql.types.TIMEOID</cite></td>
 <td><cite>datetime.time</cite></td>
 <td>time</td>
 </tr>
-<tr><td><cite>postgresql.types.TIMETZOID</cite></td>
+<tr class="row-even"><td><cite>postgresql.types.TIMETZOID</cite></td>
 <td><cite>datetime.time</cite></td>
 <td>timetz</td>
 </tr>
-<tr><td><cite>postgresql.types.INTERVALOID</cite></td>
+<tr class="row-odd"><td><cite>postgresql.types.INTERVALOID</cite></td>
 <td><cite>datetime.timedelta</cite></td>
 <td>interval</td>
 </tr>
-<tr><td><cite>postgresql.types.NUMERICOID</cite></td>
+<tr class="row-even"><td><cite>postgresql.types.NUMERICOID</cite></td>
 <td><cite>decimal.Decimal</cite></td>
 <td>numeric</td>
 </tr>
-<tr><td><cite>postgresql.types.BYTEAOID</cite></td>
+<tr class="row-odd"><td><cite>postgresql.types.BYTEAOID</cite></td>
 <td><cite>bytes</cite></td>
 <td>bytea</td>
 </tr>
-<tr><td><cite>postgresql.types.TEXTOID</cite></td>
+<tr class="row-even"><td><cite>postgresql.types.TEXTOID</cite></td>
 <td><cite>str</cite></td>
 <td>text</td>
 </tr>
-<tr><td>&lt;contrib_hstore&gt;</td>
+<tr class="row-odd"><td>&lt;contrib_hstore&gt;</td>
 <td><cite>dict</cite></td>
 <td>hstore</td>
 </tr>
@@ -1683,7 +1689,7 @@ objects.</p>
 parts: the SQL-state code, the main message string, and a mapping containing the
 details. The follow attributes are available on message objects:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">Message.message</span></tt></dt>
 <dd>The primary message string.</dd>
 <dt><tt class="docutils literal"><span class="pre">Message.code</span></tt></dt>
@@ -1697,7 +1703,7 @@ provided by the associated <tt class="docutils literal"><span class="pre">detail
 <dd><p class="first">A mapping providing extended information about a message. This mapping
 object <strong>can</strong> contain the following keys:</p>
 <blockquote class="last">
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">'severity'</span></tt></dt>
 <dd>Any of <tt class="docutils literal"><span class="pre">'DEBUG'</span></tt>, <tt class="docutils literal"><span class="pre">'INFO'</span></tt>, <tt class="docutils literal"><span class="pre">'NOTICE'</span></tt>, <tt class="docutils literal"><span class="pre">'WARNING'</span></tt>, <tt class="docutils literal"><span class="pre">'ERROR'</span></tt>,
 <tt class="docutils literal"><span class="pre">'FATAL'</span></tt>, or <tt class="docutils literal"><span class="pre">'PANIC'</span></tt>; the latter three are usually associated with a
@@ -1721,10 +1727,10 @@ parse error.</dd>
 <dd>The line of the file that emitted the message.
 (<em>normally</em> server information)</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </div>
 </div>
 </div>
@@ -1831,18 +1837,21 @@ parse error.</dd>
           <a href="genindex.html" title="General Index"
              >index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="copyman.html" title="Copy Management"
              >next</a> |</li>
         <li class="right" >
           <a href="admin.html" title="Administration"
              >previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Sep 18, 2010.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0b2.
+      Last updated on Sep 20, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1pre.
     </div>
   </body>
 </html>

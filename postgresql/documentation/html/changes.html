@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Changes &mdash; py-postgresql v1.0.2 documentation</title>
+    <title>Changes &mdash; py-postgresql 1.1.0dev documentation</title>
+    
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '',
-        VERSION:     '1.0.2',
+        VERSION:     '1.1.0dev',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="py-postgresql v1.0.2 documentation" href="index.html" />
+    <link rel="top" title="py-postgresql 1.1.0dev documentation" href="index.html" />
     <link rel="next" title="Commands" href="bin.html" />
     <link rel="prev" title="Gotchas" href="gotchas.html" /> 
   </head>
@@ -34,12 +37,15 @@
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="bin.html" title="Commands"
              accesskey="N">next</a> |</li>
         <li class="right" >
           <a href="gotchas.html" title="Gotchas"
              accesskey="P">previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -50,10 +56,13 @@
             
   <div class="section" id="changes">
 <h1>Changes<a class="headerlink" href="#changes" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="in-development">
+<h2>1.0.3 in development<a class="headerlink" href="#in-development" title="Permalink to this headline">¶</a></h2>
+</div>
 <div class="section" id="released-on-2010-09-18">
 <h2>1.0.2 released on 2010-09-18<a class="headerlink" href="#released-on-2010-09-18" title="Permalink to this headline">¶</a></h2>
 <blockquote>
-<ul class="simple">
+<div><ul class="simple">
 <li>Add support for DOMAINs in registered composites. (Elvis Pranskevichus)</li>
 <li>Properly raise StopIteration in Cursor.__next__. (Elvis Pranskevichus)</li>
 <li>Add Cluster Management documentation.</li>
@@ -62,24 +71,24 @@
 <li>Emit deprecation warning when &#8216;gid&#8217; is given to xact().</li>
 <li>Compensate for Python3.2&#8217;s ElementTree API changes.</li>
 </ul>
-</blockquote>
+</div></blockquote>
 </div>
 <div class="section" id="released-on-2010-04-24">
 <h2>1.0.1 released on 2010-04-24<a class="headerlink" href="#released-on-2010-04-24" title="Permalink to this headline">¶</a></h2>
 <blockquote>
-<ul class="simple">
+<div><ul class="simple">
 <li>Fix unpacking of array NULLs. (Elvis Pranskevichus)</li>
 <li>Fix .first()&#8217;s handling of counts and commands.
 Bad logic caused zero-counts to return the command tag.</li>
 <li>Don&#8217;t interrupt and close a temporal connection if it&#8217;s not open.</li>
 <li>Use the Driver&#8217;s typio attribute for TypeIO overrides. (Elvis Pranskevichus)</li>
 </ul>
-</blockquote>
+</div></blockquote>
 </div>
 <div class="section" id="released-on-2010-03-27">
 <h2>1.0 released on 2010-03-27<a class="headerlink" href="#released-on-2010-03-27" title="Permalink to this headline">¶</a></h2>
 <blockquote>
-<ul class="simple">
+<div><ul class="simple">
 <li><strong>DEPRECATION</strong>: Removed 2PC support documentation.</li>
 <li><strong>DEPRECATION</strong>: Removed pg_python and pg_dotconf &#8216;scripts&#8217;.
 They are still accessible by python3 -m postgresql.bin.pg_*</li>
@@ -119,7 +128,7 @@ execution method. <tt class="docutils literal"><span class="pre">db.prepare(db.p
 tuple for the rformats of the bind statement.
 [Reported by dou dou]</li>
 </ul>
-</blockquote>
+</div></blockquote>
 </div>
 </div>
 
@@ -132,6 +141,7 @@ tuple for the rformats of the bind statement.
   <h3><a href="index.html">Table Of Contents</a></h3>
   <ul>
 <li><a class="reference internal" href="#">Changes</a><ul>
+<li><a class="reference internal" href="#in-development">1.0.3 in development</a></li>
 <li><a class="reference internal" href="#released-on-2010-09-18">1.0.2 released on 2010-09-18</a></li>
 <li><a class="reference internal" href="#released-on-2010-04-24">1.0.1 released on 2010-04-24</a></li>
 <li><a class="reference internal" href="#released-on-2010-03-27">1.0 released on 2010-03-27</a></li>
@@ -174,18 +184,21 @@ tuple for the rformats of the bind statement.
           <a href="genindex.html" title="General Index"
              >index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="bin.html" title="Commands"
              >next</a> |</li>
         <li class="right" >
           <a href="gotchas.html" title="Gotchas"
              >previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Sep 18, 2010.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0b2.
+      Last updated on Sep 20, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1pre.
     </div>
   </body>
 </html>

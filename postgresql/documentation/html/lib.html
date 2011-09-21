@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Categories and Libraries &mdash; py-postgresql v1.0.2 documentation</title>
+    <title>Categories and Libraries &mdash; py-postgresql 1.1.0dev documentation</title>
+    
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '',
-        VERSION:     '1.0.2',
+        VERSION:     '1.1.0dev',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,7 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="py-postgresql v1.0.2 documentation" href="index.html" />
+    <link rel="top" title="py-postgresql 1.1.0dev documentation" href="index.html" />
     <link rel="next" title="Client Parameters" href="clientparameters.html" />
     <link rel="prev" title="Cluster Management" href="cluster.html" /> 
   </head>
@@ -34,12 +37,15 @@
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="clientparameters.html" title="Client Parameters"
              accesskey="N">next</a> |</li>
         <li class="right" >
           <a href="cluster.html" title="Cluster Management"
              accesskey="P">previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -54,7 +60,7 @@
 libraries.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
-<p class="last">First-time users are encouraged to read the <a class="reference external" href="#audience-and-motivation">Audience and Motivation</a>
+<p class="last">First-time users are encouraged to read the <a class="reference internal" href="#audience-and-motivation">Audience and Motivation</a>
 section first.</p>
 </div>
 <p>Libraries are a collection of SQL statements that can be bound to a
@@ -105,7 +111,7 @@ SELECT * FROM user WHERE user_id = $1</pre>
 <p>In the above example, <tt class="docutils literal"><span class="pre">get_user_info</span></tt> and <tt class="docutils literal"><span class="pre">get_user_info_v2</span></tt> are identical.
 Empty components indicate the default effect.</p>
 <p>The second component in the section identifier is the symbol type. All Symbol
-types are listed in <a class="reference external" href="#symbol-types">Symbol Types</a>. This can be
+types are listed in <a class="reference internal" href="#symbol-types">Symbol Types</a>. This can be
 used to specify what the section&#8217;s contents are or when to bind the
 symbol:</p>
 <div class="highlight-python"><pre>[get_user_info:preload]
@@ -137,7 +143,7 @@ are special because the execution method is effectively specified by the
 procedure itself.</p>
 <p>The third component is the symbol <tt class="docutils literal"><span class="pre">method</span></tt>. This defines the execution method
 of the statement and ultimately what is returned when the Symbol is called at
-runtime. All the execution methods are listed in <a class="reference external" href="#symbol-execution-methods">Symbol Execution Methods</a>.</p>
+runtime. All the execution methods are listed in <a class="reference internal" href="#symbol-execution-methods">Symbol Execution Methods</a>.</p>
 <p>The default execution method is the default execution method of
 <cite>postgresql.api.PreparedStatement</cite> objects; return the entire result set in a
 list object:</p>
@@ -283,7 +289,7 @@ For instance, <tt class="docutils literal"><span class="pre">const</span></tt> s
 the statement object is immediately discarded. Here is a list of symbol types
 that can be used in ILF libraries:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">&lt;default&gt;</span></tt> (Empty component)</dt>
 <dd>The symbol&#8217;s statement will never change. This allows the Bound Symbol to
 hold onto the <cite>postgresql.api.PreparedStatement</cite> object. When the symbol is
@@ -305,7 +311,7 @@ automatically resolved based on the procedure&#8217;s signature.</dd>
 a statement object that will be discarded when the user discard the referenced
 Symbol. Used in cases where the statement is used once or very infrequently.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </div>
 <div class="section" id="symbol-execution-methods">
 <h2>Symbol Execution Methods<a class="headerlink" href="#symbol-execution-methods" title="Permalink to this headline">¶</a></h2>
@@ -314,7 +320,7 @@ to be used. Specifically, which <cite>postgresql.api.PreparedStatement</cite> me
 should be executed when a Bound Symbol is called. The following is a list of
 the symbol execution methods and the effect it will have when invoked:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">&lt;default&gt;</span></tt> (Empty component)</dt>
 <dd>Returns the entire result set in a single list object. If the statement does
 not return rows, a <tt class="docutils literal"><span class="pre">(command,</span> <span class="pre">count)</span></tt> pair will be returned.</dd>
@@ -340,7 +346,7 @@ of COPY lines.</dd>
 <dd>Takes an iterable rows to be given as parameters. If the statement is a <tt class="docutils literal"><span class="pre">COPY</span>
 <span class="pre">...</span> <span class="pre">FROM</span> <span class="pre">STDIN</span></tt>, the iterable must produce COPY lines.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </div>
 <div class="section" id="reference-symbols">
 <h2>Reference Symbols<a class="headerlink" href="#reference-symbols" title="Permalink to this headline">¶</a></h2>
@@ -487,7 +493,7 @@ latter Python implementation.</p>
 <h2>Terminology<a class="headerlink" href="#terminology" title="Permalink to this headline">¶</a></h2>
 <p>The following terms are used throughout this chapter:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt>Annotations</dt>
 <dd>The information of about a Symbol describing what it is and how it should be
 used.</dd>
@@ -520,7 +526,7 @@ initialization facilities for produced connections. For libraries,
 <cite>postgresql.lib.Category</cite> objects are a set of Libraries,
 <cite>postgresql.lib.Library</cite>.</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 </div>
 </div>
 
@@ -583,18 +589,21 @@ initialization facilities for produced connections. For libraries,
           <a href="genindex.html" title="General Index"
              >index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
           <a href="clientparameters.html" title="Client Parameters"
              >next</a> |</li>
         <li class="right" >
           <a href="cluster.html" title="Cluster Management"
              >previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Sep 18, 2010.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0b2.
+      Last updated on Sep 20, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1pre.
     </div>
   </body>
 </html>

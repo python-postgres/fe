@@ -3,17 +3,20 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
+
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Commands &mdash; py-postgresql v1.0.2 documentation</title>
+    <title>Commands &mdash; py-postgresql 1.1.0dev documentation</title>
+    
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '',
-        VERSION:     '1.0.2',
+        VERSION:     '1.1.0dev',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -22,7 +25,8 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="py-postgresql v1.0.2 documentation" href="index.html" />
+    <link rel="top" title="py-postgresql 1.1.0dev documentation" href="index.html" />
+    <link rel="next" title="Modules" href="modules.html" />
     <link rel="prev" title="Changes" href="changes.html" /> 
   </head>
   <body>
@@ -33,9 +37,15 @@
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="modules.html" title="Modules"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
           <a href="changes.html" title="Changes"
              accesskey="P">previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -55,7 +65,7 @@ takes standard PostgreSQL options as well to specify the client parameters
 to make establish connection with. The Python environment is then augmented
 with the following built-ins:</p>
 <blockquote>
-<dl class="docutils">
+<div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">db</span></tt></dt>
 <dd>The PG-API connection object.</dd>
 <dt><tt class="docutils literal"><span class="pre">xact</span></tt></dt>
@@ -69,9 +79,9 @@ with the following built-ins:</p>
 <dt><tt class="docutils literal"><span class="pre">do</span></tt></dt>
 <dd><tt class="docutils literal"><span class="pre">db.do</span></tt>, execute a single DO statement.</dd>
 <dt><tt class="docutils literal"><span class="pre">sqlexec</span></tt></dt>
-<dd><tt class="docutils literal"><span class="pre">db.execute</span></tt>, execute multiple SQL statements (<tt class="xref docutils literal"><span class="pre">None</span></tt> is always returned)</dd>
+<dd><tt class="docutils literal"><span class="pre">db.execute</span></tt>, execute multiple SQL statements (<tt class="docutils literal"><span class="pre">None</span></tt> is always returned)</dd>
 </dl>
-</blockquote>
+</div></blockquote>
 <div class="section" id="pg-python-usage">
 <h3>pg_python Usage<a class="headerlink" href="#pg-python-usage" title="Permalink to this headline">¶</a></h3>
 <p>Usage: postgresql.bin.pg_python [connection options] [script] ...</p>
@@ -283,6 +293,9 @@ HINT: Settings must take the form 'setting=value' or 'setting_name_to_comment'. 
   <h4>Previous topic</h4>
   <p class="topless"><a href="changes.html"
                         title="previous chapter">Changes</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="modules.html"
+                        title="next chapter">Modules</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="_sources/bin.txt"
@@ -312,15 +325,21 @@ HINT: Settings must take the form 'setting=value' or 'setting_name_to_comment'. 
           <a href="genindex.html" title="General Index"
              >index</a></li>
         <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="modules.html" title="Modules"
+             >next</a> |</li>
+        <li class="right" >
           <a href="changes.html" title="Changes"
              >previous</a> |</li>
-        <li><a href="index.html">py-postgresql v1.0.2 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Sep 18, 2010.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0b2.
+      Last updated on Sep 20, 2011.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1pre.
     </div>
   </body>
 </html>
