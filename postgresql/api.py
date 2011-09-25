@@ -22,7 +22,6 @@ __all__ = [
 	'Message',
 	'Statement',
 	'Chunks',
-	'Rows',
 	'Cursor',
 	'Connector',
 	'Category',
