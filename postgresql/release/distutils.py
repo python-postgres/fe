@@ -13,7 +13,7 @@ use `default_prefix` which is derived from the module's `__package__`.
 import sys
 import os
 from ..project import version, name, identity as url
-from distutils.core import Extension
+from distutils.core import Extension, Command
 
 LONG_DESCRIPTION = """
 py-postgresql is a set of Python modules providing interfaces to various parts
@@ -172,7 +172,25 @@ def standard_setup_keywords(build_extensions = True, prefix = default_prefix):
 		'classifiers' : CLASSIFIERS,
 		'packages' : list(prefixed_packages(prefix = prefix)),
 		'package_data' : dict(prefixed_package_data(prefix = prefix)),
+		'cmdclass': dict(test=TestCommand),
 	}
 	if build_extensions:
 		d['ext_modules'] = list(prefixed_extensions(prefix = prefix))
 	return d
+
+class TestCommand(Command):
+	description = "run tests"
+
+	# List of option tuples: long name, short name (None if no short
+	# name), and help string.
+	user_options = []
+
+	def initialize_options(self):
+		pass
+
+	def finalize_options(self):
+		pass
+
+	def run(self):
+		import unittest
+		unittest.main(module='postgresql.test.testall', argv=('setup.py',))
