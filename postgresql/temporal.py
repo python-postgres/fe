@@ -132,6 +132,7 @@ class Temporal(object):
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',
 			silent_mode = 'off',
+			unix_socket_directory = cluster.data_directory,
 		))
 		cluster.settings.update(dict(
 			max_prepared_transactions = '10',

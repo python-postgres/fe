@@ -87,6 +87,7 @@ class TestCaseWithCluster(unittest.TestCase):
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',
 			silent_mode = 'off',
+			unix_socket_directory = self.cluster.data_directory,
 		))
 		# 8.4 turns prepared transactions off by default.
 		if self.cluster.installation.version_info >= (8,1):
@@ -157,7 +158,6 @@ class test_connect(TestCaseWithCluster):
 		super().configure_cluster()
 		self.cluster.settings.update({
 			'log_min_messages' : 'log',
-			'unix_socket_directory' : self.cluster.data_directory,
 		})
 
 		# Configure the hba file with the supported methods.

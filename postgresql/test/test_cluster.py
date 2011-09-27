@@ -34,6 +34,7 @@ class test_cluster(unittest.TestCase):
 			'listen_addresses' : 'localhost',
 			'port' : '6543',
 			'silent_mode' : 'off',
+			'unix_socket_directory' : self.cluster.data_directory,
 		})
 
 	def testSilentMode(self):
