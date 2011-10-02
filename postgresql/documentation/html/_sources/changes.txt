@@ -9,6 +9,7 @@ Changes
  * Add postgresql.string.quote_ident_if_necessary (Modification of Elvis Pranskevichus' patch)
  * Many postgresql.string bug fixes (Elvis Pranskevichus)
  * Correct ResourceWarnings improving Python 3.2 support. (jwp)
+ * Add test command to setup.py (Elvis Pranskevichus)
 
 1.0.2 released on 2010-09-18
 ----------------------------
