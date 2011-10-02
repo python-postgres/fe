@@ -21,6 +21,12 @@ __all__ = [
 	'open',
 ]
 
+#: The version string of py-postgresql.
+version = '' # overridden by subsequent import from .project.
+
+#: The version triple of py-postgresql: (major, minor, patch).
+version_info = () # overridden by subsequent import from .project.
+
 # Optional.
 try:
 	from .project import version_info, version, \
