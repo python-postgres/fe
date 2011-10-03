@@ -1525,6 +1525,104 @@ class test_driver(unittest.TestCase):
 			pass
 
 	@pg_tmp
+	def testPreparedTransactionCommit(self):
+		with db.xact(gid='commit_gid') as x:
+			db.execute("create table commit_gidtable as select 'foo'::text as t;")
+			x.prepare()
+			# not committed yet, so it better fail.
+			self.assertRaises(pg_exc.UndefinedTableError,
+				db.execute, "select * from commit_gidtable"
+			)
+		# now it's committed.
+		self.assertEqual(
+			db.prepare("select * FROM commit_gidtable").first(),
+			'foo',
+		)
+		db.execute('drop table commit_gidtable;')
+
+	@pg_tmp
+	def testWithUnpreparedTransaction(self):
+		try:
+			with db.xact(gid='not-gonna-prepare-it') as x:
+				pass
+		except pg_exc.ActiveTransactionError:
+			# *must* be okay to query again.
+			self.assertEqual(db.prepare('select 1').first(), 1)
+		else:
+			self.fail("commit with gid succeeded unprepared..")
+
+	@pg_tmp
+	def testWithPreparedException(self):
+		class TheFailure(Exception):
+			pass
+		try:
+			with db.xact(gid='yeah,weprepare') as x:
+				x.prepare()
+				raise TheFailure()
+		except TheFailure as err:
+			# __exit__ should have issued ROLLBACK PREPARED, so let's find out.
+			# *must* be okay to query again.
+			self.assertEqual(db.prepare('select 1').first(), 1)
+			x = db.xact(gid='yeah,weprepare')
+			self.assertRaises(pg_exc.UndefinedObjectError, x.recover)
+		else:
+			self.fail("failure exception was not raised")
+
+	@pg_tmp
+	def testUnPreparedTransactionCommit(self):
+		x = db.xact(gid='never_prepared')
+		x.start()
+		self.assertRaises(pg_exc.ActiveTransactionError, x.commit)
+		self.assertRaises(pg_exc.InFailedTransactionError, x.commit)
+
+	@pg_tmp
+	def testPreparedTransactionRollback(self):
+		x = db.xact(gid='rollback_gid')
+		x.start()
+		db.execute("create table gidtable as select 'foo'::text as t;")
+		x.prepare()
+		x.rollback()
+		self.assertRaises(
+			pg_exc.UndefinedTableError,
+			db.execute, "select * from gidtable"
+		)
+
+	@pg_tmp
+	def testPreparedTransactionRecovery(self):
+		x = db.xact(gid='recover dis')
+		x.start()
+		db.execute("create table distable (i int);")
+		x.prepare()
+		del x
+		x = db.xact(gid='recover dis')
+		x.recover()
+		x.commit()
+		db.execute("drop table distable;")
+
+	@pg_tmp
+	def testPreparedTransactionRecoveryAbort(self):
+		x = db.xact(gid='recover dis abort')
+		x.start()
+		db.execute("create table distableabort (i int);")
+		x.prepare()
+		del x
+		x = db.xact(gid='recover dis abort')
+		x.recover()
+		x.rollback()
+		self.assertRaises(
+			pg_exc.UndefinedTableError,
+			db.execute, "select * from distableabort"
+		)
+
+	@pg_tmp
+	def testPreparedTransactionFailedRecovery(self):
+		x = db.xact(gid="NO XACT HERE")
+		self.assertRaises(
+			pg_exc.UndefinedObjectError,
+			x.recover
+		)
+
+	@pg_tmp
 	def testSettingsCM(self):
 		orig = db.settings['search_path']
 		with db.settings(search_path='public'):
