@@ -1,0 +1,9 @@
+Changes in v1.1
+===============
+
+1.1.0 in development
+--------------------
+
+ * Remove two-phase commit interfaces per deprecation in v1.0.
+   For proper two phase commit use, a lock manager must be employed that
+   the implementation did nothing to accommodate for.

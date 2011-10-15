@@ -8,7 +8,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Administration &mdash; py-postgresql 1.1.0dev documentation</title>
+    <title>Changes in v1.1 &mdash; py-postgresql 1.1.0dev documentation</title>
     
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -26,8 +26,8 @@
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
     <link rel="top" title="py-postgresql 1.1.0dev documentation" href="index.html" />
-    <link rel="next" title="Driver" href="driver.html" />
-    <link rel="prev" title="py-postgresql" href="index.html" /> 
+    <link rel="next" title="Changes in v1.0" href="changes-v1.0.html" />
+    <link rel="prev" title="Modules" href="modules.html" /> 
   </head>
   <body>
     <div class="related">
@@ -40,10 +40,10 @@
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
-          <a href="driver.html" title="Driver"
+          <a href="changes-v1.0.html" title="Changes in v1.0"
              accesskey="N">next</a> |</li>
         <li class="right" >
-          <a href="index.html" title="py-postgresql"
+          <a href="modules.html" title="Modules"
              accesskey="P">previous</a> |</li>
         <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
@@ -54,40 +54,16 @@
         <div class="bodywrapper">
           <div class="body">
             
-  <div class="section" id="administration">
-<h1>Administration<a class="headerlink" href="#administration" title="Permalink to this headline">¶</a></h1>
-<p>This chapter covers the administration of py-postgresql. This includes
-installation and other aspects of working with py-postgresql such as
-environment variables and configuration files.</p>
-<div class="section" id="installation">
-<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
-<p>py-postgresql uses Python&#8217;s distutils package to manage the build and
-installation process of the package. The normal entry point for
-this is the <tt class="docutils literal"><span class="pre">setup.py</span></tt> script contained in the root project directory.</p>
-<p>After extracting the archive and changing the into the project&#8217;s directory,
-installation is normally as simple as:</p>
-<div class="highlight-python"><pre>$ python3 ./setup.py install</pre>
-</div>
-<p>However, if you need to install for use with a particular version of python,
-just use the path of the executable that should be used:</p>
-<div class="highlight-python"><pre>$ /usr/opt/bin/python3 ./setup.py install</pre>
-</div>
-</div>
-<div class="section" id="environment">
-<h2>Environment<a class="headerlink" href="#environment" title="Permalink to this headline">¶</a></h2>
-<p>These environment variables effect the operation of the package:</p>
+  <div class="section" id="changes-in-v1-1">
+<h1>Changes in v1.1<a class="headerlink" href="#changes-in-v1-1" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="in-development">
+<h2>1.1.0 in development<a class="headerlink" href="#in-development" title="Permalink to this headline">¶</a></h2>
 <blockquote>
-<div><table border="1" class="docutils">
-<colgroup>
-<col width="15%" />
-<col width="85%" />
-</colgroup>
-<tbody valign="top">
-<tr class="row-odd"><td>PGINSTALLATION</td>
-<td>The path to the <tt class="docutils literal"><span class="pre">pg_config</span></tt> executable of the installation to use by default.</td>
-</tr>
-</tbody>
-</table>
+<div><ul class="simple">
+<li>Remove two-phase commit interfaces per deprecation in v1.0.
+For proper two phase commit use, a lock manager must be employed that
+the implementation did nothing to accommodate for.</li>
+</ul>
 </div></blockquote>
 </div>
 </div>
@@ -100,22 +76,21 @@ just use the path of the executable that should be used:</p>
         <div class="sphinxsidebarwrapper">
   <h3><a href="index.html">Table Of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">Administration</a><ul>
-<li><a class="reference internal" href="#installation">Installation</a></li>
-<li><a class="reference internal" href="#environment">Environment</a></li>
+<li><a class="reference internal" href="#">Changes in v1.1</a><ul>
+<li><a class="reference internal" href="#in-development">1.1.0 in development</a></li>
 </ul>
 </li>
 </ul>
 
   <h4>Previous topic</h4>
-  <p class="topless"><a href="index.html"
-                        title="previous chapter">py-postgresql</a></p>
+  <p class="topless"><a href="modules.html"
+                        title="previous chapter">Modules</a></p>
   <h4>Next topic</h4>
-  <p class="topless"><a href="driver.html"
-                        title="next chapter">Driver</a></p>
+  <p class="topless"><a href="changes-v1.0.html"
+                        title="next chapter">Changes in v1.0</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
-    <li><a href="_sources/admin.txt"
+    <li><a href="_sources/changes-v1.1.txt"
            rel="nofollow">Show Source</a></li>
   </ul>
 <div id="searchbox" style="display: none">
@@ -145,10 +120,10 @@ just use the path of the executable that should be used:</p>
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
-          <a href="driver.html" title="Driver"
+          <a href="changes-v1.0.html" title="Changes in v1.0"
              >next</a> |</li>
         <li class="right" >
-          <a href="index.html" title="py-postgresql"
+          <a href="modules.html" title="Modules"
              >previous</a> |</li>
         <li><a href="index.html">py-postgresql 1.1.0dev documentation</a> &raquo;</li> 
       </ul>
