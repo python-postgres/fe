@@ -8,7 +8,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Modules &mdash; py-postgresql 1.0.3 documentation</title>
+    <title>Modules &mdash; py-postgresql 1.0.4dev documentation</title>
     
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -16,7 +16,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '',
-        VERSION:     '1.0.3',
+        VERSION:     '1.0.4dev',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -25,7 +25,8 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="py-postgresql 1.0.3 documentation" href="index.html" />
+    <link rel="top" title="py-postgresql 1.0.4dev documentation" href="index.html" />
+    <link rel="next" title="Changes in v1.0" href="changes-v1.0.html" />
     <link rel="prev" title="Commands" href="bin.html" /> 
   </head>
   <body>
@@ -39,9 +40,12 @@
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
+          <a href="changes-v1.0.html" title="Changes in v1.0"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
           <a href="bin.html" title="Commands"
              accesskey="P">previous</a> |</li>
-        <li><a href="index.html">py-postgresql 1.0.3 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.0.4dev documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -62,13 +66,13 @@ the stability of the APIs should <em>not</em> be trusted.</p>
 <p>See &lt;<a class="reference external" href="http://postgresql.org">http://postgresql.org</a>&gt; for more information about PostgreSQL.</p>
 <dl class="data">
 <dt id="postgresql.version">
-<tt class="descclassname">postgresql.</tt><tt class="descname">version</tt><em class="property"> = '1.0.3'</em><a class="headerlink" href="#postgresql.version" title="Permalink to this definition">¶</a></dt>
+<tt class="descclassname">postgresql.</tt><tt class="descname">version</tt><em class="property"> = '1.0.4dev'</em><a class="headerlink" href="#postgresql.version" title="Permalink to this definition">¶</a></dt>
 <dd><p>The version string of py-postgresql.</p>
 </dd></dl>
 
 <dl class="data">
 <dt id="postgresql.version_info">
-<tt class="descclassname">postgresql.</tt><tt class="descname">version_info</tt><em class="property"> = (1, 0, 3)</em><a class="headerlink" href="#postgresql.version_info" title="Permalink to this definition">¶</a></dt>
+<tt class="descclassname">postgresql.</tt><tt class="descname">version_info</tt><em class="property"> = (1, 0, 4)</em><a class="headerlink" href="#postgresql.version_info" title="Permalink to this definition">¶</a></dt>
 <dd><p>The version triple of py-postgresql: (major, minor, patch).</p>
 </dd></dl>
 
@@ -124,7 +128,7 @@ Effectively, the implementation of <cite>postgresql.exception.Error.__str__</cit
 
 <dl class="function">
 <dt id="postgresql.sys.default_msghook">
-<tt class="descclassname">postgresql.sys.</tt><tt class="descname">default_msghook</tt><big>(</big><em>msg</em>, <em>format_message=&lt;function format_element at 0x1025bd270&gt;</em><big>)</big><a class="headerlink" href="#postgresql.sys.default_msghook" title="Permalink to this definition">¶</a></dt>
+<tt class="descclassname">postgresql.sys.</tt><tt class="descname">default_msghook</tt><big>(</big><em>msg</em>, <em>format_message=&lt;function format_element at 0x102710408&gt;</em><big>)</big><a class="headerlink" href="#postgresql.sys.default_msghook" title="Permalink to this definition">¶</a></dt>
 <dd><p>Built-in message hook. DON&#8217;T TOUCH!</p>
 </dd></dl>
 
@@ -146,13 +150,13 @@ driver connections come here to be printed to stderr.</p>
 
 <dl class="function">
 <dt id="postgresql.sys.reset_errformat">
-<tt class="descclassname">postgresql.sys.</tt><tt class="descname">reset_errformat</tt><big>(</big><em>with_func=&lt;function errformat at 0x1025b9050&gt;</em><big>)</big><a class="headerlink" href="#postgresql.sys.reset_errformat" title="Permalink to this definition">¶</a></dt>
+<tt class="descclassname">postgresql.sys.</tt><tt class="descname">reset_errformat</tt><big>(</big><em>with_func=&lt;function errformat at 0x1025b81e8&gt;</em><big>)</big><a class="headerlink" href="#postgresql.sys.reset_errformat" title="Permalink to this definition">¶</a></dt>
 <dd><p>restore the original excformat function</p>
 </dd></dl>
 
 <dl class="function">
 <dt id="postgresql.sys.reset_msghook">
-<tt class="descclassname">postgresql.sys.</tt><tt class="descname">reset_msghook</tt><big>(</big><em>with_func=&lt;function msghook at 0x1025b9160&gt;</em><big>)</big><a class="headerlink" href="#postgresql.sys.reset_msghook" title="Permalink to this definition">¶</a></dt>
+<tt class="descclassname">postgresql.sys.</tt><tt class="descname">reset_msghook</tt><big>(</big><em>with_func=&lt;function msghook at 0x1025b82f8&gt;</em><big>)</big><a class="headerlink" href="#postgresql.sys.reset_msghook" title="Permalink to this definition">¶</a></dt>
 <dd><p>restore the original msghook function</p>
 </dd></dl>
 
@@ -615,7 +619,7 @@ The substitutions are identified by braces (&#8216;{&#8216; and &#8216;}&#8217;)
 
 <dl class="data">
 <dt id="postgresql.temporal.pg_tmp">
-<tt class="descclassname">postgresql.temporal.</tt><tt class="descname">pg_tmp</tt><em class="property"> = &lt;postgresql.temporal.Temporal object at 0x102035190&gt;</em><a class="headerlink" href="#postgresql.temporal.pg_tmp" title="Permalink to this definition">¶</a></dt>
+<tt class="descclassname">postgresql.temporal.</tt><tt class="descname">pg_tmp</tt><em class="property"> = &lt;postgresql.temporal.Temporal object at 0x10217cd50&gt;</em><a class="headerlink" href="#postgresql.temporal.pg_tmp" title="Permalink to this definition">¶</a></dt>
 <dd><p>The process&#8217; temporary cluster.</p>
 </dd></dl>
 
@@ -962,7 +966,7 @@ instance raised.</p>
 
 <dl class="class">
 <dt id="postgresql.copyman.WireState">
-<em class="property">class </em><tt class="descclassname">postgresql.copyman.</tt><tt class="descname">WireState</tt><big>(</big><em>condition=&lt;method-wrapper '__ne__' of bytes object at 0x1023a7878&gt;</em><big>)</big><a class="headerlink" href="#postgresql.copyman.WireState" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><tt class="descclassname">postgresql.copyman.</tt><tt class="descname">WireState</tt><big>(</big><em>condition=&lt;method-wrapper '__ne__' of bytes object at 0x101d42508&gt;</em><big>)</big><a class="headerlink" href="#postgresql.copyman.WireState" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">builtins.object</span></tt></p>
 <p>Manages the state of the wire.</p>
 <p>This class manages three possible positions:</p>
@@ -976,7 +980,7 @@ instance raised.</p>
 <p>The wire state will become unusable when the configured condition is True.</p>
 <dl class="method">
 <dt id="postgresql.copyman.WireState.update">
-<tt class="descname">update</tt><big>(</big><em>view</em>, <em>getlen=&lt;function unpack at 0x1021695a0&gt;</em>, <em>len=&lt;built-in function len&gt;</em><big>)</big><a class="headerlink" href="#postgresql.copyman.WireState.update" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">update</tt><big>(</big><em>view</em>, <em>getlen=&lt;function unpack at 0x1023b92f8&gt;</em>, <em>len=&lt;built-in function len&gt;</em><big>)</big><a class="headerlink" href="#postgresql.copyman.WireState.update" title="Permalink to this definition">¶</a></dt>
 <dd><p>Given the state of the COPY and new data, advance the position on the
 COPY stream.</p>
 </dd></dl>
@@ -2104,6 +2108,9 @@ shutdown.</p>
   <h4>Previous topic</h4>
   <p class="topless"><a href="bin.html"
                         title="previous chapter">Commands</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="changes-v1.0.html"
+                        title="next chapter">Changes in v1.0</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="_sources/modules.txt"
@@ -2136,14 +2143,17 @@ shutdown.</p>
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
+          <a href="changes-v1.0.html" title="Changes in v1.0"
+             >next</a> |</li>
+        <li class="right" >
           <a href="bin.html" title="Commands"
              >previous</a> |</li>
-        <li><a href="index.html">py-postgresql 1.0.3 documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.0.4dev documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Oct 03, 2011.
+      Last updated on Oct 15, 2011.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1pre.
     </div>
   </body>
