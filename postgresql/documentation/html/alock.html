@@ -66,7 +66,7 @@ These are used in cases where an application needs access to a resource, but
 using table locks may cause interference with other operations that can be
 safely performed alongside the application-level, exclusive operation.</p>
 <p>Advisory locks can be used by directly executing the stored procedures in the
-database or by using the <tt class="xref py py-class docutils literal"><span class="pre">postgresql.alock.ALock</span></tt> subclasses, which
+database or by using the <a class="reference internal" href="modules.html#postgresql.alock.ALock" title="postgresql.alock.ALock"><tt class="xref py py-class docutils literal"><span class="pre">postgresql.alock.ALock</span></tt></a> subclasses, which
 provides a context manager that uses those stored procedures.</p>
 <p>Currently, only two subclasses exist. Each represents the lock mode
 supported by PostgreSQL&#8217;s advisory locks:</p>
@@ -90,7 +90,7 @@ multiple lock identifiers:</p>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">l</span><span class="o">.</span><span class="n">release</span><span class="p">()</span>
 </pre></div>
 </div>
-<p><tt class="xref py py-class docutils literal"><span class="pre">postgresql.alock.ALock</span></tt> is similar to <tt class="xref py py-class docutils literal"><span class="pre">threading.RLock</span></tt>; in
+<p><a class="reference internal" href="modules.html#postgresql.alock.ALock" title="postgresql.alock.ALock"><tt class="xref py py-class docutils literal"><span class="pre">postgresql.alock.ALock</span></tt></a> is similar to <tt class="xref py py-class docutils literal"><span class="pre">threading.RLock</span></tt>; in
 order for an ALock to be released, it must be released the number of times it
 has been acquired. ALocks are associated with and survived by their session.
 Much like how RLocks are associated with the thread they are acquired in:
@@ -128,7 +128,7 @@ with the same identifier will conflict.</dd>
 </div></blockquote>
 <div class="section" id="alock-interface-points">
 <h3>ALock Interface Points<a class="headerlink" href="#alock-interface-points" title="Permalink to this headline">¶</a></h3>
-<p>Methods and properties available on <tt class="xref py py-class docutils literal"><span class="pre">postgresql.alock.ALock</span></tt> instances:</p>
+<p>Methods and properties available on <a class="reference internal" href="modules.html#postgresql.alock.ALock" title="postgresql.alock.ALock"><tt class="xref py py-class docutils literal"><span class="pre">postgresql.alock.ALock</span></tt></a> instances:</p>
 <blockquote>
 <div><dl class="docutils">
 <dt><tt class="docutils literal"><span class="pre">alock.acquire(blocking</span> <span class="pre">=</span> <span class="pre">True)</span></tt></dt>
@@ -187,7 +187,7 @@ return <cite>False</cite> if the lock connection has been closed.</dd>
 <div id="searchbox" style="display: none">
   <h3>Quick search</h3>
     <form class="search" action="search.html" method="get">
-      <input type="text" name="q" size="18" />
+      <input type="text" name="q" />
       <input type="submit" value="Go" />
       <input type="hidden" name="check_keywords" value="yes" />
       <input type="hidden" name="area" value="default" />
@@ -221,7 +221,7 @@ return <cite>False</cite> if the lock connection has been closed.</dd>
     </div>
     <div class="footer">
         &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Sep 09, 2011.
+      Last updated on Oct 15, 2011.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1pre.
     </div>
   </body>

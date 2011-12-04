@@ -23,7 +23,6 @@ Contents
    lib
    clientparameters
    gotchas
-   changes
 
 Reference
 ---------
@@ -33,6 +32,15 @@ Reference
 
    bin
    modules
+
+Changes
+-------
+
+.. toctree::
+   :maxdepth: 1
+
+   changes-v1.1
+   changes-v1.0
 
 Sample Code
 -----------

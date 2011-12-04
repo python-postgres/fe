@@ -392,6 +392,9 @@ class Array(object):
 			return nested_elements
 		return typ.from_nest(list(nested_elements))
 
+	def __getnewargs__(self):
+		return (self.nest(),)
+
 	def elements(self):
 		"""
 		Returns an iterator to the elements of the Array. The elements are
