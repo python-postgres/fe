@@ -5,6 +5,7 @@
 Protocol version 3.0 client and tools.
 """
 import os
+import weakref
 from .buffer import pq_message_stream
 from . import element3 as element
 from . import xact3 as xact
@@ -473,6 +474,28 @@ class Connection(object):
 			# only remove the transaction if it's *not* fatal
 			self.xact = None
 
+	def register_cursor(self, cursor, pq_cursor_id):
+		trash = self.trash_cursor
+		self.cursors[pq_cursor_id] = weakref.ref(cursor, lambda ref: trash(pq_cursor_id))
+
+	def trash_cursor(self, pq_cursor_id):
+		try:
+			del self.cursors[pq_cursor_id]
+		except KeyError:
+			pass
+		self.garbage_cursors.append(pq_cursor_id)
+
+	def register_statement(self, statement, pq_statement_id):
+		trash = self.trash_statement
+		self.statements[pq_statement_id] = weakref.ref(statement, lambda ref: trash(pq_statement_id))
+
+	def trash_statement(self, pq_statement_id):
+		try:
+			del self.statements[pq_statement_id]
+		except KeyError:
+			pass
+		self.garbage_statements.append(pq_statement_id)
+
 	def __str__(self):
 		if hasattr(self, 'ssl_negotiation'):
 			if self.ssl_negotiation is True:
@@ -500,6 +523,9 @@ class Connection(object):
 		self.xact = xact.Negotiation(
 			element.Startup(startup), password
 		)
+
+		self.cursors = {}
+		self.statements = {}
 
 		self.garbage_statements = []
 		self.garbage_cursors = []
