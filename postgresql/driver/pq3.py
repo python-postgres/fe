@@ -618,10 +618,7 @@ class Output(object):
 		self._pq_cursor_id = self.database.typio.encode(cursor_id)
 		# If the cursor's id was generated, it should be garbage collected.
 		if cursor_id == ID(self):
-			garbage = self.database.pq.garbage_cursors.append
-			cid = self._pq_cursor_id
-			# Callback for closing the cursor on remote end.
-			self._del = wref(self, lambda x: garbage(cid))
+			self.database.pq.register_cursor(self, self._pq_cursor_id)
 		self._quoted_cursor_id = '"' + cursor_id.replace('"', '""') + '"'
 		self._init()
 
@@ -630,11 +627,8 @@ class Output(object):
 
 	def close(self):
 		if self.closed is False:
-			self.database.pq.garbage_cursors.append(self._pq_cursor_id)
+			self.database.pq.trash_cursor(self._pq_cursor_id)
 		self.closed = True
-		# Don't need the weakref anymore.
-		if hasattr(self, '_del'):
-			del self._del
 
 	def _ins(self, *args):
 		return xact.Instruction(*args, asynchook = self.database._receive_async)
@@ -1280,10 +1274,8 @@ class Statement(pg_api.Statement):
 		self._pq_statement_id = database.typio._encode(self.statement_id)[0]
 
 		if not statement_id:
-			garbage = database.pq.garbage_statements.append
-			sid = self._pq_statement_id
-			# Callback for closing the statement on remote end.
-			self._del = wref(self, lambda x: garbage(sid))
+			# Register statement on a connection to close it automatically on db end
+			database.pq.register_statement(self, self._pq_statement_id)
 
 	def __repr__(self):
 		return '<{mod}.{name}[{ci}] {state}>'.format(
@@ -1424,11 +1416,8 @@ class Statement(pg_api.Statement):
 
 	def close(self):
 		if self.closed is False:
-			self.database.pq.garbage_statements.append(self._pq_statement_id)
+			self.database.pq.trash_statement(self._pq_statement_id)
 		self.closed = True
-		# Don't need the weakref anymore.
-		if hasattr(self, '_del'):
-			del self._del
 
 	def _init(self):
 		"""
