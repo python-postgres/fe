@@ -269,30 +269,144 @@ def varbit_unpack(data, long_unpack = long_unpack):
 	"""
 	return long_unpack(data[0:4]), data[4:]
 
-def net_pack(family_mask_data, len = len):
+from socket import \
+AF_INET, AF_INET6, \
+inet_pton, inet_ntop
+from socket import error as socket_error
+# From PGSQL src/include/utils/inet.h
+_PGSQL_AF_INET = AF_INET
+_PGSQL_AF_INET6 = AF_INET + 1
+
+def net_pack(inet, len = len):
 	"""
-	Given a triple, yield the serialized form for transport.
+	Given a string inet/cidr, yield the serialized form for transport.
 
 	Prepends the ``family``, ``mask`` and implicit ``is_cidr`` fields.
 
 	Supports cidr and inet types.
 	"""
-	(family, mask, data) = family_mask_data
-	return bytes((family, mask, 1, len(data))) + data
+	slash_index = inet.find('/')
+	if slash_index >= 0:
+		try:
+			mask = int(inet[slash_index+1:])
+		except ValueError:
+			raise ValueError('invalid mask in inet/cidr')
+		address = inet[:slash_index]
+	else:
+		mask = 0
+		address = inet
+	if inet.find(':') >= 0:
+		family = _PGSQL_AF_INET6
+		posix_family = AF_INET6
+		max_mask = 128
+	else:
+		family = _PGSQL_AF_INET
+		posix_family = AF_INET
+		max_mask = 32
+                #If IPv4 address is short, right pad it so that it is valid
+		num_bytes = len(address.split('.'))
+		if num_bytes < 4:
+			address += (4 - num_bytes) * '.0'
+	try:
+		data = inet_pton(posix_family, address)
+	except socket_error as exc:
+		raise ValueError(str(exc)) from exc
+	if mask:
+		if not (0 <= mask <= max_mask):
+			raise ValueError('invalid mask in inet/cidr')
+		# Calculate optional cidr byte - PGSQL ignores this on input
+		i_address = int.from_bytes(data, byteorder='big', signed=False)
+		i_mask = ~(2**(max_mask-mask)-1)
+		i_net = i_address & i_mask
+		is_cidr = 1 if (i_net == i_address) else 0
+	else:
+		is_cidr = 0
+	return bytes((family, mask, is_cidr, len(data))) + data
 
-def net_unpack(data):
+def net_unpack(data, cidr=False, len=len):
 	"""
-	Given serialized cidr data, return a tuple:
+	Given serialized cidr data, return :
 
-		(family, mask, data)
+		Python string cidr/network representation
 	"""
 	family, mask, is_cidr, size = data[:4]
 
+	if family == _PGSQL_AF_INET:
+		posix_family = AF_INET
+		max_mask = 32
+		proper_size = 4
+	elif family == _PGSQL_AF_INET6:
+		posix_family = AF_INET6
+		max_mask = 128
+		proper_size = 16
+	else:
+		raise ValueError("invalid family parameter")
 	rd = data[4:]
-	if len(rd) != size:
+	rd_len = len(rd)
+	if rd_len != size and rd_len != proper_size:
 		raise ValueError("invalid size parameter")
+	try:
+		address = inet_ntop(posix_family, rd)
+	except socket_error as exc:
+		raise ValueError(str(exc)) from exc
+	if not (0 <= mask <= max_mask):
+		raise ValueError("invalid mask parameter")
+	if cidr or mask:
+	    result = address + '/' + str(mask)
+	else:
+	    result = address
+	return result
 
-	return (family, mask, rd)
+def cidr_unpack(data):
+	"""
+	Variant of above for CIDR
+	"""
+	return net_unpack(data, cidr=True)
+
+def macaddr_pack(data):
+	"""
+	Pack a MAC address
+
+	Format found in PGSQL src/backend/utils/adt/mac.c, and PGSQL Manual types
+	"""
+	# Accept all possible PGSQL Macaddr formats as in manual
+	# Oh for sscanf() as we could just copy PGSQL C in src/util/adt/mac.c
+	colon_parts = data.split(':')
+	dash_parts = data.split('-')
+	dot_parts = data.split('.')
+	if len(colon_parts) == 6:
+		mac_parts = colon_parts
+	elif len(dash_parts) == 6:
+		mac_parts = dash_parts
+	elif len(colon_parts) == 2:
+		mac_parts = [colon_parts[0][:2], colon_parts[0][2:4], colon_parts[0][4:],
+			colon_parts[1][:2], colon_parts[1][2:4], colon_parts[1][4:]]
+	elif len(dash_parts) == 2:
+		mac_parts = [dash_parts[0][:2], dash_parts[0][2:4], dash_parts[0][4:],
+			dash_parts[1][:2], dash_parts[1][2:4], dash_parts[1][4:]]
+	elif len(dot_parts) == 3:
+		mac_parts = [dot_parts[0][:2], dot_parts[0][2:], dot_parts[1][:2],
+			dot_parts[1][2:], dot_parts[2][:2], dot_parts[2][2:]]
+	elif len(colon_parts) == 1:
+		mac_parts = [data[:2], data[2:4], data[4:6], data[6:8], data[8:10], data[10:]]
+	else:
+		raise ValueError('data string cannot be parsed to bytes')
+	if len(mac_parts) != 6 and len(mac_parts[-1]) != 2:
+		raise ValueError('data string cannot be parsed to bytes')
+	macaddr = bytearray([int(p, 16) for p in mac_parts])
+	return bytes(macaddr)
+
+def macaddr_unpack(data):
+	"""
+	Unpack a MAC address
+
+	Format found in PGSQL src/backend/utils/adt/mac.c
+	"""
+	# This is easy, just go for standard macaddr format,
+	# just like PGSQL in src/util/adt/mac.c macaddr_out()
+	if len(data) != 6:
+		raise ValueError('macaddr has incorrect length')
+	return ("%02x:%02x:%02x:%02x:%02x:%02x" % tuple(data))
 
 def record_unpack(data,
 	long_unpack = long_unpack,

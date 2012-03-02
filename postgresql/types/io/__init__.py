@@ -37,7 +37,13 @@ io_modules = {
 		pg_types.VARBITOID,
 	),
 
-	'pg_system': (
+        'pg_network': (
+		pg_types.MACADDROID,
+		pg_types.INETOID,
+		pg_types.CIDROID,
+        ),
+
+        'pg_system': (
 		pg_types.OIDOID,
 		pg_types.XIDOID,
 		pg_types.CIDOID,

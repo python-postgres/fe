@@ -278,39 +278,33 @@ type_samples = [
 			Varbit('010111101111'),
 		],
 	),
+	('inet', [
+			'255.255.255.255',
+			'127.0.0.1',
+			'10.0.0.1',
+			'0.0.0.0',
+			'::1',
+			'ffff' + ':ffff'*7,
+			'fe80::1',
+			'fe80::1',
+			'::', # 0::0
+		],
+	),
+	('cidr', [
+			'255.255.255.255/32',
+			'127.0.0.0/8',
+			'127.1.0.0/16',
+			'10.0.0.0/32',
+			'0.0.0.0/0',
+			'ffff' + ':ffff'*7 + '/128',
+			'::1/128',
+			'fe80::1/128',
+			'fe80::/64',
+			'fe80::/16',
+			'::/0',
+		],
+	),
 ]
-
-if False:
-	# When an implementation does make it,
-	# re-enable these tests.
-	type_samples.append((
-		'inet', [
-			IPAddress4('255.255.255.255'),
-			IPAddress4('127.0.0.1'),
-			IPAddress4('10.0.0.1'),
-			IPAddress4('0.0.0.0'),
-			IPAddress6('::1'),
-			IPAddress6('ffff' + ':ffff'*7),
-			IPAddress6('fe80::1'),
-			IPAddress6('fe80::1'),
-			IPAddress6('0::0'),
-		],
-	))
-	type_samples.append((
-		'cidr', [
-			IPNetwork4('255.255.255.255/32'),
-			IPNetwork4('127.0.0.0/8'),
-			IPNetwork4('127.1.0.0/16'),
-			IPNetwork4('10.0.0.0/32'),
-			IPNetwork4('0.0.0.0/0'),
-			IPNetwork6('ffff' + ':ffff'*7 + '/128'),
-			IPNetwork6('::1/128'),
-			IPNetwork6('fe80::1/128'),
-			IPNetwork6('fe80::0/64'),
-			IPNetwork6('fe80::0/16'),
-			IPNetwork6('0::0/0'),
-		],
-	))
 
 class test_driver(unittest.TestCase):
 	@pg_tmp
