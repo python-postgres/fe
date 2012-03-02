@@ -10,7 +10,7 @@ author = 'James William Pye <x@jwp.name>'
 description = 'Driver and tools library for PostgreSQL'
 
 # Set this to the target date when approaching a release.
-date = None
+date = "Thu Mar 2 20:00:00 CST 2012"
 tags = set(())
 version_info = (1, 0, 4)
 version = '.'.join(map(str, version_info)) + (date is None and 'dev' or '')
