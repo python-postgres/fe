@@ -94,7 +94,7 @@ def mktime64(seconds_ms):
 time_pack = compose((mktime, double_pack))
 time_unpack = compose((double_unpack, mktimetuple))
 
-def interval_pack(m_d_timetup, mktime = mktime):
+def interval_pack(m_d_timetup, mktime = mktime, dll_pack = dll_pack):
 	"""
 	Given a triple, (month, day, (seconds, microseconds)), serialize it for
 	transport.
