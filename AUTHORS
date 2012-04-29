@@ -1,7 +1,9 @@
 Contributors:
- James William Pye <x@jwp.name>
+ James William Pye [faults are mostly mine] <x@jwp.io>
  Elvis Pranskevichus
  William Grzybowski [subjective paramstyle]
+ Barry Grussling [inet/cidr support]
+ Matthew Grant [inet/cidr support]
 
 Support by Donation:
  AppCove Network
