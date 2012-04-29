@@ -286,6 +286,7 @@ def net_pack(inet, len = len):
 	Supports cidr and inet types.
 	"""
 	slash_index = inet.find('/')
+	mask = None
 	if slash_index >= 0:
 		try:
 			mask = int(inet[slash_index+1:])
@@ -293,7 +294,6 @@ def net_pack(inet, len = len):
 			raise ValueError('invalid mask in inet/cidr')
 		address = inet[:slash_index]
 	else:
-		mask = 0
 		address = inet
 	if inet.find(':') >= 0:
 		family = _PGSQL_AF_INET6
@@ -311,7 +311,7 @@ def net_pack(inet, len = len):
 		data = inet_pton(posix_family, address)
 	except socket_error as exc:
 		raise ValueError(str(exc)) from exc
-	if mask:
+	if mask is not None:
 		if not (0 <= mask <= max_mask):
 			raise ValueError('invalid mask in inet/cidr')
 		# Calculate optional cidr byte - PGSQL ignores this on input
@@ -321,6 +321,7 @@ def net_pack(inet, len = len):
 		is_cidr = 1 if (i_net == i_address) else 0
 	else:
 		is_cidr = 0
+		mask = max_mask
 	return bytes((family, mask, is_cidr, len(data))) + data
 
 def net_unpack(data, cidr=False, len=len):
@@ -351,7 +352,7 @@ def net_unpack(data, cidr=False, len=len):
 		raise ValueError(str(exc)) from exc
 	if not (0 <= mask <= max_mask):
 		raise ValueError("invalid mask parameter")
-	if cidr or mask:
+	if cidr or (mask and mask != max_mask):
 	    result = address + '/' + str(mask)
 	else:
 	    result = address

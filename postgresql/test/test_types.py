@@ -235,7 +235,8 @@ consistency_samples = {
 		(0xffffffff, 0),
 		(0xffffffff // 2, 0xffff // 2),
 	],
-
+}
+__ = {
 	('cidr', typlib.net_pack, typlib.net_unpack) : [
 		(0, 0, b"\x00\x00\x00\x00"),
 		(2, 0, b"\x00" * 4),
