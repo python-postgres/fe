@@ -4,6 +4,10 @@ Changes in v1.0
 1.0.4 in development
 --------------------
 
+ * Fix usage of weakrefs for statement/cursor GC. (Elvis Pranskevichus)
+   (Fixes mysterious DuplicateCursorError exceptions)
+ * Add support for binary inet/cidr/macaddr types for use with arrays and composites. (Matthew Grant & Barry Grussling)
+ * Add support for (un)pickling postgresql.types.Array objects. (Elvis Pranskevichus)
  * Alter how changes are represented in documentation to simplify merging.
 
 1.0.3 released on 2011-09-24

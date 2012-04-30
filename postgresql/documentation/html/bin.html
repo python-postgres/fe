@@ -8,7 +8,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Commands &mdash; py-postgresql 1.0.4dev documentation</title>
+    <title>Commands &mdash; py-postgresql 1.0.4 documentation</title>
     
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -16,7 +16,7 @@
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
         URL_ROOT:    '',
-        VERSION:     '1.0.4dev',
+        VERSION:     '1.0.4',
         COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
@@ -25,7 +25,7 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="py-postgresql 1.0.4dev documentation" href="index.html" />
+    <link rel="top" title="py-postgresql 1.0.4 documentation" href="index.html" />
     <link rel="next" title="Modules" href="modules.html" />
     <link rel="prev" title="Gotchas" href="gotchas.html" /> 
   </head>
@@ -45,7 +45,7 @@
         <li class="right" >
           <a href="gotchas.html" title="Gotchas"
              accesskey="P">previous</a> |</li>
-        <li><a href="index.html">py-postgresql 1.0.4dev documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.0.4 documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -161,7 +161,7 @@ Backslash Commands:
   \?      Show this help message.
   \E      Edit a file or a temporary script.
   \e      Edit and Execute the file directly in the context.
-  \i      Execute a Python script within the interpreter's context.
+  \i      Execute a Python script within the interpreter&#x27;s context.
   \set    Configure environment variables. \set without arguments to show all
   \x      Execute the Python command within this process.</pre>
 </div>
@@ -169,18 +169,18 @@ Backslash Commands:
 <div class="section" id="pg-python-examples">
 <h3>pg_python Examples<a class="headerlink" href="#pg-python-examples" title="Permalink to this headline">¶</a></h3>
 <p>Module execution taking advantage of the new built-ins:</p>
-<div class="highlight-python"><pre>$ python3 -m postgresql.bin.pg_python -h localhost -W -m timeit "prepare('SELECT 1').first()"
+<div class="highlight-python"><pre>$ python3 -m postgresql.bin.pg_python -h localhost -W -m timeit &quot;prepare(&#x27;SELECT 1&#x27;).first()&quot;
 Password for pg_python[pq://jwp@localhost:5432]:
 1000 loops, best of 3: 1.35 msec per loop
 
-$ python3 -m postgresql.bin.pg_python -h localhost -W -m timeit -s "ps=prepare('SELECT 1')" "ps.first()"
+$ python3 -m postgresql.bin.pg_python -h localhost -W -m timeit -s &quot;ps=prepare(&#x27;SELECT 1&#x27;)&quot; &quot;ps.first()&quot;
 Password for pg_python[pq://jwp@localhost:5432]:
 1000 loops, best of 3: 442 usec per loop</pre>
 </div>
 <p>Simple interactive usage:</p>
 <div class="highlight-python"><pre>$ python3 -m postgresql.bin.pg_python -h localhost -W
 Password for pg_python[pq://jwp@localhost:5432]:
-&gt;&gt;&gt; ps = prepare('select 1')
+&gt;&gt;&gt; ps = prepare(&#x27;select 1&#x27;)
 &gt;&gt;&gt; ps.first()
 1
 &gt;&gt;&gt; c = ps()
@@ -235,32 +235,32 @@ writing back to the &#8220;postgresql.conf&#8221; file</td></tr>
 <div class="section" id="examples">
 <h3>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h3>
 <p>Modifying a simple configuration file:</p>
-<div class="highlight-python"><pre>$ echo "setting = value" &gt;pg.conf
+<div class="highlight-python"><pre>$ echo &quot;setting = value&quot; &gt;pg.conf
 
-# change 'setting'
+# change &#x27;setting&#x27;
 $ python3 -m postgresql.bin.pg_dotconf pg.conf setting=newvalue
 
 $ cat pg.conf
-setting = 'newvalue'
+setting = &#x27;newvalue&#x27;
 
 # new settings are appended to the file
 $ python3 -m postgresql.bin.pg_dotconf pg.conf another_setting=value
 $ cat pg.conf
-setting = 'newvalue'
-another_setting = 'value'
+setting = &#x27;newvalue&#x27;
+another_setting = &#x27;value&#x27;
 
 # comment a setting
 $ python3 -m postgresql.bin.pg_dotconf pg.conf another_setting
 
 $ cat pg.conf
-setting = 'newvalue'
-#another_setting = 'value'</pre>
+setting = &#x27;newvalue&#x27;
+#another_setting = &#x27;value&#x27;</pre>
 </div>
 <p>When a setting is given on the command line, it must been seen as one argument
 to the command, so it&#8217;s <em>very</em> important to avoid invocations like:</p>
 <div class="highlight-python"><pre>$ python3 -m postgresql.bin.pg_dotconf pg.conf setting = value
-ERROR: invalid setting, '=' after 'setting'
-HINT: Settings must take the form 'setting=value' or 'setting_name_to_comment'. Settings must also be received as a single argument.</pre>
+ERROR: invalid setting, &#x27;=&#x27; after &#x27;setting&#x27;
+HINT: Settings must take the form &#x27;setting=value&#x27; or &#x27;setting_name_to_comment&#x27;. Settings must also be received as a single argument.</pre>
 </div>
 </div>
 </div>
@@ -333,13 +333,13 @@ HINT: Settings must take the form 'setting=value' or 'setting_name_to_comment'. 
         <li class="right" >
           <a href="gotchas.html" title="Gotchas"
              >previous</a> |</li>
-        <li><a href="index.html">py-postgresql 1.0.4dev documentation</a> &raquo;</li> 
+        <li><a href="index.html">py-postgresql 1.0.4 documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
         &copy; Copyright 2010, James William Pye &lt;x@jwp.name&gt;.
-      Last updated on Oct 15, 2011.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1pre.
+      Last updated on Apr 30, 2012.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
 </html>
