@@ -528,7 +528,7 @@ class TypeIO(pg_api.TypeIO):
 				# This should be sufficiently informative in most cases,
 				# and in the cases where it isn't, an element traceback should
 				# ultimately yield the pertinent information
-				yield (x[0], repr(data[1])[2:-1])
+				yield (x[0], repr(x[1])[2:-1])
 
 	def decode_notice(self, notice):
 		notice = self._decode_failsafe(notice.items())
