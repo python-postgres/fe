@@ -318,6 +318,10 @@ class TypeIO(pg_api.TypeIO):
 							basetype,
 							from_resolution_of = list(from_resolution_of) + [typid]
 						)
+					elif typtype == b'p' and typnamespace == 'pg_catalog' and typname == 'record':
+						# anonymous record type
+						typio = self.anon_record_io_factory()
+
 					if not typio:
 						typio = self.strio
 
@@ -465,6 +469,32 @@ class TypeIO(pg_api.TypeIO):
 				))
 			)
 		return (pack_a_record, unpack_a_record, tuple)
+
+	def anon_record_io_factory(self):
+		def raise_unpack_tuple_error(cause, procs, tup, itemnum):
+			data = repr(tup[itemnum])
+			if len(data) > 80:
+				# Be sure not to fill screen with noise.
+				data = data[:75] + ' ...'
+			self.raise_client_error(element.ClientError((
+				(b'C', '--cIO',),
+				(b'S', 'ERROR',),
+				(b'M', 'Could not unpack element {} from anonymous record'.format(itemnum)),
+				(b'W', data,),
+				(b'P', str(itemnum),)
+			)), cause = cause)
+
+		def _unpack_record(data, unpack = io_lib.record_unpack, process_tuple = process_tuple):
+			record = list(unpack(data))
+			coloids = tuple(x[0] for x in record)
+			colio = map(self.resolve, coloids)
+			column_unpack = tuple(c[1] or self.decode for c in colio)
+
+			data = tuple(x[1] for x in record)
+
+			return process_tuple(column_unpack, data, raise_unpack_tuple_error)
+
+		return (None, _unpack_record)
 
 	def raise_client_error(self, error_message, cause = None, creator = None):
 		m = {

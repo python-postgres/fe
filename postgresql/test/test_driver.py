@@ -1141,6 +1141,31 @@ class test_driver(unittest.TestCase):
 					)
 				)
 
+	@pg_tmp
+	def testAnonymousRecord(self):
+		'test anonymous record unpacking'
+
+		db.execute('CREATE TYPE tar_t AS (a int, b int)')
+
+		tests = {
+			"SELECT (1::int, '2'::text, '2012-01-01 18:00 UTC'::timestamptz)":
+				(1, '2', datetime.datetime(2012, 1, 1, 18, 0, tzinfo=FixedOffset(0))),
+
+			"SELECT (1::int, '2'::text, (3::int, '4'::text))":
+				(1, '2', (3, '4')),
+
+			"SELECT (i::int, (i + 1, i + 2)::tar_t) FROM generate_series(1, 10) as i":
+				(1, (2, 3)),
+
+			"SELECT (1::int, ARRAY[(2, 3), (3, 4)])":
+				(1, pg_types.Array([(2, 3), (3, 4)]))
+		}
+
+		for qry, expected in tests.items():
+			pb = db.prepare(qry)
+			result = next(iter(pb.rows()))[0]
+			self.assertEqual(result, expected)
+
 	def check_xml(self):
 		try:
 			xml = db.prepare('select $1::xml')
