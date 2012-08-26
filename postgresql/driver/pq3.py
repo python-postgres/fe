@@ -2494,6 +2494,8 @@ class Connection(pg_api.Connection):
 		vi = self.version_info[:2]
 		if vi <= (8,1):
 			sd = self.sys.startup_data_only_version()
+		elif vi >= (9,2):
+			sd = self.sys.startup_data_92()
 		else:
 			sd = self.sys.startup_data()
 		# connection info

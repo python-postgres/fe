@@ -173,6 +173,21 @@ UNION ALL SELECT
  NULL::int AS client_port
 LIMIT 1;
 
+[startup_data_92:transient:first]
+-- 9.2 and greater
+SELECT
+ pg_catalog.version()::text AS version,
+ backend_start::text,
+ client_addr::text,
+ client_port::int
+FROM pg_catalog.pg_stat_activity WHERE pid = pg_catalog.pg_backend_pid()
+UNION ALL SELECT
+ pg_catalog.version()::text AS version,
+ NULL::text AS backend_start,
+ NULL::text AS client_addr,
+ NULL::int AS client_port
+LIMIT 1;
+
 [startup_data_no_start:transient:first]
 -- 8.1 only, but is unused as often the backend's activity row is not
 -- immediately present.
@@ -200,6 +215,15 @@ FROM
 WHERE
 	procpid != pg_catalog.pg_backend_pid()
 
+[terminate_backends_92:transient:column]
+-- Terminate all except mine. 9.2 and later
+SELECT
+	pid, pg_catalog.pg_terminate_backend(pid)
+FROM
+	pg_catalog.pg_stat_activity
+WHERE
+	pid != pg_catalog.pg_backend_pid()
+
 [cancel_backends:transient:column]
 -- Cancel all except mine.
 SELECT
@@ -208,6 +232,15 @@ FROM
 	pg_catalog.pg_stat_activity
 WHERE
 	procpid != pg_catalog.pg_backend_pid()
+
+[cancel_backends_92:transient:column]
+-- Cancel all except mine. 9.2 and later
+SELECT
+	pid, pg_catalog.pg_cancel_backend(pid)
+FROM
+	pg_catalog.pg_stat_activity
+WHERE
+	pid != pg_catalog.pg_backend_pid()
 
 [sizeof_db:transient:first]
 SELECT pg_catalog.pg_database_size(current_database())::bigint

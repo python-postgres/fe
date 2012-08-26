@@ -1742,7 +1742,10 @@ class test_driver(unittest.TestCase):
 	@pg_tmp
 	def testAdminTerminated(self):
 		with new() as killer:
-			killer.sys.terminate_backends()
+			if killer.version_info[:2] <= (9,1):
+				killer.sys.terminate_backends()
+			else:
+				killer.sys.terminate_backends_92()
 
 		self.assertRaises(
 			pg_exc.AdminShutdownError,

@@ -65,7 +65,10 @@ class Temporal(object):
 			try:
 				c = cluster.connection(user = 'test', database = 'template1',)
 				with c:
-					c.sys.terminate_backends()
+					if c.version_info[:2] <= (9,1):
+						c.sys.terminate_backends()
+					else:
+						c.sys.terminate_backends_92()
 			except Exception:
 				# Doesn't matter much if it fails.
 				pass
