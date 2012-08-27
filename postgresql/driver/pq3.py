@@ -1200,7 +1200,7 @@ class Statement(pg_api.Statement):
 		yield (None, '[' + self.state + ']')
 		if hasattr(self._xact, 'error_message'):
 			# be very careful not to trigger an exception.
-			# even in the cases of effective protocol errors, 
+			# even in the cases of effective protocol errors,
 			# it is important not to bomb out.
 			pos = self._xact.error_message.get(b'P')
 			if pos is not None and pos.isdigit():
@@ -2688,7 +2688,7 @@ class Connector(pg_api.Connector):
 		"""
 		Generate a list of callables that will be used to attempt to make the
 		connection to the server. It is assumed that each factory will produce
-		an object with a socket interface that is ready for reading and writing 
+		an object with a socket interface that is ready for reading and writing
 		data.
 
 		The callables in the sequence must take a timeout parameter.

@@ -11,7 +11,7 @@ if sys.version_info[:2] < (3,1):
 	)
 	sys.stderr.write(
 		"HINT: setup.py was ran using Python " + \
-		'.'.join([str(x) for x in sys.version_info[:3]]) + 
+		'.'.join([str(x) for x in sys.version_info[:3]]) +
 		': ' + sys.executable + os.linesep
 	)
 	sys.exit(1)
