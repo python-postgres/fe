@@ -14,6 +14,7 @@ representing the relative offset: (seconds, microseconds). For times, this
 provides an abstraction for quad-word based times used by some configurations of
 PostgreSQL.
 """
+import sys
 from itertools import cycle, chain
 from ... import types as pg_types
 
@@ -91,8 +92,12 @@ module_io = dict(
 	))
 )
 
-def load(relmod):
-	return __import__(__name__ + '.' + relmod, fromlist = True, level = 1)
+if sys.version_info[:2] < (3,3):
+	def load(relmod):
+		return __import__(__name__ + '.' + relmod, fromlist = True, level = 1)
+else:
+	def load(relmod):
+		return __import__(relmod, globals = globals(), locals = locals(), fromlist = [''], level = 1)
 
 def resolve(oid):
 	io = module_io.get(oid)
