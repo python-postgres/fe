@@ -5,7 +5,6 @@ This chapter covers the administration of py-postgresql. This includes
 installation and other aspects of working with py-postgresql such as
 environment variables and configuration files.
 
-
 Installation
 ------------
 
