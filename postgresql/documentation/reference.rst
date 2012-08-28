@@ -1,7 +1,5 @@
-Modules
-=======
-
-Modules intended for general use.
+Reference
+=========
 
 :mod:`postgresql`
 -----------------
@@ -11,7 +9,6 @@ Modules intended for general use.
 .. autodata:: version_info
 .. autofunction:: open
 
-
 :mod:`postgresql.sys`
 ---------------------
 
@@ -19,7 +16,6 @@ Modules intended for general use.
     postgresql.sys
     :members:
     :show-inheritance:
-
 
 :mod:`postgresql.string`
 ------------------------
@@ -29,7 +25,6 @@ Modules intended for general use.
     :members:
     :show-inheritance:
 
-
 :mod:`postgresql.exceptions`
 ----------------------------
 
@@ -37,7 +32,6 @@ Modules intended for general use.
     postgresql.exceptions
     :members:
     :show-inheritance:
-
 
 :mod:`postgresql.temporal`
 --------------------------
@@ -47,7 +41,6 @@ Modules intended for general use.
     :members:
     :show-inheritance:
 
-
 :mod:`postgresql.installation`
 ------------------------------
 
@@ -55,7 +48,6 @@ Modules intended for general use.
     postgresql.installation
     :members:
     :show-inheritance:
-
 
 :mod:`postgresql.cluster`
 -------------------------
@@ -65,7 +57,6 @@ Modules intended for general use.
     :members:
     :show-inheritance:
 
-
 :mod:`postgresql.copyman`
 -------------------------
 
@@ -74,7 +65,6 @@ Modules intended for general use.
     :members:
     :show-inheritance:
 
-
 :mod:`postgresql.alock`
 -----------------------
 
@@ -82,7 +72,6 @@ Modules intended for general use.
     postgresql.alock
     :members:
     :show-inheritance:
-
 
 :mod:`postgresql.api`
 ---------------------

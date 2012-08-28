@@ -1,51 +1,42 @@
-# -*- coding: utf-8 -*-
-#
-# py-postgresql documentation build configuration file, created by
-# sphinx-quickstart on Mon Mar  2 17:21:37 2009.
-#
-# This file is execfile()d with the current directory set to its containing dir.
-#
-# The contents of this file are pickled, so don't put values in the namespace
-# that aren't pickleable (module imports are okay, they're removed automatically).
-#
-# All configuration values have a default value; values that are commented out
-# serve to show the default value.
-
 import sys, os
+sys.path.insert(0, os.path.abspath('../../..')) # needed for autodoc.
 sys.dont_write_bytecode = True
 
-# If your extensions are in another directory, add it here. If the directory
-# is relative to the documentation root, use os.path.abspath to make it
-# absolute, like shown here.
-sys.path.insert(0, os.path.abspath('../../..'))
+# read the project info from the PKG.project module.
+mod = {}
+with open(os.path.abspath('../../project.py')) as f:
+	exec(f.read(), mod, mod)
+
+rst_prolog = ""
+rst_epilog = ""
 
 # General configuration
 # ---------------------
 
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc']
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['.templates']
 
 # The suffix of source filenames.
-source_suffix = '.txt'
+source_suffix = '.rst'
 
 # The master toctree document.
 master_doc = 'index'
 
 # General substitutions.
-from postgresql import project
-copyright = '2010, ' + project.author
+copyright = mod['meaculpa']
 
 # The default replacements for |version| and |release|, also used in various
 # other places throughout the built documents.
 #
 # The short X.Y version.
-version = '.'.join(map(str, project.version_info[:2]))
+version = '.'.join(map(str, mod['version_info'][:2]))
 # The full version, including alpha/beta/rc tags.
-release = project.version
+release = mod['version']
+project = mod['name']
 
 # There are two options for replacing |today|: either, you set today to some
 # non-false value, then it is used:
@@ -143,40 +134,4 @@ html_last_updated_fmt = '%b %d, %Y'
 #html_file_suffix = ''
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = project.__name__
-
-
-# Options for LaTeX output
-# ------------------------
-
-# The paper size ('letter' or 'a4').
-#latex_paper_size = 'letter'
-
-# The font size ('10pt', '11pt' or '12pt').
-#latex_font_size = '10pt'
-
-# Grouping the document tree into LaTeX files. List of tuples
-# (source start file, target name, title, author, document class [howto/manual]).
-latex_documents = [
-  ('index', 'py-postgresql.tex', 'py-postgresql documentation',
-   'James William Pye', 'manual'),
-]
-
-# The name of an image file (relative to this directory) to place at the top of
-# the title page.
-#latex_logo = None
-
-# For "manual" documents, if this is true, then toplevel headings are parts,
-# not chapters.
-#latex_use_parts = False
-
-# Additional stuff for the LaTeX preamble.
-#latex_preamble = ''
-
-# Documents to append as an appendix to all manuals.
-#latex_appendices = []
-
-# If false, no module index is generated.
-#latex_use_modindex = True
-
-project = project.name
+htmlhelp_basename = project
