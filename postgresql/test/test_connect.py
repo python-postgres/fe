@@ -86,7 +86,6 @@ class TestCaseWithCluster(unittest.TestCase):
 			listen_addresses = listen_addresses,
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',
-			silent_mode = 'off',
 			unix_socket_directory = self.cluster.data_directory,
 		))
 		# 8.4 turns prepared transactions off by default.

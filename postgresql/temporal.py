@@ -134,7 +134,6 @@ class Temporal(object):
 			listen_addresses = 'localhost',
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',
-			silent_mode = 'off',
 			unix_socket_directory = cluster.data_directory,
 		))
 		cluster.settings.update(dict(

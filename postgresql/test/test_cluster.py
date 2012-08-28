@@ -33,7 +33,6 @@ class test_cluster(unittest.TestCase):
 			'max_connections' : '8',
 			'listen_addresses' : 'localhost',
 			'port' : '6543',
-			'silent_mode' : 'off',
 			'unix_socket_directory' : self.cluster.data_directory,
 		})
 
@@ -47,11 +46,15 @@ class test_cluster(unittest.TestCase):
 			# silent_mode is not supported on windows by PG.
 			if sys.platform in ('win32','win64'):
 				pass
+			elif self.cluster.installation.version_info[:2] >= (9, 2):
+				pass
 			else:
 				raise
 		else:
 			if sys.platform in ('win32','win64'):
-				self.fail("silent_mode supported on windows")
+				self.fail("silent_mode unexpectedly supported on windows")
+			elif self.cluster.installation.version_info[:2] >= (9, 2):
+				self.fail("silent_mode unexpectedly supported on PostgreSQL >=9.2")
 
 	def testSuperPassword(self):
 		self.init(
