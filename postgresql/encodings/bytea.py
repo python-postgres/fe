@@ -4,6 +4,7 @@
 'PostgreSQL bytea encoding and decoding functions'
 import codecs
 import struct
+import sys
 
 ord_to_seq = {
 	i : \
@@ -12,8 +13,14 @@ ord_to_seq = {
 		if i == 92 else chr(i)
 	for i in range(256)
 }
-def decode(data):
-	return ''.join(map(ord_to_seq.__getitem__, (data[x][0] for x in range(len(data)))))
+
+if sys.version_info[:2] >= (3, 3):
+	# Subscripting memory in 3.3 returns byte as an integer, not as a bytestring
+	def decode(data):
+		return ''.join(map(ord_to_seq.__getitem__, (data[x] for x in range(len(data)))))
+else:
+	def decode(data):
+		return ''.join(map(ord_to_seq.__getitem__, (data[x][0] for x in range(len(data)))))
 
 def encode(data):
 	diter = ((data[i] for i in range(len(data))))
