@@ -95,7 +95,7 @@ subpackages = [
 ]
 extensions_data = {
 	'port.optimized' : {
-		'sources' : [os.path.join('port', 'optimized', 'module.c')],
+		'sources' : [os.path.join('port', '_optimized', 'module.c')],
 	},
 }
 
