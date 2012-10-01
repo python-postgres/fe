@@ -147,12 +147,12 @@ def numeric_unpack(x, unpack = lib.numeric_unpack):
 	npad = (header[3] - ((header[0] - (header[1] + 1)) * 4))
 	return Decimal((
 		numeric_signs.get(header[2], header[2]),
-		chain(
+		tuple(chain(
 			numeric_convert_digits(digits),
 			(0,) * npad
 		) if npad >= 0 else list(
 			numeric_convert_digits(digits)
-		)[:npad],
+		)[:npad]),
 		-header[3]
 	))
 
