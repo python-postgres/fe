@@ -1278,7 +1278,7 @@ class Statement(pg_api.Statement):
 				yield (
 					'results',
 					'(' + ', '.join([
-						n + ' ' + t for n,t in zip(cn,ct)
+						'{!r} {!r}'.format(n, t) for n,t in zip(cn,ct)
 					]) + ')'
 				)
 			else:
