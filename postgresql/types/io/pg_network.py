@@ -25,9 +25,7 @@ def inet_unpack(data, unpack = lib.net_unpack, Constructor = ipaddress.ip_addres
 
 def cidr_unpack(data, unpack = lib.net_unpack, Constructor = ipaddress.ip_network):
 	version, mask, data = unpack(data)
-	r = Constructor(data)
-	r._prefixlen = mask
-	return Constructor(str(r))
+	return Constructor(data).supernet(new_prefix=mask)
 
 oid_to_io = {
 	MACADDROID : (lib.macaddr_pack, lib.macaddr_unpack, str),
