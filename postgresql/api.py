@@ -12,11 +12,9 @@ This module is used to define "PG-API". It creates a set of ABCs
 that makes up the basic interfaces used to work with a PostgreSQL server.
 """
 import collections
-from abc import abstractproperty, abstractmethod
+import abc
 
 from .python.element import Element
-from .python.doc import Doc
-from .python.decorlib import propertydoc
 
 __all__ = [
 	'Message',
@@ -57,26 +55,30 @@ class Message(Element):
 		'CLIENT',
 	)
 
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def source(self) -> str:
 		"""
 		Where the message originated from. Normally, 'SERVER', but sometimes
 		'CLIENT'.
 		"""
 
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def code(self) -> str:
 		"""
 		The SQL state code of the message.
 		"""
 
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def message(self) -> str:
 		"""
 		The primary message string.
 		"""
 
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def details(self) -> dict:
 		"""
 		The additional details given with the message. Common keys *should* be the
@@ -94,7 +96,7 @@ class Message(Element):
 		 * 'internal_query'
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def isconsistent(self, other) -> bool:
 		"""
 		Whether the fields of the `other` Message object is consistent with the
@@ -120,21 +122,21 @@ class Result(Element):
 	_e_label = 'RESULT'
 	_e_factors = ('statement', 'parameters', 'cursor_id')
 
-	@abstractmethod
+	@abc.abstractmethod
 	def close(self) -> None:
 		"""
 		Close the Result handle.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def cursor_id(self) -> str:
 		"""
 		The cursor's identifier.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def sql_column_types(self) -> [str]:
 		"""
 		The type of the columns produced by the cursor.
@@ -144,8 +146,8 @@ class Result(Element):
 			['INTEGER', 'CHARACTER VARYING', 'INTERVAL']
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def pg_column_types(self) -> [int]:
 		"""
 		The type Oids of the columns produced by the cursor.
@@ -155,8 +157,8 @@ class Result(Element):
 			[27, 28]
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def column_names(self) -> [str]:
 		"""
 		The attribute names of the columns produced by the cursor.
@@ -166,8 +168,8 @@ class Result(Element):
 			['column1', 'column2', 'emp_name']
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def column_types(self) -> [str]:
 		"""
 		The Python types of the columns produced by the cursor.
@@ -177,8 +179,8 @@ class Result(Element):
 			[<class 'int'>, <class 'str'>]
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def parameters(self) -> (tuple, None):
 		"""
 		The parameters bound to the cursor. `None`, if unknown and an empty tuple
@@ -190,8 +192,8 @@ class Result(Element):
 		`postgresql.api.Database.cursor_from_id`.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def statement(self) -> ("Statement", None):
 		"""
 		The query object used to create the cursor. `None`, if unknown.
@@ -235,7 +237,7 @@ class Cursor(
 		False : 'BACKWARD',
 	}
 
-	@abstractmethod
+	@abc.abstractmethod
 	def clone(self) -> "Cursor":
 		"""
 		Create a new cursor using the same factors as `self`.
@@ -244,8 +246,8 @@ class Cursor(
 	def __iter__(self):
 		return self
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def direction(self) -> bool:
 		"""
 		The default `direction` argument for read().
@@ -256,7 +258,7 @@ class Cursor(
 		Cursor operation option.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def read(self,
 		quantity : "Number of rows to read" = None,
 		direction : "Direction to fetch in, defaults to `self.direction`" = None,
@@ -273,14 +275,14 @@ class Cursor(
 		quantity, an empty sequence *must* be returned.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __next__(self) -> "Row":
 		"""
 		Get the next tuple in the cursor.
 		Advances the cursor position by one.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def seek(self, offset, whence = 'ABSOLUTE'):
 		"""
 		Set the cursor's position to the given offset with respect to the
@@ -324,15 +326,15 @@ class Statement(
 	_e_label = 'STATEMENT'
 	_e_factors = ('database', 'statement_id', 'string',)
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def statement_id(self) -> str:
 		"""
 		The statment's identifier.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def string(self) -> object:
 		"""
 		The SQL string of the prepared statement.
@@ -343,8 +345,8 @@ class Statement(
 		`statement` constructor.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def sql_parameter_types(self) -> [str]:
 		"""
 		The type of the parameters required by the statement.
@@ -354,8 +356,8 @@ class Statement(
 			['INTEGER', 'VARCHAR', 'INTERVAL']
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def sql_column_types(self) -> [str]:
 		"""
 		The type of the columns produced by the statement.
@@ -365,8 +367,8 @@ class Statement(
 			['INTEGER', 'VARCHAR', 'INTERVAL']
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def pg_parameter_types(self) -> [int]:
 		"""
 		The type Oids of the parameters required by the statement.
@@ -376,8 +378,8 @@ class Statement(
 			[27, 28]
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def pg_column_types(self) -> [int]:
 		"""
 		The type Oids of the columns produced by the statement.
@@ -387,8 +389,8 @@ class Statement(
 			[27, 28]
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def column_names(self) -> [str]:
 		"""
 		The attribute names of the columns produced by the statement.
@@ -398,8 +400,8 @@ class Statement(
 			['column1', 'column2', 'emp_name']
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def column_types(self) -> [type]:
 		"""
 		The Python types of the columns produced by the statement.
@@ -409,8 +411,8 @@ class Statement(
 			[<class 'int'>, <class 'str'>]
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def parameter_types(self) -> [type]:
 		"""
 		The Python types expected of parameters given to the statement.
@@ -420,7 +422,7 @@ class Statement(
 			[<class 'int'>, <class 'str'>]
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def clone(self) -> "Statement":
 		"""
 		Create a new statement object using the same factors as `self`.
@@ -429,7 +431,7 @@ class Statement(
 		the original.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __call__(self, *parameters : "Positional Parameters") -> ["Row"]:
 		"""
 		Execute the prepared statement with the given arguments as parameters.
@@ -441,7 +443,28 @@ class Statement(
 		[...]
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
+	def column(self, *parameters) -> collections.Iterable:
+		"""
+		Return an iterator producing the values of first column of the
+		rows produced by the cursor created from the statement bound with the
+		given parameters.
+
+		Column iterators are never scrollable.
+
+		Supporting cursors will be WITH HOLD when outside of a transaction to
+		allow cross-transaction access.
+
+		`column` is designed for the situations involving large data sets.
+
+		Each iteration returns a single value.
+
+		column expressed in sibling terms::
+
+			return map(operator.itemgetter(0), self.rows(*parameters))
+		"""
+
+	@abc.abstractmethod
 	def chunks(self, *parameters) -> collections.Iterable:
 		"""
 		Return an iterator producing sequences of rows produced by the cursor
@@ -460,7 +483,7 @@ class Statement(
 		sequence types should be used.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def rows(self, *parameters) -> collections.Iterable:
 		"""
 		Return an iterator producing rows produced by the cursor
@@ -478,7 +501,7 @@ class Statement(
 			return itertools.chain.from_iterable(self.chunks(*parameters))
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def column(self, *parameters) -> collections.Iterable:
 		"""
 		Return an iterator producing the values of the first column in
@@ -496,14 +519,14 @@ class Statement(
 			return map(operator.itemgetter(0), self.rows(*parameters))
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def declare(self, *parameters) -> Cursor:
 		"""
 		Return a scrollable cursor with hold using the statement bound with the
 		given parameters.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def first(self, *parameters) -> "'First' object that is returned by the query":
 		"""
 		Execute the prepared statement with the given arguments as parameters.
@@ -522,7 +545,7 @@ class Statement(
 		1
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def load_rows(self,
 		iterable : "A iterable of tuples to execute the statement with"
 	):
@@ -541,7 +564,7 @@ class Statement(
 		operation can be optimized.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def load_chunks(self,
 		iterable : "A iterable of chunks of tuples to execute the statement with"
 	):
@@ -562,7 +585,7 @@ class Statement(
 		that the operation can be optimized.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def close(self) -> None:
 		"""
 		Close the prepared statement releasing resources associated with it.
@@ -579,7 +602,7 @@ class StoredProcedure(
 	_e_label = 'FUNCTION'
 	_e_factors = ('database',)
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __call__(self, *args, **kw) -> (object, Cursor, collections.Iterable):
 		"""
 		Execute the procedure with the given arguments. If keyword arguments are
@@ -628,8 +651,8 @@ class Transaction(Element):
 	_e_label = 'XACT'
 	_e_factors = ('database',)
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def mode(self) -> (None, str):
 		"""
 		The mode of the transaction block:
@@ -640,8 +663,8 @@ class Transaction(Element):
 		START TRANSACTION statement.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def isolation(self) -> (None, str):
 		"""
 		The isolation level of the transaction block:
@@ -652,7 +675,7 @@ class Transaction(Element):
 		the START TRANSACTION statement.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def start(self) -> None:
 		"""
 		Start the transaction.
@@ -677,7 +700,7 @@ class Transaction(Element):
 		"""
 	begin = start
 
-	@abstractmethod
+	@abc.abstractmethod
 	def commit(self) -> None:
 		"""
 		Commit the transaction.
@@ -690,7 +713,7 @@ class Transaction(Element):
 		If the transaction has already been committed, do nothing.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def rollback(self) -> None:
 		"""
 		Abort the transaction.
@@ -703,13 +726,13 @@ class Transaction(Element):
 		"""
 	abort = rollback
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __enter__(self):
 		"""
 		Run the `start` method and return self.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __exit__(self, typ, obj, tb):
 		"""
 		If an exception is indicated by the parameters, run the transaction's
@@ -742,7 +765,7 @@ class Settings(
 	"""
 	_e_label = 'SETTINGS'
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __getitem__(self, key):
 		"""
 		Return the setting corresponding to the given key. The result should be
@@ -750,14 +773,14 @@ class Settings(
 		exist, raise a KeyError.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __setitem__(self, key, value):
 		"""
 		Set the setting with the given key to the given value. The action should
 		be consistent with the effect of the ``SET`` command.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __call__(self, **kw):
 		"""
 		Create a context manager applying the given settings on __enter__ and
@@ -767,14 +790,14 @@ class Settings(
 		...  ...
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def get(self, key, default = None):
 		"""
 		Get the setting with the corresponding key. If the setting does not
 		exist, return the `default`.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def getset(self, keys):
 		"""
 		Return a dictionary containing the key-value pairs of the requested
@@ -782,25 +805,25 @@ class Settings(
 		with the set of keys that did not exist.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def update(self, mapping):
 		"""
 		For each key-value pair, incur the effect of the `__setitem__` method.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def keys(self):
 		"""
 		Return an iterator to all of the settings' keys.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def values(self):
 		"""
 		Return an iterator to all of the settings' values.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def items(self):
 		"""
 		Return an iterator to all of the setting value pairs.
@@ -813,15 +836,15 @@ class Database(Element):
 	"""
 	_e_label = 'DATABASE'
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def backend_id(self) -> (int, None):
 		"""
 		The backend's process identifier.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def version_info(self) -> tuple:
 		"""
 		A version tuple of the database software similar Python's `sys.version_info`.
@@ -830,8 +853,8 @@ class Database(Element):
 		(8, 1, 3, '', 0)
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def client_address(self) -> (str, None):
 		"""
 		The client address that the server sees. This is obtainable by querying
@@ -840,8 +863,8 @@ class Database(Element):
 		`None` if unavailable.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def client_port(self) -> (int, None):
 		"""
 		The client port that the server sees. This is obtainable by querying
@@ -850,8 +873,8 @@ class Database(Element):
 		`None` if unavailable.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def xact(self,
 		isolation : "ISOLATION LEVEL to use with the transaction" = None,
 		mode : "Mode of the transaction, READ ONLY or READ WRITE" = None,
@@ -861,14 +884,14 @@ class Database(Element):
 		configuration.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def settings(self) -> Settings:
 		"""
 		A `Settings` instance bound to the `Database`.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def do(language, source) -> None:
 		"""
 		Execute a DO statement using the given language and source.
@@ -877,14 +900,14 @@ class Database(Element):
 		Likely to be a function of Connection.execute.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def execute(sql) -> None:
 		"""
 		Execute an arbitrary block of SQL. Always returns `None` and raise
 		an exception on error.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def prepare(self, sql : str) -> Statement:
 		"""
 		Create a new `Statement` instance bound to the connection
@@ -896,7 +919,7 @@ class Database(Element):
 		(1,)
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def statement_from_id(self,
 		statement_id : "The statement's identification string.",
 	) -> Statement:
@@ -908,14 +931,14 @@ class Database(Element):
 		statement itself.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def cursor_from_id(self,
 		cursor_id : "The cursor's identification string."
 	) -> Cursor:
 		"""
 		Create a `Cursor` object from the given `cursor_id` that was already
 		declared on the server.
-		
+
 		`Cursor` objects created this way must *not* be closed when the object
 		is garbage collected. Rather, the user must explicitly close it for
 		the server resources to be released. This is in contrast to `Cursor`
@@ -923,7 +946,7 @@ class Database(Element):
 		`StoredProcedure`.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def proc(self,
 		procedure_id : \
 			"The procedure identifier; a valid ``regprocedure`` or Oid."
@@ -945,7 +968,7 @@ class Database(Element):
 		[1, 2, 3, 4, 5]
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def reset(self) -> None:
 		"""
 		Reset the connection into it's original state.
@@ -960,7 +983,7 @@ class Database(Element):
 		is being recycled.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def notify(self, *channels, **channel_and_payload) -> int:
 		"""
 		NOTIFY the channels with the given payload.
@@ -978,7 +1001,7 @@ class Database(Element):
 		keys are the channels and the values are the payloads. Order is undefined.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def listen(self, *channels) -> None:
 		"""
 		Start listening to the given channels.
@@ -986,7 +1009,7 @@ class Database(Element):
 		Equivalent to issuing "LISTEN <x>" for x in channels.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def unlisten(self, *channels) -> None:
 		"""
 		Stop listening to the given channels.
@@ -994,13 +1017,13 @@ class Database(Element):
 		Equivalent to issuing "UNLISTEN <x>" for x in channels.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def listening_channels(self) -> ["channel name", ...]:
 		"""
 		Return an *iterator* to all the channels currently being listened to.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def iternotifies(self, timeout = None) -> collections.Iterator:
 		"""
 		Return an iterator to the notifications received by the connection. The
@@ -1023,8 +1046,8 @@ class TypeIO(Element):
 		return ()
 
 class SocketFactory(object):
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def fatal_exception(self) -> Exception:
 		"""
 		The exception that is raised by sockets that indicate a fatal error.
@@ -1033,30 +1056,30 @@ class SocketFactory(object):
 		indicate if that particular exception is actually fatal.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def timeout_exception(self) -> Exception:
 		"""
 		The exception raised by the socket when an operation could not be
 		completed due to a configured time constraint.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def tryagain_exception(self) -> Exception:
 		"""
 		The exception raised by the socket when an operation was interrupted, but
 		should be tried again.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def tryagain(self, err : Exception) -> bool:
 		"""
 		Whether or not `err` suggests the operation should be tried again.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def fatal_exception_message(self, err : Exception) -> (str, None):
 		"""
 		A function returning a string describing the failure, this string will be
@@ -1066,7 +1089,7 @@ class SocketFactory(object):
 		Returns `None` when `err` is not actually fatal.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def socket_secure(self, socket : "socket object") -> "secured socket":
 		"""
 		Return a reference to the secured socket using the given parameters.
@@ -1076,11 +1099,11 @@ class SocketFactory(object):
 		security.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def socket_factory_sequence(self) -> [collections.Callable]:
 		"""
 		Return a sequence of `SocketCreator`s that `Connection` objects will use to
-		create the socket object. 
+		create the socket object.
 		"""
 
 class Category(Element):
@@ -1093,7 +1116,7 @@ class Category(Element):
 	_e_label = 'CATEGORY'
 	_e_factors = ()
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __call__(self, connection):
 		"""
 		Initialize the given connection in order to conform to the category.
@@ -1142,16 +1165,16 @@ class Connection(Database):
 	_e_label = 'CONNECTION'
 	_e_factors = ('connector',)
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def connector(self) -> Connector:
 		"""
 		The `Connector` instance facilitating the `Connection` object's
 		communication and initialization.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def closed(self) -> bool:
 		"""
 		`True` if the `Connection` is closed, `False` if the `Connection` is
@@ -1161,13 +1184,14 @@ class Connection(Database):
 		True
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def clone(self) -> "Connection":
 		"""
 		Create another connection using the same factors as `self`. The returned
 		object should be open and ready for use.
 		"""
 
+	@abc.abstractmethod
 	def connect(self) -> None:
 		"""
 		Establish the connection to the server and initialize the category.
@@ -1178,7 +1202,7 @@ class Connection(Database):
 		if cat is not None:
 			cat(self)
 
-	@abstractmethod
+	@abc.abstractmethod
 	def close(self) -> None:
 		"""
 		Close the connection.
@@ -1186,13 +1210,13 @@ class Connection(Database):
 		Does nothing if the connection is already closed.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __enter__(self):
 		"""
 		Establish the connection and return self.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __exit__(self, typ, obj, tb):
 		"""
 		Closes the connection and returns `False` when an exception is passed in,
@@ -1208,7 +1232,7 @@ class Driver(Element):
 	_e_label = "DRIVER"
 	_e_factors = ()
 
-	@abstractmethod
+	@abc.abstractmethod
 	def connect(**kw):
 		"""
 		Create a connection using the given parameters for the Connector.
@@ -1217,20 +1241,20 @@ class Driver(Element):
 class Installation(Element):
 	"""
 	Interface to a PostgreSQL installation. Instances would provide various
-	information about an installation of PostgreSQL accessible by the Python 
+	information about an installation of PostgreSQL accessible by the Python
 	"""
 	_e_label = "INSTALLATION"
 	_e_factors = ()
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def version(self):
 		"""
 		A version string consistent with what `SELECT version()` would output.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def version_info(self):
 		"""
 		A tuple specifying the version in a form similar to Python's
@@ -1239,16 +1263,16 @@ class Installation(Element):
 		See `postgresql.versionstring`.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def type(self):
 		"""
 		The "type" of PostgreSQL. Normally, the first component of the string
 		returned by pg_config.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def ssl(self) -> bool:
 		"""
 		Whether the installation supports SSL.
@@ -1262,21 +1286,21 @@ class Cluster(Element):
 	_e_label = 'CLUSTER'
 	_e_factors = ('installation', 'data_directory')
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def installation(self) -> Installation:
 		"""
 		The installation used by the cluster.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def data_directory(self) -> str:
 		"""
 		The path to the data directory of the cluster.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def init(self,
 		initdb : "path to the initdb to use" = None,
 		user : "name of the cluster's superuser" = None,
@@ -1296,37 +1320,37 @@ class Cluster(Element):
 		instance.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def drop(self):
 		"""
 		Kill the server and completely remove the data directory.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def start(self):
 		"""
 		Start the cluster.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def stop(self):
 		"""
 		Signal the server to shutdown.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def kill(self):
 		"""
 		Kill the server.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def restart(self):
 		"""
 		Restart the cluster.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def wait_until_started(self,
 		timeout : "maximum time to wait" = 10
 	):
@@ -1339,7 +1363,7 @@ class Cluster(Element):
 		`postgresql.exceptions.ClusterTimeoutError`.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def wait_until_stopped(self,
 		timeout : "maximum time to wait" = 10
 	):
@@ -1352,22 +1376,22 @@ class Cluster(Element):
 		`postgresql.exceptions.ClusterTimeoutError`.
 		"""
 
-	@propertydoc
-	@abstractproperty
+	@property
+	@abc.abstractmethod
 	def settings(self):
 		"""
 		A `Settings` interface to the ``postgresql.conf`` file associated with the
 		cluster.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __enter__(self):
 		"""
 		Start the cluster if it's not already running, and wait for it to be
 		readied.
 		"""
 
-	@abstractmethod
+	@abc.abstractmethod
 	def __exit__(self, exc, val, tb):
 		"""
 		Stop the cluster and wait for it to shutdown *iff* it was started by the
