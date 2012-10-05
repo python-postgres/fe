@@ -1216,6 +1216,35 @@ class Cursor(Output, pg_api.Cursor):
 		# XXX: Raise if count is None?
 		return count
 
+class SingleExecution(pg_api.Execution):
+	database = None
+	def __init__(self, database):
+		self._prepare = database.prepare
+
+	def load_rows(self, query, *parameters):
+		return self._prepare(query).load_rows(*parameters)
+
+	def load_chunks(self, query, *parameters):
+		return self._prepare(query).load_chunks(*parameters)
+
+	def __call__(self, query, *parameters):
+		return self._prepare(query)(*parameters)
+
+	def declare(self, query, *parameters):
+		return self._prepare(query).declare(*parameters)
+
+	def rows(self, query, *parameters):
+		return self._prepare(query).rows(*parameters)
+
+	def chunks(self, query, *parameters):
+		return self._prepare(query).chunks(*parameters)
+
+	def column(self, query, *parameters):
+		return self._prepare(query).column(*parameters)
+
+	def first(self, query, *parameters):
+		return self._prepare(query).first(*parameters)
+
 class Statement(pg_api.Statement):
 	string = None
 	database = None
@@ -2295,6 +2324,10 @@ class Connection(pg_api.Connection):
 		ps._init()
 		ps._fini()
 		return ps
+
+	@property
+	def query(self, Class = SingleExecution):
+		return Class(self)
 
 	def statement_from_id(self, statement_id : str) -> Statement:
 		ps = Statement(self, statement_id, None)

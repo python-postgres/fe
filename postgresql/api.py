@@ -306,130 +306,10 @@ class Cursor(
 		FROM_END will effectively be ABSOLUTE.
 		"""
 
-class Statement(
-	Element,
-	collections.Callable,
-	collections.Iterable,
-):
+class Execution(metaclass = abc.ABCMeta):
 	"""
-	Instances of `Statement` are returned by the `prepare` method of
-	`Database` instances.
-
-	A Statement is an Iterable as well as Callable.
-
-	The Iterable interface is supported for queries that take no arguments at
-	all. It allows the syntax::
-
-		>>> for x in db.prepare('select * FROM table'):
-		...  pass
+	The abstract class of execution methods.
 	"""
-	_e_label = 'STATEMENT'
-	_e_factors = ('database', 'statement_id', 'string',)
-
-	@property
-	@abc.abstractmethod
-	def statement_id(self) -> str:
-		"""
-		The statment's identifier.
-		"""
-
-	@property
-	@abc.abstractmethod
-	def string(self) -> object:
-		"""
-		The SQL string of the prepared statement.
-
-		`None` if not available. This can happen in cases where a statement is
-		prepared on the server and a reference to the statement is sent to the
-		client which subsequently uses the statement via the `Database`'s
-		`statement` constructor.
-		"""
-
-	@property
-	@abc.abstractmethod
-	def sql_parameter_types(self) -> [str]:
-		"""
-		The type of the parameters required by the statement.
-
-		A sequence of `str` objects stating the SQL type name::
-
-			['INTEGER', 'VARCHAR', 'INTERVAL']
-		"""
-
-	@property
-	@abc.abstractmethod
-	def sql_column_types(self) -> [str]:
-		"""
-		The type of the columns produced by the statement.
-
-		A sequence of `str` objects stating the SQL type name::
-
-			['INTEGER', 'VARCHAR', 'INTERVAL']
-		"""
-
-	@property
-	@abc.abstractmethod
-	def pg_parameter_types(self) -> [int]:
-		"""
-		The type Oids of the parameters required by the statement.
-
-		A sequence of `int` objects stating the PostgreSQL type Oid::
-
-			[27, 28]
-		"""
-
-	@property
-	@abc.abstractmethod
-	def pg_column_types(self) -> [int]:
-		"""
-		The type Oids of the columns produced by the statement.
-
-		A sequence of `int` objects stating the SQL type name::
-
-			[27, 28]
-		"""
-
-	@property
-	@abc.abstractmethod
-	def column_names(self) -> [str]:
-		"""
-		The attribute names of the columns produced by the statement.
-
-		A sequence of `str` objects stating the column name::
-
-			['column1', 'column2', 'emp_name']
-		"""
-
-	@property
-	@abc.abstractmethod
-	def column_types(self) -> [type]:
-		"""
-		The Python types of the columns produced by the statement.
-
-		A sequence of type objects::
-
-			[<class 'int'>, <class 'str'>]
-		"""
-
-	@property
-	@abc.abstractmethod
-	def parameter_types(self) -> [type]:
-		"""
-		The Python types expected of parameters given to the statement.
-
-		A sequence of type objects::
-
-			[<class 'int'>, <class 'str'>]
-		"""
-
-	@abc.abstractmethod
-	def clone(self) -> "Statement":
-		"""
-		Create a new statement object using the same factors as `self`.
-
-		When used for refreshing plans, the new clone should replace references to
-		the original.
-		"""
 
 	@abc.abstractmethod
 	def __call__(self, *parameters : "Positional Parameters") -> ["Row"]:
@@ -585,11 +465,137 @@ class Statement(
 		that the operation can be optimized.
 		"""
 
+class Statement(
+	Element,
+	collections.Callable,
+	collections.Iterable,
+):
+	"""
+	Instances of `Statement` are returned by the `prepare` method of
+	`Database` instances.
+
+	A Statement is an Iterable as well as Callable.
+
+	The Iterable interface is supported for queries that take no arguments at
+	all. It allows the syntax::
+
+		>>> for x in db.prepare('select * FROM table'):
+		...  pass
+	"""
+	_e_label = 'STATEMENT'
+	_e_factors = ('database', 'statement_id', 'string',)
+
+	@property
+	@abc.abstractmethod
+	def statement_id(self) -> str:
+		"""
+		The statment's identifier.
+		"""
+
+	@property
+	@abc.abstractmethod
+	def string(self) -> object:
+		"""
+		The SQL string of the prepared statement.
+
+		`None` if not available. This can happen in cases where a statement is
+		prepared on the server and a reference to the statement is sent to the
+		client which subsequently uses the statement via the `Database`'s
+		`statement` constructor.
+		"""
+
+	@property
+	@abc.abstractmethod
+	def sql_parameter_types(self) -> [str]:
+		"""
+		The type of the parameters required by the statement.
+
+		A sequence of `str` objects stating the SQL type name::
+
+			['INTEGER', 'VARCHAR', 'INTERVAL']
+		"""
+
+	@property
+	@abc.abstractmethod
+	def sql_column_types(self) -> [str]:
+		"""
+		The type of the columns produced by the statement.
+
+		A sequence of `str` objects stating the SQL type name::
+
+			['INTEGER', 'VARCHAR', 'INTERVAL']
+		"""
+
+	@property
+	@abc.abstractmethod
+	def pg_parameter_types(self) -> [int]:
+		"""
+		The type Oids of the parameters required by the statement.
+
+		A sequence of `int` objects stating the PostgreSQL type Oid::
+
+			[27, 28]
+		"""
+
+	@property
+	@abc.abstractmethod
+	def pg_column_types(self) -> [int]:
+		"""
+		The type Oids of the columns produced by the statement.
+
+		A sequence of `int` objects stating the SQL type name::
+
+			[27, 28]
+		"""
+
+	@property
+	@abc.abstractmethod
+	def column_names(self) -> [str]:
+		"""
+		The attribute names of the columns produced by the statement.
+
+		A sequence of `str` objects stating the column name::
+
+			['column1', 'column2', 'emp_name']
+		"""
+
+	@property
+	@abc.abstractmethod
+	def column_types(self) -> [type]:
+		"""
+		The Python types of the columns produced by the statement.
+
+		A sequence of type objects::
+
+			[<class 'int'>, <class 'str'>]
+		"""
+
+	@property
+	@abc.abstractmethod
+	def parameter_types(self) -> [type]:
+		"""
+		The Python types expected of parameters given to the statement.
+
+		A sequence of type objects::
+
+			[<class 'int'>, <class 'str'>]
+		"""
+
+	@abc.abstractmethod
+	def clone(self) -> "Statement":
+		"""
+		Create a new statement object using the same factors as `self`.
+
+		When used for refreshing plans, the new clone should replace references to
+		the original.
+		"""
+
 	@abc.abstractmethod
 	def close(self) -> None:
 		"""
 		Close the prepared statement releasing resources associated with it.
 		"""
+Execution.register(Statement)
 PreparedStatement = Statement
 
 class StoredProcedure(
@@ -1169,8 +1175,17 @@ class Connection(Database):
 	@abc.abstractmethod
 	def connector(self) -> Connector:
 		"""
-		The `Connector` instance facilitating the `Connection` object's
+		The :py:class:`Connector` instance facilitating the `Connection` object's
 		communication and initialization.
+		"""
+
+	@property
+	@abc.abstractmethod
+	def query(self) -> Execution:
+		"""
+		The :py:class:`Execution` instance providing a one-shot query interface::
+
+			connection.query.<method>(sql, *parameters) == connection.prepare(sql).<method>(*parameters)
 		"""
 
 	@property

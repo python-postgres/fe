@@ -9,6 +9,14 @@ Reference
 .. autodata:: version_info
 .. autofunction:: open
 
+:mod:`postgresql.api`
+---------------------
+
+.. automodule::
+    postgresql.api
+    :members:
+    :show-inheritance:
+
 :mod:`postgresql.sys`
 ---------------------
 
@@ -70,13 +78,5 @@ Reference
 
 .. automodule::
     postgresql.alock
-    :members:
-    :show-inheritance:
-
-:mod:`postgresql.api`
----------------------
-
-.. automodule::
-    postgresql.api
     :members:
     :show-inheritance:

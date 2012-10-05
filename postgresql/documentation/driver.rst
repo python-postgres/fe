@@ -59,7 +59,6 @@ databases using a locator string and optional connection keywords. The string
 taken by `postgresql.open` is a URL whose components make up the client
 parameters::
 
-	>>> import postgresql
 	>>> db = postgresql.open("pq://localhost/postgres")
 
 This will connect to the host, ``localhost`` and to the database named
@@ -282,10 +281,6 @@ interfaces:
 
  ``sslrootcrlfile``
   Revocation list file path. [Currently not checked.]
-
- ``category``
-  A `postgresql.api.Category` instance used to further initialize
-  the database.
 
 
 Connections
@@ -1017,7 +1012,7 @@ direction keyword argument::
 	>>> c.read(1, 'BACKWARD')
 
 
-Cursor Direction 
+Cursor Direction
 ----------------
 
 The ``direction`` property on the cursor states the default direction for read
@@ -1199,6 +1194,28 @@ And finally, `functools.partial` can be used to create a simple callable::
 	>>> list(transform_rows([row]))
 	[(9301423, 2, Decimal('5.412'))]
 
+
+Queries
+=======
+
+Queries in `py-postgresql` are single use prepared statements. They exist primarily for
+syntactic convenience, but they also allow the driver to recognize the short lifetime of
+the statement.
+
+Single use statements are supported using the ``query`` property on connection
+objects, :py:class:`postgresql.api.Connection.query`. The statement object is not
+available when using queries as the results, or handle to the results, are directly returned.
+
+Queries have access to all execution methods:
+
+ ``Connection.query(sql, *parameters)``
+ ``Connection.query.rows(sql, *parameters)``
+ ``Connection.query.column(sql, *parameters)``
+ ``Connection.query.first(sql, *parameters)``
+ ``Connection.query.chunks(sql, *parameters)``
+ ``Connection.query.declare(sql, *parameters)``
+ ``Connection.query.load_rows(sql, collections.Iterable(parameters))``
+ ``Connection.query.load_chunks(collections.Iterable(collections.Iterable(parameters)))``
 
 Stored Procedures
 =================

@@ -9,4 +9,5 @@ Changes in v1.1
    the implementation did nothing to accommodate for.
  * Add support for unpacking anonymous records (Elvis)
  * Support PostgreSQL 9.2 (Elvis)
- * Add column execution method.
+ * Add column execution method. (jwp)
+ * Add one-shot statement interface. Connection.query (jwp)

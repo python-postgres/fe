@@ -1778,6 +1778,14 @@ class test_driver(unittest.TestCase):
 		)
 		self.assertTrue(issubclass(pg_exc.AdminShutdownError, pg_exc.Disconnection))
 
+	@pg_tmp
+	def testQuery(self):
+		self.assertEqual(db.query('select 1'), [(1,)])
+		self.assertEqual(db.query.first('select 1'), 1)
+		self.assertEqual(next(db.query.column('select 1')), 1)
+		self.assertEqual(next(db.query.rows('select 1')), (1,))
+		self.assertEqual(db.query.declare('select 1').read(), [(1,)])
+
 class test_typio(unittest.TestCase):
 	@pg_tmp
 	def testIdentify(self):
