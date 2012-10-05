@@ -16,7 +16,7 @@ Libraries provide a common way for SQL statements to be managed outside of the
 code that uses them. When using ILFs, this increases the portability of the SQL
 by keeping the statements isolated from the Python code in an accessible format
 that can be easily used by other languages or systems --- An ILF parser can be
-implemented within a few dozen lines using basic tools.
+implemented within a few dozen lines using basic text tools.
 
 SQL statements defined by a Library are identified by their Symbol. These
 symbols are named and annotated in order to allow the user to define how a
