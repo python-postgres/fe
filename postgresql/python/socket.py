@@ -48,10 +48,7 @@ class SocketFactory(object):
 		"""
 		if typ.try_again(err):
 			return None
-		strerr = getattr(err, 'strerror', None)
-		if strerr is not None:
-			return str(strerr)
-		return os.strerror(err.errno)
+		return getattr(err, 'strerror', '<strerror not present>')
 
 	def secure(self, socket : socket.socket) -> ssl.SSLSocket:
 		"secure a socket with SSL"
