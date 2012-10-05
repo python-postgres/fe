@@ -286,15 +286,9 @@ type_samples = [
 	),
 ]
 
-has_ipaddress = False
 try:
 	import ipaddress
-	has_ipaddress = True
-except ImportError:
-	import ipaddr as ipaddress
-	has_ipaddress = True
 
-if has_ipaddress:
 	type_samples.extend([
 		('inet', [
 				ipaddress.IPv4Address('255.255.255.255'),
@@ -334,6 +328,8 @@ if has_ipaddress:
 			],
 		),
 	])
+except ImportError:
+	pass
 
 class test_driver(unittest.TestCase):
 	@pg_tmp

@@ -1,9 +1,6 @@
 from .. import INETOID, CIDROID, MACADDROID
 from . import lib
-try:
-	import ipaddress
-except ImportError:
-	import ipaddr as ipaddress
+import ipaddress
 
 oid_to_type = {
 	MACADDROID : str,
