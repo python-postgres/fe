@@ -230,7 +230,7 @@ class WireState(object):
 					# Header continuation.
 					remaining_bytes = -1
 					view = view[1:]
-					size_fragment += view.tobytes()
+					size_fragment += bytes(view)
 					# Not enough left for the header of the next message?
 					break
 				# Update remaining_bytes to include the header, and start over.
@@ -243,7 +243,7 @@ class WireState(object):
 		# Emit the number of messages "consumed" this round.
 		return nmessages
 
-	def __init__(self, condition = CopyData.type.__ne__):
+	def __init__(self, condition = CopyData.type[0].__ne__):
 		self.remaining_bytes = 0
 		self.size_fragment = b''
 		self.final_view = None
