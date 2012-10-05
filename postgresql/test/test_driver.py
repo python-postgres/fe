@@ -278,43 +278,6 @@ type_samples = [
 			Varbit('010111101111'),
 		],
 	),
-	('inet', [
-			'255.255.255.255',
-			'127.0.0.1',
-			'10.0.0.1',
-			'0.0.0.0',
-			'::1',
-			'ffff' + ':ffff'*7,
-			'fe80::1',
-			'fe80::1',
-			'::', # 0::0
-		],
-	),
-	('cidr', [
-			'255.255.255.255/32',
-			'127.0.0.0/8',
-			'127.1.0.0/16',
-			'10.0.0.0/32',
-			'0.0.0.0/0',
-			'ffff' + ':ffff'*7 + '/128',
-			'::1/128',
-			'fe80::1/128',
-			'fe80::/64',
-			'fe80::/16',
-			'::/0',
-		],
-	),
-	('inet[]', [
-			['127.0.0.1', '::1'],
-			['10.0.0.1', 'fe80::1'],
-		],
-	),
-	('cidr[]', [
-			['127.0.0.0/8', '::/0'],
-			['10.0.0.0/16', 'fe80::/64'],
-			['10.102.0.0/16', 'fe80::/64'],
-		],
-	),
 	('macaddr[]', [
 			['00:00:00:00:00:00', 'ff:ff:ff:ff:ff:ff'],
 			['00:00:00:00:00:01', '00:00:00:00:00:00', 'ff:ff:ff:ff:ff:ff'],
@@ -322,6 +285,55 @@ type_samples = [
 		],
 	),
 ]
+
+has_ipaddress = False
+try:
+	import ipaddress
+	has_ipaddress = True
+except ImportError:
+	import ipaddr as ipaddress
+	has_ipaddress = True
+
+if has_ipaddress:
+	type_samples.extend([
+		('inet', [
+				ipaddress.IPv4Address('255.255.255.255'),
+				ipaddress.IPv4Address('127.0.0.1'),
+				ipaddress.IPv4Address('10.0.0.1'),
+				ipaddress.IPv4Address('0.0.0.0'),
+				ipaddress.IPv6Address('::1'),
+				ipaddress.IPv6Address('ffff' + ':ffff'*7),
+				ipaddress.IPv6Address('fe80::1'),
+				ipaddress.IPv6Address('fe80::1'),
+				ipaddress.IPv6Address('::'), # 0::0
+			],
+		),
+		('cidr', [
+				ipaddress.IPv4Network('255.255.255.255/32'),
+				ipaddress.IPv4Network('127.0.0.0/8'),
+				ipaddress.IPv4Network('127.1.0.0/16'),
+				ipaddress.IPv4Network('10.0.0.0/32'),
+				ipaddress.IPv4Network('0.0.0.0/0'),
+				ipaddress.IPv6Network('ffff' + ':ffff'*7 + '/128'),
+				ipaddress.IPv6Network('::1/128'),
+				ipaddress.IPv6Network('fe80::1/128'),
+				ipaddress.IPv6Network('fe80::/64'),
+				ipaddress.IPv6Network('fe80::/16'),
+				ipaddress.IPv6Network('::/0'),
+			],
+		),
+		('inet[]', [
+				[ipaddress.IPv4Address('127.0.0.1'), ipaddress.IPv6Address('::1')],
+				[ipaddress.IPv4Address('10.0.0.1'), ipaddress.IPv6Address('fe80::1')],
+			],
+		),
+		('cidr[]', [
+				[ipaddress.IPv4Network('127.0.0.0/8'), ipaddress.IPv6Network('::/0')],
+				[ipaddress.IPv4Network('10.0.0.0/16'), ipaddress.IPv6Network('fe80::/64')],
+				[ipaddress.IPv4Network('10.102.0.0/16'), ipaddress.IPv6Network('fe80::/64')],
+			],
+		),
+	])
 
 class test_driver(unittest.TestCase):
 	@pg_tmp
