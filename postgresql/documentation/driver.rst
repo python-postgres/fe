@@ -569,7 +569,7 @@ Prepared statement objects have a few execution methods:
  ``Statement.declare(*parameters)``
   Create a scrollable cursor with hold. This returns a `postgresql.api.Cursor`
   ready for accessing random rows in the result-set. Applications that use the
-  database to support paging should use this method to manage the view.
+  database to support paging can use this method to manage the view.
 
  ``Statement.close()``
   Close the statement inhibiting further use.
