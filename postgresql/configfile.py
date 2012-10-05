@@ -90,7 +90,7 @@ def alter_config(
 	'Alters a configuration file without trampling on the existing structure'
 	if keys is None:
 		keys = list(map.keys())
-	# Normalize keys and map them back to 
+	# Normalize keys and map them back to
 	pkeys = {
 		k.lower().strip() : keys.index(k) for k in keys
 	}

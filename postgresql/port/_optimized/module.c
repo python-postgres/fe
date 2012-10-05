@@ -59,9 +59,9 @@ static PyMethodDef optimized_methods[] = {
 static struct PyModuleDef optimized_module = {
    PyModuleDef_HEAD_INIT,
    "optimized",	/* name of module */
-   NULL,     		/* module documentation, may be NULL */
-   -1,       		/* size of per-interpreter state of the module,
-                		or -1 if the module keeps state in global variables. */
+   NULL,				/* module documentation, may be NULL */
+   -1,				/* size of per-interpreter state of the module,
+							or -1 if the module keeps state in global variables. */
    optimized_methods,
 };
 

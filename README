@@ -1,13 +1,9 @@
-About py-postgresql
-===================
+About
+=====
 
 py-postgresql is a Python 3 package providing modules to work with PostgreSQL.
 This includes a high-level driver, and many other tools that support a developer
 working with PostgreSQL databases.
-
-The goal of this project is to provide substantial convenience to Python
-developers working with PostgreSQL.
-
 
 Installation
 ------------
@@ -16,16 +12,14 @@ Installation *should* be as simple as::
 
 	$ python3 ./setup.py install
 
-
 More information about installation is available via::
 
 	python -m postgresql.documentation.admin
 
-
 Basic Driver Usage
 ------------------
 
-Using PG-API is recommended as it provides more utility for the user::
+Using PG-API::
 
 	>>> import postgresql
 	>>> db = postgresql.open('pq://user:password@host:port/database')
@@ -34,15 +28,12 @@ Using PG-API is recommended as it provides more utility for the user::
 	>>>  print(x)
 	>>> print(get_table.first("tables"))
 
-However, a DB-API 2.0 driver is provided: `postgresql.driver.dbapi20`.
-
+However, a DB-API 2.0 driver is provided as well: `postgresql.driver.dbapi20`.
 
 Further Information
 -------------------
 
-The documentation package, `postgresql.documentation.index`, contains more
-detailed information on the modules herein, and HTML versions of the
-documentation can be found at:
+Online documentation can be retrieved from:
 
 	http://python.projects.postgresql.org
 
