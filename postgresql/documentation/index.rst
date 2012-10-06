@@ -1,9 +1,7 @@
 py-postgresql
 =============
 
-py-postgresql is a project dedicated to improving the Python interfaces to
-PostgreSQL. It strives to provide substantial convenience to Python programmers
-using PostgreSQL.
+py-postgresql is a project dedicated to improving the Python client interfaces to PostgreSQL.
 
 At its core, py-postgresql provides a PG-API, `postgresql.api`, and
 DB-API 2.0 interface for using a PostgreSQL database.
@@ -68,7 +66,6 @@ Using `postgresql.driver`::
    ...  for row in get_emp_with_salary_lt("125,000"):
    ...   print(row["emp_name"])
    ...   raise_emp(row["emp_name"], "10,000")
-
 
 Of course, if DB-API 2.0 is desired, the module is located at
 `postgresql.driver.dbapi20`. DB-API extends PG-API, so the features

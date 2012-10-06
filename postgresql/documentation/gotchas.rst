@@ -5,6 +5,10 @@ It is recognized that decisions were made that may not always be ideal for a
 given user. In order to highlight those potential issues and hopefully bring
 some sense into a confusing situation, this document was drawn.
 
+Thread Safety
+-------------
+
+py-postgresql connection operations are not thread safe.
 
 `client_encoding` setting should be altered carefully
 -----------------------------------------------------
