@@ -5,6 +5,14 @@ It is recognized that decisions were made that may not always be ideal for a
 given user. In order to highlight those potential issues and hopefully bring
 some sense into a confusing situation, this document was drawn.
 
+Non-English Locales
+-------------------
+
+Many non-english locales are not supported due to the localization of the severity field
+in messages and errors sent to the client. Internally, py-postgresql uses this to allow
+client side filtering of messages and to identify FATAL connection errors that allow the
+client to recognize that it should be expecting the connection to terminate.
+
 Thread Safety
 -------------
 
