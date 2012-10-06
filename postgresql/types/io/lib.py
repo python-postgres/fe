@@ -278,13 +278,12 @@ def net_pack(triple,
 	len = len,
 ):
 	"""
-	net_pack()
+	net_pack((family, mask, data))
 
 	Pack Postgres' inet/cidr data structure.
 	"""
 	family, mask, data = triple
-	l = len(data)
-	return bytes((fmap[family], mask or 0, 0 if mask is None else 1, l)) + data
+	return bytes((fmap[family], mask or 0, 0 if mask is None else 1, len(data))) + data
 
 def net_unpack(data,
 	# Map IP version number to PGSQL src/include/utils/inet.h.
@@ -294,7 +293,7 @@ def net_unpack(data,
 	}
 ):
 	"""
-	net_unpack()
+	net_unpack(data)
 
 	Unpack Postgres' inet/cidr data structure.
 	"""
