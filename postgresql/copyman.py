@@ -243,8 +243,7 @@ class WireState(object):
 		# Emit the number of messages "consumed" this round.
 		return nmessages
 
-	def __init__(self, condition = (CopyData.type[0].__ne__ if sys.version_info[:2] >= (3, 3)
-														else CopyData.type.__ne__)):
+	def __init__(self, condition = (CopyData.type[0].__ne__ if isinstance(memoryview(b'f')[0], int) else CopyData.type.__ne__)):
 		self.remaining_bytes = 0
 		self.size_fragment = b''
 		self.final_view = None
