@@ -1208,14 +1208,27 @@ available when using queries as the results, or handle to the results, are direc
 
 Queries have access to all execution methods:
 
- ``Connection.query(sql, *parameters)``
- ``Connection.query.rows(sql, *parameters)``
- ``Connection.query.column(sql, *parameters)``
- ``Connection.query.first(sql, *parameters)``
- ``Connection.query.chunks(sql, *parameters)``
- ``Connection.query.declare(sql, *parameters)``
- ``Connection.query.load_rows(sql, collections.Iterable(parameters))``
- ``Connection.query.load_chunks(collections.Iterable(collections.Iterable(parameters)))``
+ * ``Connection.query(sql, *parameters)``
+ * ``Connection.query.rows(sql, *parameters)``
+ * ``Connection.query.column(sql, *parameters)``
+ * ``Connection.query.first(sql, *parameters)``
+ * ``Connection.query.chunks(sql, *parameters)``
+ * ``Connection.query.declare(sql, *parameters)``
+ * ``Connection.query.load_rows(sql, collections.Iterable(parameters))``
+ * ``Connection.query.load_chunks(collections.Iterable(collections.Iterable(parameters)))``
+
+In cases where a sequence of one-shot queries needs to be performed, it may be important to
+avoid unnecessary repeat attribute resolution from the connection object as the ``query``
+property is an interface object created on access. Caching the target execution methods is
+recommended::
+
+   qrows = db.query.rows
+   l = []
+   for x in my_queries:
+      l.append(qrows(x))
+
+The characteristic of Each execution method is discussed in the prior
+`Prepared Statements`_ section.
 
 Stored Procedures
 =================

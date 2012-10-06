@@ -31,7 +31,7 @@ Reference
    :maxdepth: 2
 
    bin
-   modules
+   reference
 
 Changes
 -------

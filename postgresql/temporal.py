@@ -24,11 +24,14 @@ class Temporal(object):
 		>>> with pg_tmp:
 		...  ps = db.prepare('SELECT 1')
 		...  assert ps.first() == 1
-	
+
 	Or `pg_tmp` can decorate a method or function.
 	"""
+
+	#: Format the cluster directory name.
 	cluster_dirname = 'pg_tmp_{0}_{1}'.format
 	cluster = None
+
 	_init_pid_ = None
 	_local_id_ = 0
 	builtins_keys = {

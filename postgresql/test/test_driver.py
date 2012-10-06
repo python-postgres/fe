@@ -1794,6 +1794,15 @@ class test_driver(unittest.TestCase):
 		self.assertEqual(next(db.query.rows('select 1')), (1,))
 		self.assertEqual(db.query.declare('select 1').read(), [(1,)])
 
+		self.assertEqual(db.query('select $1::int', 1), [(1,)])
+		self.assertEqual(db.query.first('select $1::int', 1), 1)
+		self.assertEqual(next(db.query.column('select $1::int', 1)), 1)
+		self.assertEqual(next(db.query.rows('select $1::int', 1)), (1,))
+		self.assertEqual(db.query.declare('select $1::int', 1).read(), [(1,)])
+
+		self.assertEqual(db.query.load_rows('select $1::int', [[1]]), None)
+		self.assertEqual(db.query.load_chunks('select $1::int', [[[1]]]), None)
+
 class test_typio(unittest.TestCase):
 	@pg_tmp
 	def testIdentify(self):
