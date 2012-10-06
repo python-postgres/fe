@@ -531,7 +531,7 @@ class Connection(object):
 		self.garbage_cursors = []
 
 		self.message_buffer = pq_message_stream()
-		self.recvsize = 1024 * 5
+		self.recvsize = 8192
 
 		self.read = ()
 		# bytes received.
