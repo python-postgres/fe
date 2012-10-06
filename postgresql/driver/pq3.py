@@ -2319,8 +2319,9 @@ class Connection(pg_api.Connection):
 	def prepare(self,
 		sql_statement_string : str,
 		statement_id = None,
+		Class = Statement
 	) -> Statement:
-		ps = Statement(self, statement_id, sql_statement_string)
+		ps = Class(self, statement_id, sql_statement_string)
 		ps._init()
 		ps._fini()
 		return ps
