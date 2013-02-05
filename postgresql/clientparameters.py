@@ -46,13 +46,12 @@ class ClientParameterError(Error):
 class ServiceDoesNotExistError(ClientParameterError):
 	code = '-*srv'
 
-# on win32 when program is run as windows service, getuser falls back to pwn which is not implemented
-# therefore it is better to resign from getting default username, which allows service operation
-
-getpass = raw_input
-
-def getuser():
-  return 'postgres'
+try:
+	from getpass import getuser, getpass
+except ImportError:
+	getpass = raw_input
+	def getuser():
+		return 'postgres'
 
 default_host = 'localhost'
 default_port = 5432
@@ -142,9 +141,6 @@ def defaults(environ = os.environ):
 		if appdata:
 			pgdata = os.path.join(appdata, pg_appdata_directory)
 			pgpassfile = os.path.join(pgdata, pg_appdata_passfile)
-                else:
-                        pgdata = ''
-                        pgpassfile = ''
 	else:
 		pgpassfile = os.path.join(userdir, pg_home_passfile)
 
