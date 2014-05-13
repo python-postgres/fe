@@ -1355,7 +1355,7 @@ class test_driver(unittest.TestCase):
 	@pg_tmp
 	def testSchemaNameError(self):
 		try:
-			db.prepare("SELECT * FROM sdkfldasjfdskljZknvson.foo")()
+			db.prepare("CREATE TABLE sdkfldasjfdskljZknvson.foo()")()
 		except pg_exc.SchemaNameError:
 			return
 		self.fail("SchemaNameError was not raised")
