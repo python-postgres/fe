@@ -1697,10 +1697,11 @@ class test_driver(unittest.TestCase):
 
 	@pg_tmp
 	def testMessageHook(self):
-		create = db.prepare('CREATE TEMP TABLE msghook (i INT PRIMARY KEY)')
+		create = db.prepare('CREATE TEMP TABLE msghook (i INT)')
+		reindex = db.prepare('REINDEX TABLE msghook')
 		drop = db.prepare('DROP TABLE msghook')
 		parts = [
-			create,
+			reindex,
 			db,
 			db.connector,
 			db.connector.driver,
@@ -1716,6 +1717,7 @@ class test_driver(unittest.TestCase):
 			for x in parts:
 				x.msghook = add
 				create()
+				reindex()
 				del x.msghook
 				drop()
 		self.assertEqual(len(notices), len(parts))
