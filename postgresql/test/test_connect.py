@@ -86,8 +86,17 @@ class TestCaseWithCluster(unittest.TestCase):
 			listen_addresses = listen_addresses,
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',
-			unix_socket_directory = self.cluster.data_directory,
 		))
+
+		if self.cluster.installation.version_info[:2] < (9, 3):
+			self.cluster.settings.update(dict(
+				unix_socket_directory = self.cluster.data_directory,
+			))
+		else:
+			self.cluster.settings.update(dict(
+				unix_socket_directories = self.cluster.data_directory,
+			))
+
 		# 8.4 turns prepared transactions off by default.
 		if self.cluster.installation.version_info >= (8,1):
 			self.cluster.settings.update(dict(

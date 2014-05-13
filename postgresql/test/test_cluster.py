@@ -29,11 +29,17 @@ class test_cluster(unittest.TestCase):
 
 	def init(self, *args, **kw):
 		self.cluster.init(*args, **kw)
+
+		if self.cluster.installation.version_info[:2] >= (9, 3):
+			usd = 'unix_socket_directories'
+		else:
+			usd = 'unix_socket_directory'
+
 		self.cluster.settings.update({
 			'max_connections' : '8',
 			'listen_addresses' : 'localhost',
 			'port' : '6543',
-			'unix_socket_directory' : self.cluster.data_directory,
+			usd : self.cluster.data_directory,
 		})
 
 	def testSilentMode(self):

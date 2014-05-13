@@ -137,8 +137,17 @@ class Temporal(object):
 			listen_addresses = 'localhost',
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',
-			unix_socket_directory = cluster.data_directory,
 		))
+
+		if installation.version_info[:2] < (9, 3):
+			cluster.settings.update(dict(
+				unix_socket_directory = cluster.data_directory,
+			))
+		else:
+			cluster.settings.update(dict(
+				unix_socket_directories = cluster.data_directory,
+			))
+
 		cluster.settings.update(dict(
 			max_prepared_transactions = '10',
 		))
