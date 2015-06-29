@@ -28,8 +28,9 @@ escape_path_re = re.compile('[%s]' %(re.escape(ri.unescaped + ','),))
 
 def structure(d, fieldproc = ri.unescape):
 	'Create a clientparams dictionary from a parsed RI'
-	if d.get('scheme', 'pq').lower() != 'pq':
-		raise ValueError("PQ-IRI scheme is not 'pq'")
+	scheme = d.get('scheme', 'pq').lower()
+	if scheme != 'pq' and scheme != 'postgres':
+		raise ValueError("PQ-IRI scheme is not 'pq' or 'postgres'")
 	cpd = {
 		k : fieldproc(v) for k, v in d.items()
 		if k not in ('path', 'fragment', 'query', 'host', 'scheme')
