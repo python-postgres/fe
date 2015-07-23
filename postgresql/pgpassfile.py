@@ -2,7 +2,7 @@
 # .pgpassfile - parse and lookup passwords in a pgpassfile
 ##
 'Parse pgpass files and subsequently lookup a password.'
-from os.path import exists
+import os.path
 
 def split(line, len = len):
 	line = line.strip()
@@ -54,7 +54,7 @@ def lookup_password_file(path, t):
 	with open(path) as f:
 		return lookup_password(parse(f), t)
 
-def lookup_pgpass(d, passfile, exists = exists):
+def lookup_pgpass(d, passfile, exists = os.path.exists):
 	# If the password file exists, lookup the password
 	# using the config's criteria.
 	if exists(passfile):

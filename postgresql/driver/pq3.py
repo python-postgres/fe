@@ -1775,11 +1775,17 @@ class Statement(pg_api.Statement):
 	def _load_tuple_chunks(self, chunks):
 		pte = self._raise_parameter_tuple_error
 		last = (element.SynchronizeMessage,)
+
+		Bind = element.Bind
+		Instruction = xact.Instruction
+		Execute = element.Execute
+		tuple = tuple
+
 		try:
 			for chunk in chunks:
 				bindings = [
 					(
-						element.Bind(
+						Bind(
 							b'',
 							self._pq_statement_id,
 							self._input_formats,
@@ -1788,13 +1794,13 @@ class Statement(pg_api.Statement):
 							),
 							(),
 						),
-						element.Execute(b'', 1),
+						Execute(b'', 1),
 					)
 					for t in chunk
 				]
 				bindings.append(last)
 				self.database._pq_push(
-					xact.Instruction(
+					Instruction(
 						chain.from_iterable(bindings),
 						asynchook = self.database._receive_async
 					),
@@ -2429,7 +2435,7 @@ class Connection(pg_api.Connection):
 		# guts of connect()
 		self.pq = None
 		# if any exception occurs past this point, the connection
-		# will not be usable.
+		# object will not be usable.
 		timeout = self.connector.connect_timeout
 		sslmode = self.connector.sslmode or 'prefer'
 		failures = []

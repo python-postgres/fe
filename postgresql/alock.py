@@ -4,8 +4,8 @@
 """
 Tools for Advisory Locks
 """
-from abc import abstractmethod, abstractproperty
-from .python.element import Element
+import abc
+from .python import element
 
 __all__ = [
 	'ALock',
@@ -13,7 +13,7 @@ __all__ = [
 	'ShareLock',
 ]
 
-class ALock(Element):
+class ALock(element.Element):
 	"""
 	Advisory Lock class for managing the acquisition and release of a sequence
 	of PostgreSQL advisory locks.
@@ -32,13 +32,13 @@ class ALock(Element):
 	):
 		yield None, headfmt(self.state, self.mode)
 
-	@abstractproperty
+	@abc.abstractproperty
 	def mode(self):
 		"""
 		The mode of the lock class.
 		"""
 
-	@abstractproperty
+	@abc.abstractproperty
 	def __select_statements__(self):
 		"""
 		Implemented by subclasses to return the statements to try, acquire, and
