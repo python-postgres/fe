@@ -79,6 +79,10 @@ io_modules = {
 		pg_types.XMLOID,
 	),
 
+	'stdlib_jsonb' : (
+		pg_types.JSONBOID,
+	),
+
 	# Must be db.typio.identify(contrib_hstore = 'hstore')'d
 	'contrib_hstore' : (
 		'contrib_hstore',

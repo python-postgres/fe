@@ -130,13 +130,17 @@ def numeric_pack(x,
 
 def numeric_convert_digits(d, str = str, int = int):
 	i = iter(d)
-	for x in str(next(i)):
-		# no leading zeros
-		yield int(x)
-	# leading digit should not include zeros
-	for y in i:
-		for x in str(y).rjust(4, '0'):
+	try:
+		for x in str(next(i)):
+			# no leading zeros
 			yield int(x)
+		# leading digit should not include zeros
+		for y in i:
+			for x in str(y).rjust(4, '0'):
+				yield int(x)
+	except StopIteration:
+		# Python 3.5+ does not like generators raising StopIteration
+		return
 
 numeric_signs = {
 	numeric_negative : 1,
