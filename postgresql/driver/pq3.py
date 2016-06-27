@@ -1772,14 +1772,13 @@ class Statement(pg_api.Statement):
 		self.database._pq_complete()
 		self.database.pq.synchronize()
 
-	def _load_tuple_chunks(self, chunks):
+	def _load_tuple_chunks(self, chunks, tuple=tuple):
 		pte = self._raise_parameter_tuple_error
 		last = (element.SynchronizeMessage,)
 
 		Bind = element.Bind
 		Instruction = xact.Instruction
 		Execute = element.Execute
-		tuple = tuple
 
 		try:
 			for chunk in chunks:
