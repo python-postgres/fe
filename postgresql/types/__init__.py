@@ -158,6 +158,8 @@ oid_to_name = {
 	REGDICTIONARYOID : 'regdictionary',
 
 	XMLOID : 'xml',
+	JSONOID : 'json',
+	JSONBOID : 'jsonb',
 
 	MACADDROID : 'macaddr',
 	INETOID : 'inet',
