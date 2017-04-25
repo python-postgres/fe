@@ -2808,6 +2808,14 @@ class Connector(pg_api.Connector):
 						pg_str.quote_ident(x) for x in sp
 					)
 			tnkw.update(s)
+		
+		##
+		# Removes keys from the tnkw dict if their corresponding value is None
+		# hence allowing connections to AWS' RedShift cluster which are picky
+		# if you do not do connect(..., settings = {'client_min_messages': None})
+		##
+		for i in [k for k in tnkw.keys() if not tnkw[k]]:
+			del tnkw[i]
 
 		tnkw['user'] = self.user
 		if self.database is not None:
