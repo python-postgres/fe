@@ -25,5 +25,8 @@ defaults = dist.standard_setup_keywords()
 sys.dont_write_bytecode = False
 
 if __name__ == '__main__':
-	from distutils.core import setup
+	try:
+		from setuptools import setup
+	except ImportError as e:
+		from distutils.core import setup
 	setup(**defaults)

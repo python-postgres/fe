@@ -13,7 +13,10 @@ use `default_prefix` which is derived from the module's `__package__`.
 import sys
 import os
 from ..project import version, name, identity as url
-from distutils.core import Extension, Command
+try:
+	from setuptools import Extension, Command
+except ImportError as e:
+	from distutils.core import Extension, Command
 
 LONG_DESCRIPTION = """
 py-postgresql is a set of Python modules providing interfaces to various parts
