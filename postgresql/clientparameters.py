@@ -35,6 +35,7 @@ import configparser
 import optparse
 from itertools import chain
 from functools import partial
+import socket
 
 from . import iri as pg_iri
 from . import pgpassfile as pg_pass
@@ -55,6 +56,10 @@ except ImportError:
 
 default_host = 'localhost'
 default_port = 5432
+
+has_unix_sockets = hasattr(socket, "AF_UNIX")
+if has_unix_sockets:
+	default_unix_sock = '/var/run/postgresql/.s.PGSQL.5432'
 
 pg_service_envvar = 'PGSERVICE'
 pg_service_file_envvar = 'PGSERVICEFILE'
@@ -90,6 +95,9 @@ pg_service_driver_parameters = set([
 	'server_encoding',
 	'connect_timeout',
 ])
+
+if has_unix_sockets:
+	pg_service_driver_parameters.add('unix')
 
 # environment variables that will be in the parameters' "settings" dictionary.
 default_envvar_settings_map = {
@@ -131,8 +139,13 @@ def defaults(environ = os.environ):
 	userdir = os.path.expanduser('~' + user) or '/dev/null'
 	pgdata = os.path.join(userdir, pg_home_directory)
 	yield ('user',), getuser()
-	yield ('host',), default_host
-	yield ('port',), default_port
+	if has_unix_sockets:
+		yield ('host',), None
+		yield ('port',), None
+		yield ('unix',), default_unix_sock
+	else:
+		yield ('host',), default_host
+		yield ('port',), default_port
 
 	# If appdata is available, override the pgdata and pgpassfile
 	# configuration settings.
@@ -267,11 +280,12 @@ option_port = make_option('-p', '--port',
 	type = 'str',
 	dest = 'port',
 )
-option_unix = make_option('--unix',
-	help = 'path to filesystem socket',
-	type = 'str',
-	dest = 'unix',
-)
+if has_unix_sockets:
+	option_unix = make_option('--unix',
+		help = 'path to filesystem socket',
+		type = 'str',
+		dest = 'unix',
+	)
 
 def append_settings(option, opt_str, value, parser):
 	'split the string into a (key,value) pair tuple'
