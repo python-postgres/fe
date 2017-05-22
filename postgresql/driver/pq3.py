@@ -1861,14 +1861,15 @@ class StoredProcedure(pg_api.StoredProcedure):
 						self.name, k.message
 					)
 				)
+			argc = len(self._input_attmap)
 			word_idx.sort(key = get1)
 			current_word = word_idx.pop(0)
 			for x in range(argc):
-				if x == current_word[1]:
+				if current_word != None and x == current_word[1]:
 					input.append(current_word[0])
-					current_word = word_idx.pop(0)
+					current_word = word_idx.pop(0) if len(word_idx) != 0 else None
 				else:
-					input.append(argiter.next())
+					input.append(next(argiter))
 		else:
 			input = args
 
