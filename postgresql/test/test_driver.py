@@ -290,7 +290,10 @@ type_samples = [
 ]
 
 try:
-	import ipaddress
+	try:
+		import ipaddress
+	except ImportError:
+		import ipaddr as ipaddress
 
 	type_samples.extend([
 		('inet', [
