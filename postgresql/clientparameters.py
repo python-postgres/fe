@@ -47,11 +47,17 @@ class ServiceDoesNotExistError(ClientParameterError):
 	code = '-*srv'
 
 try:
-	from getpass import getuser, getpass
+	from getpass import getuser as _getuser, getpass
 except ImportError:
 	getpass = raw_input
 	def getuser():
 		return 'postgres'
+else:
+	def getuser():
+		try:
+			return _getuser()
+		except ImportError:  # w32 doesn't have module pwd
+			return 'postgres'
 
 default_host = 'localhost'
 default_port = 5432
