@@ -15,7 +15,7 @@ def split(vstr : str) -> (
 	Split a PostgreSQL version string into a tuple
 	(major,minor,patch,...,state_class,state_level)
 	"""
-	v = vstr.strip().split('.')
+	v = vstr.strip().split(' ')[0].split('.')
 
 	# Get rid of the numbers around the state_class (beta,a,dev,alpha, etc)
 	state_class = v[-1].strip('0123456789')
