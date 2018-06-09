@@ -56,14 +56,6 @@ Once installed, try out the ``pg_python`` console script::
 
 If a successful connection is made to the remote host, it will provide a Python
 console with the database connection bound to the `db` name.
-
-
-History
--------
-
-py-postgresql is not yet another PostgreSQL driver, it's been in development for
-years. py-postgresql is the Python 3 port of the ``pg_proboscis`` driver and
-integration of the other ``pg/python`` projects.
 """
 
 CLASSIFIERS = [
