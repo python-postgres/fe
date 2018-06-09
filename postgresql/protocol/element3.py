@@ -1,7 +1,9 @@
 ##
 # .protocol.element3
 ##
-'PQ version 3.0 elements'
+"""
+PQ version 3.0 elements.
+"""
 import sys
 import os
 import pprint
@@ -300,7 +302,9 @@ SuspensionMessage = Message.__new__(Suspension)
 Suspension.SingleInstance = SuspensionMessage
 
 class Ready(Message):
-	'Ready for new query'
+	"""
+	Ready for new query message.
+	"""
 	type = message_types[b'Z'[0]]
 	possible_states = (
 		message_types[b'I'[0]],
@@ -319,7 +323,7 @@ class Ready(Message):
 
 class Notice(Message, dict):
 	"""
-	Notification message
+	Notification message.
 
 	Used by PQ to emit INFO, NOTICE, and WARNING messages among other
 	severities.
@@ -353,7 +357,9 @@ class ClientNotice(Notice):
 		raise RuntimeError("cannot parse ClientNotice")
 
 class Error(Notice):
-	"""Incoming error"""
+	"""
+	Error information message.
+	"""
 	type = message_types[b'E'[0]]
 	__slots__ = ()
 
@@ -368,7 +374,9 @@ class ClientError(Error):
 		raise RuntimeError("cannot serialize ClientError")
 
 class FunctionResult(Message):
-	"""Function result value"""
+	"""
+	Function result value.
+	"""
 	type = message_types[b'V'[0]]
 	__slots__ = ('result',)
 
@@ -394,7 +402,9 @@ class FunctionResult(Message):
 		return typ(data)
 
 class AttributeTypes(TupleMessage):
-	"""Tuple attribute types"""
+	"""
+	Tuple attribute types.
+	"""
 	type = message_types[b't'[0]]
 	__slots__ = ()
 
@@ -410,7 +420,9 @@ class AttributeTypes(TupleMessage):
 		return typ(unpack('!%dL'%(ac,), args))
 
 class TupleDescriptor(TupleMessage):
-	"""Tuple description"""
+	"""
+	Tuple structure description.
+	"""
 	type = message_types[b'T'[0]]
 	struct = Struct("!LhLhlh")
 	__slots__ = ()
@@ -442,7 +454,9 @@ class TupleDescriptor(TupleMessage):
 		return typ(atts)
 
 class Tuple(TupleMessage):
-	"""Incoming tuple"""
+	"""
+	Tuple Data.
+	"""
 	type = message_types[b'D'[0]]
 	__slots__ = ()
 
@@ -480,7 +494,9 @@ class Tuple(TupleMessage):
 		pass
 
 class KillInformation(Message):
-	'Backend cancellation information'
+	"""
+	Backend cancellation information.
+	"""
 	type = message_types[b'K'[0]]
 	struct = Struct("!LL")
 	__slots__ = ('pid', 'key')
@@ -497,7 +513,9 @@ class KillInformation(Message):
 		return typ(*typ.struct.unpack(data))
 
 class CancelRequest(KillInformation):
-	'Abort the query in the specified backend'
+	"""
+	Abort the query in the specified backend.
+	"""
 	type = b''
 	from .version import CancelRequestCode as version
 	packed_version = version.bytes()
@@ -519,7 +537,9 @@ class CancelRequest(KillInformation):
 		return typ(*typ.struct.unpack(data[4:]))
 
 class NegotiateSSL(Message):
-	"Discover backend's SSL support"
+	"""
+	Discover backend's SSL support.
+	"""
 	type = b''
 	from .version import NegotiateSSLCode as version
 	packed_version = version.bytes()
@@ -605,7 +625,9 @@ AuthNameMap = {
 }
 
 class Authentication(Message):
-	"""Authentication(request, salt)"""
+	"""
+	Authentication(request, salt)
+	"""
 	type = message_types[b'R'[0]]
 	__slots__ = ('request', 'salt')
 
@@ -621,38 +643,50 @@ class Authentication(Message):
 		return typ(ulong_unpack(data[0:4]), data[4:])
 
 class Password(StringMessage):
-	'Password supplement'
+	"""
+	Password supplement.
+	"""
 	type = message_types[b'p'[0]]
 	__slots__ = ('data',)
 
 class Disconnect(EmptyMessage):
-	'Close the connection'
+	"""
+	Connection closed message.
+	"""
 	type = message_types[b'X'[0]]
 	__slots__ = ()
 DisconnectMessage = Message.__new__(Disconnect)
 Disconnect.SingleInstance = DisconnectMessage
 
 class Flush(EmptyMessage):
-	'Flush'
+	"""
+	Flush message.
+	"""
 	type = message_types[b'H'[0]]
 	__slots__ = ()
 FlushMessage = Message.__new__(Flush)
 Flush.SingleInstance = FlushMessage
 
 class Synchronize(EmptyMessage):
-	'Synchronize'
+	"""
+	Synchronize.
+	"""
 	type = message_types[b'S'[0]]
 	__slots__ = ()
 SynchronizeMessage = Message.__new__(Synchronize)
 Synchronize.SingleInstance = SynchronizeMessage
 
 class Query(StringMessage):
-	"""Execute the query with the given arguments"""
+	"""
+	Execute the query with the given arguments.
+	"""
 	type = message_types[b'Q'[0]]
 	__slots__ = ('data',)
 
 class Parse(Message):
-	"""Parse a query with the specified argument types"""
+	"""
+	Parse a query with the specified argument types.
+	"""
 	type = message_types[b'P'[0]]
 	__slots__ = ('name', 'statement', 'argtypes')
 
@@ -741,7 +775,9 @@ class Bind(Message):
 		return typ(name, statement, aformats, args, rformats)
 
 class Execute(Message):
-	"""Fetch results from the specified Portal"""
+	"""
+	Fetch results from the specified Portal.
+	"""
 	type = message_types[b'E'[0]]
 	__slots__ = ('name', 'max')
 
@@ -758,7 +794,9 @@ class Execute(Message):
 		return typ(name, ulong_unpack(max))
 
 class Describe(StringMessage):
-	"""Describe a Portal or Prepared Statement"""
+	"""
+	Request a description of a Portal or Prepared Statement.
+	"""
 	type = message_types[b'D'[0]]
 	__slots__ = ('data',)
 
@@ -784,7 +822,9 @@ class DescribePortal(Describe):
 	__slots__ = ('data',)
 
 class Close(StringMessage):
-	"""Generic Close"""
+	"""
+	Generic Close
+	"""
 	type = message_types[b'C'[0]]
 	__slots__ = ()
 
@@ -802,17 +842,24 @@ class Close(StringMessage):
 		return super().parse(data[1:])
 
 class CloseStatement(Close):
-	"""Close the specified Statement"""
+	"""
+	Close the specified Statement
+	"""
 	subtype = message_types[b'S'[0]]
 	__slots__ = ()
 
 class ClosePortal(Close):
-	"""Close the specified Portal"""
+	"""
+	Close the specified Portal
+	"""
 	subtype = message_types[b'P'[0]]
 	__slots__ = ()
 
 class Function(Message):
-	"""Execute the specified function with the given arguments"""
+	"""
+	Execute the specified function with the given arguments
+	"""
+
 	type = message_types[b'F'[0]]
 	__slots__ = ('oid', 'aformats', 'arguments', 'rformat')
 
@@ -881,12 +928,16 @@ class CopyBegin(Message):
 		])
 
 class CopyToBegin(CopyBegin):
-	"""Begin copying to"""
+	"""
+	Begin copying to.
+	"""
 	type = message_types[b'H'[0]]
 	__slots__ = ('format', 'formats')
 
 class CopyFromBegin(CopyBegin):
-	"""Begin copying from"""
+	"""
+	Begin copying from.
+	"""
 	type = message_types[b'G'[0]]
 	__slots__ = ('format', 'formats')
 
