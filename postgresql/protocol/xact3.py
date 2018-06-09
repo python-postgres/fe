@@ -232,7 +232,7 @@ class Negotiation(Transaction):
 					)
 				))
 				return
-		else:	
+		else:
 			self.authok = self.authtype
 
 		# Done authenticating, pick up the killinfo and the ready message.
