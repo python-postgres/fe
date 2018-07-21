@@ -2,11 +2,9 @@ Categories and Libraries
 ************************
 
 This chapter discusses the usage and implementation of connection categories and
-libraries.
-
-.. note::
- First-time users are encouraged to read the `Audience and Motivation`_
- section first.
+libraries. Originally these features were written with general purpose use in mind;
+however, it is recommended that these features **not** be used in applications.
+They are primarily used internally by the the driver and may be removed in the future.
 
 Libraries are a collection of SQL statements that can be bound to a
 connection. Libraries are *normally* bound directly to the connection object as
