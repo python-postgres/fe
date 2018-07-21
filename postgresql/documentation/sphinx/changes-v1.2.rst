@@ -1,0 +1,1 @@
+../changes-v1.2.rst
