@@ -100,7 +100,7 @@ p_new(PyTypeObject *subtype, PyObject *args, PyObject *kw)
 static char
 p_at_least(struct p_place *p, uint32_t amount)
 {
-	int32_t current = 0;
+	uint32_t current = 0;
 	struct p_list *pl;
 
 	pl = p->list;
