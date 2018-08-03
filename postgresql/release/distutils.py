@@ -20,10 +20,10 @@ except ImportError as e:
 
 LONG_DESCRIPTION = """
 py-postgresql is a set of Python modules providing interfaces to various parts
-of PostgreSQL. Notably, it provides a pure-Python driver + C optimizations for
+of PostgreSQL. Primarily, it provides a pure-Python driver with some C optimizations for
 querying a PostgreSQL database.
 
-http://python.projects.postgresql.org
+http://github.com/python-postgres/fe
 
 Features:
 
@@ -160,9 +160,9 @@ def standard_setup_keywords(build_extensions = True, prefix = default_prefix):
 		'description' : 'PostgreSQL driver and tools library.',
 		'long_description' : LONG_DESCRIPTION,
 		'author' : 'James William Pye',
-		'author_email' : 'x@jwp.name',
+		'author_email' : 'james.pye@gmail.com',
 		'maintainer' : 'James William Pye',
-		'maintainer_email' : 'python-general@pgfoundry.org',
+		'maintainer_email' : 'james.pye@gmail.com',
 		'url' : url,
 		'classifiers' : CLASSIFIERS,
 		'packages' : list(prefixed_packages(prefix = prefix)),

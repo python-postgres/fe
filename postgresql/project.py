@@ -1,13 +1,11 @@
-'project information'
+"""
+Project information.
+"""
 
-#: project name
 name = 'py-postgresql'
-
-#: IRI based project identity
-identity = 'http://python.projects.postgresql.org/'
+identity = 'http://github.com/python-postgres/fe'
 
 meaculpa = 'Python+Postgres'
-contact = 'python-general@pgfoundry.org'
 abstract = 'Driver and tools library for PostgreSQL'
 
 version_info = (1, 2, 1)

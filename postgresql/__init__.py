@@ -1,15 +1,13 @@
 ##
 # py-postgresql root package
-# http://python.projects.postgresql.org
+# http://github.com/python-postgres/fe
 ##
 """
 py-postgresql is a Python package for using PostgreSQL. This includes low-level
-protocol tools, a driver(PG-API and DB-API), and cluster management tools.
+protocol tools, a driver(PG-API and DB-API 2.0), and cluster management tools.
 
-If it's not documented in the narratives, `postgresql.documentation.index`, then
-the stability of the APIs should *not* be trusted.
-
-See <http://postgresql.org> for more information about PostgreSQL.
+See <http://postgresql.org> for more information about PostgreSQL and <http://python.org>
+for information about Python.
 """
 __all__ = [
 	'__author__',
