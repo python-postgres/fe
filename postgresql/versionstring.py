@@ -15,6 +15,10 @@ def split(vstr : str) -> (
 	Split a PostgreSQL version string into a tuple
 	(major,minor,patch,...,state_class,state_level)
 	"""
+	# Verify if the version is a complete string
+	if re.match('PostgreSQL', vstr):
+		vstr = vstr.strip().strip('PostgreSQL')
+	
 	v = vstr.strip().split(' ')[0].split('.')
 
 	# Get rid of the numbers around the state_class (beta,a,dev,alpha, etc)
