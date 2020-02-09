@@ -1916,8 +1916,8 @@ class StoredProcedure(pg_api.StoredProcedure):
 				proctup['_proid'],
 				# ($1::type, $2::type, ... $n::type)
 				', '.join([
-					 '$%d::%s' %(x, database.typio.sql_type_from_oid(proargs[x]))
-					 for x in range(1, len(proargs)+1)
+					 '$%d::%s' %(x + 1, database.typio.sql_type_from_oid(proargs[x]))
+					 for x in range(0, len(proargs))
 				]),
 				# Description for anonymous record returns
 				(description and \
