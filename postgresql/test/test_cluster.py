@@ -30,10 +30,14 @@ class test_cluster(unittest.TestCase):
 	def init(self, *args, **kw):
 		self.cluster.init(*args, **kw)
 
-		if self.cluster.installation.version_info[:2] >= (9, 3):
+		vi = self.cluster.installation.version_info[:2]
+		if vi >= (9, 3):
 			usd = 'unix_socket_directories'
 		else:
 			usd = 'unix_socket_directory'
+
+		if vi > (9, 6):
+			self.cluster.settings['max_wal_senders'] = '0'
 
 		self.cluster.settings.update({
 			'max_connections' : '8',

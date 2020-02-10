@@ -110,6 +110,7 @@ class Temporal(object):
 				'could not find the default pg_config', details = inshint
 			)
 
+		vi = installation.version_info
 		cluster = Cluster(installation, self.cluster_path,)
 
 		# If it exists already, destroy it.
@@ -130,6 +131,10 @@ class Temporal(object):
 				creator = cluster
 			)
 
+		if vi[:2] > (9,6):
+			# Default changed in 10.x
+			cluster.settings['max_wal_senders'] = '0'
+
 		cluster.settings.update(dict(
 			port = str(self.cluster_port),
 			max_connections = '20',
@@ -137,6 +142,7 @@ class Temporal(object):
 			listen_addresses = 'localhost',
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',
+			max_prepared_transactions = '10',
 		))
 
 		if installation.version_info[:2] < (9, 3):
@@ -147,10 +153,6 @@ class Temporal(object):
 			cluster.settings.update(dict(
 				unix_socket_directories = cluster.data_directory,
 			))
-
-		cluster.settings.update(dict(
-			max_prepared_transactions = '10',
-		))
 
 		# Start it up.
 		with open(self.logfile, 'w') as lfo:

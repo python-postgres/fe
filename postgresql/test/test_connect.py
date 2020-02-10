@@ -51,7 +51,7 @@ class TestCaseWithCluster(unittest.TestCase):
 		super().__init__(*args, **kw)
 		self.installation = installation.default()
 		self.cluster_path = \
-			'py_unittest_pg_cluster_' \
+			'pypg_test_' \
 			+ str(os.getpid()) + getattr(self, 'cluster_path_suffix', '')
 
 		if self.installation is None:
@@ -68,6 +68,8 @@ class TestCaseWithCluster(unittest.TestCase):
 		if self.cluster.initialized():
 			self.cluster.drop()
 
+		self.disable_replication = self.installation.version_info[:2] > (9, 6)
+
 	def configure_cluster(self):
 		self.cluster_port = find_available_port()
 		if self.cluster_port is None:
@@ -79,6 +81,7 @@ class TestCaseWithCluster(unittest.TestCase):
 		listen_addresses = '127.0.0.1'
 		if has_ipv6:
 			listen_addresses += ',::1'
+
 		self.cluster.settings.update(dict(
 			port = str(self.cluster_port),
 			max_connections = '6',
@@ -87,6 +90,11 @@ class TestCaseWithCluster(unittest.TestCase):
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',
 		))
+
+		if self.disable_replication:
+			self.cluster.settings.update({
+				'max_wal_senders': '0',
+			})
 
 		if self.cluster.installation.version_info[:2] < (9, 3):
 			self.cluster.settings.update(dict(
@@ -157,23 +165,35 @@ class test_connect(TestCaseWithCluster):
 	params = {}
 	cluster_path_suffix = '_test_connect'
 
+	mk_common_users = """
+		CREATE USER md5 WITH ENCRYPTED PASSWORD 'md5_password';
+		CREATE USER password WITH ENCRYPTED PASSWORD 'password_password';
+		CREATE USER trusted;
+	"""
+
+	mk_crypt_user = """
+		-- crypt doesn't work with encrypted passwords:
+		-- http://www.postgresql.org/docs/8.2/interactive/auth-methods.html#AUTH-PASSWORD
+		CREATE USER crypt WITH UNENCRYPTED PASSWORD 'crypt_password';
+	"""
+
 	def __init__(self, *args, **kw):
 		super().__init__(*args,**kw)
 		# 8.4 nixed this.
-		self.do_crypt = self.cluster.installation.version_info < (8,4)
+		vi = self.cluster.installation.version_info
+		self.check_crypt_user = (vi < (8,4))
 
 	def configure_cluster(self):
 		super().configure_cluster()
-		self.cluster.settings.update({
-			'log_min_messages' : 'log',
-		})
+		self.cluster.settings['log_min_messages'] = 'log'
 
 		# Configure the hba file with the supported methods.
 		with open(self.cluster.hba_file, 'w') as hba:
 			hosts = ['0.0.0.0/0',]
 			if has_ipv6:
 				hosts.append('0::0/0')
-			methods = ['md5', 'password'] + (['crypt'] if self.do_crypt else [])
+
+			methods = ['md5', 'password'] + (['crypt'] if self.check_crypt_user else [])
 			for h in hosts:
 				for m in methods:
 					# user and method are the same name.
@@ -181,6 +201,7 @@ class test_connect(TestCaseWithCluster):
 						h = h,
 						m = m
 					)])
+
 			# trusted
 			hba.writelines(["local all all trust\n"])
 			hba.writelines(["host test trusted 0.0.0.0/0 trust\n"])
@@ -193,26 +214,11 @@ class test_connect(TestCaseWithCluster):
 
 	def initialize_database(self):
 		super().initialize_database()
+
 		with self.cluster.connection(user = 'test') as db:
-			db.execute(
-				"""
-CREATE USER md5 WITH
-	ENCRYPTED PASSWORD 'md5_password'
-;
-
--- crypt doesn't work with encrypted passwords:
--- http://www.postgresql.org/docs/8.2/interactive/auth-methods.html#AUTH-PASSWORD
-CREATE USER crypt WITH
-	UNENCRYPTED PASSWORD 'crypt_password'
-;
-
-CREATE USER password WITH
-	ENCRYPTED PASSWORD 'password_password'
-;
-
-CREATE USER trusted;
-				"""
-			)
+			db.execute(self.mk_common_users)
+			if self.check_crypt_user:
+				db.execute(self.mk_crypt_user)
 
 	def test_pg_open_SQL_ASCII(self):
 		# postgresql.open
@@ -364,7 +370,7 @@ search_path = public
 			MD5.cursor().execute, 'select 1'
 		)
 
-		if self.do_crypt:
+		if self.check_crypt_user:
 			CRYPT = dbapi20.connect(
 				user = 'crypt',
 				database = 'test',
@@ -449,7 +455,7 @@ search_path = public
 			self.assertEqual(c.prepare('select current_user').first(), 'md5')
 
 	def test_crypt_connect(self):
-		if self.do_crypt:
+		if self.check_crypt_user:
 			c = self.cluster.connection(
 				user = 'crypt',
 				password = 'crypt_password',
