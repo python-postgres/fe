@@ -1,19 +1,22 @@
 ##
 # .protocol.version
 ##
-'PQ version class'
+"""
+PQ version class used by startup messages.
+"""
 from struct import Struct
 version_struct = Struct('!HH')
 
 class Version(tuple):
-	"""Version((major, minor)) -> Version
+	"""
+	Version((major, minor)) -> Version
 
 	Version serializer and parser.
 	"""
 	major = property(fget = lambda s: s[0])
 	minor = property(fget = lambda s: s[1])
 
-	def __new__(subtype, major_minor : '(major, minor)'):
+	def __new__(subtype, major_minor):
 		(major, minor) = major_minor
 		major = int(major)
 		minor = int(minor)
