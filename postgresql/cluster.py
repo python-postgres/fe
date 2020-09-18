@@ -155,8 +155,8 @@ class Cluster(pg_api.Cluster):
 		)
 
 	def __init__(self,
-		installation : "installation object",
-		data_directory : "path to the data directory",
+		installation,
+		data_directory,
 	):
 		self.installation = installation
 		self.data_directory = os.path.abspath(data_directory)
@@ -191,9 +191,7 @@ class Cluster(pg_api.Cluster):
 		self.wait_until_stopped()
 
 	def init(self,
-		password : \
-			"Password to assign to the " \
-			"cluster's superuser(`user` keyword)." = None,
+		password = None,
 		**kw
 	):
 		"""
@@ -334,8 +332,8 @@ class Cluster(pg_api.Cluster):
 		os.rmdir(self.data_directory)
 
 	def start(self,
-		logfile : "Where to send stderr" = None,
-		settings : "Mapping of runtime parameters" = None
+		logfile = None,
+		settings = None
 	):
 		"""
 		Start the cluster.
@@ -573,8 +571,8 @@ class Cluster(pg_api.Cluster):
 		return e if e is not None else True
 
 	def wait_until_started(self,
-		timeout : "how long to wait before throwing a timeout exception" = 10,
-		delay : "how long to sleep before re-testing" = 0.05,
+		timeout = 10,
+		delay = 0.05,
 	):
 		"""
 		After the `start` method is used, this can be ran in order to block
@@ -625,8 +623,8 @@ class Cluster(pg_api.Cluster):
 			time.sleep(delay)
 
 	def wait_until_stopped(self,
-		timeout : "how long to wait before throwing a timeout exception" = 10,
-		delay : "how long to sleep before re-testing" = 0.05
+		timeout = 10,
+		delay = 0.05
 	):
 		"""
 		After the `stop` method is used, this can be ran in order to block until
