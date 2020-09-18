@@ -46,7 +46,7 @@ def structure(d, fieldproc = ri.unescape):
 			if host.startswith('unix:'):
 				cpd['unix'] = host[len('unix:'):].replace(':','/')
 			else:
-				cpd['host'] = host[1:-1]
+				cpd['host'] = host
 		else:
 			cpd['host'] = fieldproc(host)
 

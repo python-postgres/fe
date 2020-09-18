@@ -84,6 +84,22 @@ sample_structured_parameters = [
 ]
 
 class test_iri(unittest.TestCase):
+	def testIP6Hosts(self):
+		"""
+		Validate that IPv6 hosts are properly extracted.
+		"""
+		s = [
+			('pq://[::1]/db', '::1'),
+			('pq://[::1]:1234/db', '::1'),
+			('pq://[1:2:3::1]/db', '1:2:3::1'),
+			('pq://[1:2:3::1]:1234/db', '1:2:3::1'),
+			('pq://[]:1234/db', ''),
+			('pq://[]/db', ''),
+		]
+		for i, h in s:
+			p = pg_iri.parse(i)
+			self.assertEqual(p['host'], h)
+
 	def testPresentPasswordObscure(self):
 		"password is present in IRI, and obscure it"
 		s = 'pq://user:pass@host:port/dbname'
