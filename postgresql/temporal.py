@@ -124,9 +124,10 @@ class Temporal(object):
 			logfile = None,
 		)
 
-		# Configure
-		self.cluster_port = find_available_port()
-		if self.cluster_port is None:
+		try:
+			self.cluster_port = find_available_port()
+		except:
+			# Rely on chain.
 			raise ClusterError(
 				'could not find a port for the test cluster on localhost',
 				creator = cluster
