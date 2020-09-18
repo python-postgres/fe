@@ -5,7 +5,6 @@ import sys
 import os
 import random
 import socket
-import math
 import errno
 import ssl
 
@@ -51,7 +50,9 @@ class SocketFactory(object):
 		return getattr(err, 'strerror', '<strerror not present>')
 
 	def secure(self, socket : socket.socket) -> ssl.SSLSocket:
-		"secure a socket with SSL"
+		"""
+		Secure a socket with SSL.
+		"""
 		if self.socket_secure is not None:
 			return ssl.wrap_socket(socket, **self.socket_secure)
 		else:
@@ -69,9 +70,9 @@ class SocketFactory(object):
 		return s
 
 	def __init__(self,
-		socket_create : "positional parameters given to socket.socket()",
-		socket_connect : "parameter given to socket.connect()",
-		socket_secure : "keywords given to ssl.wrap_socket" = None,
+		socket_create,
+		socket_connect,
+		socket_secure = None,
 	):
 		self.socket_create = socket_create
 		self.socket_connect = socket_connect
@@ -81,36 +82,19 @@ class SocketFactory(object):
 		return 'socket' + repr(self.socket_connect)
 
 def find_available_port(
-	interface : "attempt to bind to interface" = 'localhost',
-	address_family : "address family to use (default: AF_INET)" = socket.AF_INET,
-	limit : "Number tries to make before giving up" = 1024,
-	port_range = (6600, 56600)
-) -> (int, None):
+	interface = 'localhost',
+	address_family = socket.AF_INET,
+):
 	"""
 	Find an available port on the given interface for the given address family.
-
-	Returns a port number that was successfully bound to or `None` if the
-	attempt limit was reached.
 	"""
-	i = 0
-	while i < limit:
-		i += 1
-		port = (
-			math.floor(
-				random.random() * (port_range[1] - port_range[0])
-			) + port_range[0]
-		)
-		s = socket.socket(address_family, socket.SOCK_STREAM,)
-		try:
-			s.bind(('localhost', port))
-			s.close()
-		except socket.error as e:
-			s.close()
-			if e.errno in (errno.EACCES, errno.EADDRINUSE, errno.EINTR):
-				# try again
-				continue
-		break
-	else:
-		port = None
+
+	port = None
+	s = socket.socket(address_family, socket.SOCK_STREAM,)
+	try:
+		s.bind(('localhost', 0))
+		port = s.getsockname()[1]
+	finally:
+		s.close()
 
 	return port
