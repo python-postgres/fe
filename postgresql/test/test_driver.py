@@ -1812,7 +1812,7 @@ class test_typio(unittest.TestCase):
 	@pg_tmp
 	def testIdentify(self):
 		# It just exercises the code path.
-		db.typio.identify(contrib_hstore = 'pg_catalog.reltime')
+		db.typio.identify(contrib_hstore = 'pg_catalog.text')
 
 	@pg_tmp
 	def testArrayNulls(self):
