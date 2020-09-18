@@ -401,6 +401,9 @@ driver = pg_driver.Driver(connection = Connection)
 def connect(**kw):
 	"""
 	Create a DB-API connection using the given parameters.
+
+	Due to the way defaults are populated, when connecting to a local filesystem socket
+	using the `unix` keyword parameter, `host` and `port` must also be set to ``None``.
 	"""
 	std_params = pg_param.collect(prompt_title = None)
 	params = pg_param.normalize(
