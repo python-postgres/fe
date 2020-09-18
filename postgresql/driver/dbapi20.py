@@ -323,7 +323,7 @@ class Connection(Connection):
 		Warning
 	DatabaseError = DatabaseError
 	NotSupportedError = NotSupportedError
-	_dbapi_connected = False
+	_dbapi_connected_flag = False
 
 	def autocommit_set(self, val):
 		if val:
@@ -355,15 +355,16 @@ class Connection(Connection):
 		super().connect(*args, **kw)
 		self._xact = self.xact()
 		self._xact.start()
-		self._dbapi_connected = True
+		self._dbapi_connected_flag = True
 
 	def close(self):
-		if self.closed and self._dbapi_connected:
+		if self.closed and self._dbapi_connected_flag:
 			raise Error(
 				"connection already closed",
 				source = 'CLIENT',
 				creator = self
 			)
+		self._dbapi_connected_flag = True
 		super().close()
 
 	def cursor(self):
