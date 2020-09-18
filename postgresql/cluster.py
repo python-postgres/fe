@@ -192,6 +192,7 @@ class Cluster(pg_api.Cluster):
 
 	def init(self,
 		password = None,
+		timeout = None,
 		**kw
 	):
 		"""
@@ -253,29 +254,24 @@ class Cluster(pg_api.Cluster):
 				cmd,
 				close_fds = close_fds,
 				bufsize = 1024 * 5, # not expecting this to ever be filled.
-				stdin = sp.PIPE,
+				stdin = None,
 				stdout = logfile,
 				# stderr is used to identify a reasonable error message.
 				stderr = sp.PIPE,
 			)
-			# stdin is not used; it is not desirable for initdb to be attached.
-			p.stdin.close()
 
-			while True:
-				try:
-					rc = p.wait()
-					break
-				except OSError as e:
-					if e.errno != errno.EINTR:
-						raise
-				finally:
-					if p.stdout is not None:
-						p.stdout.close()
+			try:
+				stdout, stderr = p.communicate(timeout=timeout)
+			except sp.TimeoutExpired:
+				p.kill()
+				stdout, stderr = p.communicate()
+			finally:
+				rc = p.returncode
 
 			if rc != 0:
 				# initdb returned non-zero, pickup stderr and attach to exception.
 
-				r = p.stderr.read().strip()
+				r = stderr
 				try:
 					msg = r.decode('utf-8')
 				except UnicodeDecodeError:
@@ -283,6 +279,7 @@ class Cluster(pg_api.Cluster):
 					msg = os.linesep.join([
 						repr(x)[2:-1] for x in r.splitlines()
 					])
+
 				raise InitDBError(
 					"initdb exited with non-zero status",
 					details = {
@@ -293,11 +290,6 @@ class Cluster(pg_api.Cluster):
 					creator = self
 				)
 		finally:
-			if p is not None:
-				for x in (p.stderr, p.stdin, p.stdout):
-					if x is not None:
-						x.close()
-
 			if supw_tmp is not None:
 				n = supw_tmp.name
 				supw_tmp.close()
