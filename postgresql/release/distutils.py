@@ -19,6 +19,14 @@ except ImportError as e:
 	from distutils.core import Extension, Command
 
 LONG_DESCRIPTION = """
+.. warning::
+	`postgresql.driver.dbapi20.connect` will now raise `ClientCannotConnectError` directly.
+	Exception traps around connect should still function, but the `__context__` attribute
+	on the error instance will be `None` in the usual failure case as it is no longer
+	incorrectly chained. Trapping `ClientCannotConnectError` ahead of `Error` should
+	allow both cases to co-exist in the event that data is being extracted from
+	the `ClientCannotConnectError`.
+
 py-postgresql is a set of Python modules providing interfaces to various parts
 of PostgreSQL. Primarily, it provides a pure-Python driver with some C optimizations for
 querying a PostgreSQL database.
