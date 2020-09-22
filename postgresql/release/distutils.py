@@ -167,6 +167,7 @@ def standard_setup_keywords(build_extensions = True, prefix = default_prefix):
 		'version' : version,
 		'description' : 'PostgreSQL driver and tools library.',
 		'long_description' : LONG_DESCRIPTION,
+		'long_description_content_type' : 'text/x-rst',
 		'author' : 'James William Pye',
 		'author_email' : 'james.pye@gmail.com',
 		'maintainer' : 'James William Pye',
