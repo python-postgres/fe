@@ -410,6 +410,17 @@ search_path = public
 			TRUST.cursor().execute, 'select 1'
 		)
 
+	def test_dbapi_connect_failure(self):
+		host, port = self.cluster.address()
+		badlogin = (lambda: dbapi20.connect(
+			user = '--',
+			database = '--',
+			password = '...',
+			host = host, port = port,
+			**self.params
+		))
+		self.assertRaises(pg_exc.ClientCannotConnectError, badlogin)
+
 	def test_IP4_connect(self):
 		C = pg_driver.default.ip4(
 			user = 'test',

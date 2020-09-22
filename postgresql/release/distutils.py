@@ -20,7 +20,7 @@ except ImportError as e:
 
 LONG_DESCRIPTION = """
 .. warning::
-	`postgresql.driver.dbapi20.connect` will now raise `ClientCannotConnectError` directly.
+	In v1.3, `postgresql.driver.dbapi20.connect` will now raise `ClientCannotConnectError` directly.
 	Exception traps around connect should still function, but the `__context__` attribute
 	on the error instance will be `None` in the usual failure case as it is no longer
 	incorrectly chained. Trapping `ClientCannotConnectError` ahead of `Error` should
