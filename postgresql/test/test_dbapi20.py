@@ -54,8 +54,8 @@ class test_dbapi20(unittest.TestCase):
 	"""
 	Test a database self.driver for DB API 2.0 compatibility.
 	This implementation tests Gadfly, but the TestCase
-	is structured so that other self.drivers can subclass this 
-	test case to ensure compiliance with the DB-API. It is 
+	is structured so that other self.drivers can subclass this
+	test case to ensure compiliance with the DB-API. It is
 	expected that this TestCase may be expanded in the future
 	if ambiguities or edge conditions are discovered.
 
@@ -65,9 +65,9 @@ class test_dbapi20(unittest.TestCase):
 	self.driver, connect_args and connect_kw_args. Class specification
 	should be as follows:
 
-	import dbapi20 
+	import dbapi20
 	class mytest(dbapi20.DatabaseAPI20Test):
-		[...] 
+		[...]
 
 	__rcs_id__  = 'Id: dbapi20.py,v 1.10 2003/10/09 03:14:14 zenzen Exp'
 	__version__ = 'Revision: 1.10'
@@ -98,10 +98,10 @@ class test_dbapi20(unittest.TestCase):
 		try:
 			cur = con.cursor()
 			for ddl in (self.xddl1, self.xddl2):
-				try: 
+				try:
 					cur.execute(ddl)
 					con.commit()
-				except self.driver.Error: 
+				except self.driver.Error:
 					# Assume table didn't exist. Other tests will check if
 					# execute is busted.
 					pass
