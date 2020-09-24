@@ -139,9 +139,8 @@ class test_functools(unittest.TestCase):
 
 class test_socket(unittest.TestCase):
 	def testFindAvailable(self):
-		# the port is randomly generated, so make a few trials before
-		# determining success.
-		for i in range(100):
+		# Host sanity check; this is likely fragile.
+		for i in range(4):
 			portnum = find_available_port()
 			s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			try:
