@@ -18,39 +18,37 @@ from . import api as pg_api
 from . import string as pg_str
 
 # Get the output from the given command.
-# *args are transformed into "long options", '--' + x
-def get_command_output(exe, *args):
+# Variable arguments are transformed into "long options", '--' + x
+def get_command_output(exe, *args, encoding='utf-8', timeout=8):
 	pa = list(exe) + [
 		'--' + x.strip() for x in args if x is not None
 	]
 	p = subprocess.Popen(pa,
 		close_fds = close_fds,
 		stdout = subprocess.PIPE,
-		stderr = subprocess.PIPE,
-		stdin = subprocess.PIPE,
+		stderr = None,
+		stdin = None,
 		shell = False
 	)
-	p.stdin.close()
-	p.stderr.close()
-	while True:
-		try:
-			rv = p.wait()
-			break
-		except OSError as e:
-			if e.errno != errno.EINTR:
-				raise
-	if rv != 0:
-		return None
-	with p.stdout, io.TextIOWrapper(p.stdout) as txt:
-		return txt.read()
 
-def pg_config_dictionary(*pg_config_path):
+	try:
+		stdout, stderr = p.communicate(timeout=timeout)
+	except subprocess.TimeoutExpired:
+		p.kill()
+		stdout, stderr = p.communicate(timeout=2)
+
+	if p.returncode != 0:
+		return None
+
+	return stdout.decode(encoding)
+
+def pg_config_dictionary(*pg_config_path, encoding='utf-8', timeout=8):
 	"""
 	Create a dictionary of the information available in the given
 	pg_config_path. This provides a one-shot solution to fetching information
 	from the pg_config binary. Returns a dictionary object.
 	"""
-	default_output = get_command_output(pg_config_path)
+	default_output = get_command_output(pg_config_path, encoding=encoding, timeout=timeout)
 	if default_output is not None:
 		d = {}
 		for x in default_output.splitlines():
@@ -67,7 +65,7 @@ def pg_config_dictionary(*pg_config_path):
 	#  Second, all the -- options except version.
 	#  Third, --version as it appears to be exclusive in some cases.
 	opt = []
-	for l in get_command_output(pg_config_path, 'help').splitlines():
+	for l in get_command_output(pg_config_path, 'help', encoding=encoding, timeout=timeout).splitlines():
 		dash_pos = l.find('--')
 		if dash_pos == -1:
 			continue
@@ -79,8 +77,8 @@ def pg_config_dictionary(*pg_config_path):
 	if 'version' in opt:
 		opt.remove('version')
 
-	d=dict(zip(opt, get_command_output(pg_config_path, *opt).splitlines()))
-	d['version'] = get_command_output(pg_config_path, 'version').strip()
+	d=dict(zip(opt, get_command_output(pg_config_path, *opt, encoding=encoding, timeout=timeout).splitlines()))
+	d['version'] = get_command_output(pg_config_path, 'version', encoding=encoding, timeout=timeout).strip()
 	return d
 
 ##
