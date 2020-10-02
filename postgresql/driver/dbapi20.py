@@ -325,7 +325,7 @@ class Connection(Connection):
 	NotSupportedError = NotSupportedError
 
 	# Explicitly manage DB-API connected state to properly
-	# throw the already closed error. This will be active in 1.3.
+	# throw the already closed error.
 	_dbapi_connected_flag = False
 
 	def autocommit_set(self, val):
@@ -361,7 +361,7 @@ class Connection(Connection):
 		self._dbapi_connected_flag = True
 
 	def close(self):
-		if self.closed:# and self._dbapi_connected_flag:
+		if self.closed and self._dbapi_connected_flag:
 			raise Error(
 				"connection already closed",
 				source = 'CLIENT',
