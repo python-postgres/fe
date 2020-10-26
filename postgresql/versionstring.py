@@ -2,18 +2,16 @@
 # .versionstring
 ##
 """
-PostgreSQL version parsing.
+PostgreSQL version string parsing.
 
->>> postgresql.version.split('8.0.1')
+>>> postgresql.versionstring.split('8.0.1')
 (8, 0, 1, None, None)
 """
 
-def split(vstr : str) -> (
-	'major','minor','patch',...,'state_class','state_level'
-):
+def split(vstr: str) -> tuple:
 	"""
-	Split a PostgreSQL version string into a tuple
-	(major,minor,patch,...,state_class,state_level)
+	Split a PostgreSQL version string into a tuple.
+	(major, minor, patch, ..., state_class, state_level)
 	"""
 	v = vstr.strip().split('.')
 
@@ -38,24 +36,22 @@ def split(vstr : str) -> (
 		vlist += [None] * ((3 - len(vlist)) + 2)
 	return tuple(vlist)
 
-def unsplit(vtup : tuple) -> str:
-	'join a version tuple back into the original version string'
+def unsplit(vtup: tuple) -> str:
+	"""
+	Join a version tuple back into the original version string.
+	"""
 	svtup = [str(x) for x in vtup[:-2] if x is not None]
 	state_class, state_level = vtup[-2:]
-	return '.'.join(svtup) + (
-		'' if state_class is None else state_class + str(state_level)
-	)
+	return '.'.join(svtup) + ('' if state_class is None else state_class + str(state_level))
 
-def normalize(split_version : "a tuple returned by `split`") -> tuple:
+def normalize(split_version: tuple) -> tuple:
 	"""
 	Given a tuple produced by `split`, normalize the `None` objects into int(0)
-	or 'final' if it's the ``state_class``
+	or 'final' if it's the ``state_class``.
 	"""
 	(*head, state_class, state_level) = split_version
 	mmp = [x if x is not None else 0 for x in head]
-	return tuple(
-		mmp + [state_class or 'final', state_level or 0]
-	)
+	return tuple(mmp + [state_class or 'final', state_level or 0])
 
 default_state_class_priority = [
 	'dev',

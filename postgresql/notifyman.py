@@ -106,7 +106,7 @@ class NotificationManager(object):
 
 	def queue(self, db, notifies):
 		"""
-		Queue the notifies for the specified connection. Upon success, the 
+		Queue the notifies for the specified connection.
 
 		This method can be overridden by subclasses to take a callback approach
 		to notification management.
@@ -186,7 +186,9 @@ class NotificationManager(object):
 		self.timeout = seconds
 
 	def gettimeout(self):
-		'Get the timeout.'
+		"""
+		Get the timeout assigned by `settimeout`.
+		"""
 		return self.timeout
 
 	def __iter__(self):

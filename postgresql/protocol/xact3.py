@@ -1,7 +1,9 @@
 ##
 # .protocol.xact3 - protocol state machine
 ##
-'PQ version 3.0 client transactions'
+"""
+PQ version 3.0 client transactions.
+"""
 import sys
 import os
 import pprint
@@ -94,10 +96,7 @@ class Negotiation(Transaction):
 	"""
 	state = None
 
-	def __init__(self,
-		startup_message : "startup message to send",
-		password : "password source data(encoded password bytes)",
-	):
+	def __init__(self, startup_message, password):
 		self.startup_message = startup_message
 		self.password = password
 		self.received = [()]
@@ -435,7 +434,9 @@ class Instruction(Transaction):
 		)
 
 	def messages_received(self):
-		'Received and validate messages'
+		"""
+		Received and validate messages.
+		"""
 		return chain.from_iterable(map(get1, self.completed))
 
 	def reverse(self,

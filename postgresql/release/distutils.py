@@ -117,8 +117,8 @@ except NameError:
 	default_prefix = ['postgresql']
 
 def prefixed_extensions(
-	prefix : "prefix to prepend to paths" = default_prefix,
-	extensions_data : "`extensions_data`" = extensions_data,
+	prefix = default_prefix,
+	extensions_data = extensions_data,
 ) -> [Extension]:
 	"""
 	Generator producing the `distutils` `Extension` objects.
@@ -134,7 +134,7 @@ def prefixed_extensions(
 		)
 
 def prefixed_packages(
-	prefix : "prefix to prepend to source paths" = default_prefix,
+	prefix = default_prefix,
 	packages = subpackages,
 ):
 	"""
@@ -147,7 +147,7 @@ def prefixed_packages(
 		yield prefix + pkg
 
 def prefixed_package_data(
-	prefix : "prefix to prepend to dictionary keys paths" = default_prefix,
+	prefix = default_prefix,
 	package_data = subpackage_data,
 ):
 	"""

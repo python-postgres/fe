@@ -219,17 +219,18 @@ class TypeIO(pg_api.TypeIO):
 		return typ
 
 	def resolve_descriptor(self, desc, index):
-		'create a sequence of I/O routines from a pq descriptor'
+		"""
+		Create a sequence of I/O routines from a pq descriptor.
+		"""
 		return [
 			(self.resolve(x[3]) or (None, None))[index] for x in desc
 		]
 
 	# lookup a type's IO routines from a given typid
 	def resolve(self,
-		typid : "The Oid of the type to resolve pack and unpack routines for.",
-		from_resolution_of : \
-		"Sequence of typid's used to identify infinite recursion" = (),
-		builtins : "types.io.resolve" = pg_types_io.resolve,
+		typid : int,
+		from_resolution_of : [int] = (),
+		builtins = pg_types_io.resolve,
 		quote_ident = quote_ident
 	):
 		if from_resolution_of and typid in from_resolution_of:
@@ -406,17 +407,19 @@ class TypeIO(pg_api.TypeIO):
 	# record_io_factory - Build an I/O pair for RECORDs
 	##
 	def record_io_factory(self,
-		column_io : "sequence (pack,unpack) tuples corresponding to the columns",
-		typids : "sequence of type Oids; index must correspond to the composite's",
-		attmap : "mapping of column name to index number",
-		typnames : "sequence of sql type names in order",
-		attnames : "sequence of attribute names in order",
-		composite_relid : "oid of the composite relation",
-		composite_name : "the name of the composite type",
+		column_io, typids, attmap, typnames, attnames, composite_relid, composite_name,
 		get0 = get0,
 		get1 = get1,
 		fmt_errmsg = "failed to {0} attribute {1}, {2}::{3}, of composite {4} from wire data".format
 	):
+		# column_io: sequence (pack,unpack) tuples corresponding to the columns.
+		# typids: sequence of type Oids; index must correspond to the composite's.
+		# attmap: mapping of column name to index number.
+		# typnames: sequence of sql type names in order.
+		# attnames: sequence of attribute names in order.
+		# composite_relid: oid of the composite relation.
+		# composite_name: the name of the composite type.
+
 		fpack = tuple(map(get0, column_io))
 		funpack = tuple(map(get1, column_io))
 		row_constructor = self.RowTypeFactory(attribute_map = attmap, composite_relid = composite_relid)
@@ -448,18 +451,18 @@ class TypeIO(pg_api.TypeIO):
 			)), cause = cause)
 
 		def unpack_a_record(data,
-			unpack = io_lib.record_unpack,
-			process_tuple = process_tuple,
-			row_constructor = row_constructor
-		):
+				unpack = io_lib.record_unpack,
+				process_tuple = process_tuple,
+				row_constructor = row_constructor
+			):
 			data = tuple([x[1] for x in unpack(data)])
 			return row_constructor(process_tuple(funpack, data, raise_unpack_tuple_error))
 
 		sorted_atts = sorted(attmap.items(), key = get1)
 		def pack_a_record(data,
-			pack = io_lib.record_pack,
-			process_tuple = process_tuple,
-		):
+				pack = io_lib.record_pack,
+				process_tuple = process_tuple,
+			):
 			if isinstance(data, dict):
 				data = [data.get(k) for k,_ in sorted_atts]
 			return pack(
@@ -765,8 +768,8 @@ class Output(object):
 
 	# Process the element.Tuple message in x for rows()
 	def _process_tuple_chunk_Row(self, x,
-		proc = process_chunk,
-	):
+			proc = process_chunk,
+		):
 		rc = self._row_constructor
 		return [
 			rc(y)
@@ -778,7 +781,7 @@ class Output(object):
 		return proc(self._output_io, x, self._raise_column_tuple_error)
 
 	def _raise_column_tuple_error(self, cause, procs, tup, itemnum):
-		'for column processing'
+		# For column processing.
 		# The element traceback will include the full list of parameters.
 		data = repr(tup[itemnum])
 		if len(data) > 80:
@@ -835,12 +838,16 @@ class Output(object):
 		]
 
 	def command(self):
-		"The completion message's command identifier"
+		"""
+		The completion message's command identifier.
+		"""
 		if self._complete_message is not None:
 			return self._complete_message.extract_command().decode('ascii')
 
 	def count(self):
-		"The completion message's count number"
+		"""
+		The completion message's count number.
+		"""
 		if self._complete_message is not None:
 			return self._complete_message.extract_count()
 
@@ -2198,7 +2205,7 @@ class Transaction(pg_api.Transaction):
 
 	@staticmethod
 	def _release_string(id):
-		'release "";'
+		# Release "";
 		return 'RELEASE "xact(' + id.replace('"', '""') + ')";'
 
 	def commit(self):
@@ -2311,13 +2318,13 @@ class Connection(pg_api.Connection):
 		self._pq_complete()
 
 	def do(self, language : str, source : str,
-		qlit = pg_str.quote_literal,
-		qid = pg_str.quote_ident,
-	) -> None:
+			qlit = pg_str.quote_literal,
+			qid = pg_str.quote_ident,
+		) -> None:
 		sql = "DO " + qlit(source) + " LANGUAGE " + qid(language) + ";"
 		self.execute(sql)
 
-	def xact(self, isolation = None, mode = None):
+	def xact(self, isolation = None, mode = None) -> Transaction:
 		x = Transaction(self, isolation = isolation, mode = mode)
 		return x
 
@@ -2328,6 +2335,8 @@ class Connection(pg_api.Connection):
 	) -> Statement:
 		ps = Class(self, statement_id, sql_statement_string)
 		ps._init()
+
+		# Complete protocol transaction to maintain point of origin in error cases.
 		ps._fini()
 		return ps
 
@@ -2412,7 +2421,9 @@ class Connection(pg_api.Connection):
 		return self
 
 	def connect(self):
-		'Establish the connection to the server'
+		"""
+		Establish the connection to the server.
+		"""
 		if self.closed is False:
 			# already connected? just return.
 			return
@@ -2623,11 +2634,11 @@ class Connection(pg_api.Connection):
 				del self._controller
 
 	def _receive_async(self,
-		msg, controller = None,
-		showoption = element.ShowOption.type,
-		notice = element.Notice.type,
-		notify = element.Notify.type,
-	):
+			msg, controller = None,
+			showoption = element.ShowOption.type,
+			notice = element.Notice.type,
+			notify = element.Notify.type,
+		):
 		c = controller or getattr(self, '_controller', self)
 		typ = msg.type
 		if typ == showoption:
@@ -2767,12 +2778,12 @@ class Connector(pg_api.Connector):
 
 	def __init__(self,
 		connect_timeout : int = None,
-		server_encoding : "server encoding hint for driver" = None,
+		server_encoding = None,
 		sslmode : ('allow', 'prefer', 'require', 'disable') = None,
-		sslcrtfile : "filepath" = None,
-		sslkeyfile : "filepath" = None,
-		sslrootcrtfile : "filepath" = None,
-		sslrootcrlfile : "filepath" = None,
+		sslcrtfile = None,
+		sslkeyfile = None,
+		sslrootcrtfile = None,
+		sslrootcrlfile = None,
 		driver = None,
 		**kw
 	):
@@ -2837,7 +2848,9 @@ class Connector(pg_api.Connector):
 # class Connector
 
 class SocketConnector(Connector):
-	'abstract connector for using `socket` and `ssl`'
+	"""
+	Abstract connector for using `socket` and `ssl`.
+	"""
 	@abstractmethod
 	def socket_factory_sequence(self):
 		"""
@@ -2872,12 +2885,14 @@ class IPConnector(SocketConnector):
 		super().__init__(**kw)
 
 class IP4(IPConnector):
-	'Connector for establishing IPv4 connections'
+	"""
+	Connector for establishing IPv4 connections.
+	"""
 	ipv = 4
 	address_family = socket.AF_INET
 
 	def __init__(self,
-		host : "IPv4 Address (str)" = None,
+		host : str = None,
 		port : int = None,
 		ipv = 4,
 		**kw
@@ -2885,12 +2900,14 @@ class IP4(IPConnector):
 		super().__init__(host, port, ipv, **kw)
 
 class IP6(IPConnector):
-	'Connector for establishing IPv6 connections'
+	"""
+	Connector for establishing IPv6 connections.
+	"""
 	ipv = 6
 	address_family = socket.AF_INET6
 
 	def __init__(self,
-		host : "IPv6 Address (str)" = None,
+		host : str = None,
 		port : int = None,
 		ipv = 6,
 		**kw
@@ -2898,7 +2915,9 @@ class IP6(IPConnector):
 		super().__init__(host, port, ipv, **kw)
 
 class Unix(SocketConnector):
-	'Connector for establishing unix domain socket connections'
+	"""
+	Connector for establishing unix domain socket connections.
+	"""
 	def socket_factory_sequence(self):
 		return self._socketcreators
 
@@ -2946,7 +2965,7 @@ class Host(SocketConnector):
 		host : str = None,
 		port : (str, int) = None,
 		ipv : int = None,
-		address_family : "address family to use(AF_INET,AF_INET6)" = None,
+		address_family = None,
 		**kw
 	):
 		if host is None:
@@ -2992,10 +3011,7 @@ class Driver(pg_api.Driver):
 		**kw
 	) -> Connector:
 		"""
-		Create the appropriate `postgresql.api.Connector` based on the
-		parameters.
-
-		This also protects against mutually exclusive parameters.
+		Create the appropriate `postgresql.api.Connector` based on the parameters.
 		"""
 		if unix is not None:
 			if host is not None:
@@ -3006,7 +3022,7 @@ class Driver(pg_api.Driver):
 		else:
 			if host is None or port is None:
 				raise TypeError("'host' and 'port', or 'unix' must be supplied")
-			# We have a host and a port.
+
 			# If it's an IP address, IP4 or IP6 should be selected.
 			if ':' in host:
 				# There's a ':' in host, good chance that it's IPv6.
@@ -3016,7 +3032,7 @@ class Driver(pg_api.Driver):
 				except (socket.error, NameError):
 					pass
 
-			# Not IPv6, maybe IPv4...
+			# Not IPv6, maybe IPv4.
 			try:
 				socket.inet_aton(host)
 				# It's IP4
@@ -3029,6 +3045,9 @@ class Driver(pg_api.Driver):
 
 	def connect(self, **kw) -> Connection:
 		"""
+		Create an established Connection instance from a temporary Connector
+		built using the given keywords.
+
 		For information on acceptable keywords, see:
 
 			`postgresql.documentation.driver`:Connection Keywords

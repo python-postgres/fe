@@ -286,9 +286,9 @@ class Array(object):
 
 	@classmethod
 	def from_elements(typ,
-		elements : "iterable of elements in the array",
-		lowerbounds : "beginning of each axis" = None,
-		upperbounds : "upper bounds; size of each axis" = None,
+		elements,
+		lowerbounds = None,
+		upperbounds = None,
 		len = len,
 	):
 		"""

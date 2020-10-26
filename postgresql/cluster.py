@@ -40,23 +40,35 @@ class ClusterError(pg_exc.Error):
 	code = '-C000'
 	source = 'CLUSTER'
 class ClusterInitializationError(ClusterError):
-	"General cluster initialization failure"
+	"""
+	General cluster initialization failure.
+	"""
 	code = '-Cini'
 class InitDBError(ClusterInitializationError):
-	"A non-zero result was returned by the initdb command"
+	"""
+	A non-zero result was returned by the initdb command.
+	"""
 	code = '-Cidb'
 class ClusterStartupError(ClusterError):
-	"Cluster startup failed"
+	"""
+	Cluster startup failed.
+	"""
 	code = '-Cbot'
 class ClusterNotRunningError(ClusterError):
-	"Cluster is not running"
+	"""
+	Cluster is not running.
+	"""
 	code = '-Cdwn'
 class ClusterTimeoutError(ClusterError):
-	"Cluster operation timed out"
+	"""
+	Cluster operation timed out.
+	"""
 	code = '-Cout'
 
 class ClusterWarning(pg_exc.Warning):
-	"Warning issued by cluster operations"
+	"""
+	Warning issued by cluster operations.
+	"""
 	code = '-Cwrn'
 	source = 'CLUSTER'
 
@@ -154,10 +166,7 @@ class Cluster(pg_api.Cluster):
 			join(self.data_directory, self.DEFAULT_HBA_FILENAME)
 		)
 
-	def __init__(self,
-		installation,
-		data_directory,
-	):
+	def __init__(self, installation, data_directory):
 		self.installation = installation
 		self.data_directory = os.path.abspath(data_directory)
 		self.pgsql_dot_conf = os.path.join(
@@ -190,11 +199,7 @@ class Cluster(pg_api.Cluster):
 		self.stop()
 		self.wait_until_stopped()
 
-	def init(self,
-		password = None,
-		timeout = None,
-		**kw
-	):
+	def init(self, password = None, timeout = None, **kw):
 		"""
 		Create the cluster at the given `data_directory` using the
 		provided keyword parameters as options to the command.
@@ -323,10 +328,7 @@ class Cluster(pg_api.Cluster):
 				os.rmdir(os.path.join(root, name))	
 		os.rmdir(self.data_directory)
 
-	def start(self,
-		logfile = None,
-		settings = None
-	):
+	def start(self, logfile = None, settings = None):
 		"""
 		Start the cluster.
 		"""
@@ -562,10 +564,7 @@ class Cluster(pg_api.Cluster):
 		# credentials... strange, but true..
 		return e if e is not None else True
 
-	def wait_until_started(self,
-		timeout = 10,
-		delay = 0.05,
-	):
+	def wait_until_started(self, timeout = 10, delay = 0.05):
 		"""
 		After the `start` method is used, this can be ran in order to block
 		until the cluster is ready for use.
@@ -614,10 +613,7 @@ class Cluster(pg_api.Cluster):
 				raise e
 			time.sleep(delay)
 
-	def wait_until_stopped(self,
-		timeout = 10,
-		delay = 0.05
-	):
+	def wait_until_stopped(self, timeout = 10, delay = 0.05):
 		"""
 		After the `stop` method is used, this can be ran in order to block until
 		the cluster is shutdown.

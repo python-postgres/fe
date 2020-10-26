@@ -16,7 +16,10 @@ from .message_types import message_types
 xl_unpack = struct.Struct('!xL').unpack_from
 
 class pq_message_stream(object):
-	'provide a message stream from a data stream'
+	"""
+	Provide a message stream from a data stream.
+	"""
+
 	_block = 512
 	_limit = _block * 4
 	def __init__(self):
@@ -24,12 +27,18 @@ class pq_message_stream(object):
 		self._start = 0
 
 	def truncate(self):
-		"remove all data in the buffer"
+		"""
+		Remove all data in the buffer.
+		"""
+
 		self._strio.truncate(0)
 		self._start = 0
 
 	def _rtruncate(self, amt = None):
-		"[internal] remove the given amount of data"
+		"""
+		[internal] remove the given amount of data.
+		"""
+
 		strio = self._strio
 		if amt is None:
 			amt = self._strio.tell()
@@ -58,7 +67,10 @@ class pq_message_stream(object):
 		strio.truncate(size - amt)
 
 	def has_message(self, xl_unpack = xl_unpack, len = len):
-		"if the buffer has a message available"
+		"""
+		Whether the buffer has a message available.
+		"""
+
 		strio = self._strio
 		strio.seek(self._start)
 		header = strio.read(5)
@@ -71,7 +83,10 @@ class pq_message_stream(object):
 		return (strio.tell() - self._start) >= length + 1
 
 	def __len__(self, xl_unpack = xl_unpack, len = len):
-		"number of messages in buffer"
+		"""
+		Number of messages in buffer.
+		"""
+
 		count = 0
 		rpos = self._start
 		strio = self._strio

@@ -64,11 +64,11 @@ class Message(Message):
 		)
 
 	def __init__(self,
-		message : "The primary information of the message",
-		code : "Message code to attach (SQL state)" = None,
-		details : "additional information associated with the message" = {},
-		source : "Which side generated the message(SERVER, CLIENT)" = None,
-		creator : "The interface element that called for instantiation" = None,
+		message,
+		code = None,
+		details = {},
+		source = None,
+		creator = None,
 	):
 		self.message = message
 		self.details = details

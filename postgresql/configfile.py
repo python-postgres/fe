@@ -1,7 +1,9 @@
 ##
 # .configfile
 ##
-'PostgreSQL configuration file parser and editor functions.'
+"""
+PostgreSQL configuration file parser and editor functions.
+"""
 import sys
 import os
 from . import string as pg_str
@@ -76,18 +78,18 @@ def unquote(s, quote = quote):
 	return s[1:-1].replace(quote*2, quote)
 
 def write_config(map, writer, keys = None):
-	'A configuration writer that will trample & merely write the settings'
+	"""
+	A configuration writer that will trample & merely write the settings.
+	"""
 	if keys is None:
 		keys = map
 	for k in keys:
 		writer('='.join((k, map[k])) + os.linesep)
 
-def alter_config(
-	map : "the configuration changes to make",
-	fo : "file object containing configuration lines(Iterable)",
-	keys : "the keys to change; defaults to map.keys()" = None
-):
-	'Alters a configuration file without trampling on the existing structure'
+def alter_config(map, fo, keys = None):
+	"""
+	Alters a configuration file without trampling on the existing structure.
+	"""
 	if keys is None:
 		keys = list(map.keys())
 	# Normalize keys and map them back to
@@ -212,7 +214,7 @@ class ConfigFile(pg_api.Settings):
 	"""
 	Provides a mapping interface to a configuration file.
 
-	Every action will cause the file to be wholly read, so using `update` to make
+	Every operation will cause the file to be wholly read, so using `update` to make
 	multiple changes is desirable.
 	"""
 	_e_factors = ('path',)

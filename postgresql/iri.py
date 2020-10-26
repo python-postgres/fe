@@ -6,7 +6,7 @@ Parse and serialize PQ IRIs.
 
 PQ IRIs take the form::
 
-	pq://user:pass@host:port/database?setting=value&setting2=value2#public,othernamespace
+	pq://user:pass@host:port/database?setting=value&setting2=value2
 
 IPv6 is supported via the standard representation::
 
@@ -27,7 +27,9 @@ import re
 escape_path_re = re.compile('[%s]' %(re.escape(ri.unescaped + ','),))
 
 def structure(d, fieldproc = ri.unescape):
-	'Create a clientparams dictionary from a parsed RI'
+	"""
+	Create a clientparams dictionary from a parsed RI.
+	"""
 	if d.get('scheme', 'pq').lower() != 'pq':
 		raise ValueError("PQ-IRI scheme is not 'pq'")
 	cpd = {
@@ -90,7 +92,9 @@ def construct_path(x, re = escape_path_re):
 	return ','.join((re.sub(ri.re_pct_encode, y) for y in x))
 
 def construct(x, obscure_password = False):
-	'Construct a RI dictionary from a clientparams dictionary'
+	"""
+	Construct a RI dictionary from a clientparams dictionary.
+	"""
 	# the rather exhaustive settings choreography is due to
 	# a desire to allow the search_path to be appended in the fragment
 	settings = x.get('settings')
@@ -167,7 +171,9 @@ def construct(x, obscure_password = False):
 	)
 
 def parse(s, fieldproc = ri.unescape):
-	'Parse a Postgres IRI into a dictionary object'
+	"""
+	Parse a Postgres IRI into a dictionary object.
+	"""
 	return structure(
 		# In ri.parse, don't unescape the parsed values as our sub-structure
 		# uses the escape mechanism in IRIs to specify literal separator
@@ -177,7 +183,9 @@ def parse(s, fieldproc = ri.unescape):
 	)
 
 def serialize(x, obscure_password = False):
-	'Return a Postgres IRI from a dictionary object.'
+	"""
+	Return a Postgres IRI from a dictionary object.
+	"""
 	return ri.unsplit(construct(x, obscure_password = obscure_password))
 
 if __name__ == '__main__':

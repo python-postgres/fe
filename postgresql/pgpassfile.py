@@ -1,7 +1,9 @@
 ##
 # .pgpassfile - parse and lookup passwords in a pgpassfile
 ##
-'Parse pgpass files and subsequently lookup a password.'
+"""
+Parse pgpass files and subsequently lookup a password.
+"""
 import os.path
 
 def split(line, len = len):
@@ -30,7 +32,9 @@ def split(line, len = len):
 	return r
 
 def parse(data):
-	'produce a list of [(word, (host,port,dbname,user))] from a pgpass file object'
+	"""
+	Produce a list of [(word, (host,port,dbname,user))] from a pgpass file object.
+	"""
 	return [
 		(x[-1], x[0:4]) for x in [split(line) for line in data] if x
 	]
@@ -50,7 +54,9 @@ def lookup_password(words, uhpd):
 			return word
 
 def lookup_password_file(path, t):
-	'like lookup_password, but takes a file path'
+	"""
+	Like lookup_password, but takes a file path.
+	"""
 	with open(path) as f:
 		return lookup_password(parse(f), t)
 

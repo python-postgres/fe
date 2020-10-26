@@ -16,22 +16,30 @@ All functions deal with strict quoting rules.
 import re
 
 def escape_literal(text):
-	"Replace every instance of ' with ''"
+	"""
+	Replace every instance of ' with ''.
+	"""
 	return text.replace("'", "''")
 
 def quote_literal(text):
-	"Escape the literal and wrap it in [single] quotations"
+	"""
+	Escape the literal and wrap it in [single] quotations.
+	"""
 	return "'" + text.replace("'", "''") + "'"
 
 def escape_ident(text):
-	'Replace every instance of " with ""'
+	"""
+	Replace every instance of " with "".
+	"""
 	return text.replace('"', '""')
 
 def needs_quoting(text):
 	return not (text and not text[0].isdecimal() and text.replace('_', 'a').isalnum())
 
 def quote_ident(text):
-	"Replace every instance of '"' with '""' *and* place '"' on each end"
+	"""
+	Replace every instance of '"' with '""' *and* place '"' on each end.
+	"""
 	return '"' + text.replace('"', '""') + '"'
 
 def quote_ident_if_needed(text):
@@ -52,7 +60,7 @@ def split(text):
 	"""
 	split the string up by into non-quoted and quoted portions. Zero and even
 	numbered indexes are unquoted portions, while odd indexes are quoted
-	portions. 
+	portions.
 
 	Unquoted portions are regular strings, whereas quoted portions are
 	pair-tuples specifying the quotation mechanism and the content thereof.
@@ -214,7 +222,9 @@ def split_qname(text, maxsplit = -1):
 	return split_ident(text, maxsplit = maxsplit, sep = '.')
 
 def qname(*args):
-	"Quote the identifiers and join them using '.'"
+	"""
+	Quote the identifiers and join them using '.'.
+	"""
 	return '.'.join([quote_ident(x) for x in args])
 
 def qname_if_needed(*args):

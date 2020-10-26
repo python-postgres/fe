@@ -82,7 +82,9 @@ class test_cluster(unittest.TestCase):
 			self.assertEqual(c.prepare('select 1').first(), 1)
 
 	def testNoParameters(self):
-		'simple init and drop'
+		"""
+		Simple init and drop.
+		"""
 		self.init()
 		self.start_cluster()
 

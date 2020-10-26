@@ -580,15 +580,15 @@ def resolve_pg_service_file(
 	return None
 
 def collect(
-		parsed_options = None,
-		no_defaults = False,
-		environ = os.environ,
-		environ_prefix = 'PG',
-		default_pg_sysconfdir = None,
-		pg_service_file = None,
-		prompt_title = '',
-		parameters = (),
-	):
+	parsed_options = None,
+	no_defaults = False,
+	environ = os.environ,
+	environ_prefix = 'PG',
+	default_pg_sysconfdir = None,
+	pg_service_file = None,
+	prompt_title = '',
+	parameters = (),
+):
 	"""
 	Build a normalized client parameters dictionary for use with a connection
 	construction interface.

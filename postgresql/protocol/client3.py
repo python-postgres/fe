@@ -269,7 +269,9 @@ class Connection(object):
 		return True
 
 	def standard_read_messages(self):
-		'read more messages into self.read when self.read is empty'
+		"""
+		Read more messages into self.read when self.read is empty.
+		"""
 		r = True
 		if not self.read:
 			# get more data from the wire and
@@ -314,7 +316,9 @@ class Connection(object):
 	def standard_write_messages(self, messages,
 		cat_messages = element.cat_messages
 	):
-		'protocol message writer'
+		"""
+		Protocol message writer.
+		"""
 		if self.writing is not self.written:
 			self.message_data += cat_messages(self.writing)
 			self.written = self.writing
@@ -327,7 +331,9 @@ class Connection(object):
 	write_messages = standard_write_messages
 
 	def traced_write_messages(self, messages):
-		'message_writer used when tracing'
+		"""
+		`message_writer` used when tracing.
+		"""
 		for msg in messages:
 			t = getattr(msg, 'type', None)
 			if t is not None:
@@ -346,7 +352,9 @@ class Connection(object):
 		return self.standard_write_messages(messages)
 
 	def traced_read_messages(self):
-		'message_reader used when tracing'
+		"""
+		`message_reader` used when tracing.
+		"""
 		r = self.standard_read_messages()
 		for msg in self.read:
 			self._tracer('↓ %r(%d): %r%s' %(
@@ -433,7 +441,9 @@ class Connection(object):
 			self.xact = None
 
 	def complete(self):
-		'complete the current transaction'
+		"""
+		Complete the current transaction.
+		"""
 		# Continue to transition until all transactions have been
 		# completed, or an exception occurs that does not signal retry.
 		x = self.xact

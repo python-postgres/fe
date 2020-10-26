@@ -2,5 +2,5 @@
 # .release
 ##
 """
-Release management code and project meta-data.
+Release management code and project/release meta-data.
 """

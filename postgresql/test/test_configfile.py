@@ -237,7 +237,7 @@ class test_configfile(unittest.TestCase):
 		self.assertTrue(
 			nlines[:4] == lines[:4]
 		)
-	
+
 	def testSelection(self):
 		# Sanity
 		red = configfile.read_config(['foo = bar'+os.linesep, 'bar = foo'])

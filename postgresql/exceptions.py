@@ -36,14 +36,20 @@ from . import sys as pg_sys
 
 PythonException = Exception
 class Exception(Exception):
-	'Base PostgreSQL exception class'
+	"""
+	Base PostgreSQL exception class.
+	"""
 	pass
 
 class LoadError(Exception):
-	'Failed to load a library'
+	"""
+	Failed to load a library.
+	"""
 
 class Disconnection(Exception):
-	'Exception identifying errors that result in disconnection'
+	"""
+	Exception identifying errors that result in disconnection.
+	"""
 
 class Warning(Message):
 	code = '01000'
@@ -80,12 +86,16 @@ class NoMoreSetsReturned(NoDataWarning):
 	code = '02001'
 
 class Error(Message, Exception):
-	'A PostgreSQL Error'
+	"""
+	A PostgreSQL Error.
+	"""
 	_e_label = 'ERROR'
 	code = ''
 
 	def __str__(self):
-		'Call .sys.errformat(self)'
+		"""
+		Call .sys.errformat(self).
+		"""
 		return pg_sys.errformat(self)
 
 	@property
@@ -94,7 +104,9 @@ class Error(Message, Exception):
 		return None if f is None else f in ('PANIC', 'FATAL')
 
 class DriverError(Error):
-	"Errors originating in the driver's implementation."
+	"""
+	Errors originating in the driver's implementation.
+	"""
 	source = 'CLIENT'
 	code = '--000'
 class AuthenticationMethodError(DriverError, Disconnection):
@@ -109,7 +121,9 @@ class InsecurityError(DriverError, Disconnection):
 	"""
 	code = '--SEC'
 class ConnectTimeoutError(DriverError, Disconnection):
-	'Client was unable to esablish a connection in the given time'
+	"""
+	Client was unable to esablish a connection in the given time.
+	"""
 	code = '--TOE'
 
 class TypeIOError(DriverError):
@@ -144,7 +158,9 @@ class ConnectionDoesNotExistError(ConnectionError):
 	"""
 	code = '08003'
 class ConnectionFailureError(ConnectionError):
-	'Raised when a connection is dropped'
+	"""
+	Raised when a connection is dropped.
+	"""
 	code = '08006'
 
 class ClientCannotConnectError(ConnectionError):
@@ -164,7 +180,9 @@ class TriggeredActionError(Error):
 	code = '09000'
 
 class FeatureError(Error):
-	"Unsupported feature"
+	"""
+	"Unsupported feature.
+	"""
 	code = '0A000'
 
 class TransactionInitiationError(TransactionError):
@@ -187,7 +205,9 @@ class CaseNotFoundError(Error):
 	code = '20000'
 
 class CardinalityError(Error):
-	"Wrong number of rows returned"
+	"""
+	Wrong number of rows returned.
+	"""
 	code = '21000'
 
 class TriggeredDataChangeViolation(Error):
@@ -197,13 +217,17 @@ class AuthenticationSpecificationError(Error, Disconnection):
 	code = '28000'
 
 class DPDSEError(Error):
-	"Dependent Privilege Descriptors Still Exist"
+	"""
+	Dependent Privilege Descriptors Still Exist.
+	"""
 	code = '2B000'
 class DPDSEObjectError(DPDSEError):
 	code = '2BP01'
 
 class SREError(Error):
-	"SQL Routine Exception"
+	"""
+	SQL Routine Exception.
+	"""
 	code = '2F000'
 class FunctionExecutedNoReturnStatementError(SREError):
 	code = '2F005'
@@ -215,7 +239,9 @@ class ReadingDataProhibitedError(SREError):
 	code = '2F004'
 
 class EREError(Error):
-	"External Routine Exception"
+	"""
+	External Routine Exception.
+	"""
 	code = '38000'
 class ContainingSQLNotPermittedError(EREError):
 	code = '38001'
@@ -227,7 +253,9 @@ class ReadingSQLDataNotPermittedError(EREError):
 	code = '38004'
 
 class ERIEError(Error):
-	"External Routine Invocation Exception"
+	"""
+	External Routine Invocation Exception.
+	"""
 	code = '39000'
 class InvalidSQLState(ERIEError):
 	code = '39001'
@@ -239,7 +267,9 @@ class SRFProtocolError(ERIEError):
 	code = '39P02'
 
 class TRError(TransactionError):
-	"Transaction Rollback"
+	"""
+	Transaction Rollback.
+	"""
 	code = '40000'
 class DeadlockError(TRError):
 	code = '40P01'
@@ -252,7 +282,9 @@ class StatementCompletionUnknownError(TRError):
 
 
 class ITSError(TransactionError):
-	"Invalid Transaction State"
+	"""
+	Invalid Transaction State.
+	"""
 	code = '25000'
 class ActiveTransactionError(ITSError):
 	code = '25001'
@@ -265,24 +297,34 @@ class BadIsolationForBranchError(ITSError):
 class NoActiveTransactionForBranchError(ITSError):
 	code = '25005'
 class ReadOnlyTransactionError(ITSError):
-	"Occurs when an alteration occurs in a read-only transaction."
+	"""
+	Occurs when an alteration occurs in a read-only transaction.
+	"""
 	code = '25006'
 class SchemaAndDataStatementsError(ITSError):
-	"Mixed schema and data statements not allowed."
+	"""
+	Mixed schema and data statements not allowed.
+	"""
 	code = '25007'
 class InconsistentCursorIsolationError(ITSError):
-	"The held cursor requires the same isolation."
+	"""
+	The held cursor requires the same isolation.
+	"""
 	code = '25008'
 
 class NoActiveTransactionError(ITSError):
 	code = '25P01'
 class InFailedTransactionError(ITSError):
-	"Occurs when an action occurs in a failed transaction."
+	"""
+	Occurs when an action occurs in a failed transaction.
+	"""
 	code = '25P02'
 
 
 class SavepointError(TransactionError):
-	"Classification error designating errors that relate to savepoints."
+	"""
+	Classification error designating errors that relate to savepoints.
+	"""
 	code = '3B000'
 class InvalidSavepointSpecificationError(SavepointError):
 	code = '3B001'
@@ -291,7 +333,9 @@ class TransactionTerminationError(TransactionError):
 	code = '2D000'
 
 class IRError(Error):
-	"Insufficient Resource Error"
+	"""
+	Insufficient Resource Error.
+	"""
 	code = '53000'
 class MemoryError(IRError, MemoryError):
 	code = '53200'
@@ -301,7 +345,9 @@ class TooManyConnectionsError(IRError):
 	code = '53300'
 
 class PLEError(OverflowError):
-	"Program Limit Exceeded"
+	"""
+	Program Limit Exceeded
+	"""
 	code = '54000'
 class ComplexityOverflowError(PLEError):
 	code = '54001'
@@ -311,7 +357,9 @@ class ArgumentOverflowError(PLEError):
 	code = '54023'
 
 class ONIPSError(Error):
-	"Object Not In Prerequisite State"
+	"""
+	Object Not In Prerequisite State.
+	"""
 	code = '55000'
 class ObjectInUseError(ONIPSError):
 	code = '55006'
@@ -322,7 +370,9 @@ class UnavailableLockError(ONIPSError):
 
 
 class SEARVError(Error):
-	"Syntax Error or Access Rule Violation"
+	"""
+	Syntax Error or Access Rule Violation.
+	"""
 	code = '42000'
 
 class SEARVNameError(SEARVError):
@@ -445,7 +495,9 @@ class SchemaNameError(NameError):
 	code = '3F000'
 
 class ICVError(Error):
-	"Integrity Contraint Violation"
+	"""
+	Integrity Contraint Violation.
+	"""
 	code = '23000'
 class RestrictError(ICVError):
 	code = '23001'
@@ -539,7 +591,9 @@ class EscapeSequenceError(DataError):
 class EscapeCharacterConflictError(DataError):
 	code = '2200B'
 class EscapeCharacterError(DataError):
-	"Invalid escape character"
+	"""
+	Invalid escape character.
+	"""
 	code = '2200C'
 
 class SubstringError(DataError):
@@ -573,7 +627,9 @@ class IndexCorruptedError(InternalError):
 	code = 'XX002'
 
 class SIOError(Error):
-	"System I/O"
+	"""
+	System I/O.
+	"""
 	code = '58000'
 class UndefinedFileError(SIOError):
 	code = '58P01'
@@ -581,13 +637,17 @@ class DuplicateFileError(SIOError):
 	code = '58P02'
 
 class CFError(Error):
-	"Configuration File Error"
+	"""
+	Configuration File Error.
+	"""
 	code = 'F0000'
 class LockFileExistsError(CFError):
 	code = 'F0001'
 
 class OIError(Error):
-	"Operator Intervention"
+	"""
+	Operator Intervention.
+	"""
 	code = '57000'
 class QueryCanceledError(OIError):
 	code = '57014'
@@ -596,14 +656,20 @@ class AdminShutdownError(OIError, Disconnection):
 class CrashShutdownError(OIError, Disconnection):
 	code = '57P02'
 class ServerNotReadyError(OIError, Disconnection):
-	'Thrown when a connection is established to a server that is still starting up.'
+	"""
+	Thrown when a connection is established to a server that is still starting up.
+	"""
 	code = '57P03'
 
 class PLPGSQLError(Error):
-	"Error raised by a PL/PgSQL procedural function"
+	"""
+	Error raised by a PL/PgSQL procedural function.
+	"""
 	code = 'P0000'
 class PLPGSQLRaiseError(PLPGSQLError):
-	"Error raised by a PL/PgSQL RAISE statement."
+	"""
+	Error raised by a PL/PgSQL RAISE statement.
+	"""
 	code = 'P0001'
 class PLPGSQLNoDataFoundError(PLPGSQLError):
 	code = 'P0002'
@@ -615,9 +681,9 @@ class PLPGSQLTooManyRowsError(PLPGSQLError):
 code_to_error = {}
 code_to_warning = {}
 def map_errors_and_warnings(
-	objs : "A iterable of `Warning`s and `Error`'s",
-	error_container : "apply the code to error association to this object" = code_to_error,
-	warning_container : "apply the code to warning association to this object" = code_to_warning,
+	objs,
+	error_container = code_to_error,
+	warning_container = code_to_warning,
 ):
 	"""
 	Construct the code-to-error and code-to-warning associations.
@@ -655,9 +721,9 @@ def map_errors_and_warnings(
 				container[obj.pg_code] = obj
 
 def code_lookup(
-	default : "The object to return when no code or class is found",
-	container : "where to look for the object associated with the code",
-	code : "the code to find the exception for"
+	default,
+	container,
+	code
 ):
 	obj = container.get(code)
 	if obj is None:

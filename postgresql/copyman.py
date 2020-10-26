@@ -443,7 +443,7 @@ class ProtocolProducer(Producer):
 		return self.nextchunk()
 
 	def __init__(self,
-		recv_into : "callable taking writable buffer and size",
+		recv_into,
 		buffer_size = default_buffer_size
 	):
 		super().__init__()

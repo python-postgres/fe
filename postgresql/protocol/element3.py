@@ -135,8 +135,7 @@ class TupleMessage(tuple, Message):
 
 class Void(Message):
 	"""
-	An absolutely empty message. When serialized, it always yields an empty
-	string.
+	An absolutely empty message. When serialized, it always yields an empty string.
 	"""
 	type = b''
 	__slots__ = ()
@@ -146,7 +145,7 @@ class Void(Message):
 
 	def serialize(self):
 		return b''
-	
+
 	def __new__(typ, *args, **kw):
 		return VoidMessage
 VoidMessage = Message.__new__(Void)
@@ -178,7 +177,9 @@ class WireMessage(Message):
 		return typ((data[0:1], data[5:]))
 
 class EmptyMessage(Message):
-	'An abstract message that is always empty'
+	"""
+	An abstract message that is always empty.
+	"""
 	__slots__ = ()
 	type = b''
 
@@ -195,7 +196,9 @@ class EmptyMessage(Message):
 		return typ.SingleInstance
 
 class Notify(Message):
-	'Asynchronous notification message'
+	"""
+	Asynchronous notification message.
+	"""
 	type = message_types[b'A'[0]]
 	__slots__ = ('pid', 'channel', 'payload',)
 
@@ -216,8 +219,9 @@ class Notify(Message):
 		return typ(pid, channel, payload)
 
 class ShowOption(Message):
-	"""ShowOption(name, value)
-	GUC variable information from backend"""
+	"""
+	GUC variable information from backend
+	"""
 	type = message_types[b'S'[0]]
 	__slots__ = ('name', 'value')
 
@@ -233,7 +237,9 @@ class ShowOption(Message):
 		return typ(*(data.split(b'\x00', 2)[0:2]))
 
 class Complete(StringMessage):
-	'Command completion message.'
+	"""
+	Command completion message.
+	"""
 	type = message_types[b'C'[0]]
 	__slots__ = ()
 
@@ -260,42 +266,54 @@ class Complete(StringMessage):
 		return self.data.strip(b'\c\n\t 0123456789') or None
 
 class Null(EmptyMessage):
-	'Null command'
+	"""
+	Null command.
+	"""
 	type = message_types[b'I'[0]]
 	__slots__ = ()
 NullMessage = Message.__new__(Null)
 Null.SingleInstance = NullMessage
 
 class NoData(EmptyMessage):
-	'Null command'
+	"""
+	Null command.
+	"""
 	type = message_types[b'n'[0]]
 	__slots__ = ()
 NoDataMessage = Message.__new__(NoData)
 NoData.SingleInstance = NoDataMessage
 
 class ParseComplete(EmptyMessage):
-	'Parse reaction'
+	"""
+	Parse reaction.
+	"""
 	type = message_types[b'1'[0]]
 	__slots__ = ()
 ParseCompleteMessage = Message.__new__(ParseComplete)
 ParseComplete.SingleInstance = ParseCompleteMessage
 
 class BindComplete(EmptyMessage):
-	'Bind reaction'
+	"""
+	Bind reaction.
+	"""
 	type = message_types[b'2'[0]]
 	__slots__ = ()
 BindCompleteMessage = Message.__new__(BindComplete)
 BindComplete.SingleInstance = BindCompleteMessage
 
 class CloseComplete(EmptyMessage):
-	'Close statement or Portal'
+	"""
+	Close statement or Portal.
+	"""
 	type = message_types[b'3'[0]]
 	__slots__ = ()
 CloseCompleteMessage = Message.__new__(CloseComplete)
 CloseComplete.SingleInstance = CloseCompleteMessage
 
 class Suspension(EmptyMessage):
-	'Portal was suspended, more tuples for reading'
+	"""
+	Portal was suspended, more tuples for reading.
+	"""
 	type = message_types[b's'[0]]
 	__slots__ = ()
 SuspensionMessage = Message.__new__(Suspension)
@@ -859,7 +877,6 @@ class Function(Message):
 	"""
 	Execute the specified function with the given arguments
 	"""
-
 	type = message_types[b'F'[0]]
 	__slots__ = ('oid', 'aformats', 'arguments', 'rformat')
 

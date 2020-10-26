@@ -30,7 +30,7 @@ libpath = []
 
 def default_errformat(val):
 	"""
-	Built-in error formatter. DON'T TOUCH!
+	Built-in error formatter. Do not change.
 	"""
 	it = val._e_metas()
 	if val.creator is not None:
@@ -85,11 +85,15 @@ def msghook(*args, **kw):
 	return default_msghook(*args, **kw)
 
 def reset_errformat(with_func = errformat):
-	'restore the original excformat function'
+	"""
+	Restore the original excformat function.
+	"""
 	global errformat
 	errformat = with_func
 
 def reset_msghook(with_func = msghook):
-	'restore the original msghook function'
+	"""
+	Restore the original msghook function.
+	"""
 	global msghook
 	msghook = with_func

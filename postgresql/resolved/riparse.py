@@ -1,7 +1,3 @@
-# -*- encoding: utf-8 -*-
-##
-# copyright 2008, James William Pye. http://jwp.name
-##
 """
 Split, unsplit, parse, serialize, construct and structure resource indicators.
 
@@ -69,7 +65,9 @@ scheme_chars = '-.+0123456789'
 del x
 
 def unescape(x, mkval = chr):
-	'Substitute percent escapes with literal characters'
+	"""
+	Substitute percent escapes with literal characters.
+	"""
 	nstr = type(x)('')
 	if isinstance(x, str):
 		mkval = chr
@@ -193,7 +191,9 @@ def split_path(p, fieldproc = unescape):
 	return [fieldproc(x) for x in p.split('/')]
 
 def unsplit(t):
-	'Make a RI from a split RI(5-tuple)'
+	"""
+	Make a RI from a split RI(5-tuple).
+	"""
 	s = ''
 	if t[0] is not None:
 		s += t[0]
@@ -265,7 +265,9 @@ def split_netloc(netloc, fieldproc = unescape):
 	return (user, password, addr, port)
 
 def unsplit_netloc(t):
-	'Create a netloc fragment from the given tuple(user,password,host,port)'
+	"""
+	Create a netloc fragment from the given tuple(user,password,host,port).
+	"""
 	if t[0] is None and t[2] is None:
 		return None
 	s = ''
@@ -340,7 +342,9 @@ def construct_query(x,
 	])
 
 def construct(x):
-	'Construct a RI tuple(5-tuple) from a dictionary object'
+	"""
+	Construct a RI tuple(5-tuple) from a dictionary object.
+	"""
 	p = x.get('path')
 	if p is not None:
 		p = '/'.join([escape_path_re.sub(re_pct_encode, y) for y in p])
@@ -378,7 +382,9 @@ def parse(s, fieldproc = unescape):
 	return structure(split(s), fieldproc = fieldproc)
 
 def serialize(x):
-	'Return an RI from a dictionary object. Synonym for ``unsplit(construct(x))``'
+	"""
+	Return an RI from a dictionary object. Synonym for ``unsplit(construct(x))``.
+	"""
 	return unsplit(construct(x))
 
 __docformat__ = 'reStructuredText'
