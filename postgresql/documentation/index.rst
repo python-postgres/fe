@@ -14,12 +14,11 @@ Contents
 
    admin
    driver
-   copyman
+   clientparameters
+   cluster
    notifyman
    alock
-   cluster
-   lib
-   clientparameters
+   copyman
    gotchas
 
 Reference
