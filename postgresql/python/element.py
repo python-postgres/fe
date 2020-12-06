@@ -7,7 +7,9 @@ from .string import indent
 from .decorlib import propertydoc
 
 class RecursiveFactor(Exception):
-	'Raised when a factor is ultimately composed of itself'
+	"""
+	Raised when a factor is ultimately composed of itself.
+	"""
 	pass
 
 class Element(object, metaclass = ABCMeta):
@@ -96,7 +98,9 @@ class ElementSet(Element, set):
 			yield (None, format_element(x))
 
 def prime_factor(obj):
-	'get the primary factor on the `obj`, returns None if none.'
+	"""
+	Get the primary factor on the `obj`, returns None if none.
+	"""
 	f = getattr(obj, '_e_factors', None)
 	if f:
 		return f[0], getattr(obj, f[0], None)
@@ -126,7 +130,9 @@ def prime_factors(obj):
 		yield fn, e
 
 def format_element(obj, coverage = ()):
-	'format the given element with its factors and metadata into a readable string'
+	"""
+	Format the given element with its factors and metadata into a readable string.
+	"""
 	# if it's not an Element, all there is to return is str(obj)
 	if obj in coverage:
 		raise RecursiveFactor(coverage)
