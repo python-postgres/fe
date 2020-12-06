@@ -319,7 +319,7 @@ The methods and properties on the connection object are ready for use:
  ``Connection.proc(procedure_id)``
   Create a `postgresql.api.StoredProcedure` object referring to a stored
   procedure on the database. The returned object will provide a
-  `collections.Callable` interface to the stored procedure on the server. See
+  `collections.abc.Callable` interface to the stored procedure on the server. See
   `Stored Procedures`_ for more information.
 
  ``Connection.statement_from_id(statement_id)``
@@ -350,7 +350,7 @@ The methods and properties on the connection object are ready for use:
   information.
 
  ``Connection.settings``
-  A property providing a `collections.MutableMapping` interface to the
+  A property providing a `collections.abc.MutableMapping` interface to the
   database's SQL settings. See `Settings`_ for more information.
 
  ``Connection.clone()``
@@ -557,7 +557,7 @@ Prepared statement objects have a few execution methods:
 
  ``Statement.chunks(*parameters)``
   This access point is designed for situations where rows are being streamed out
-  quickly. It is a method that returns a ``collections.Iterator`` that produces
+  quickly. It is a method that returns a ``collections.abc.Iterator`` that produces
   *sequences* of rows. This is the most efficient way to get rows from the
   database. The rows in the sequences are ``builtins.tuple`` objects.
 
@@ -569,11 +569,11 @@ Prepared statement objects have a few execution methods:
  ``Statement.close()``
   Close the statement inhibiting further use.
 
- ``Statement.load_rows(collections.Iterable(parameters))``
+ ``Statement.load_rows(collections.abc.Iterable(parameters))``
   Given an iterable producing parameters, execute the statement for each
   iteration. Always returns `None`.
 
- ``Statement.load_chunks(collections.Iterable(collections.Iterable(parameters)))``
+ ``Statement.load_chunks(collections.abc.Iterable(collections.abc.Iterable(parameters)))``
   Given an iterable of iterables producing parameters, execute the statement
   for each parameter produced. However, send the all execution commands with
   the corresponding parameters of each chunk before reading any results.
@@ -1075,7 +1075,7 @@ critical.
 Row Interface Points
 --------------------
 
-Rows implement the `collections.Mapping` and `collections.Sequence` interfaces.
+Rows implement the `collections.abc.Mapping` and `collections.abc.Sequence` interfaces.
 
  ``Row.keys()``
   An iterable producing the column names. Order is not guaranteed. See the
@@ -1214,8 +1214,8 @@ Queries have access to all execution methods:
  * ``Connection.query.first(sql, *parameters)``
  * ``Connection.query.chunks(sql, *parameters)``
  * ``Connection.query.declare(sql, *parameters)``
- * ``Connection.query.load_rows(sql, collections.Iterable(parameters))``
- * ``Connection.query.load_chunks(collections.Iterable(collections.Iterable(parameters)))``
+ * ``Connection.query.load_rows(sql, collections.abc.Iterable(parameters))``
+ * ``Connection.query.load_chunks(collections.abc.Iterable(collections.abc.Iterable(parameters)))``
 
 In cases where a sequence of one-shot queries needs to be performed, it may be important to
 avoid unnecessary repeat attribute resolution from the connection object as the ``query``
@@ -1461,7 +1461,7 @@ Settings
 
 SQL's SHOW and SET provides a means to configure runtime parameters on the
 database("GUC"s). In order to save the user some grief, a
-`collections.MutableMapping` interface is provided to simplify configuration.
+`collections.abc.MutableMapping` interface is provided to simplify configuration.
 
 The ``settings`` attribute on the connection provides the interface extension.
 
@@ -1485,7 +1485,7 @@ Settings Interface Points
 -------------------------
 
 Manipulation and interrogation of the connection's settings is achieved by
-using the standard `collections.MutableMapping` interfaces.
+using the standard `collections.abc.MutableMapping` interfaces.
 
  ``Connection.settings[k]``
   Get the value of a single setting.

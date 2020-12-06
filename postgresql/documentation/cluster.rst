@@ -348,7 +348,7 @@ Methods and properties available on `postgresql.cluster.Cluster` instances:
   `Cluster.wait_until_started`.
 
  ``Cluster.settings``
-  A `collections.Mapping` interface to the ``postgresql.conf`` file of the
+  A `collections.abc.Mapping` interface to the ``postgresql.conf`` file of the
   cluster.
 
   A notable extension to the mapping interface is the ``getset`` method. This

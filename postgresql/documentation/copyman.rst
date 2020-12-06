@@ -260,7 +260,7 @@ The following Producers are available:
  ``postgresql.copyman.StatementProducer(postgresql.api.Statement)``
   Given a Statement producing COPY data, construct a Producer.
 
- ``postgresql.copyman.IteratorProducer(collections.Iterator)``
+ ``postgresql.copyman.IteratorProducer(collections.abc.Iterator)``
   Given an Iterator producing *chunks* of COPY lines, construct a Producer to
   manage the data coming from the iterator.
 

@@ -4,10 +4,10 @@
 """
 itertools extensions
 """
-import collections
+import collections.abc
 from itertools import cycle, islice
 
-def interlace(*iters, next = next) -> collections.Iterable:
+def interlace(*iters, next = next) -> collections.abc.Iterable:
 	"""
 	interlace(i1, i2, ..., in) -> (
 		i1-0, i2-0, ..., in-0,

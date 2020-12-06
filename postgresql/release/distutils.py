@@ -177,6 +177,7 @@ def standard_setup_keywords(build_extensions = True, prefix = default_prefix):
 		'packages' : list(prefixed_packages(prefix = prefix)),
 		'package_data' : dict(prefixed_package_data(prefix = prefix)),
 		'cmdclass': dict(test=TestCommand),
+		'python_requires': '>=3.3',
 	}
 	if build_extensions:
 		d['ext_modules'] = list(prefixed_extensions(prefix = prefix))

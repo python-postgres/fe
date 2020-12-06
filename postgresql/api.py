@@ -11,7 +11,7 @@ Python programmer with substantial convenience.
 This module is used to define "PG-API". It creates a set of ABCs
 that makes up the basic interfaces used to work with a PostgreSQL server.
 """
-import collections
+import collections.abc
 import abc
 
 from .python.element import Element
@@ -125,7 +125,8 @@ class Result(Element):
 	@abc.abstractmethod
 	def close(self) -> None:
 		"""
-		Close the Result handle.
+		Close the Result discarding any supporting resources and causing
+		future read operations to emit empty record sets.
 		"""
 
 	@property
@@ -202,18 +203,12 @@ class Result(Element):
 		`postgresql.api.Database.cursor_from_id`.
 		"""
 
-class Chunks(
-	Result,
-	collections.Iterator,
-	collections.Iterable,
-):
+@collections.abc.Iterator.register
+class Chunks(Result):
 	pass
 
-class Cursor(
-	Result,
-	collections.Iterator,
-	collections.Iterable,
-):
+@collections.abc.Iterator.register
+class Cursor(Result):
 	"""
 	A `Cursor` object is an interface to a sequence of tuples(rows). A result
 	set. Cursors publish a file-like interface for reading tuples from a cursor
@@ -259,10 +254,7 @@ class Cursor(
 		"""
 
 	@abc.abstractmethod
-	def read(self,
-		quantity : "Number of rows to read" = None,
-		direction : "Direction to fetch in, defaults to `self.direction`" = None,
-	) -> ["Row"]:
+	def read(self, quantity = None, direction = None) -> ["Row"]:
 		"""
 		Read, fetch, the specified number of rows and return them in a list.
 		If quantity is `None`, all records will be fetched.
@@ -312,7 +304,7 @@ class Execution(metaclass = abc.ABCMeta):
 	"""
 
 	@abc.abstractmethod
-	def __call__(self, *parameters : "Positional Parameters") -> ["Row"]:
+	def __call__(self, *parameters) -> ["Row"]:
 		"""
 		Execute the prepared statement with the given arguments as parameters.
 
@@ -324,7 +316,7 @@ class Execution(metaclass = abc.ABCMeta):
 		"""
 
 	@abc.abstractmethod
-	def column(self, *parameters) -> collections.Iterable:
+	def column(self, *parameters) -> collections.abc.Iterable:
 		"""
 		Return an iterator producing the values of first column of the
 		rows produced by the cursor created from the statement bound with the
@@ -345,7 +337,7 @@ class Execution(metaclass = abc.ABCMeta):
 		"""
 
 	@abc.abstractmethod
-	def chunks(self, *parameters) -> collections.Iterable:
+	def chunks(self, *parameters) -> collections.abc.Iterable:
 		"""
 		Return an iterator producing sequences of rows produced by the cursor
 		created from the statement bound with the given parameters.
@@ -359,12 +351,12 @@ class Execution(metaclass = abc.ABCMeta):
 		Each iteration returns sequences of rows *normally* of length(seq) ==
 		chunksize. If chunksize is unspecified, a default, positive integer will
 		be filled in. The rows contained in the sequences are only required to
-		support the basic `collections.Sequence` interfaces; simple and quick
+		support the basic `collections.abc.Sequence` interfaces; simple and quick
 		sequence types should be used.
 		"""
 
 	@abc.abstractmethod
-	def rows(self, *parameters) -> collections.Iterable:
+	def rows(self, *parameters) -> collections.abc.Iterable:
 		"""
 		Return an iterator producing rows produced by the cursor
 		created from the statement bound with the given parameters.
@@ -382,7 +374,7 @@ class Execution(metaclass = abc.ABCMeta):
 		"""
 
 	@abc.abstractmethod
-	def column(self, *parameters) -> collections.Iterable:
+	def column(self, *parameters) -> collections.abc.Iterable:
 		"""
 		Return an iterator producing the values of the first column in
 		the cursor created from the statement bound with the given parameters.
@@ -407,7 +399,7 @@ class Execution(metaclass = abc.ABCMeta):
 		"""
 
 	@abc.abstractmethod
-	def first(self, *parameters) -> "'First' object that is returned by the query":
+	def first(self, *parameters):
 		"""
 		Execute the prepared statement with the given arguments as parameters.
 		If the statement returns rows with multiple columns, return the first
@@ -426,9 +418,7 @@ class Execution(metaclass = abc.ABCMeta):
 		"""
 
 	@abc.abstractmethod
-	def load_rows(self,
-		iterable : "A iterable of tuples to execute the statement with"
-	):
+	def load_rows(self, iterable):
 		"""
 		Given an iterable, `iterable`, feed the produced parameters to the
 		query. This is a bulk-loading interface for parameterized queries.
@@ -445,9 +435,7 @@ class Execution(metaclass = abc.ABCMeta):
 		"""
 
 	@abc.abstractmethod
-	def load_chunks(self,
-		iterable : "A iterable of chunks of tuples to execute the statement with"
-	):
+	def load_chunks(self, iterable):
 		"""
 		Given an iterable, `iterable`, feed the produced parameters of the chunks
 		produced by the iterable to the query. This is a bulk-loading interface
@@ -465,11 +453,10 @@ class Execution(metaclass = abc.ABCMeta):
 		that the operation can be optimized.
 		"""
 
-class Statement(
-	Element,
-	collections.Callable,
-	collections.Iterable,
-):
+@collections.abc.Iterator.register
+@collections.abc.Callable.register
+@Execution.register
+class Statement(Element):
 	"""
 	Instances of `Statement` are returned by the `prepare` method of
 	`Database` instances.
@@ -595,13 +582,10 @@ class Statement(
 		"""
 		Close the prepared statement releasing resources associated with it.
 		"""
-Execution.register(Statement)
 PreparedStatement = Statement
 
-class StoredProcedure(
-	Element,
-	collections.Callable,
-):
+@collections.abc.Callable.register
+class StoredProcedure(Element):
 	"""
 	A function stored on the database.
 	"""
@@ -609,7 +593,7 @@ class StoredProcedure(
 	_e_factors = ('database',)
 
 	@abc.abstractmethod
-	def __call__(self, *args, **kw) -> (object, Cursor, collections.Iterable):
+	def __call__(self, *args, **kw) -> (object, Cursor, collections.abc.Iterable):
 		"""
 		Execute the procedure with the given arguments. If keyword arguments are
 		passed they must be mapped to the argument whose name matches the key.
@@ -759,10 +743,8 @@ class Transaction(Element):
 		block's exit.
 		"""
 
-class Settings(
-	Element,
-	collections.MutableMapping
-):
+@collections.abc.MutableMapping.register
+class Settings(Element):
 	"""
 	A mapping interface to the session's settings. This provides a direct
 	interface to ``SHOW`` or ``SET`` commands. Identifiers and values need
@@ -881,10 +863,7 @@ class Database(Element):
 
 	@property
 	@abc.abstractmethod
-	def xact(self,
-		isolation : "ISOLATION LEVEL to use with the transaction" = None,
-		mode : "Mode of the transaction, READ ONLY or READ WRITE" = None,
-	) -> Transaction:
+	def xact(self, isolation = None, mode = None) -> Transaction:
 		"""
 		Create a `Transaction` object using the given keyword arguments as its
 		configuration.
@@ -926,9 +905,14 @@ class Database(Element):
 		"""
 
 	@abc.abstractmethod
-	def statement_from_id(self,
-		statement_id : "The statement's identification string.",
-	) -> Statement:
+	def query(self, sql : str, *args) -> Execution:
+		"""
+		Prepare and execute the statement, `sql`, with the given arguments.
+		Equivalent to ``db.prepare(sql)(*args)``.
+		"""
+
+	@abc.abstractmethod
+	def statement_from_id(self, statement_id) -> Statement:
 		"""
 		Create a `Statement` object that was already prepared on the
 		server. The distinction between this and a regular query is that it
@@ -938,9 +922,7 @@ class Database(Element):
 		"""
 
 	@abc.abstractmethod
-	def cursor_from_id(self,
-		cursor_id : "The cursor's identification string."
-	) -> Cursor:
+	def cursor_from_id(self, cursor_id) -> Cursor:
 		"""
 		Create a `Cursor` object from the given `cursor_id` that was already
 		declared on the server.
@@ -953,10 +935,7 @@ class Database(Element):
 		"""
 
 	@abc.abstractmethod
-	def proc(self,
-		procedure_id : \
-			"The procedure identifier; a valid ``regprocedure`` or Oid."
-	) -> StoredProcedure:
+	def proc(self, procedure_id) -> StoredProcedure:
 		"""
 		Create a `StoredProcedure` instance using the given identifier.
 
@@ -1030,7 +1009,7 @@ class Database(Element):
 		"""
 
 	@abc.abstractmethod
-	def iternotifies(self, timeout = None) -> collections.Iterator:
+	def iternotifies(self, timeout = None) -> collections.abc.Iterator:
 		"""
 		Return an iterator to the notifications received by the connection. The
 		iterator *must* produce triples in the form ``(channel, payload, pid)``.
@@ -1096,7 +1075,7 @@ class SocketFactory(object):
 		"""
 
 	@abc.abstractmethod
-	def socket_secure(self, socket : "socket object") -> "secured socket":
+	def socket_secure(self, socket):
 		"""
 		Return a reference to the secured socket using the given parameters.
 
@@ -1106,7 +1085,7 @@ class SocketFactory(object):
 		"""
 
 	@abc.abstractmethod
-	def socket_factory_sequence(self) -> [collections.Callable]:
+	def socket_factory_sequence(self) -> [collections.abc.Callable]:
 		"""
 		Return a sequence of `SocketCreator`s that `Connection` objects will use to
 		create the socket object.
@@ -1145,7 +1124,7 @@ class Connector(Element):
 		return self.driver.connection(self, *args, **kw)
 
 	def __init__(self,
-		user : "required keyword specifying the user name(str)" = None,
+		user : str = None,
 		password : str = None,
 		database : str = None,
 		settings : (dict, [(str,str)]) = None,
@@ -1177,15 +1156,6 @@ class Connection(Database):
 		"""
 		The :py:class:`Connector` instance facilitating the `Connection` object's
 		communication and initialization.
-		"""
-
-	@property
-	@abc.abstractmethod
-	def query(self) -> Execution:
-		"""
-		The :py:class:`Execution` instance providing a one-shot query interface::
-
-			connection.query.<method>(sql, *parameters) == connection.prepare(sql).<method>(*parameters)
 		"""
 
 	@property
@@ -1317,18 +1287,13 @@ class Cluster(Element):
 
 	@abc.abstractmethod
 	def init(self,
-		initdb : "path to the initdb to use" = None,
-		user : "name of the cluster's superuser" = None,
-		password : "superuser's password" = None,
-		encoding : "the encoding to use for the cluster" = None,
-		locale : "the locale to use for the cluster" = None,
-		collate : "the collation to use for the cluster" = None,
-		ctype : "the ctype to use for the cluster" = None,
-		monetary : "the monetary to use for the cluster" = None,
-		numeric : "the numeric to use for the cluster" = None,
-		time : "the time to use for the cluster" = None,
-		text_search_config : "default text search configuration" = None,
-		xlogdir : "location for the transaction log directory" = None,
+		initdb = None,
+		user = None, password = None,
+		encoding = None, locale = None,
+		collate = None, ctype = None,
+		monetary = None, numeric = None, time = None,
+		text_search_config = None,
+		xlogdir = None,
 	):
 		"""
 		Create the cluster at the `data_directory` associated with the Cluster
@@ -1366,9 +1331,7 @@ class Cluster(Element):
 		"""
 
 	@abc.abstractmethod
-	def wait_until_started(self,
-		timeout : "maximum time to wait" = 10
-	):
+	def wait_until_started(self, timeout = 10):
 		"""
 		After the start() method is ran, the database may not be ready for use.
 		This method provides a mechanism to block until the cluster is ready for
@@ -1379,9 +1342,7 @@ class Cluster(Element):
 		"""
 
 	@abc.abstractmethod
-	def wait_until_stopped(self,
-		timeout : "maximum time to wait" = 10
-	):
+	def wait_until_stopped(self, timeout = 10):
 		"""
 		After the stop() method is ran, the database may still be running.
 		This method provides a mechanism to block until the cluster is completely

@@ -68,7 +68,7 @@ accept:
 
  ``environ``
   Environment variables to extract client parameter variables from.
-  Defaults to `os.environ` and expects a `collections.Mapping` interface.
+  Defaults to `os.environ` and expects a `collections.abc.Mapping` interface.
 
  ``environ_prefix``
   Environment variable prefix to use. Defaults to "PG". This allows the
