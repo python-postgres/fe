@@ -86,17 +86,17 @@ pg_python Examples
 Module execution taking advantage of the new built-ins::
 
 	$ python3 -m postgresql.bin.pg_python -h localhost -W -m timeit "prepare('SELECT 1').first()"
-	Password for pg_python[pq://jwp@localhost:5432]:
+	Password for pg_python[pq://dbusername@localhost:5432]:
 	1000 loops, best of 3: 1.35 msec per loop
 
 	$ python3 -m postgresql.bin.pg_python -h localhost -W -m timeit -s "ps=prepare('SELECT 1')" "ps.first()"
-	Password for pg_python[pq://jwp@localhost:5432]:
+	Password for pg_python[pq://dbusername@localhost:5432]:
 	1000 loops, best of 3: 442 usec per loop
 
 Simple interactive usage::
 
 	$ python3 -m postgresql.bin.pg_python -h localhost -W
-	Password for pg_python[pq://jwp@localhost:5432]:
+	Password for pg_python[pq://dbusername@localhost:5432]:
 	>>> ps = prepare('select 1')
 	>>> ps.first()
 	1
@@ -142,22 +142,22 @@ Examples
 Modifying a simple configuration file::
 
 	$ echo "setting = value" >pg.conf
-	
+
 	# change 'setting'
 	$ python3 -m postgresql.bin.pg_dotconf pg.conf setting=newvalue
-	
+
 	$ cat pg.conf
 	setting = 'newvalue'
-	
+
 	# new settings are appended to the file
 	$ python3 -m postgresql.bin.pg_dotconf pg.conf another_setting=value
 	$ cat pg.conf
 	setting = 'newvalue'
 	another_setting = 'value'
-	
+
 	# comment a setting
 	$ python3 -m postgresql.bin.pg_dotconf pg.conf another_setting
-	
+
 	$ cat pg.conf
 	setting = 'newvalue'
 	#another_setting = 'value'

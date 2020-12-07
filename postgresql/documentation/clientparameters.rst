@@ -100,16 +100,16 @@ instructed to do by the ``prompt_password`` key in the parameters::
 
 	>>> import postgresql.clientparameters as pg_param
 	>>> p = pg_param.collect(prompt_title = 'my_prompt!', parameters = {'prompt_password':True})
-	Password for my_prompt![pq://jwp@localhost:5432]:
+	Password for my_prompt![pq://dbusername@localhost:5432]:
 	>>> p
-	{'host': 'localhost', 'user': 'jwp', 'password': 'secret', 'port': 5432}
+	{'host': 'localhost', 'user': 'dbusername', 'password': 'secret', 'port': 5432}
 
 If `None`, it will leave the necessary password resolution information in the
 parameters dictionary for ``resolve_password``::
 
 	>>> p = pg_param.collect(prompt_title = None, parameters = {'prompt_password':True})
 	>>> p
-	{'pgpassfile': '/Users/jwp/.pgpass', 'prompt_password': True, 'host': 'localhost', 'user': 'jwp', 'port': 5432}
+	{'pgpassfile': '/home/{USER}/.pgpass', 'prompt_password': True, 'host': 'localhost', 'user': 'dbusername', 'port': 5432}
 
 Of course, ``'prompt_password'`` is normally specified when ``parsed_options``
 received a ``-W`` option from the command line::
@@ -118,9 +118,9 @@ received a ``-W`` option from the command line::
 	>>> co, ca = op.parse_args(['-W'])
 	>>> p = pg_param.collect(parsed_options = co)
 	>>> p=pg_param.collect(parsed_options = co)
-	Password for [pq://jwp@localhost:5432]:
+	Password for [pq://dbusername@localhost:5432]:
 	>>> p
-	{'host': 'localhost', 'user': 'jwp', 'password': 'secret', 'port': 5432}
+	{'host': 'localhost', 'user': 'dbusername', 'password': 'secret', 'port': 5432}
 	>>>
 
 
@@ -166,10 +166,10 @@ When resolution occurs, the ``prompt_password``, ``prompt_title``, and
 
 	>>> p=pg_param.collect(prompt_title = None)
 	>>> p
-	{'pgpassfile': '/Users/jwp/.pgpass', 'host': 'localhost', 'user': 'jwp', 'port': 5432}
+	{'pgpassfile': '/Users/{USER}/.pgpass', 'host': 'localhost', 'user': 'dbusername', 'port': 5432}
 	>>> pg_param.resolve_password(p)
 	>>> p
-	{'host': 'localhost', 'password': 'secret', 'user': 'jwp', 'port': 5432}
+	{'host': 'localhost', 'password': 'secret', 'user': 'dbusername', 'port': 5432}
 
 
 Defaults
