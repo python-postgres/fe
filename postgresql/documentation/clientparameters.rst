@@ -166,7 +166,7 @@ When resolution occurs, the ``prompt_password``, ``prompt_title``, and
 
 	>>> p=pg_param.collect(prompt_title = None)
 	>>> p
-	{'pgpassfile': '/Users/{USER}/.pgpass', 'host': 'localhost', 'user': 'dbusername', 'port': 5432}
+	{'pgpassfile': '/home/{USER}/.pgpass', 'host': 'localhost', 'user': 'dbusername', 'port': 5432}
 	>>> pg_param.resolve_password(p)
 	>>> p
 	{'host': 'localhost', 'password': 'secret', 'user': 'dbusername', 'port': 5432}
