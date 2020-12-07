@@ -20,7 +20,7 @@ the key is always a tuple whose components make up the "key-path". This is used
 to support sub-dictionaries like settings::
 
 	>>> normal_params = {
-	 'user' : 'jwp',
+	 'user' : 'dbusername',
 	 'host' : 'localhost',
 	 'settings' : {'default_statistics_target' : 200, 'search_path' : 'home,public'}
 	}
