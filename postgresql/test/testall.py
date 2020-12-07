@@ -17,13 +17,9 @@ from .test_python import *
 from .test_installation import *
 from .test_cluster import *
 
-# These two require custom cluster configurations.
+# Expects PGINSTALLATION to be set. Tests may be skipped.
 from .test_connect import *
-# No SSL? cluster initialization will fail.
-if default().ssl:
-	from .test_ssl_connect import *
-else:
-	stderr.write("NOTICE: installation doesn't support SSL\n")
+from .test_ssl_connect import *
 
 try:
 	from .test_optimized import *

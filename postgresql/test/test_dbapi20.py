@@ -93,27 +93,21 @@ class test_dbapi20(unittest.TestCase):
 	def executeDDL2(self,cursor):
 		cursor.execute(self.ddl2)
 
+	def setUp(self):
+		pg_tmp.init()
+		pg_tmp.push()
+		pg_tmp._init_c(db)
+
 	def tearDown(self):
-		con = self._connect()
-		try:
-			cur = con.cursor()
-			for ddl in (self.xddl1, self.xddl2):
-				try:
-					cur.execute(ddl)
-					con.commit()
-				except self.driver.Error:
-					# Assume table didn't exist. Other tests will check if
-					# execute is busted.
-					pass
-		finally:
-			con.close()
+		pg_tmp.pop(None)
 
 	def _connect(self):
-		pg_tmp.init()
-		host, port = pg_tmp.cluster.address()
-		return self.driver.connect(
-			user = 'test', host = host, port = port,
-		)
+		c = db.clone()
+		c.__class__ = self.driver.Connection
+		c._xact = c.xact()
+		c._xact.start()
+		c._dbapi_connected_flag = True
+		return c
 
 	def test_connect(self):
 		con = self._connect()
@@ -708,7 +702,7 @@ class test_dbapi20(unittest.TestCase):
 	def help_nextset_setUp(self,cur):
 		'''
 		Should create a procedure called deleteme
-		that returns two result sets, first the 
+		that returns two result sets, first the
 		number of rows in booze then "name from booze"
 		'''
 		cur.execute('select name from ' + self.booze_name)

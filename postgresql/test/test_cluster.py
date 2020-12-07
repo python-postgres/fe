@@ -9,19 +9,16 @@ import tempfile
 from .. import installation
 from ..cluster import Cluster, ClusterStartupError
 
-default_install = installation.default()
-if default_install is None:
-	sys.stderr.write("ERROR: cannot find 'default' pg_config\n")
-	sys.stderr.write("HINT: set the PGINSTALLATION environment variable to the `pg_config` path\n")
-	sys.exit(1)
+default_installation = installation.default()
 
 class test_cluster(unittest.TestCase):
 	def setUp(self):
-		self.cluster = Cluster(default_install, 'test_cluster',)
+		self.cluster = Cluster(default_installation, 'test_cluster',)
 
 	def tearDown(self):
-		self.cluster.drop()
-		self.cluster = None
+		if self.cluster.installation is not None:
+			self.cluster.drop()
+			self.cluster = None
 
 	def start_cluster(self, logfile = None):
 		self.cluster.start(logfile = logfile)
@@ -46,6 +43,7 @@ class test_cluster(unittest.TestCase):
 			usd : self.cluster.data_directory,
 		})
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def testSilentMode(self):
 		self.init()
 		self.cluster.settings['silent_mode'] = 'on'
@@ -66,6 +64,7 @@ class test_cluster(unittest.TestCase):
 			elif self.cluster.installation.version_info[:2] >= (9, 2):
 				self.fail("silent_mode unexpectedly supported on PostgreSQL >=9.2")
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def testSuperPassword(self):
 		self.init(
 			user = 'test',
@@ -81,6 +80,7 @@ class test_cluster(unittest.TestCase):
 		with c:
 			self.assertEqual(c.prepare('select 1').first(), 1)
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def testNoParameters(self):
 		"""
 		Simple init and drop.

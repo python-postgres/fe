@@ -29,8 +29,8 @@ class Temporal(object):
 	Or `pg_tmp` can decorate a method or function.
 	"""
 
-	#: Format the cluster directory name.
-	cluster_dirname = 'pg_tmp_{0}_{1}'.format
+	format_sandbox_id = staticmethod(('sandbox{0}_{1}').format)
+	cluster_dirname = staticmethod(('pg_tmp_{0}_{1}').format)
 	cluster = None
 
 	_init_pid_ = None
@@ -91,7 +91,7 @@ class Temporal(object):
 			"environment variable to the `pg_config` path"
 		}
 	):
-		if self.cluster is not None:
+		if self.cluster is not None or 'PGTEST' in os.environ:
 			return
 		##
 		# Hasn't been created yet, but doesn't matter.
@@ -156,7 +156,7 @@ class Temporal(object):
 				unix_socket_directories = cluster.data_directory,
 			))
 
-		# Start it up.
+		# Start the database cluster.
 		with open(self.logfile, 'w') as lfo:
 			cluster.start(logfile = lfo)
 		cluster.wait_until_started()
@@ -165,18 +165,23 @@ class Temporal(object):
 		c = cluster.connection(user = 'test', database = 'template1',)
 		with c:
 			c.execute('create database test')
-		# It's ready.
 		self.cluster = cluster
 
 	def push(self):
-		c = self.cluster.connection(user = 'test')
-		c.connect()
-		extras = []
+		if 'PGTEST' in os.environ:
+			from . import open as pg_open
+			c = pg_open(os.environ['PGTEST']) # Ignoring PGINSTALLATION.
+		else:
+			c = self.cluster.connection(user = 'test')
+			c.connect()
 
-		def new_pg_tmp_connection(l = extras, c = c, sbid = 'sandbox' + str(self.sandbox_id + 1)):
+		extras = []
+		sbid = self.format_sandbox_id(os.getpid(), self.sandbox_id + 1)
+
+		def new_pg_tmp_connection(l = extras, clone = c.clone, sbid = sbid):
 			# Used to create a new connection that will be closed
 			# when the context stack is popped along with 'db'.
-			l.append(c.clone())
+			l.append(clone())
 			l[-1].settings['search_path'] = str(sbid) + ',' + l[-1].settings['search_path']
 			return l[-1]
 
@@ -205,7 +210,7 @@ class Temporal(object):
 		builtins.__dict__.update(local_builtins)
 		self.sandbox_id += 1
 
-	def pop(self, exc, drop_schema = 'DROP SCHEMA sandbox{0} CASCADE'.format):
+	def pop(self, exc, drop_schema = ('DROP SCHEMA {0} CASCADE').format):
 		local_builtins, extras = self.builtins_stack.pop()
 		self.sandbox_id -= 1
 
@@ -235,32 +240,36 @@ class Temporal(object):
 
 			# Interrupted and closed all the other connections at this level;
 			# now remove the sandbox schema.
-			c = self.cluster.connection(user = 'test')
-			with c:
+			xdb = local_builtins['db']
+			with xdb.clone() as c:
 				# Use a new connection so that the state of
 				# the context connection will not have to be
 				# contended with.
-				c.execute(drop_schema(self.sandbox_id+1))
+				c.execute(drop_schema(self.format_sandbox_id(os.getpid(), self.sandbox_id + 1)))
 		else:
-			# interrupt
+			# interrupt exception; avoid waiting for close
 			pass
+
+	def _init_c(self, cxn):
+		cxn.connect()
+		sb = self.format_sandbox_id(os.getpid(), self.sandbox_id)
+		cxn.execute('CREATE SCHEMA ' + sb)
+		cxn.settings['search_path'] = ','.join((sb, cxn.settings['search_path']))
 
 	def __enter__(self):
 		if self.cluster is None:
 			self.init()
+
 		self.push()
 		try:
-			db.connect()
-			db.execute('CREATE SCHEMA sandbox' + str(self.sandbox_id))
-			db.settings['search_path'] = 'sandbox' + str(self.sandbox_id) + ',' + db.settings['search_path']
+			self._init_c(builtins.db)
 		except Exception as e:
 			# failed to initialize sandbox schema; pop it.
 			self.pop(e)
 			raise
 
 	def __exit__(self, exc, val, tb):
-		if self.cluster is not None:
-			self.pop(val)
+		self.pop(val)
 
-#: The process' temporary cluster.
+#: The process' temporary cluster or connection source.
 pg_tmp = Temporal()

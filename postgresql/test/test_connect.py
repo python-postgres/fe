@@ -18,6 +18,7 @@ from ..driver import dbapi20 as dbapi20
 from .. import driver as pg_driver
 from .. import open as pg_open
 
+default_installation = installation.default()
 
 def check_for_ipv6():
 	result = False
@@ -47,28 +48,25 @@ class TestCaseWithCluster(unittest.TestCase):
 	"""
 	postgresql.driver *interface* tests.
 	"""
+	installation = default_installation
+
 	def __init__(self, *args, **kw):
 		super().__init__(*args, **kw)
-		self.installation = installation.default()
 		self.cluster_path = \
 			'pypg_test_' \
 			+ str(os.getpid()) + getattr(self, 'cluster_path_suffix', '')
-
-		if self.installation is None:
-			sys.stderr.write("ERROR: cannot find 'default' pg_config\n")
-			sys.stderr.write(
-				"HINT: set the PGINSTALLATION environment variable to the `pg_config` path\n"
-			)
-			sys.exit(1)
 
 		self.cluster = pg_cluster.Cluster(
 			self.installation,
 			self.cluster_path,
 		)
-		if self.cluster.initialized():
-			self.cluster.drop()
 
-		self.disable_replication = self.installation.version_info[:2] > (9, 6)
+	@property
+	def disable_replication(self):
+		"""
+		Whether replication settings should be disabled.
+		"""
+		return self.installation.version_info[:2] > (9, 6)
 
 	def configure_cluster(self):
 		self.cluster_port = find_available_port()
@@ -126,25 +124,33 @@ class TestCaseWithCluster(unittest.TestCase):
 	def connection(self, *args, **kw):
 		return self.cluster.connection(*args, user = 'test', **kw)
 
+	def drop_cluster(self):
+		if self.cluster.initialized():
+			self.cluster.drop()
+
 	def run(self, *args, **kw):
-		if not self.cluster.initialized():
-			self.cluster.encoding = 'utf-8'
-			self.cluster.init(
-				user = 'test',
-				encoding = self.cluster.encoding,
-				logfile = None,
-			)
-			sys.stderr.write('*')
-			try:
-				atexit.register(self.cluster.drop)
-				self.configure_cluster()
-				self.cluster.start(logfile = sys.stdout)
-				self.cluster.wait_until_started()
-				self.initialize_database()
-			except Exception:
-				self.cluster.drop()
-				atexit.unregister(self.cluster.drop)
-				raise
+		if 'PGINSTALLATION' not in os.environ:
+			# Expect tests to show skipped.
+			return super().run(*args, **kw)
+
+		# From prior test run?
+		if self.cluster.initialized():
+			self.cluster.drop()
+
+		self.cluster.encoding = 'utf-8'
+		self.cluster.init(
+			user = 'test',
+			encoding = self.cluster.encoding,
+			logfile = None,
+		)
+		sys.stderr.write('*')
+
+		atexit.register(self.drop_cluster)
+		self.configure_cluster()
+		self.cluster.start(logfile = sys.stdout)
+		self.cluster.wait_until_started()
+		self.initialize_database()
+
 		if not self.cluster.running():
 			self.cluster.start()
 			self.cluster.wait_until_started()
@@ -157,7 +163,7 @@ class TestCaseWithCluster(unittest.TestCase):
 
 class test_connect(TestCaseWithCluster):
 	"""
-	postgresql.driver connectivity tests
+	postgresql.driver connection tests
 	"""
 	ip6 = '::1'
 	ip4 = '127.0.0.1'
@@ -179,9 +185,10 @@ class test_connect(TestCaseWithCluster):
 
 	def __init__(self, *args, **kw):
 		super().__init__(*args,**kw)
-		# 8.4 nixed this.
-		vi = self.cluster.installation.version_info
-		self.check_crypt_user = (vi < (8,4))
+
+	@property
+	def check_crypt_user(self):
+		return (self.cluster.installation.version_info < (8,4))
 
 	def configure_cluster(self):
 		super().configure_cluster()
@@ -220,6 +227,7 @@ class test_connect(TestCaseWithCluster):
 			if self.check_crypt_user:
 				db.execute(self.mk_crypt_user)
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_pg_open_SQL_ASCII(self):
 		# postgresql.open
 		host, port = self.cluster.address()
@@ -232,6 +240,7 @@ class test_connect(TestCaseWithCluster):
 			self.assertEqual(db.settings['client_encoding'], 'SQL_ASCII')
 		self.assertTrue(db.closed)
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_pg_open_keywords(self):
 		host, port = self.cluster.address()
 		# straight test, no IRI
@@ -273,6 +282,7 @@ class test_connect(TestCaseWithCluster):
 			self.assertEqual(db.prepare('select 1')(), [(1,)])
 			self.assertEqual(db.settings['search_path'], 'public')
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_pg_open(self):
 		# postgresql.open
 		host, port = self.cluster.address()
@@ -355,6 +365,7 @@ search_path = public
 			if os.path.exists('pg_service.conf'):
 				os.remove('pg_service.conf')
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_dbapi_connect(self):
 		host, port = self.cluster.address()
 		MD5 = dbapi20.connect(
@@ -410,6 +421,7 @@ search_path = public
 			TRUST.cursor().execute, 'select 1'
 		)
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_dbapi_connect_failure(self):
 		host, port = self.cluster.address()
 		badlogin = (lambda: dbapi20.connect(
@@ -421,6 +433,7 @@ search_path = public
 		))
 		self.assertRaises(pg_exc.ClientCannotConnectError, badlogin)
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_IP4_connect(self):
 		C = pg_driver.default.ip4(
 			user = 'test',
@@ -432,18 +445,20 @@ search_path = public
 		with C() as c:
 			self.assertEqual(c.prepare('select 1').first(), 1)
 
-	if has_ipv6:
-		def test_IP6_connect(self):
-			C = pg_driver.default.ip6(
-				user = 'test',
-				host = '::1',
-				database = 'test',
-				port = self.cluster.address()[1],
-				**self.params
-			)
-			with C() as c:
-				self.assertEqual(c.prepare('select 1').first(), 1)
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
+	@unittest.skipIf(not has_ipv6, "platform may not support IPv6")
+	def test_IP6_connect(self):
+		C = pg_driver.default.ip6(
+			user = 'test',
+			host = '::1',
+			database = 'test',
+			port = self.cluster.address()[1],
+			**self.params
+		)
+		with C() as c:
+			self.assertEqual(c.prepare('select 1').first(), 1)
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_Host_connect(self):
 		C = pg_driver.default.host(
 			user = 'test',
@@ -455,6 +470,7 @@ search_path = public
 		with C() as c:
 			self.assertEqual(c.prepare('select 1').first(), 1)
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_md5_connect(self):
 		c = self.cluster.connection(
 			user = 'md5',
@@ -465,6 +481,7 @@ search_path = public
 		with c:
 			self.assertEqual(c.prepare('select current_user').first(), 'md5')
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_crypt_connect(self):
 		if self.check_crypt_user:
 			c = self.cluster.connection(
@@ -476,6 +493,7 @@ search_path = public
 			with c:
 				self.assertEqual(c.prepare('select current_user').first(), 'crypt')
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_password_connect(self):
 		c = self.cluster.connection(
 			user = 'password',
@@ -485,6 +503,7 @@ search_path = public
 		with c:
 			self.assertEqual(c.prepare('select current_user').first(), 'password')
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_trusted_connect(self):
 		c = self.cluster.connection(
 			user = 'trusted',
@@ -495,6 +514,7 @@ search_path = public
 		with c:
 			self.assertEqual(c.prepare('select current_user').first(), 'trusted')
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_Unix_connect(self):
 		if not has_unix_sock:
 			return
@@ -510,6 +530,7 @@ search_path = public
 			self.assertEqual(c.prepare('select 1').first(), 1)
 			self.assertEqual(c.client_address, None)
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_pg_open_unix(self):
 		if not has_unix_sock:
 			return

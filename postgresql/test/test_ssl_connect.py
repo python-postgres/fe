@@ -10,6 +10,12 @@ from .. import driver as pg_driver
 from ..driver import dbapi20
 from . import test_connect
 
+default_installation = test_connect.default_installation
+
+has_ssl = False
+if default_installation is not None:
+	has_ssl = default_installation.ssl
+
 server_key = """
 -----BEGIN RSA PRIVATE KEY-----
 MIICXAIBAAKBgQCy8veVaqL6MZVT8o0j98ggZYfibGwSN4XGC4rfineA2QZhi8t+
@@ -104,6 +110,9 @@ class test_ssl_connect(test_connect.test_connect):
 	cluster_path_suffix = '_test_ssl_connect'
 
 	def configure_cluster(self):
+		if not has_ssl:
+			return
+
 		super().configure_cluster()
 		self.cluster.settings['ssl'] = 'on'
 		with open(self.cluster.hba_file, 'a') as hba:
@@ -126,6 +135,9 @@ class test_ssl_connect(test_connect.test_connect):
 		os.chmod(crt_file, 0o700)
 
 	def initialize_database(self):
+		if not has_ssl:
+			return
+
 		super().initialize_database()
 		with self.cluster.connection(user = 'test') as db:
 			db.execute(
@@ -135,6 +147,8 @@ CREATE USER sslonly;
 				"""
 			)
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
+	@unittest.skipIf(not has_ssl, "could not detect installation tls")
 	def test_ssl_mode_require(self):
 		host, port = self.cluster.address()
 		params = dict(self.params)
@@ -167,6 +181,8 @@ CREATE USER sslonly;
 			self.assertEqual(c.prepare('select 1').first(), 1)
 			self.assertEqual(c.security, 'ssl')
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
+	@unittest.skipIf(not has_ssl, "could not detect installation tls")
 	def test_ssl_mode_disable(self):
 		host, port = self.cluster.address()
 		params = dict(self.params)
@@ -200,6 +216,8 @@ CREATE USER sslonly;
 			self.assertEqual(c.prepare('select 1').first(), 1)
 			self.assertEqual(c.security, None)
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
+	@unittest.skipIf(not has_ssl, "could not detect installation tls")
 	def test_ssl_mode_prefer(self):
 		host, port = self.cluster.address()
 		params = dict(self.params)
@@ -233,6 +251,8 @@ CREATE USER sslonly;
 			self.assertEqual(c.prepare('select 1').first(), 1)
 			self.assertEqual(c.security, None)
 
+	@unittest.skipIf(default_installation is None, "no installation provided by environment")
+	@unittest.skipIf(not has_ssl, "could not detect installation tls")
 	def test_ssl_mode_allow(self):
 		host, port = self.cluster.address()
 		params = dict(self.params)
