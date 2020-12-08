@@ -114,7 +114,7 @@ class Box(tuple):
 		postgresql.types.geometry.Box(((-2.0, 0.0), (-4.0, -3.0)))
 
 	::
-		
+
 		                (-2, 0) `high`
 		                   |
 		                   |
@@ -167,7 +167,7 @@ class Box(tuple):
 
 class Circle(tuple):
 	"""
-	type for PostgreSQL circles
+	Type for PostgreSQL circles.
 	"""
 	__slots__ = ()
 	center = property(fget = get0, doc = "center of the circle (point)")
