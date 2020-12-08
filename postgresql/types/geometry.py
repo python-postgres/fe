@@ -95,9 +95,6 @@ class Lseg(tuple):
 	def parallel(self, ob):
 		return self.slope == type(self)(ob).slope
 
-	def intersect(self, ob):
-		raise NotImplementedError
-
 	def perpendicular(self, ob):
 		return (self.slope / type(self)(ob).slope) == -1.0
 

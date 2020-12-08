@@ -505,7 +505,7 @@ def x_pg_service(service_name, config):
 		)
 
 def x_pg_ldap(ldap_url, config):
-	raise NotImplementedError("cannot resolve ldap URLs: " + str(ldap_url))
+	raise Exception("cannot resolve ldap URLs")
 
 default_x_callbacks = {
 	'settings' : x_settings,
