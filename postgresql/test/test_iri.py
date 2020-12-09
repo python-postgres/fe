@@ -18,6 +18,7 @@ iri_samples = (
 	':pass@',
 	'u:p@h',
 	'u:p@h:1',
+	'postgres://host/database',
 	'pq://user:password@host:port/database?setting=value#public,private',
 	'pq://fæm.com:123/õéf/á?param=val',
 	'pq://l»»@fæm.com:123/õéf/á?param=val',
@@ -84,6 +85,20 @@ sample_structured_parameters = [
 ]
 
 class test_iri(unittest.TestCase):
+	def testAlternateSchemes(self):
+		field = pg_iri.parse("postgres://host")['host']
+		self.assertEqual(field, 'host')
+
+		field = pg_iri.parse("postgresql://host")['host']
+		self.assertEqual(field, 'host')
+
+		try:
+			pg_iri.parse("reject://host")
+		except ValueError:
+			pass
+		else:
+			self.fail("unacceptable IRI scheme not rejected")
+
 	def testIP6Hosts(self):
 		"""
 		Validate that IPv6 hosts are properly extracted.
@@ -101,7 +116,9 @@ class test_iri(unittest.TestCase):
 			self.assertEqual(p['host'], h)
 
 	def testPresentPasswordObscure(self):
-		"password is present in IRI, and obscure it"
+		"""
+		Password is present in IRI, and obscure it.
+		"""
 		s = 'pq://user:pass@host:port/dbname'
 		o = 'pq://user:***@host:port/dbname'
 		p = pg_iri.parse(s)
@@ -109,7 +126,9 @@ class test_iri(unittest.TestCase):
 		self.assertEqual(ps, o)
 
 	def testPresentPasswordObscure(self):
-		"password is *not* present in IRI, and do nothing"
+		"""
+		Password is *not* present in IRI, and do nothing.
+		"""
 		s = 'pq://user@host:port/dbname'
 		o = 'pq://user@host:port/dbname'
 		p = pg_iri.parse(s)

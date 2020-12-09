@@ -14,7 +14,7 @@ IPv6 is supported via the standard representation::
 
 Driver Parameters:
 
-	pq://user@host/?[driver_param]=value&[other_param]=value?setting=val
+	pq://user@host/?[driver_param]=value&[other_param]=value?server_setting=val
 """
 from .resolved import riparse as ri
 from .string import split_ident
@@ -30,8 +30,8 @@ def structure(d, fieldproc = ri.unescape):
 	"""
 	Create a clientparams dictionary from a parsed RI.
 	"""
-	if d.get('scheme', 'pq').lower() != 'pq':
-		raise ValueError("PQ-IRI scheme is not 'pq'")
+	if d.get('scheme', 'pq').lower() not in {'pq', 'postgres', 'postgresql'}:
+		raise ValueError("PQ-IRI scheme is not 'pq', 'postgres', or 'postgresql'")
 	cpd = {
 		k : fieldproc(v) for k, v in d.items()
 		if k not in ('path', 'fragment', 'query', 'host', 'scheme')
