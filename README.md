@@ -1,4 +1,4 @@
-# About
+### About
 
 py-postgresql is a Python 3 package providing modules for working with PostgreSQL.
 Primarily, a high-level driver for querying databases.
@@ -9,7 +9,7 @@ http://github.com/MagicStack/asyncpg should be considered.
 py-postgresql, currently, does not have direct support for high-level async
 interfaces provided by recent versions of Python. Future versions may change this.
 
-# Errata
+### Errata
 
 In v1.3, `postgresql.driver.dbapi20.connect` will now raise `ClientCannotConnectError` directly.
 Exception traps around connect should still function, but the `__context__` attribute
@@ -18,7 +18,7 @@ incorrectly chained. Trapping `ClientCannotConnectError` ahead of `Error` should
 allow both cases to co-exist in the event that data is being extracted from
 the `ClientCannotConnectError`.
 
-# Installation
+### Installation
 
 Installation *should* be as simple as:
 
@@ -28,7 +28,7 @@ Or:
 
 	$ pip install py-postgresql
 
-# Basic Driver Usage
+### Basic Driver Usage
 
 ```python
 	import postgresql
@@ -39,11 +39,11 @@ Or:
 	print(get_table.first("tables"))
 ```
 
-# Documentation
+### Documentation
 
 http://py-postgresql.readthedocs.io
 
-# Related
+### Related
 
 - http://postgresql.org
 - http://python.org
