@@ -30,15 +30,19 @@ From a clone:
 	$ cd fe
 	$ python3 ./setup.py install
 
-### Basic Driver Usage
+### Basic Usage
 
 ```python
-	import postgresql
-	db = postgresql.open('pq://user:password@host:port/database')
-	get_table = db.prepare("select * from information_schema.tables where table_name = $1")
-	for x in get_table("tables"):
+import postgresql
+db = postgresql.open('pq://user:password@host:port/database')
+
+get_table = db.prepare("SELECT * from information_schema.tables WHERE table_name = $1")
+print(get_table("tables"))
+
+# Streaming, in a transaction.
+with db.xact():
+	for x in get_table.rows("tables"):
 		print(x)
-	print(get_table.first("tables"))
 ```
 
 ### Documentation
