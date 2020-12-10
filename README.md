@@ -20,13 +20,15 @@ the `ClientCannotConnectError`.
 
 ### Installation
 
-Installation *should* be as simple as:
-
-	$ python3 ./setup.py install
-
-Or:
+Using PyPI.org:
 
 	$ pip install py-postgresql
+
+From a clone:
+
+	$ git clone https://github.com/python-postgres/fe.git
+	$ cd fe
+	$ python3 ./setup.py install
 
 ### Basic Driver Usage
 
