@@ -1,5 +1,4 @@
-About
-=====
+# About
 
 py-postgresql is a Python 3 package providing modules for working with PostgreSQL.
 This includes a high-level driver, and many other tools that support a developer
@@ -11,55 +10,41 @@ http://github.com/MagicStack/asyncpg should be considered.
 py-postgresql, currently, does not have direct support for high-level async
 interfaces provided by recent versions of Python. Future versions may change this.
 
-Errata
-------
+# Errata
 
-.. warning::
-	In v1.3, `postgresql.driver.dbapi20.connect` will now raise `ClientCannotConnectError` directly.
-	Exception traps around connect should still function, but the `__context__` attribute
-	on the error instance will be `None` in the usual failure case as it is no longer
-	incorrectly chained. Trapping `ClientCannotConnectError` ahead of `Error` should
-	allow both cases to co-exist in the event that data is being extracted from
-	the `ClientCannotConnectError`.
+In v1.3, `postgresql.driver.dbapi20.connect` will now raise `ClientCannotConnectError` directly.
+Exception traps around connect should still function, but the `__context__` attribute
+on the error instance will be `None` in the usual failure case as it is no longer
+incorrectly chained. Trapping `ClientCannotConnectError` ahead of `Error` should
+allow both cases to co-exist in the event that data is being extracted from
+the `ClientCannotConnectError`.
 
-Installation
-------------
+# Installation
 
-Installation *should* be as simple as::
+Installation *should* be as simple as:
 
 	$ python3 ./setup.py install
 
-More information about installation is available via::
+Or:
 
-	python -m postgresql.documentation.admin
+	$ pip install py-postgresql
 
-Basic Driver Usage
-------------------
+# Basic Driver Usage
 
-Using PG-API::
+```python
+	import postgresql
+	db = postgresql.open('pq://user:password@host:port/database')
+	get_table = db.prepare("select * from information_schema.tables where table_name = $1")
+	for x in get_table("tables"):
+		print(x)
+	print(get_table.first("tables"))
+```
 
-	>>> import postgresql
-	>>> db = postgresql.open('pq://user:password@host:port/database')
-	>>> get_table = db.prepare("select * from information_schema.tables where table_name = $1")
-	>>> for x in get_table("tables"):
-	>>>  print(x)
-	>>> print(get_table.first("tables"))
+# Documentation
 
-However, a DB-API 2.0 driver is provided as well: `postgresql.driver.dbapi20`.
+http://py-postgresql.readthedocs.io
 
-Further Information
--------------------
+# Related
 
-Online documentation can be retrieved from:
-
-	http://py-postgresql.readthedocs.io
-
-Or, you can read them in your pager: python -m postgresql.documentation.index
-
-For information about PostgreSQL:
-
-	http://postgresql.org
-
-For information about Python:
-
-	http://python.org
+- http://postgresql.org
+- http://python.org
