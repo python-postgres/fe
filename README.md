@@ -31,7 +31,7 @@ From a clone:
 
 	$ git clone https://github.com/python-postgres/fe.git
 	$ cd fe
-	$ python3 ./setup.py install
+	$ python3 ./setup.py install # Or use in-place without installation(PYTHONPATH).
 
 ### Basic Usage
 
