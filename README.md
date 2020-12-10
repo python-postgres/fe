@@ -9,7 +9,7 @@ http://github.com/MagicStack/asyncpg should be considered.
 py-postgresql, currently, does not have direct support for high-level async
 interfaces provided by recent versions of Python. Future versions may change this.
 
-### Errata
+### Advisory
 
 In v1.3, `postgresql.driver.dbapi20.connect` will now raise `ClientCannotConnectError` directly.
 Exception traps around connect should still function, but the `__context__` attribute
@@ -17,6 +17,9 @@ on the error instance will be `None` in the usual failure case as it is no longe
 incorrectly chained. Trapping `ClientCannotConnectError` ahead of `Error` should
 allow both cases to co-exist in the event that data is being extracted from
 the `ClientCannotConnectError`.
+
+In v2.0, support for older versions of PostgreSQL and Python will be removed.  
+If you have automated installations using PyPI, make sure that they specify a major version.
 
 ### Installation
 
