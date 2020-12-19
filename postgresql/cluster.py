@@ -635,5 +635,3 @@ class Cluster(pg_api.Cluster):
 					creator = self,
 				)
 			time.sleep(delay)
-##
-# vim: ts=3:sw=3:noet:

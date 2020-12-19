@@ -317,5 +317,3 @@ class ConfigFile(pg_api.Settings):
 			for x in (keys - set(cfg.keys())):
 				cfg[x] = None
 			return cfg
-##
-# vim: ts=3:sw=3:noet:

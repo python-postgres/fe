@@ -149,6 +149,3 @@ cleanup:
 	Py_DECREF(mod);
 	return(NULL);
 }
-/*
- * vim: ts=3:sw=3:noet:
- */

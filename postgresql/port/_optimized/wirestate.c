@@ -284,6 +284,3 @@ PyTypeObject WireState_Type = {
 	ws_new,										/* tp_new */
 	NULL,											/* tp_free */
 };
-/*
- * vim: ts=3:sw=3:noet:
- */

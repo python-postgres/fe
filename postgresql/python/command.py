@@ -633,5 +633,3 @@ def command(argv = sys.argv):
 
 if __name__ == '__main__':
 	sys.exit(command())
-##
-# vim: ts=3:sw=3:noet:

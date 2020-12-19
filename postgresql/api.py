@@ -1377,5 +1377,3 @@ class Cluster(Element):
 __docformat__ = 'reStructuredText'
 if __name__ == '__main__':
 	help(__package__ + '.api')
-##
-# vim: ts=3:sw=3:noet:

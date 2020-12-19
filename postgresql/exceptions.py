@@ -748,5 +748,3 @@ if __name__ == '__main__':
 				)
 			)
 		)
-##
-# vim: ts=3:sw=3:noet:
