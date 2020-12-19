@@ -2324,9 +2324,12 @@ class Connection(pg_api.Connection):
 		sql = "DO " + qlit(source) + " LANGUAGE " + qid(language) + ";"
 		self.execute(sql)
 
-	def xact(self, isolation = None, mode = None) -> Transaction:
+	# Alias transaction as xact. xact is the original term, but support
+	# the full word for identifier consistency with asyncpg.
+	def transaction(self, isolation = None, mode = None) -> Transaction:
 		x = Transaction(self, isolation = isolation, mode = mode)
 		return x
+	xact=transaction
 
 	def prepare(self,
 		sql_statement_string : str,

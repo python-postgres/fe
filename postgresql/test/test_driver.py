@@ -824,6 +824,27 @@ class test_driver(unittest.TestCase):
 		with db.xact():
 			self.select()
 
+	@pg_tmp
+	def testTransactionAlias(self):
+		self.assertEqual(db.transaction, db.xact)
+
+		try:
+			with db.transaction():
+				db.execute("CREATE TABLE t (i int);")
+				raise Exception('some failure')
+		except:
+			pass
+		else:
+			self.fail("expected exception was not raised")
+
+		try:
+			db.query("select * from t")
+		except:
+			# No table.
+			pass
+		else:
+			self.fail("transaction abort had no effect")
+
 	def cursor_read(self):
 		ps = db.prepare("SELECT i FROM generate_series(0, (2^8)::int - 1) AS g(i)")
 		c = ps.declare()
