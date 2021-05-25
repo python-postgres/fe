@@ -8,12 +8,13 @@ PostgreSQL version string parsing.
 (8, 0, 1, None, None)
 """
 
+
 def split(vstr: str) -> tuple:
 	"""
 	Split a PostgreSQL version string into a tuple.
 	(major, minor, patch, ..., state_class, state_level)
 	"""
-	v = vstr.strip().split('.')
+	v = vstr.strip().split('(')
 
 	# Get rid of the numbers around the state_class (beta,a,dev,alpha, etc)
 	state_class = v[-1].strip('0123456789')
@@ -23,7 +24,7 @@ def split(vstr: str) -> tuple:
 			state_level = None
 		else:
 			state_level = int(state_level)
-		vlist = [int(x or '0') for x in v[:-1]]
+		vlist = [int(float(x) or '0') for x in v[:-1]]
 		if last_version:
 			vlist.append(int(last_version))
 		vlist += [None] * (3 - len(vlist))
