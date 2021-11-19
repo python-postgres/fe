@@ -20,7 +20,7 @@ receives notifications.
 
 The `postgresql.notifyman.NotificationManager` class is used to wait for
 messages to come in on a set of connections, pick up the messages, and deliver
-the messages to the object's user via the `collections.Iterator` protocol.
+the messages to the object's user via the `collections.abc.Iterator` protocol.
 
 
 Listening on a Single Connection

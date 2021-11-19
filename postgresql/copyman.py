@@ -9,7 +9,7 @@ function for a high-level interface to using the `CopyManager`.
 """
 import sys
 from abc import abstractmethod, abstractproperty
-from collections import Iterator
+from collections.abc import Iterator
 from .python.element import Element, ElementSet
 from .python.structlib import ulong_unpack, ulong_pack
 from .protocol.buffer import pq_message_stream
