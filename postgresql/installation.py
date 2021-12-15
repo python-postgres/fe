@@ -209,7 +209,7 @@ class Installation(pg_api.Installation):
 		"""
 		self.info = info
 		self.version = self.info["version"]
-		self.type, vs = self.version.split()
+		self.type, vs = self.version.split()[:2]
 		self.version_info = versionstring.normalize(versionstring.split(vs))
 		self.configure_options = dict(
 			parse_configure_options(self.info.get('configure', ''))
