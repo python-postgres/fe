@@ -1,6 +1,6 @@
 ### About
 
-py-postgresql is a Python 3 package providing modules for working with PostgreSQL.  
+py-postgresql is a Python 3 package providing modules for working with PostgreSQL.
 Primarily, a high-level driver for querying databases.
 
 For a high performance async interface, MagicStack's asyncpg
@@ -18,7 +18,7 @@ incorrectly chained. Trapping `ClientCannotConnectError` ahead of `Error` should
 allow both cases to co-exist in the event that data is being extracted from
 the `ClientCannotConnectError`.
 
-In v2.0, support for older versions of PostgreSQL and Python will be removed.  
+In v2.0, support for older versions of PostgreSQL and Python will be removed.
 If you have automated installations using PyPI, make sure that they specify a major version.
 
 ### Installation
