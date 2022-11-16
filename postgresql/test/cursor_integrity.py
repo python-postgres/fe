@@ -55,7 +55,7 @@ class test_integrity(unittest.TestCase):
 				read += thisread
 				completed.append(next[0])
 				if thisread:
-					self.failUnlessEqual(
+					self.assertEqual(
 						last[0][-1][0], next[0][0][0] - 1,
 						"first row(-1) of next failed to match the last row of the previous"
 					)
@@ -63,8 +63,8 @@ class test_integrity(unittest.TestCase):
 				elif next[1] != 0:
 					# done
 					break
-			self.failUnlessEqual(read, limit)
-			self.failUnlessEqual(list(range(-1, limit)), [
+			self.assertEqual(read, limit)
+			self.assertEqual(list(range(-1, limit)), [
 				x[0] for x in itertools.chain(*completed)
 			])
 
@@ -88,7 +88,7 @@ class test_integrity(unittest.TestCase):
 					read += thisread
 					completed.append(next[0])
 					if thisread:
-						self.failUnlessEqual(
+						self.assertEqual(
 							last[0][-1], next[0][0] - 1,
 							"first row(-1) of next failed to match the last row of the previous"
 						)
@@ -96,8 +96,8 @@ class test_integrity(unittest.TestCase):
 					elif next[1] != 0:
 						# done
 						break
-				self.failUnlessEqual(read, limit)
-				self.failUnlessEqual(
+				self.assertEqual(read, limit)
+				self.assertEqual(
 					list(range(-1, limit)),
 					list(itertools.chain(*completed))
 				)
