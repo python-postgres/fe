@@ -14,6 +14,9 @@ license.file = "LICENSE"
 authors = [
 	{ name = "James William Pye", email = "james.pye@gmail.com" },
 ]
+maintainers = [
+	{ name = "James William Pye", email = "james.pye@gmail.com" },
+]
 
 requires-python = ">=3.7"
 keywords = ["syncpg", "postgres", "postgresql", "sql", "driver"]
