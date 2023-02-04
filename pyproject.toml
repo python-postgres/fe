@@ -1,0 +1,39 @@
+#!/usr/bin/env python3 -m validate_pyproject
+# Consistent with postgresql.project and postgresql.release.distutils.
+[build-system]
+requires = ["setuptools >= 0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "py-postgresql"
+version = "1.3.1"
+description = "Query PostgreSQL databases using Python and the PQv3 protocol."
+readme = "README.md"
+
+license.file = "LICENSE"
+authors = [
+	{ name = "James William Pye", email = "james.pye@gmail.com" },
+]
+
+requires-python = ">=3.7"
+keywords = ["syncpg", "postgres", "postgresql", "sql", "driver"]
+classifiers = [
+	"Development Status :: 5 - Production/Stable",
+	"Intended Audience :: Developers",
+	"License :: OSI Approved :: BSD License",
+	"License :: OSI Approved :: MIT License",
+	"License :: OSI Approved :: Attribution Assurance License",
+	"License :: OSI Approved :: Python Software Foundation License",
+	"Natural Language :: English",
+	"Operating System :: OS Independent",
+	"Programming Language :: Python",
+	"Programming Language :: Python :: 3",
+	"Topic :: Database",
+]
+
+dependencies = []
+
+[project.urls]
+Documentation = "http://py-postgresql.readthedocs.io"
+Issues = "https://github.com/python-postgres/fe/issues"
+Source = "https://github.com/python-postgres/fe"
