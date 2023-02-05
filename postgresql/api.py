@@ -1129,6 +1129,7 @@ class Connector(Element):
 		database : str = None,
 		settings : (dict, [(str,str)]) = None,
 		category : Category = None,
+		**kw,
 	):
 		if user is None:
 			# sure, it's a "required" keyword, makes for better documentation

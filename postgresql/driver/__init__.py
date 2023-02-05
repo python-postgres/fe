@@ -10,5 +10,7 @@ from .pq3 import Driver
 default = Driver()
 
 def connect(*args, **kw):
-	'Establish a connection using the default driver.'
+	"""
+	Establish a connection using the default driver.
+	"""
 	return default.connect(*args, **kw)
