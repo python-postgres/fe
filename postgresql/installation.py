@@ -240,7 +240,13 @@ class Installation(pg_api.Installation):
 		"""
 		Whether the installation was compiled with SSL support.
 		"""
-		return 'with_openssl' in self.configure_options
+		if 'with_openssl' in self.configure_options:
+			return True
+		# Parameterized form in newer versions.
+		for x in self.configure_options:
+			if 'with_ssl' in x:
+				return True
+		return False
 
 def default(typ = Installation):
 	"""
