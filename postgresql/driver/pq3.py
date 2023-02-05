@@ -10,7 +10,6 @@ import socket
 from traceback import format_exception
 from itertools import repeat, chain, count
 from functools import partial
-from abc import abstractmethod
 from codecs import lookup as lookup_codecs
 
 from operator import itemgetter
@@ -631,12 +630,12 @@ class Output(object):
 
 	_complete_message = None
 
-	@abstractmethod
 	def _init(self):
 		"""
 		Bind a cursor based on the configured parameters.
 		"""
 		# The local initialization for the specific cursor.
+		raise NotImplementedError
 
 	def __init__(self, cursor_id, wref = weakref.ref, ID = ID):
 		self.cursor_id = cursor_id
@@ -990,17 +989,17 @@ class MultiXactStream(Chunks):
 		self.database = statement.database
 		Output.__init__(self, cursor_id or ID(self))
 
-	@abstractmethod
 	def _bind(self):
 		"""
 		Generate the commands needed to bind the cursor.
 		"""
+		raise NotImplementedError
 
-	@abstractmethod
 	def _fetch(self):
 		"""
 		Generate the commands needed to bind the cursor.
 		"""
+		raise NotImplementedError
 
 	def _init(self):
 		self._command = self._fetch()
@@ -2768,7 +2767,6 @@ class Connector(pg_api.Connector):
 			keywords = os.linesep + ' ' + keywords if keywords else ''
 		)
 
-	@abstractmethod
 	def socket_factory_sequence(self):
 		"""
 		Generate a list of callables that will be used to attempt to make the
@@ -2778,6 +2776,7 @@ class Connector(pg_api.Connector):
 
 		The callables in the sequence must take a timeout parameter.
 		"""
+		raise NotImplementedError
 
 	def __init__(self,
 		connect_timeout : int = None,
@@ -2843,23 +2842,12 @@ class Connector(pg_api.Connector):
 			for k, v in tnkw.items()
 		])
 		self._password = (self.password or '').encode(se)
-		self._socket_secure = {
-			'keyfile' : self.sslkeyfile,
-			'certfile' : self.sslcrtfile,
-			'ca_certs' : self.sslrootcrtfile,
-		}
 # class Connector
 
 class SocketConnector(Connector):
 	"""
 	Abstract connector for using `socket` and `ssl`.
 	"""
-	@abstractmethod
-	def socket_factory_sequence(self):
-		"""
-		Return a sequence of `SocketFactory`s for a connection to use to connect
-		to the target host.
-		"""
 
 	def create_socket_factory(self, **params):
 		return SocketFactory(**params)
