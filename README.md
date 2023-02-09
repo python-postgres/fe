@@ -50,9 +50,10 @@ with db.xact():
 
 ### Documentation
 
-http://py-postgresql.readthedocs.io
+- https://py-postgresql.readthedocs.io
+- https://github.com/python-postgres/fe/issues?q=label%3Ahowto
 
 ### Related
 
-- http://postgresql.org
-- http://python.org
+- https://postgresql.org
+- https://python.org
