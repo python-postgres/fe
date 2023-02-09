@@ -80,6 +80,11 @@ class TestCaseWithCluster(unittest.TestCase):
 		if has_ipv6:
 			listen_addresses += ',::1'
 
+		if self.cluster.installation.version_info >= (10, 0):
+			pwe = 'md5'
+		else:
+			pwe = 'on'
+
 		self.cluster.settings.update(dict(
 			port = str(self.cluster_port),
 			max_connections = '6',
@@ -87,6 +92,7 @@ class TestCaseWithCluster(unittest.TestCase):
 			listen_addresses = listen_addresses,
 			log_destination = 'stderr',
 			log_min_messages = 'FATAL',
+			password_encryption = pwe,
 		))
 
 		if self.disable_replication:
