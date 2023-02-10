@@ -33,6 +33,19 @@ From a clone:
 	$ cd fe
 	$ python3 ./setup.py install # Or use in-place without installation(PYTHONPATH).
 
+Direct from a sparse checkout:
+
+	export BRANCH=v1.3
+	export TARGET="$(pwd)/py-packages"
+	export PYTHONPATH="$PYTHONPATH:$TARGET"
+	git clone --origin=pypg-frontend --branch=$BRANCH \
+		--sparse --filter=blob:none --no-checkout --depth=1 \
+		https://github.com/python-postgres/fe.git "$TARGET"
+	pushd "$TARGET"
+	git sparse-checkout set --no-cone postgresql
+	git switch $BRANCH
+	popd; unset TARGET BRANCH
+
 ### Basic Usage
 
 ```python
@@ -47,6 +60,10 @@ with db.xact():
 	for x in get_table.rows("tables"):
 		print(x)
 ```
+
+REPL with connection bound to `db` builtin:
+
+	python3 -m postgresql.bin.pg_python -I 'pq://postgres@localhost:5423/postgres'
 
 ### Documentation
 
