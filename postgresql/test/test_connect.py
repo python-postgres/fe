@@ -49,6 +49,9 @@ class TestCaseWithCluster(unittest.TestCase):
 	postgresql.driver *interface* tests.
 	"""
 	installation = default_installation
+	@property
+	def _crt(self):
+		return self.params.get('sslrootcrtfile') or None
 
 	def __init__(self, *args, **kw):
 		super().__init__(*args, **kw)
@@ -119,6 +122,7 @@ class TestCaseWithCluster(unittest.TestCase):
 		c = self.cluster.connection(
 			user = 'test',
 			database = 'template1',
+			sslrootcrtfile = self._crt,
 		)
 		with c:
 			if c.prepare(
@@ -128,13 +132,15 @@ class TestCaseWithCluster(unittest.TestCase):
 				c.execute('create database test')
 
 	def connection(self, *args, **kw):
-		return self.cluster.connection(*args, user = 'test', **kw)
+		return self.cluster.connection(*args, user = 'test', **self.params, **kw)
 
 	def drop_cluster(self):
 		if self.cluster.initialized():
 			self.cluster.drop()
 
 	def run(self, *args, **kw):
+		self.params = {}
+
 		if 'PGINSTALLATION' not in os.environ:
 			# Expect tests to show skipped.
 			return super().run(*args, **kw)
@@ -174,7 +180,6 @@ class test_connect(TestCaseWithCluster):
 	ip6 = '::1'
 	ip4 = '127.0.0.1'
 	host = 'localhost'
-	params = {}
 	cluster_path_suffix = '_test_connect'
 
 	mk_common_users = """
@@ -228,19 +233,21 @@ class test_connect(TestCaseWithCluster):
 	def initialize_database(self):
 		super().initialize_database()
 
-		with self.cluster.connection(user = 'test') as db:
+		with self.connection() as db:
 			db.execute(self.mk_common_users)
 			if self.check_crypt_user:
 				db.execute(self.mk_crypt_user)
 
 	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_pg_open_SQL_ASCII(self):
-		# postgresql.open
 		host, port = self.cluster.address()
+		dbctx = self.params
+
 		# test simple locators..
 		with pg_open(
 			'pq://' + 'md5:' + 'md5_password@' + host + ':' + str(port) \
-			+ '/test?client_encoding=SQL_ASCII'
+			+ '/test?client_encoding=SQL_ASCII',
+			**dbctx
 		) as db:
 			self.assertEqual(db.prepare('select 1')(), [(1,)])
 			self.assertEqual(db.settings['client_encoding'], 'SQL_ASCII')
@@ -249,66 +256,78 @@ class test_connect(TestCaseWithCluster):
 	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_pg_open_keywords(self):
 		host, port = self.cluster.address()
-		# straight test, no IRI
+		dbctx = self.params
+
+		# Keywords only, no indicator.
 		with pg_open(
 			user = 'md5',
 			password = 'md5_password',
 			host = host,
 			port = port,
-			database = 'test'
+			database = 'test',
+			**dbctx,
 		) as db:
 			self.assertEqual(db.prepare('select 1')(), [(1,)])
-		self.assertTrue(db.closed)
-		# composite test
+
+		# Keyword and indicator source.
 		with pg_open(
 			"pq://md5:md5_password@",
 			host = host,
 			port = port,
-			database = 'test'
+			database = 'test',
+			**dbctx,
 		) as db:
 			self.assertEqual(db.prepare('select 1')(), [(1,)])
-		# override test
+
+		# Keyword override.
 		with pg_open(
 			"pq://md5:foobar@",
 			password = 'md5_password',
 			host = host,
 			port = port,
-			database = 'test'
+			database = 'test',
+			**dbctx,
 		) as db:
 			self.assertEqual(db.prepare('select 1')(), [(1,)])
-		# and, one with some settings
+
+		# Settings override.
 		with pg_open(
 			"pq://md5:foobar@?search_path=ieeee",
 			password = 'md5_password',
 			host = host,
 			port = port,
 			database = 'test',
-			settings = {'search_path' : 'public'}
+			settings = {'search_path' : 'public'},
+			**dbctx,
 		) as db:
 			self.assertEqual(db.prepare('select 1')(), [(1,)])
 			self.assertEqual(db.settings['search_path'], 'public')
 
 	@unittest.skipIf(default_installation is None, "no installation provided by environment")
 	def test_pg_open(self):
-		# postgresql.open
 		host, port = self.cluster.address()
+		dbctx = self.params
+
 		# test simple locators..
 		with pg_open(
 			'pq://' + 'md5:' + 'md5_password@' + host + ':' + str(port) \
-			+ '/test'
+			+ '/test',
+			**dbctx,
 		) as db:
 			self.assertEqual(db.prepare('select 1')(), [(1,)])
 		self.assertTrue(db.closed)
 
 		with pg_open(
 			'pq://' + 'password:' + 'password_password@' + host + ':' + str(port) \
-			+ '/test'
+			+ '/test',
+			**dbctx,
 		) as db:
 			self.assertEqual(db.prepare('select 1')(), [(1,)])
 		self.assertTrue(db.closed)
 
 		with pg_open(
-			'pq://' + 'trusted@' + host + ':' + str(port) + '/test'
+			'pq://' + 'trusted@' + host + ':' + str(port) + '/test',
+			**dbctx,
 		) as db:
 			self.assertEqual(db.prepare('select 1')(), [(1,)])
 		self.assertTrue(db.closed)
@@ -324,7 +343,7 @@ class test_connect(TestCaseWithCluster):
 			os.environ['PGPORT'] = str(port)
 			os.environ['PGDATABASE'] = 'test'
 			# No arguments, the environment provided everything.
-			with pg_open() as db:
+			with pg_open(**dbctx) as db:
 				self.assertEqual(db.prepare('select 1')(), [(1,)])
 				self.assertEqual(db.prepare('select current_user').first(), 'md5')
 			self.assertTrue(db.closed)
@@ -354,7 +373,7 @@ search_path = public
 				try:
 					os.environ['PGSERVICE'] = 'myserv'
 					os.environ['PGSYSCONFDIR'] = os.getcwd()
-					with pg_open() as db:
+					with pg_open(**dbctx) as db:
 						self.assertEqual(db.prepare('select 1')(), [(1,)])
 						self.assertEqual(db.prepare('select current_user').first(), 'password')
 						self.assertEqual(db.settings['search_path'], 'public')
@@ -505,6 +524,7 @@ search_path = public
 			user = 'password',
 			password = 'password_password',
 			database = 'test',
+			sslrootcrtfile = self._crt,
 		)
 		with c:
 			self.assertEqual(c.prepare('select current_user').first(), 'password')
@@ -524,6 +544,7 @@ search_path = public
 	def test_Unix_connect(self):
 		if not has_unix_sock:
 			return
+
 		unix_domain_socket = os.path.join(
 			self.cluster.data_directory,
 			'.s.PGSQL.' + self.cluster.settings['port']

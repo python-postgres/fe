@@ -141,12 +141,15 @@ class test_ssl_connect(test_connect.test_connect):
 		os.chmod(key_file, 0o700)
 		os.chmod(crt_file, 0o700)
 
+		self.params['sslrootcrtfile'] = crt_file
+
 	def initialize_database(self):
 		if not has_ssl:
 			return
 
 		super().initialize_database()
-		with self.cluster.connection(user = 'test') as db:
+		# Setup TLS users.
+		with self.cluster.connection(user = 'test', **self.params) as db:
 			db.execute(
 				"""
 CREATE USER nossl;
