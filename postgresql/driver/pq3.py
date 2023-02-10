@@ -2781,24 +2781,27 @@ class Connector(pg_api.Connector):
 	def __init__(self,
 		connect_timeout : int = None,
 		server_encoding = None,
-		sslmode : ('allow', 'prefer', 'require', 'disable') = None,
-		sslcrtfile = None,
-		sslkeyfile = None,
-		sslrootcrtfile = None,
-		sslrootcrlfile = None,
 		driver = None,
 		**kw
 	):
 		super().__init__(**kw)
+		self._security(kw)
 		self.driver = driver
-
 		self.server_encoding = server_encoding
 		self.connect_timeout = connect_timeout
-		self.sslmode = sslmode
-		self.sslkeyfile = sslkeyfile
-		self.sslcrtfile = sslcrtfile
-		self.sslrootcrtfile = sslrootcrtfile
-		self.sslrootcrlfile = sslrootcrlfile
+
+	def _security(self, parameters):
+		self.sslmode = parameters.get('sslmode') or None
+		self.sslkeyfile = parameters.get('sslkeyfile') or None
+		self.sslcrtfile = parameters.get('sslcrtfile') or None
+		self.sslrootcrtfile = parameters.get('sslrootcrtfile') or None
+		self.sslrootcrlfile = parameters.get('sslrootcrlfile') or None
+
+		self._socket_secure = {
+			'keyfile': self.sslkeyfile,
+			'certfile': self.sslcrtfile,
+			'ca_certs': self.sslrootcrtfile,
+		}
 
 		if self.sslrootcrlfile is not None:
 			pg_exc.IgnoredClientParameterWarning(
@@ -2806,6 +2809,7 @@ class Connector(pg_api.Connector):
 				creator = self,
 			).emit()
 
+	def _startup(self):
 		# Startup message parameters.
 		tnkw = {
 			'client_min_messages' : 'WARNING',
@@ -2822,21 +2826,17 @@ class Connector(pg_api.Connector):
 					)
 			tnkw.update(s)
 
+		# Postgres defaults the database identifier to the user.
 		tnkw['user'] = self.user
 		if self.database is not None:
 			tnkw['database'] = self.database
 
+		# Encode startup arguments.
+		# The server_encoding hint is strictly for str() values.
 		se = self.server_encoding or 'utf-8'
-		##
-		# Attempt to accommodate for literal treatment of startup data.
-		##
 		self._startup_parameters = tuple([
-			# All keys go in utf-8. However, ascii would probably be good enough.
 			(
 				k.encode('utf-8'),
-			# If it's a str(), encode in the hinted server_encoding.
-			# Otherwise, convert the object(int, float, bool, etc) into a string
-			# and treat it as utf-8.
 				v.encode(se) if type(v) is str else str(v).encode('utf-8')
 			)
 			for k, v in tnkw.items()
@@ -2865,15 +2865,17 @@ class IPConnector(SocketConnector):
 			raise TypeError("'port' is a required keyword and cannot be 'None'")
 
 		return {'socket_create': (self.address_family, socket.SOCK_STREAM),
-				'socket_connect': (host, int(port))}
+				'socket_connect': (host, int(port)),
+				'socket_secure': self._socket_secure}
 
 	def __init__(self, host, port, ipv, **kw):
+		super().__init__(**kw)
 		params = self.socket_factory_params(host, port, ipv, **kw)
 		self.host, self.port = params['socket_connect']
 		# constant socket connector
 		self._socketcreator = self.create_socket_factory(**params)
 		self._socketcreators = (self._socketcreator,)
-		super().__init__(**kw)
+		self._startup()
 
 class IP4(IPConnector):
 	"""
@@ -2917,15 +2919,17 @@ class Unix(SocketConnector):
 			raise TypeError("'unix' is a required keyword and cannot be 'None'")
 
 		return {'socket_create': (socket.AF_UNIX, socket.SOCK_STREAM),
-				'socket_connect': unix}
+				'socket_connect': unix,
+				'socket_secure': self._socket_secure}
 
 	def __init__(self, unix = None, **kw):
+		super().__init__(**kw)
 		params = self.socket_factory_params(unix)
 		self.unix = params['socket_connect']
 		# constant socket connector
 		self._socketcreator = self.create_socket_factory(**params)
 		self._socketcreators = (self._socketcreator,)
-		super().__init__(**kw)
+		self._startup()
 
 class Host(SocketConnector):
 	"""
@@ -2959,6 +2963,8 @@ class Host(SocketConnector):
 		address_family = None,
 		**kw
 	):
+		super().__init__(**kw)
+
 		if host is None:
 			raise TypeError("'host' is a required keyword")
 		if port is None:
@@ -2977,7 +2983,7 @@ class Host(SocketConnector):
 			raise TypeError("unknown IP version selected: 'ipv' = " + repr(ipv))
 		self.host = host
 		self.port = port
-		super().__init__(**kw)
+		self._startup()
 
 class Driver(pg_api.Driver):
 	def _e_metas(self):
