@@ -6,8 +6,8 @@ Primarily, a high-level driver for querying databases.
 While py-postgresql is still usable for many purposes, asyncpg and PostgREST are
 likely more suitable for most applications:
 
-	- http://github.com/MagicStack/asyncpg
-	- https://postgrest.org/
+- http://github.com/MagicStack/asyncpg
+- https://postgrest.org
 
 py-postgresql, currently, does not have direct support for high-level async
 interfaces provided by recent versions of Python. Future versions may change this.
