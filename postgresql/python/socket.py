@@ -6,7 +6,6 @@ import os
 import random
 import socket
 import errno
-import ssl
 
 __all__ = ['find_available_port', 'SocketFactory']
 
@@ -49,14 +48,29 @@ class SocketFactory(object):
 			return None
 		return getattr(err, 'strerror', '<strerror not present>')
 
-	def secure(self, socket : socket.socket) -> ssl.SSLSocket:
+	@property
+	def _security_context(self):
+		if self._security_context_ii is None:
+			from ssl import SSLContext, PROTOCOL_TLS_CLIENT
+			ctx = self._security_context_ii = SSLContext(PROTOCOL_TLS_CLIENT)
+			ctx.check_hostname = False
+
+			cf = self.socket_secure.get('certfile')
+			kf = self.socket_secure.get('keyfile')
+			if cf is not None:
+				self._security_context_ii.load_cert_chain(cf, keyfile=kf)
+
+			ca = self.socket_secure.get('ca_certs')
+			if ca is not None:
+				self._security_context_ii.load_verify_locations(ca)
+
+		return self._security_context_ii
+
+	def secure(self, socket: socket.socket):
 		"""
 		Secure a socket with SSL.
 		"""
-		if self.socket_secure is not None:
-			return ssl.wrap_socket(socket, **self.socket_secure)
-		else:
-			return ssl.wrap_socket(socket)
+		return self._security_context.wrap_socket(socket)
 
 	def __call__(self, timeout = None):
 		s = socket.socket(*self.socket_create)
@@ -73,10 +87,12 @@ class SocketFactory(object):
 		socket_create,
 		socket_connect,
 		socket_secure = None,
+		socket_security_context = None
 	):
+		self._security_context_ii = socket_security_context
 		self.socket_create = socket_create
 		self.socket_connect = socket_connect
-		self.socket_secure = socket_secure
+		self.socket_secure = socket_secure or {}
 
 	def __str__(self):
 		return 'socket' + repr(self.socket_connect)
