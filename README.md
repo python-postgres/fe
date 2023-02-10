@@ -12,6 +12,8 @@ likely more suitable for most applications:
 py-postgresql, currently, does not have direct support for high-level async
 interfaces provided by recent versions of Python. Future versions may change this.
 
+- [Project Future](https://github.com/python-postgres/fe/issues/124)
+
 ### Advisory
 
 In v2.0, support for older versions of PostgreSQL and Python will be removed.
