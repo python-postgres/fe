@@ -6,7 +6,7 @@ Primarily, a high-level driver for querying databases.
 While py-postgresql is still usable for many purposes, asyncpg and PostgREST are
 likely more suitable for most applications:
 
-- http://github.com/MagicStack/asyncpg
+- https://github.com/MagicStack/asyncpg
 - https://postgrest.org
 
 py-postgresql, currently, does not have direct support for high-level async
@@ -14,15 +14,15 @@ interfaces provided by recent versions of Python. Future versions may change thi
 
 ### Advisory
 
+In v2.0, support for older versions of PostgreSQL and Python will be removed.
+If you have automated installations using PyPI, make sure that they specify a major version.
+
 In v1.3, `postgresql.driver.dbapi20.connect` will now raise `ClientCannotConnectError` directly.
 Exception traps around connect should still function, but the `__context__` attribute
 on the error instance will be `None` in the usual failure case as it is no longer
 incorrectly chained. Trapping `ClientCannotConnectError` ahead of `Error` should
 allow both cases to co-exist in the event that data is being extracted from
 the `ClientCannotConnectError`.
-
-In v2.0, support for older versions of PostgreSQL and Python will be removed.
-If you have automated installations using PyPI, make sure that they specify a major version.
 
 ### Installation
 
