@@ -3,8 +3,11 @@
 py-postgresql is a Python 3 package providing modules for working with PostgreSQL.
 Primarily, a high-level driver for querying databases.
 
-For a high performance async interface, MagicStack's asyncpg
-http://github.com/MagicStack/asyncpg should be considered.
+While py-postgresql is still usable for many purposes, asyncpg and PostgREST are
+likely more suitable for most applications:
+
+	- http://github.com/MagicStack/asyncpg
+	- https://postgrest.org/
 
 py-postgresql, currently, does not have direct support for high-level async
 interfaces provided by recent versions of Python. Future versions may change this.
