@@ -28,7 +28,7 @@ the `ClientCannotConnectError`.
 
 ### Installation
 
-Using `pip` and [PyPI](https://PyPI.org):
+From [PyPI](https://PyPI.org) using `pip`:
 
 ```bash
 python3 -m pip install py-postgresql
