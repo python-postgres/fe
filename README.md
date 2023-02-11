@@ -28,28 +28,36 @@ the `ClientCannotConnectError`.
 
 ### Installation
 
-Using PyPI.org:
+Using `pip` and [PyPI](https://PyPI.org):
 
-	$ pip install py-postgresql
+```bash
+python3 -m pip install py-postgresql
+```
 
-From a clone:
+From [GitHub](https://github.com) using a full clone:
 
-	$ git clone https://github.com/python-postgres/fe.git
-	$ cd fe
-	$ python3 ./setup.py install # Or use in-place without installation(PYTHONPATH).
+```bash
+git clone https://github.com/python-postgres/fe.git
+cd fe
+python3 ./setup.py install
+```
 
-Direct from a sparse checkout:
+From [GitHub](https://github.com) using a sparse checkout:
 
-	export BRANCH=v1.3
-	export TARGET="$(pwd)/py-packages"
-	export PYTHONPATH="$PYTHONPATH:$TARGET"
+```bash
+TARGET="$(pwd)/py-packages"
+export PYTHONPATH="$PYTHONPATH:$TARGET"
+(set -e
+	BRANCH=v1.3
 	git clone --origin=pypg-frontend --branch=$BRANCH \
 		--sparse --filter=blob:none --no-checkout --depth=1 \
 		https://github.com/python-postgres/fe.git "$TARGET"
-	pushd "$TARGET"
+	cd "$TARGET"
 	git sparse-checkout set --no-cone postgresql
 	git switch $BRANCH
-	popd; unset TARGET BRANCH
+)
+unset TARGET
+```
 
 ### Basic Usage
 
@@ -68,7 +76,9 @@ with db.xact():
 
 REPL with connection bound to `db` builtin:
 
-	python3 -m postgresql.bin.pg_python -I 'pq://postgres@localhost:5423/postgres'
+```bash
+python3 -m postgresql.bin.pg_python -I 'pq://postgres@localhost:5423/postgres'
+```
 
 ### Documentation
 
