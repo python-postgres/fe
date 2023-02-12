@@ -42,21 +42,18 @@ cd fe
 python3 ./setup.py install
 ```
 
-From [GitHub](https://github.com) using a sparse checkout:
+From [GitHub](https://github.com) using a temporary installation scoped to a subshell:
 
 ```bash
-TARGET="$(pwd)/py-packages"
-export PYTHONPATH="$PYTHONPATH:$TARGET"
-(set -e
-	BRANCH=v1.3
-	git clone --origin=pypg-frontend --branch=$BRANCH \
-		--sparse --filter=blob:none --no-checkout --depth=1 \
-		https://github.com/python-postgres/fe.git "$TARGET"
-	cd "$TARGET"
-	git sparse-checkout set --no-cone postgresql
-	git switch $BRANCH
-)
-unset TARGET
+(PYTMPPKG="$(mktemp -d)"
+export PYTHONPATH="$PYTHONPATH:$PYTMPPKG"
+curl -s https://raw.githubusercontent.com/jwp/git-select/main/git-select.py | \
+	python3 /dev/stdin \
+	https://github.com/python-postgres/fe master "postgresql/./$PYTMPPKG/"
+python3 -c "import postgresql.project as pj; print(); print('py-postgresql:', pj.version)"
+export pg_console="postgresql.bin.pg_python"
+echo ': python3 -m $pg_console'
+$SHELL)
 ```
 
 ### Basic Usage
