@@ -20,10 +20,10 @@ In v2.0, many, potentially breaking, changes are planned.
 If you have automated installations using PyPI, make sure that they specify a major version.
 
 - Support for older versions of PostgreSQL and Python will be removed. This will allow the driver
-to defer version parsing fixing #109, and better prepare for future versions.
+to defer version parsing fixing (https://github.com/python-postgres/fe/issues/109), and better prepare for future versions.
 - The connection establishment strategy will be simplified to only performing one attempt. `sslmode`
-parameter should be considered deprecated. See #122 and #75.
-- StoredProcedure will be removed. See #80.
+parameter should be considered deprecated. v1.4 will provide a new security parameter implying `sslmode=require`. See (https://github.com/python-postgres/fe/issues/122) and (https://github.com/python-postgres/fe/issues/75).
+- StoredProcedure will be removed. See (https://github.com/python-postgres/fe/issues/80).
 
 ### Installation
 
