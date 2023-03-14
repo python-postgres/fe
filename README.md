@@ -41,20 +41,6 @@ cd fe
 python3 ./setup.py install
 ```
 
-From [GitHub](https://github.com) using a temporary installation scoped to a subshell:
-
-```bash
-(PYTMPPKG="$(mktemp -d)"
-export PYTHONPATH="$PYTHONPATH:$PYTMPPKG"
-curl -s https://raw.githubusercontent.com/jwp/git-select/main/git-select.py | \
-	python3 /dev/stdin \
-	https://github.com/python-postgres/fe master "postgresql/./$PYTMPPKG/"
-python3 -c "import postgresql.project as pj; print(); print('py-postgresql:', pj.version)"
-export pg_console="postgresql.bin.pg_python"
-echo ': python3 -m $pg_console'
-$SHELL)
-```
-
 ### Basic Usage
 
 ```python
