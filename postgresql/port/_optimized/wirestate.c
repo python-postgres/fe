@@ -248,7 +248,7 @@ PyTypeObject WireState_Type = {
 	sizeof(struct wirestate),				/* tp_basicsize */
 	0,												/* tp_itemsize */
 	ws_dealloc,									/* tp_dealloc */
-	NULL,											/* tp_print */
+	0,											/* tp_print */
 	NULL,											/* tp_getattr */
 	NULL,											/* tp_setattr */
 	NULL,											/* tp_compare */

@@ -587,7 +587,7 @@ PyTypeObject pq_message_stream_Type = {
 	sizeof(struct p_buffer),		/* tp_basicsize */
 	0,										/* tp_itemsize */
 	p_dealloc,							/* tp_dealloc */
-	NULL,									/* tp_print */
+	0,									/* tp_print */
 	NULL,									/* tp_getattr */
 	NULL,									/* tp_setattr */
 	NULL,									/* tp_compare */
