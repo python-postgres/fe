@@ -16,15 +16,14 @@ interfaces provided by recent versions of Python. Future versions may change thi
 
 ### Advisory
 
-In v2.0, support for older versions of PostgreSQL and Python will be removed.
+In v2.0, many, potentially breaking, changes are planned.
 If you have automated installations using PyPI, make sure that they specify a major version.
 
-In v1.3, `postgresql.driver.dbapi20.connect` will now raise `ClientCannotConnectError` directly.
-Exception traps around connect should still function, but the `__context__` attribute
-on the error instance will be `None` in the usual failure case as it is no longer
-incorrectly chained. Trapping `ClientCannotConnectError` ahead of `Error` should
-allow both cases to co-exist in the event that data is being extracted from
-the `ClientCannotConnectError`.
+- Support for older versions of PostgreSQL and Python will be removed. This will allow the driver
+to defer version parsing fixing (https://github.com/python-postgres/fe/issues/109), and better prepare for future versions.
+- The connection establishment strategy will be simplified to only performing one attempt. `sslmode`
+parameter should be considered deprecated. v1.4 will provide a new security parameter implying `sslmode=require`. See (https://github.com/python-postgres/fe/issues/122) and (https://github.com/python-postgres/fe/issues/75).
+- StoredProcedure will be removed. See (https://github.com/python-postgres/fe/issues/80).
 
 ### Installation
 
