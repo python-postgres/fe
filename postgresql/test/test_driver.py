@@ -297,11 +297,13 @@ try:
 				ipaddress.IPv4Address('255.255.255.255'),
 				ipaddress.IPv4Address('127.0.0.1'),
 				ipaddress.IPv4Address('10.0.0.1'),
+				ipaddress.IPv4Interface('10.0.0.1/24'),
 				ipaddress.IPv4Address('0.0.0.0'),
 				ipaddress.IPv6Address('::1'),
 				ipaddress.IPv6Address('ffff' + ':ffff'*7),
 				ipaddress.IPv6Address('fe80::1'),
 				ipaddress.IPv6Address('fe80::1'),
+				ipaddress.IPv6Interface('fe80::1/64'),
 				ipaddress.IPv6Address('::'), # 0::0
 			],
 		),
