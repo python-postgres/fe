@@ -47,11 +47,17 @@ class ServiceDoesNotExistError(ClientParameterError):
 	code = '-*srv'
 
 try:
-	from getpass import getuser, getpass
+	from getpass import getuser as _getuser, getpass
 except ImportError:
 	getpass = raw_input
 	def getuser():
 		return 'postgres'
+else:
+	def getuser():
+		try:
+			return _getuser()
+		except ImportError:  # w32 doesn't have module pwd
+			return 'postgres'
 
 default_host = 'localhost'
 default_port = 5432
@@ -141,6 +147,8 @@ def defaults(environ = os.environ):
 		if appdata:
 			pgdata = os.path.join(appdata, pg_appdata_directory)
 			pgpassfile = os.path.join(pgdata, pg_appdata_passfile)
+		else:
+			pgpassfile = None
 	else:
 		pgpassfile = os.path.join(userdir, pg_home_passfile)
 
@@ -151,7 +159,7 @@ def defaults(environ = os.environ):
 		('sslrootcrlfile', os.path.join(pgdata, 'root.crl')),
 		('pgpassfile', pgpassfile),
 	):
-		if os.path.exists(v):
+		if v and os.path.exists(v):
 			yield (k,), v
 
 def envvars(environ = os.environ, modifier = 'PG'.__add__):
