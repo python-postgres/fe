@@ -51,9 +51,12 @@ class SocketFactory(object):
 	@property
 	def _security_context(self):
 		if self._security_context_ii is None:
-			from ssl import SSLContext, PROTOCOL_TLS_CLIENT
+			from ssl import SSLContext, PROTOCOL_TLS_CLIENT, CERT_NONE
 			ctx = self._security_context_ii = SSLContext(PROTOCOL_TLS_CLIENT)
 			ctx.check_hostname = False
+
+			if self.socket_secure.get('noverify') is not None:
+				ctx.verify_mode = CERT_NONE
 
 			cf = self.socket_secure.get('certfile')
 			kf = self.socket_secure.get('keyfile')
@@ -63,6 +66,8 @@ class SocketFactory(object):
 			ca = self.socket_secure.get('ca_certs')
 			if ca is not None:
 				self._security_context_ii.load_verify_locations(ca)
+			else:
+				self._security_context_ii.load_default_certs()
 
 		return self._security_context_ii
 
