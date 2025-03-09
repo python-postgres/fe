@@ -263,7 +263,7 @@ class Complete(StringMessage):
 		Strip all the *surrounding* digits and spaces from the command tag,
 		and return that string.
 		"""
-		return self.data.strip(b'\c\n\t 0123456789') or None
+		return self.data.strip(b'\r\n\t 0123456789') or None
 
 class Null(EmptyMessage):
 	"""

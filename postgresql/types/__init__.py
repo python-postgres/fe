@@ -610,7 +610,7 @@ class Row(tuple):
 	def transform(self, *args, **kw):
 		"""
 		Make a new Row after processing the values with the callables associated
-		with the values either by index, \*args, or my column name, \*\*kw.
+		with the values either by index, *args, or my column name, **kw.
 
 			>>> r=Row.from_sequence({'col1':0,'col2':1}, (1,'two'))
 			>>> r.transform(str)
