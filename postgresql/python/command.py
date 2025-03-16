@@ -220,7 +220,7 @@ class ExtendedConsole(code.InteractiveConsole):
 
 		self.register_backslash(r'\?', self.showhelp, "Show this help message.")
 		self.register_backslash(r'\set', self.bs_set,
-			"Configure environment variables. \set without arguments to show all")
+			"Configure environment variables. \\set without arguments to show all")
 		self.register_backslash(r'\E', self.bs_E,
 			"Edit a file or a temporary script.")
 		self.register_backslash(r'\i', self.bs_i,
