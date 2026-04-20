@@ -282,6 +282,8 @@ interfaces:
  ``sslrootcrlfile``
   Revocation list file path. [Currently not checked.]
 
+ ``sslnoverify``
+  Optionally disable certificate verification.
 
 Connections
 ===========

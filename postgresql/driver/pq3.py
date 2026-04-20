@@ -2796,11 +2796,13 @@ class Connector(pg_api.Connector):
 		self.sslcrtfile = parameters.get('sslcrtfile') or None
 		self.sslrootcrtfile = parameters.get('sslrootcrtfile') or None
 		self.sslrootcrlfile = parameters.get('sslrootcrlfile') or None
+		self.sslnoverify = parameters.get('sslnoverify') or None
 
 		self._socket_secure = {
 			'keyfile': self.sslkeyfile,
 			'certfile': self.sslcrtfile,
 			'ca_certs': self.sslrootcrtfile,
+			'noverify': self.sslnoverify,
 		}
 
 		if self.sslrootcrlfile is not None:
