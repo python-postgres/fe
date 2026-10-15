@@ -10,8 +10,6 @@ See <http://postgresql.org> for more information about PostgreSQL and <http://py
 for information about Python.
 """
 __all__ = [
-	'__author__',
-	'__date__',
 	'__version__',
 	'__docformat__',
 	'version',
@@ -27,11 +25,10 @@ version_info = () # overridden by subsequent import from .project.
 
 # Optional.
 try:
-	from .project import version_info, version, \
-		author as __author__, date as __date__
-	__version__ = version
+	from .project import version_info, version
 except ImportError:
 	pass
+__version__ = version
 
 # Avoid importing these until requested.
 _pg_iri = _pg_driver = _pg_param = None
