@@ -39,8 +39,8 @@ def command(args):
 			for line in sf:
 				pl = configfile.parse_line(line)
 				if pl is not None:
-					if comment not in line[pl[0].start]:
-						settings[line[pl[0]]] = unquote(line[pl[1]])
+					if configfile.comment not in line[:pl[0].start]:
+						settings[line[pl[0]]] = configfile.unquote(line[pl[1]])
 
 	prev = None
 	for p in ca[1:]:
