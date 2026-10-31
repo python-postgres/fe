@@ -57,7 +57,17 @@ import contextlib
 from gettext import gettext as _
 from traceback import print_exception
 
-from pkgutil import get_loader as module_loader
+from importlib.util import find_spec
+
+def module_loader(name):
+	"""
+	Return the loader of the named module, or None if it cannot be found.
+	(Replaces pkgutil.get_loader, which was removed in Python 3.14.)
+	"""
+	spec = find_spec(name)
+	if spec is None:
+		return None
+	return spec.loader
 
 class single_loader(object):
 	"""
